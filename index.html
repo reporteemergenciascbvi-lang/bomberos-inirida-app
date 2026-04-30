@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#7a1010">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Reporte Bomberos">
+<title>Reporte de Emergencias — Bomberos Inírida</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚒</text></svg>">
+<style>
+  :root {
+    --rojo: #7a1010;
+    --rojo-claro: #c41e3a;
+    --rojo-oscuro: #4a0808;
+    --amarillo: #f4c430;
+    --negro: #1a1a1a;
+    --gris-fondo: #f5f5f5;
+    --gris-borde: #d4d4d4;
+    --gris-texto: #555;
+    --verde: #2d7a3e;
+    --naranja: #d97706;
+    --azul: #1e40af;
+    --blanco: #ffffff;
+    --sombra: 0 2px 8px rgba(0,0,0,0.08);
+    --sombra-fuerte: 0 4px 16px rgba(0,0,0,0.15);
+    --radio: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--negro);
+    background: var(--gris-fondo);
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; }
+  input, textarea, select { font-family: inherit; font-size: 16px; }
+
+  /* Header */
+  header.app-header {
+    background: linear-gradient(135deg, var(--rojo-oscuro), var(--rojo));
+    color: white;
+    padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+    box-shadow: var(--sombra-fuerte);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header.app-header .icono { font-size: 28px; line-height: 1; }
+  header.app-header .titulo { flex: 1; }
+  header.app-header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; }
+  header.app-header .subtitulo { font-size: 11px; opacity: 0.85; font-weight: 400; letter-spacing: 0.5px; }
+  header.app-header .estado-conexion {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 4px 8px; border-radius: 12px;
+    background: rgba(255,255,255,0.15); font-weight: 600;
+  }
+  header.app-header .estado-conexion .punto {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+  }
+  header.app-header.offline .estado-conexion .punto {
+    background: #fb923c; box-shadow: 0 0 6px #fb923c;
+  }
+  header.app-header .btn-volver {
+    color: white; font-size: 22px; padding: 4px 8px;
+  }
+
+  /* Pantallas */
+  .pantalla { display: none; padding: 16px; padding-bottom: 100px; max-width: 720px; margin: 0 auto; }
+  .pantalla.activa { display: block; }
+
+  /* HOME */
+  .home-cta {
+    background: linear-gradient(135deg, var(--rojo), var(--rojo-claro));
+    color: white;
+    padding: 24px 20px;
+    border-radius: var(--radio);
+    text-align: center;
+    margin-bottom: 20px;
+    box-shadow: var(--sombra);
+    cursor: pointer;
+    transition: transform 0.1s;
+    border: none; width: 100%;
+  }
+  .home-cta:active { transform: scale(0.98); }
+  .home-cta .icono-grande { font-size: 48px; display: block; margin-bottom: 8px; }
+  .home-cta .titulo { font-size: 20px; font-weight: 700; }
+  .home-cta .subtitulo { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+
+  .seccion-titulo {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--gris-texto);
+    margin: 16px 0 10px; padding: 0 4px;
+  }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .stat-card {
+    background: white; padding: 12px 8px; border-radius: var(--radio);
+    text-align: center; box-shadow: var(--sombra);
+  }
+  .stat-card .numero { font-size: 22px; font-weight: 700; color: var(--rojo); }
+  .stat-card.verde .numero { color: var(--verde); }
+  .stat-card.naranja .numero { color: var(--naranja); }
+  .stat-card .etiqueta { font-size: 10px; color: var(--gris-texto); text-transform: uppercase; font-weight: 600; }
+
+  .reporte-item {
+    background: white; padding: 14px; border-radius: var(--radio);
+    margin-bottom: 8px; box-shadow: var(--sombra);
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer; border-left: 4px solid var(--gris-borde);
+  }
+  .reporte-item.pendiente { border-left-color: var(--naranja); }
+  .reporte-item.enviado { border-left-color: var(--verde); }
+  .reporte-item.borrador { border-left-color: var(--gris-borde); }
+  .reporte-item .info { flex: 1; min-width: 0; }
+  .reporte-item .consec { font-weight: 700; font-size: 14px; color: var(--negro); }
+  .reporte-item .desc { font-size: 13px; color: var(--gris-texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .reporte-item .fecha { font-size: 11px; color: var(--gris-texto); margin-top: 2px; }
+  .reporte-item .badge {
+    font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase;
+  }
+  .badge.pendiente { background: #fef3c7; color: #92400e; }
+  .badge.enviado { background: #d1fae5; color: #065f46; }
+  .badge.borrador { background: #e5e7eb; color: #374151; }
+
+  .vacio-estado {
+    text-align: center; padding: 40px 20px; color: var(--gris-texto);
+  }
+  .vacio-estado .icono { font-size: 48px; margin-bottom: 8px; opacity: 0.5; }
+
+  /* Formulario */
+  .progreso-bar {
+    position: sticky; top: 64px; background: white; z-index: 50;
+    padding: 8px 16px; border-bottom: 1px solid var(--gris-borde);
+    margin: -16px -16px 12px; display: flex; align-items: center; gap: 12px;
+  }
+  .progreso-track { flex: 1; height: 6px; background: var(--gris-borde); border-radius: 3px; overflow: hidden; }
+  .progreso-fill { height: 100%; background: linear-gradient(90deg, var(--rojo), var(--rojo-claro)); transition: width 0.3s; }
+  .progreso-texto { font-size: 12px; color: var(--gris-texto); font-weight: 600; }
+
+  .seccion-form {
+    background: white; border-radius: var(--radio); margin-bottom: 12px;
+    overflow: hidden; box-shadow: var(--sombra);
+  }
+  .seccion-header {
+    padding: 14px 16px; background: var(--negro); color: white;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+  }
+  .seccion-header .num {
+    background: var(--rojo); width: 28px; height: 28px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; margin-right: 10px;
+  }
+  .seccion-header .titulo { flex: 1; font-size: 14px; font-weight: 600; }
+  .seccion-header .flecha { transition: transform 0.2s; }
+  .seccion-form.colapsada .seccion-header .flecha { transform: rotate(-90deg); }
+  .seccion-form.colapsada .seccion-cuerpo { display: none; }
+  .seccion-cuerpo { padding: 16px; }
+  .seccion-completa .seccion-header { background: linear-gradient(135deg, #14532d, #166534); }
+  .seccion-completa .seccion-header .num { background: var(--verde); }
+
+  /* Campos */
+  .campo { margin-bottom: 14px; }
+  .campo label {
+    display: block; font-size: 13px; font-weight: 600;
+    color: var(--negro); margin-bottom: 6px;
+  }
+  .campo label .requerido { color: var(--rojo); }
+  .campo .ayuda { font-size: 11px; color: var(--gris-texto); margin-top: 4px; }
+  .campo input[type="text"],
+  .campo input[type="tel"],
+  .campo input[type="number"],
+  .campo input[type="date"],
+  .campo input[type="time"],
+  .campo input[type="datetime-local"],
+  .campo textarea,
+  .campo select {
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--gris-borde); border-radius: var(--radio);
+    background: white; transition: border-color 0.15s;
+  }
+  .campo input:focus, .campo textarea:focus, .campo select:focus {
+    outline: none; border-color: var(--rojo);
+  }
+  .campo textarea { min-height: 80px; resize: vertical; }
+  .campo-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .campo-fila-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  /* Checkboxes para clasificación */
+  .checkbox-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .checkbox-card {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px; border: 1.5px solid var(--gris-borde); border-radius: var(--radio);
+    background: white; cursor: pointer; user-select: none;
+    font-size: 13px; transition: all 0.15s;
+  }
+  .checkbox-card input { width: 18px; height: 18px; accent-color: var(--rojo); flex-shrink: 0; }
+  .checkbox-card:has(input:checked) { border-color: var(--rojo); background: #fef2f2; }
+
+  /* Botones */
+  .btn {
+    padding: 14px 20px; border-radius: var(--radio); font-weight: 600;
+    font-size: 15px; transition: all 0.1s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: none; cursor: pointer;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--rojo); color: white; }
+  .btn-primary:hover { background: var(--rojo-oscuro); }
+  .btn-secundario { background: white; color: var(--negro); border: 1.5px solid var(--gris-borde); }
+  .btn-peligro { background: #b91c1c; color: white; }
+  .btn-completo { width: 100%; }
+
+  /* GPS */
+  .gps-card {
+    background: linear-gradient(135deg, #1e3a8a, #1e40af); color: white;
+    padding: 14px; border-radius: var(--radio); margin-bottom: 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .gps-card.error { background: linear-gradient(135deg, #7f1d1d, #991b1b); }
+  .gps-card .icono { font-size: 22px; }
+  .gps-card .info { flex: 1; font-size: 12px; }
+  .gps-card .info .titulo { font-weight: 700; font-size: 13px; }
+  .gps-card .info .coords { font-family: monospace; opacity: 0.9; }
+  .gps-card button {
+    background: rgba(255,255,255,0.2); color: white;
+    padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600;
+  }
+
+  /* Fotos */
+  .fotos-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-top: 8px;
+  }
+  .foto-slot {
+    aspect-ratio: 1; border: 2px dashed var(--gris-borde);
+    border-radius: var(--radio); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; background: var(--gris-fondo);
+    flex-direction: column; gap: 4px; font-size: 11px; color: var(--gris-texto);
+    overflow: hidden; position: relative;
+  }
+  .foto-slot.con-foto { border-style: solid; border-color: var(--rojo); }
+  .foto-slot img { width: 100%; height: 100%; object-fit: cover; }
+  .foto-slot .quitar {
+    position: absolute; top: 4px; right: 4px;
+    background: rgba(0,0,0,0.7); color: white;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .foto-slot .icono { font-size: 24px; }
+
+  /* Firma */
+  .firma-canvas {
+    border: 2px dashed var(--gris-borde); border-radius: var(--radio);
+    background: white; width: 100%; height: 160px; touch-action: none;
+    display: block;
+  }
+  .firma-acciones { display: flex; gap: 8px; margin-top: 8px; }
+  .firma-acciones button {
+    flex: 1; padding: 8px; font-size: 12px;
+    background: var(--gris-fondo); color: var(--negro);
+    border-radius: 4px; font-weight: 600;
+  }
+
+  /* Tabla dinámica (recursos, víctimas, etc.) */
+  .tabla-dinamica .fila {
+    background: var(--gris-fondo); padding: 10px; border-radius: var(--radio);
+    margin-bottom: 8px; position: relative;
+  }
+  .tabla-dinamica .fila .quitar-fila {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--rojo); color: white;
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .tabla-dinamica .agregar-fila {
+    width: 100%; padding: 10px; border: 2px dashed var(--gris-borde);
+    border-radius: var(--radio); color: var(--gris-texto); font-weight: 600; font-size: 13px;
+    background: transparent;
+  }
+
+  /* Acciones flotantes */
+  .acciones-flotantes {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: white; padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--gris-borde);
+    display: flex; gap: 8px; z-index: 90;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+  }
+  .acciones-flotantes .btn { flex: 1; }
+
+  /* Modales / Toasts */
+  .toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    background: var(--negro); color: white; padding: 12px 20px;
+    border-radius: 24px; font-size: 14px; font-weight: 500;
+    z-index: 1000; box-shadow: var(--sombra-fuerte);
+    opacity: 0; transition: opacity 0.2s;
+    max-width: calc(100% - 32px); text-align: center;
+  }
+  .toast.visible { opacity: 1; }
+  .toast.exito { background: var(--verde); }
+  .toast.error { background: var(--rojo); }
+
+  .modal-fondo {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 200; display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal-fondo.visible { display: flex; }
+  .modal {
+    background: white; border-radius: var(--radio); width: 100%; max-width: 400px;
+    overflow: hidden; box-shadow: var(--sombra-fuerte);
+  }
+  .modal-header { padding: 16px; border-bottom: 1px solid var(--gris-borde); font-weight: 700; }
+  .modal-body { padding: 16px; font-size: 14px; line-height: 1.5; }
+  .modal-acciones { padding: 12px 16px; display: flex; gap: 8px; border-top: 1px solid var(--gris-borde); }
+  .modal-acciones .btn { flex: 1; padding: 10px; font-size: 14px; }
+
+  /* Configuración */
+  .config-card {
+    background: white; border-radius: var(--radio); padding: 16px;
+    margin-bottom: 12px; box-shadow: var(--sombra);
+  }
+  .config-card h3 { font-size: 14px; margin-bottom: 12px; color: var(--rojo); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Loader */
+  .loader {
+    border: 3px solid var(--gris-borde); border-top: 3px solid var(--rojo);
+    border-radius: 50%; width: 24px; height: 24px;
+    animation: spin 1s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Lema */
+  .lema-pie {
+    text-align: center; font-size: 11px; color: var(--gris-texto);
+    margin-top: 24px; font-style: italic; letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header" id="header">
+  <button class="btn-volver" id="btnVolver" style="display:none;">←</button>
+  <div class="icono">🚒</div>
+  <div class="titulo">
+    <h1 id="headerTitulo">Bomberos Inírida</h1>
+    <div class="subtitulo">Reporte de Emergencias</div>
+  </div>
+  <div class="estado-conexion" id="estadoConexion">
+    <span class="punto"></span>
+    <span id="estadoTexto">En línea</span>
+  </div>
+</header>
+
+<!-- PANTALLA HOME -->
+<div class="pantalla activa" id="pantallaHome">
+
+  <button class="home-cta" onclick="app.nuevoReporte()">
+    <span class="icono-grande">🚨</span>
+    <div class="titulo">NUEVA EMERGENCIA</div>
+    <div class="subtitulo">Iniciar reporte oficial</div>
+  </button>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="numero" id="statTotal">0</div>
+      <div class="etiqueta">Total</div>
+    </div>
+    <div class="stat-card naranja">
+      <div class="numero" id="statPendientes">0</div>
+      <div class="etiqueta">Pendientes</div>
+    </div>
+    <div class="stat-card verde">
+      <div class="numero" id="statEnviados">0</div>
+      <div class="etiqueta">Enviados</div>
+    </div>
+  </div>
+
+  <div class="seccion-titulo">Reportes recientes</div>
+  <div id="listaReportes"></div>
+
+  <button class="btn btn-secundario btn-completo" style="margin-top: 16px;" onclick="app.irA('pantallaConfig')">
+    ⚙️ Configuración
+  </button>
+
+  <div class="lema-pie">"ABNEGACIÓN Y DISCIPLINA"</div>
+</div>
+
+<!-- PANTALLA FORMULARIO -->
+<div class="pantalla" id="pantallaForm">
+  <div class="progreso-bar">
+    <div class="progreso-texto" id="progresoTexto">0%</div>
+    <div class="progreso-track"><div class="progreso-fill" id="progresoFill" style="width: 0%"></div></div>
+  </div>
+
+  <!-- SECCIÓN 1: DATOS GENERALES -->
+  <div class="seccion-form" data-seccion="1">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">1</span><span class="titulo">Datos Generales</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="campo-fila">
+        <div class="campo">
+          <label>N° Reporte</label>
+          <input type="text" id="f_consecutivo" readonly style="background: var(--gris-fondo); font-weight: 700;">
+        </div>
+        <div class="campo">
+          <label>Estación</label>
+          <input type="text" id="f_estacion" placeholder="Ej. Central">
+        </div>
+      </div>
+      <div class="campo-fila">
+        <div class="campo">
+          <label>Fecha y hora de llamada</label>
+          <input type="datetime-local" id="f_fecha_llamada">
+        </div>
+        <div class="campo">
+          <label>Fecha y hora de llegada</label>
+          <input type="datetime-local" id="f_fecha_llegada">
+        </div>
+      </div>
+      <div class="campo">
+        <label>Fecha y hora de cierre</label>
+        <input type="datetime-local" id="f_fecha_cierre">
+      </div>
+      <div class="campo-fila">
+        <div class="campo">
+          <label>Quién reporta <span class="requerido">*</span></label>
+          <input type="text" id="f_reporta_nombre" placeholder="Nombre completo">
+        </div>
+        <div class="campo">
+          <label>Teléfono reportante</label>
+          <input type="tel" id="f_reporta_tel" placeholder="3XX XXX XXXX">
+        </div>
+      </div>
+      <div class="campo-fila">
+        <div class="campo">
+          <label>Relación con el evento</label>
+          <input type="text" id="f_reporta_relacion" placeholder="Ej. testigo, vecino">
+        </div>
+        <div class="campo">
+          <label>Turno / Guardia</label>
+          <input type="text" id="f_turno" placeholder="A, B, C...">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 2: CLASIFICACIÓN -->
+  <div class="seccion-form" data-seccion="2">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">2</span><span class="titulo">Clasificación del Evento</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="checkbox-grid" id="checkboxClasificacion">
+        <!-- Generado por JS -->
+      </div>
+      <div class="campo" style="margin-top: 12px;">
+        <label>Otra (especificar)</label>
+        <input type="text" id="f_clasif_otra">
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 3: UBICACIÓN -->
+  <div class="seccion-form" data-seccion="3">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">3</span><span class="titulo">Ubicación del Incidente</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="gps-card" id="gpsCard">
+        <div class="icono">📍</div>
+        <div class="info">
+          <div class="titulo">Ubicación GPS</div>
+          <div class="coords" id="gpsCoords">Obteniendo ubicación...</div>
+        </div>
+        <button onclick="app.capturarGPS()">Actualizar</button>
+      </div>
+      <div class="campo">
+        <label>Dirección <span class="requerido">*</span></label>
+        <input type="text" id="f_direccion" placeholder="Calle, carrera, número">
+      </div>
+      <div class="campo-fila">
+        <div class="campo">
+          <label>Barrio / Sector</label>
+          <input type="text" id="f_barrio">
+        </div>
+        <div class="campo">
+          <label>Localidad / Zona</label>
+          <input type="text" id="f_localidad">
+        </div>
+      </div>
+      <div class="campo">
+        <label>Municipio</label>
+        <input type="text" id="f_municipio" value="Inírida">
+      </div>
+      <div class="campo">
+        <label>Punto de referencia</label>
+        <textarea id="f_referencia" placeholder="Ej. cerca al parque, frente a la iglesia"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 4: DESCRIPCIÓN -->
+  <div class="seccion-form" data-seccion="4">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">4</span><span class="titulo">Descripción del Evento</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="campo">
+        <label>Narrativa inicial (lo reportado por el solicitante) <span class="requerido">*</span></label>
+        <textarea id="f_narrativa" rows="4" placeholder="Describa lo que reportó el solicitante..."></textarea>
+      </div>
+      <div class="campo">
+        <label>Condiciones al llegar</label>
+        <textarea id="f_condiciones" rows="4" placeholder="Visibilidad, humo, fuego visible, accesibilidad, riesgos..."></textarea>
+      </div>
+      <div class="campo">
+        <label>Fotografías del incidente (hasta 3)</label>
+        <div class="fotos-grid">
+          <div class="foto-slot" data-foto="0" onclick="app.tomarFoto(0)">
+            <span class="icono">📷</span><span>Foto 1</span>
+          </div>
+          <div class="foto-slot" data-foto="1" onclick="app.tomarFoto(1)">
+            <span class="icono">📷</span><span>Foto 2</span>
+          </div>
+          <div class="foto-slot" data-foto="2" onclick="app.tomarFoto(2)">
+            <span class="icono">📷</span><span>Foto 3</span>
+          </div>
+        </div>
+        <div class="ayuda">Las fotos se comprimen automáticamente para ahorrar datos al sincronizar.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 5: RECURSOS -->
+  <div class="seccion-form" data-seccion="5">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">5</span><span class="titulo">Recursos Desplegados</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="tabla-dinamica" id="tablaRecursos"></div>
+      <button class="agregar-fila" onclick="app.agregarRecurso()">+ Agregar recurso</button>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 6: DIAGNÓSTICO -->
+  <div class="seccion-form" data-seccion="6">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">6</span><span class="titulo">Diagnóstico y Áreas Afectadas</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="campo-fila-3">
+        <div class="campo"><label>Muertos</label><input type="number" id="f_muertos" min="0" value="0"></div>
+        <div class="campo"><label>Heridos</label><input type="number" id="f_heridos" min="0" value="0"></div>
+        <div class="campo"><label>Desaparecidos</label><input type="number" id="f_desaparecidos" min="0" value="0"></div>
+      </div>
+      <div class="campo-fila">
+        <div class="campo"><label>Personas afectadas</label><input type="number" id="f_personas_afectadas" min="0" value="0"></div>
+        <div class="campo"><label>Familias afectadas</label><input type="number" id="f_familias_afectadas" min="0" value="0"></div>
+      </div>
+      <div class="campo-fila">
+        <div class="campo"><label>Viviendas destruidas</label><input type="number" id="f_viv_destruidas" min="0" value="0"></div>
+        <div class="campo"><label>Viviendas averiadas</label><input type="number" id="f_viv_averiadas" min="0" value="0"></div>
+      </div>
+      <div class="campo-fila">
+        <div class="campo"><label>Hectáreas afectadas</label><input type="number" id="f_hectareas" min="0" step="0.1" value="0"></div>
+        <div class="campo"><label>Vías afectadas</label><input type="number" id="f_vias" min="0" value="0"></div>
+      </div>
+      <div class="campo-fila">
+        <div class="campo"><label>Puentes afectados</label><input type="number" id="f_puentes" min="0" value="0"></div>
+        <div class="campo"><label>Pérdida estimada ($)</label><input type="number" id="f_perdida" min="0" value="0"></div>
+      </div>
+      <div class="campo">
+        <label>Zona / Punto de origen</label>
+        <input type="text" id="f_origen" placeholder="Ej. cocina, motor, zona forestal">
+      </div>
+      <div class="campo">
+        <label>Áreas estructurales afectadas</label>
+        <textarea id="f_areas_afectadas"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 7: AFECTADO -->
+  <div class="seccion-form" data-seccion="7">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">7</span><span class="titulo">Datos del Afectado / Propietario</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="campo">
+        <label>Nombre completo</label>
+        <input type="text" id="f_afectado_nombre">
+      </div>
+      <div class="campo-fila">
+        <div class="campo"><label>N° Cédula</label><input type="text" id="f_afectado_cc"></div>
+        <div class="campo"><label>Celular</label><input type="tel" id="f_afectado_cel"></div>
+      </div>
+      <div class="campo">
+        <label>Firma del afectado</label>
+        <canvas class="firma-canvas" id="firmaAfectado"></canvas>
+        <div class="firma-acciones">
+          <button onclick="app.limpiarFirma('firmaAfectado')">Limpiar firma</button>
+        </div>
+        <div class="ayuda" style="margin-top: 8px;">⚠️ Ley 1581/2012: los datos se tratan exclusivamente para gestión y estadística de emergencias.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 8: ACCIONES -->
+  <div class="seccion-form" data-seccion="8">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">8</span><span class="titulo">Acciones Realizadas</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="campo">
+        <label>Estrategias y tácticas empleadas</label>
+        <textarea id="f_acciones" rows="4" placeholder="Extinción, evacuación, estabilización, rescate..."></textarea>
+      </div>
+      <div class="campo">
+        <label>Insumos / equipos utilizados</label>
+        <div class="tabla-dinamica" id="tablaInsumos"></div>
+        <button class="agregar-fila" onclick="app.agregarInsumo()">+ Agregar insumo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 9: VÍCTIMAS -->
+  <div class="seccion-form" data-seccion="9">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">9</span><span class="titulo">Víctimas / Lesionados / Fallecidos</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="tabla-dinamica" id="tablaVictimas"></div>
+      <button class="agregar-fila" onclick="app.agregarVictima()">+ Agregar víctima</button>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 10: CAUSAS -->
+  <div class="seccion-form" data-seccion="10">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">10</span><span class="titulo">Investigación y Causas</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="checkbox-grid" id="checkboxCausas"></div>
+      <div class="campo" style="margin-top: 12px;">
+        <label>Causa probable (especificar)</label>
+        <input type="text" id="f_causa_prob">
+      </div>
+      <div class="campo">
+        <label>Evidencias / indicios encontrados</label>
+        <textarea id="f_evidencias"></textarea>
+      </div>
+      <div class="campo">
+        <label>Causa confirmada por comandante</label>
+        <textarea id="f_causa_confirm"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 11: ORGANIZACIONES -->
+  <div class="seccion-form" data-seccion="11">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">11</span><span class="titulo">Otras Organizaciones / Personas</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="tabla-dinamica" id="tablaOrgs"></div>
+      <button class="agregar-fila" onclick="app.agregarOrg()">+ Agregar organización</button>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 12: OBSERVACIONES -->
+  <div class="seccion-form" data-seccion="12">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">12</span><span class="titulo">Observaciones y Recomendaciones</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="campo">
+        <label>Observaciones generales</label>
+        <textarea id="f_observaciones" rows="3"></textarea>
+      </div>
+      <div class="campo">
+        <label>Recomendaciones de prevención</label>
+        <textarea id="f_recomendaciones" rows="3" placeholder="Inspecciones eléctricas, brigadas, etc."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 13: COMUNICACIONES -->
+  <div class="seccion-form" data-seccion="13">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">13</span><span class="titulo">Control de Comunicaciones</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="campo-fila">
+        <div class="campo"><label>Hora reporte a central</label><input type="time" id="f_hora_central"></div>
+        <div class="campo"><label>N° despacho central</label><input type="text" id="f_num_despacho"></div>
+      </div>
+      <div class="campo">
+        <label>Unidades que atendieron</label>
+        <input type="text" id="f_unidades_atendieron">
+      </div>
+      <div class="campo-fila-3">
+        <div class="campo"><label>N° máquinas</label><input type="number" id="f_num_maquinas" min="0" value="0"></div>
+        <div class="campo"><label>N° unidades</label><input type="number" id="f_num_unidades" min="0" value="0"></div>
+        <div class="campo"><label>N° personal</label><input type="number" id="f_num_personal" min="0" value="0"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 14: COMANDANTE -->
+  <div class="seccion-form" data-seccion="14">
+    <div class="seccion-header" onclick="app.toggleSeccion(this)">
+      <div><span class="num">14</span><span class="titulo">Firma del Comandante</span></div>
+      <span class="flecha">▼</span>
+    </div>
+    <div class="seccion-cuerpo">
+      <div class="campo">
+        <label>Comandante del incidente <span class="requerido">*</span></label>
+        <input type="text" id="f_comandante_nombre" placeholder="Nombre completo">
+      </div>
+      <div class="campo-fila">
+        <div class="campo"><label>Grado</label><input type="text" id="f_comandante_grado"></div>
+        <div class="campo"><label>Cédula</label><input type="text" id="f_comandante_cc"></div>
+      </div>
+      <div class="campo">
+        <label>Estación</label>
+        <input type="text" id="f_comandante_estacion">
+      </div>
+      <div class="campo">
+        <label>Firma del comandante</label>
+        <canvas class="firma-canvas" id="firmaComandante"></canvas>
+        <div class="firma-acciones">
+          <button onclick="app.limpiarFirma('firmaComandante')">Limpiar firma</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="acciones-flotantes">
+    <button class="btn btn-secundario" onclick="app.guardarBorrador()">💾 Borrador</button>
+    <button class="btn btn-primary" onclick="app.enviarReporte()">📤 Enviar</button>
+  </div>
+</div>
+
+<!-- PANTALLA DETALLE -->
+<div class="pantalla" id="pantallaDetalle">
+  <div id="detalleContenido"></div>
+  <div class="acciones-flotantes">
+    <button class="btn btn-secundario" onclick="app.editarReporte()">✏️ Editar</button>
+    <button class="btn btn-primary" id="btnReintentarEnvio" onclick="app.reintentarEnvio()" style="display:none;">📤 Reintentar envío</button>
+    <button class="btn btn-peligro" onclick="app.confirmarEliminar()">🗑️</button>
+  </div>
+</div>
+
+<!-- PANTALLA CONFIGURACIÓN -->
+<div class="pantalla" id="pantallaConfig">
+  <div class="config-card">
+    <h3>🚒 Estación</h3>
+    <div class="campo">
+      <label>Prefijo de la estación / unidad</label>
+      <input type="text" id="cfg_prefijo" placeholder="Ej. CENTRAL, LOPEZ, SUR">
+      <div class="ayuda">Se usa para generar el consecutivo. Ej: CENTRAL-2026-0001</div>
+    </div>
+    <div class="campo">
+      <label>Nombre del operador habitual</label>
+      <input type="text" id="cfg_operador">
+    </div>
+  </div>
+
+  <div class="config-card">
+    <h3>☁️ Sincronización en la nube</h3>
+    <div class="campo">
+      <label>URL del backend (Google Apps Script)</label>
+      <input type="text" id="cfg_url_backend" placeholder="https://script.google.com/macros/s/..." style="font-size: 12px;">
+      <div class="ayuda">Pegue aquí la URL que obtuvo al desplegar el Apps Script. Si está vacío, los reportes se guardan solo localmente.</div>
+    </div>
+    <div class="campo">
+      <label>Token secreto (opcional)</label>
+      <input type="text" id="cfg_token" placeholder="Para validar el origen">
+    </div>
+  </div>
+
+  <div class="config-card">
+    <h3>📊 Datos locales</h3>
+    <button class="btn btn-secundario btn-completo" onclick="app.exportarTodo()" style="margin-bottom: 8px;">
+      ⬇️ Exportar todos los reportes (JSON)
+    </button>
+    <button class="btn btn-secundario btn-completo" onclick="app.sincronizarPendientes()">
+      🔄 Sincronizar pendientes ahora
+    </button>
+  </div>
+
+  <button class="btn btn-primary btn-completo" onclick="app.guardarConfig()">Guardar configuración</button>
+
+  <div class="config-card" style="margin-top: 16px; font-size: 11px; color: var(--gris-texto); text-align: center;">
+    <p style="margin-bottom: 4px;">Cuerpo de Bomberos Voluntarios de Inírida</p>
+    <p style="margin-bottom: 4px;">Personería Jurídica N° 3561 del 5 de Agosto de 1976</p>
+    <p style="margin-bottom: 4px;">NIT: 843000056-0 | Tel. 5 656007</p>
+    <p style="margin-bottom: 8px;">Ley 1575/2012 | Ley 1581/2012</p>
+    <p style="font-style: italic;">"ABNEGACIÓN Y DISCIPLINA"</p>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL CONFIRMAR -->
+<div class="modal-fondo" id="modalConfirmar">
+  <div class="modal">
+    <div class="modal-header" id="modalTitulo">Confirmar</div>
+    <div class="modal-body" id="modalMensaje"></div>
+    <div class="modal-acciones">
+      <button class="btn btn-secundario" onclick="app.cerrarModal()">Cancelar</button>
+      <button class="btn btn-peligro" id="modalConfirmarBtn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- INPUT DE FOTO OCULTO -->
+<input type="file" id="inputFoto" accept="image/*" capture="environment" style="display:none;">
+
+<script src="app.js"></script>
+</body>
+</html>
