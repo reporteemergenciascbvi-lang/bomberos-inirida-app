@@ -45,27 +45,33 @@
   header.app-header {
     background: linear-gradient(135deg, var(--rojo-oscuro), var(--rojo));
     color: white;
-    padding: 14px 16px;
-    padding-top: calc(14px + env(safe-area-inset-top));
+    padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top));
     box-shadow: var(--sombra-fuerte);
     position: sticky;
     top: 0;
     z-index: 100;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
   }
-  header.app-header .icono { font-size: 28px; line-height: 1; }
-  header.app-header .titulo { flex: 1; }
-  header.app-header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; }
-  header.app-header .subtitulo { font-size: 11px; opacity: 0.85; font-weight: 400; letter-spacing: 0.5px; }
+  header.app-header .logo {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: white; padding: 2px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+  header.app-header .titulo { flex: 1; min-width: 0; }
+  header.app-header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; line-height: 1.2; }
+  header.app-header .subtitulo { font-size: 10px; opacity: 0.85; font-weight: 400; letter-spacing: 0.5px; margin-top: 2px; }
   header.app-header .estado-conexion {
     display: flex; align-items: center; gap: 5px;
-    font-size: 11px; padding: 4px 8px; border-radius: 12px;
+    font-size: 10px; padding: 4px 8px; border-radius: 12px;
     background: rgba(255,255,255,0.15); font-weight: 600;
+    flex-shrink: 0;
   }
   header.app-header .estado-conexion .punto {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 7px; height: 7px; border-radius: 50%;
     background: #4ade80;
     box-shadow: 0 0 6px #4ade80;
   }
@@ -198,7 +204,7 @@
   .campo-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .campo-fila-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
-  /* Checkboxes para clasificación */
+  /* Checkboxes */
   .checkbox-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
   }
@@ -224,22 +230,41 @@
   .btn-secundario { background: white; color: var(--negro); border: 1.5px solid var(--gris-borde); }
   .btn-peligro { background: #b91c1c; color: white; }
   .btn-completo { width: 100%; }
+  .btn-imprimir { background: var(--azul); color: white; }
 
   /* GPS */
   .gps-card {
     background: linear-gradient(135deg, #1e3a8a, #1e40af); color: white;
     padding: 14px; border-radius: var(--radio); margin-bottom: 14px;
-    display: flex; align-items: center; gap: 12px;
   }
   .gps-card.error { background: linear-gradient(135deg, #7f1d1d, #991b1b); }
+  .gps-card.manual { background: linear-gradient(135deg, #4b5563, #374151); }
+  .gps-card .top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
   .gps-card .icono { font-size: 22px; }
   .gps-card .info { flex: 1; font-size: 12px; }
   .gps-card .info .titulo { font-weight: 700; font-size: 13px; }
-  .gps-card .info .coords { font-family: monospace; opacity: 0.9; }
-  .gps-card button {
+  .gps-card .info .coords { font-family: monospace; opacity: 0.95; font-size: 12px; }
+  .gps-card .acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .gps-card .acciones button {
     background: rgba(255,255,255,0.2); color: white;
-    padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600;
+    padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: 600;
+    border: none;
   }
+  .gps-card .acciones button.activo {
+    background: rgba(255,255,255,0.4);
+    box-shadow: 0 0 0 2px white;
+  }
+  .gps-manual-fields {
+    background: rgba(255,255,255,0.1); padding: 10px; border-radius: 6px; margin-top: 8px;
+    display: none;
+  }
+  .gps-card.manual .gps-manual-fields { display: block; }
+  .gps-manual-fields input {
+    width: 100%; padding: 8px; border-radius: 4px; border: none;
+    background: white; color: var(--negro); font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .gps-manual-fields input:last-child { margin-bottom: 0; }
 
   /* Fotos */
   .fotos-grid {
@@ -260,8 +285,31 @@
     background: rgba(0,0,0,0.7); color: white;
     width: 22px; height: 22px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; font-size: 14px;
+    border: none;
   }
   .foto-slot .icono { font-size: 24px; }
+
+  /* Modal de selección de foto */
+  .modal-foto-opciones {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 200; display: none; align-items: flex-end; justify-content: center;
+  }
+  .modal-foto-opciones.visible { display: flex; }
+  .modal-foto-opciones .opciones {
+    background: white; width: 100%; max-width: 400px;
+    border-radius: 16px 16px 0 0;
+    padding: 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+  .modal-foto-opciones .opciones h3 { margin-bottom: 16px; font-size: 16px; }
+  .modal-foto-opciones button {
+    width: 100%; padding: 14px; margin-bottom: 8px;
+    border-radius: var(--radio); border: 1.5px solid var(--gris-borde);
+    background: white; font-size: 15px; font-weight: 600;
+    display: flex; align-items: center; gap: 12px;
+    color: var(--negro);
+  }
+  .modal-foto-opciones button .icono { font-size: 22px; }
+  .modal-foto-opciones .cancelar { color: var(--rojo); }
 
   /* Firma */
   .firma-canvas {
@@ -276,7 +324,7 @@
     border-radius: 4px; font-weight: 600;
   }
 
-  /* Tabla dinámica (recursos, víctimas, etc.) */
+  /* Tabla dinámica */
   .tabla-dinamica .fila {
     background: var(--gris-fondo); padding: 10px; border-radius: var(--radio);
     margin-bottom: 8px; position: relative;
@@ -286,11 +334,32 @@
     background: var(--rojo); color: white;
     width: 24px; height: 24px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; font-size: 14px;
+    border: none;
   }
   .tabla-dinamica .agregar-fila {
     width: 100%; padding: 10px; border: 2px dashed var(--gris-borde);
     border-radius: var(--radio); color: var(--gris-texto); font-weight: 600; font-size: 13px;
     background: transparent;
+  }
+
+  /* Lista de personal en recursos */
+  .personal-lista {
+    background: white; border-radius: 4px; padding: 8px;
+    margin-top: 6px; border: 1px solid var(--gris-borde);
+  }
+  .personal-lista .item-personal {
+    display: flex; gap: 6px; align-items: center; margin-bottom: 4px;
+  }
+  .personal-lista input { flex: 1; padding: 6px 8px; font-size: 13px; }
+  .personal-lista .quitar-personal {
+    background: var(--rojo); color: white; width: 24px; height: 24px;
+    border-radius: 50%; font-size: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .agregar-personal {
+    width: 100%; padding: 6px; border: 1px dashed var(--gris-borde);
+    border-radius: 4px; font-size: 12px; color: var(--gris-texto);
+    background: transparent; margin-top: 4px;
   }
 
   /* Acciones flotantes */
@@ -304,7 +373,7 @@
   }
   .acciones-flotantes .btn { flex: 1; }
 
-  /* Modales / Toasts */
+  /* Toasts y modales */
   .toast {
     position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
     background: var(--negro); color: white; padding: 12px 20px;
@@ -339,19 +408,21 @@
   }
   .config-card h3 { font-size: 14px; margin-bottom: 12px; color: var(--rojo); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  /* Loader */
-  .loader {
-    border: 3px solid var(--gris-borde); border-top: 3px solid var(--rojo);
-    border-radius: 50%; width: 24px; height: 24px;
-    animation: spin 1s linear infinite; display: inline-block;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Lema */
   .lema-pie {
     text-align: center; font-size: 11px; color: var(--gris-texto);
     margin-top: 24px; font-style: italic; letter-spacing: 1px;
   }
+
+  /* Estilos del PDF de impresión */
+  @media print {
+    body * { visibility: hidden; }
+    #pdfContenedor, #pdfContenedor * { visibility: visible; }
+    #pdfContenedor {
+      position: absolute; left: 0; top: 0; width: 100%;
+      padding: 0; background: white;
+    }
+  }
+  #pdfContenedor { display: none; }
 </style>
 </head>
 <body>
@@ -359,7 +430,7 @@
 <!-- HEADER -->
 <header class="app-header" id="header">
   <button class="btn-volver" id="btnVolver" style="display:none;">←</button>
-  <div class="icono">🚒</div>
+  <img class="logo" id="logoHeader" src="" alt="Logo">
   <div class="titulo">
     <h1 id="headerTitulo">Bomberos Inírida</h1>
     <div class="subtitulo">Reporte de Emergencias</div>
@@ -372,7 +443,6 @@
 
 <!-- PANTALLA HOME -->
 <div class="pantalla activa" id="pantallaHome">
-
   <button class="home-cta" onclick="app.nuevoReporte()">
     <span class="icono-grande">🚨</span>
     <div class="titulo">NUEVA EMERGENCIA</div>
@@ -425,7 +495,7 @@
         </div>
         <div class="campo">
           <label>Estación</label>
-          <input type="text" id="f_estacion" placeholder="Ej. Central">
+          <input type="text" id="f_estacion" placeholder="CBVI">
         </div>
       </div>
       <div class="campo-fila">
@@ -472,9 +542,7 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
-      <div class="checkbox-grid" id="checkboxClasificacion">
-        <!-- Generado por JS -->
-      </div>
+      <div class="checkbox-grid" id="checkboxClasificacion"></div>
       <div class="campo" style="margin-top: 12px;">
         <label>Otra (especificar)</label>
         <input type="text" id="f_clasif_otra">
@@ -490,12 +558,22 @@
     </div>
     <div class="seccion-cuerpo">
       <div class="gps-card" id="gpsCard">
-        <div class="icono">📍</div>
-        <div class="info">
-          <div class="titulo">Ubicación GPS</div>
-          <div class="coords" id="gpsCoords">Obteniendo ubicación...</div>
+        <div class="top">
+          <div class="icono">📍</div>
+          <div class="info">
+            <div class="titulo">Ubicación</div>
+            <div class="coords" id="gpsCoords">GPS desactivado</div>
+          </div>
         </div>
-        <button onclick="app.capturarGPS()">Actualizar</button>
+        <div class="acciones">
+          <button id="btnGpsAuto" onclick="app.modoGPS('auto')">📡 Usar GPS</button>
+          <button id="btnGpsManual" onclick="app.modoGPS('manual')">✏️ Manual</button>
+          <button id="btnGpsActualizar" onclick="app.capturarGPS()" style="display:none;">🔄 Actualizar</button>
+        </div>
+        <div class="gps-manual-fields">
+          <input type="text" id="f_lat_manual" placeholder="Latitud (Ej: 3.865000)" inputmode="decimal">
+          <input type="text" id="f_lng_manual" placeholder="Longitud (Ej: -67.923900)" inputmode="decimal">
+        </div>
       </div>
       <div class="campo">
         <label>Dirección <span class="requerido">*</span></label>
@@ -540,17 +618,17 @@
       <div class="campo">
         <label>Fotografías del incidente (hasta 3)</label>
         <div class="fotos-grid">
-          <div class="foto-slot" data-foto="0" onclick="app.tomarFoto(0)">
+          <div class="foto-slot" data-foto="0" onclick="app.elegirFoto(0)">
             <span class="icono">📷</span><span>Foto 1</span>
           </div>
-          <div class="foto-slot" data-foto="1" onclick="app.tomarFoto(1)">
+          <div class="foto-slot" data-foto="1" onclick="app.elegirFoto(1)">
             <span class="icono">📷</span><span>Foto 2</span>
           </div>
-          <div class="foto-slot" data-foto="2" onclick="app.tomarFoto(2)">
+          <div class="foto-slot" data-foto="2" onclick="app.elegirFoto(2)">
             <span class="icono">📷</span><span>Foto 3</span>
           </div>
         </div>
-        <div class="ayuda">Las fotos se comprimen automáticamente para ahorrar datos al sincronizar.</div>
+        <div class="ayuda">Toque cada espacio para tomar foto o seleccionar de su galería.</div>
       </div>
     </div>
   </div>
@@ -562,6 +640,9 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px; padding: 8px; background: #fef9c3; border-radius: 4px;">
+        💡 Agregue cada vehículo con sus datos. Para personal, agregue el ítem "Personal" y liste los nombres de los bomberos que asistieron.
+      </div>
       <div class="tabla-dinamica" id="tablaRecursos"></div>
       <button class="agregar-fila" onclick="app.agregarRecurso()">+ Agregar recurso</button>
     </div>
@@ -643,11 +724,6 @@
         <label>Estrategias y tácticas empleadas</label>
         <textarea id="f_acciones" rows="4" placeholder="Extinción, evacuación, estabilización, rescate..."></textarea>
       </div>
-      <div class="campo">
-        <label>Insumos / equipos utilizados</label>
-        <div class="tabla-dinamica" id="tablaInsumos"></div>
-        <button class="agregar-fila" onclick="app.agregarInsumo()">+ Agregar insumo</button>
-      </div>
     </div>
   </div>
 
@@ -716,33 +792,10 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 13: COMUNICACIONES -->
+  <!-- SECCIÓN 13: COMANDANTE (antes era 14) -->
   <div class="seccion-form" data-seccion="13">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
-      <div><span class="num">13</span><span class="titulo">Control de Comunicaciones</span></div>
-      <span class="flecha">▼</span>
-    </div>
-    <div class="seccion-cuerpo">
-      <div class="campo-fila">
-        <div class="campo"><label>Hora reporte a central</label><input type="time" id="f_hora_central"></div>
-        <div class="campo"><label>N° despacho central</label><input type="text" id="f_num_despacho"></div>
-      </div>
-      <div class="campo">
-        <label>Unidades que atendieron</label>
-        <input type="text" id="f_unidades_atendieron">
-      </div>
-      <div class="campo-fila-3">
-        <div class="campo"><label>N° máquinas</label><input type="number" id="f_num_maquinas" min="0" value="0"></div>
-        <div class="campo"><label>N° unidades</label><input type="number" id="f_num_unidades" min="0" value="0"></div>
-        <div class="campo"><label>N° personal</label><input type="number" id="f_num_personal" min="0" value="0"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECCIÓN 14: COMANDANTE -->
-  <div class="seccion-form" data-seccion="14">
-    <div class="seccion-header" onclick="app.toggleSeccion(this)">
-      <div><span class="num">14</span><span class="titulo">Firma del Comandante</span></div>
+      <div><span class="num">13</span><span class="titulo">Firma del Comandante</span></div>
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
@@ -778,8 +831,9 @@
 <div class="pantalla" id="pantallaDetalle">
   <div id="detalleContenido"></div>
   <div class="acciones-flotantes">
+    <button class="btn btn-imprimir" onclick="app.imprimirReporte()">🖨️ Imprimir</button>
     <button class="btn btn-secundario" onclick="app.editarReporte()">✏️ Editar</button>
-    <button class="btn btn-primary" id="btnReintentarEnvio" onclick="app.reintentarEnvio()" style="display:none;">📤 Reintentar envío</button>
+    <button class="btn btn-primary" id="btnReintentarEnvio" onclick="app.reintentarEnvio()" style="display:none;">📤 Enviar</button>
     <button class="btn btn-peligro" onclick="app.confirmarEliminar()">🗑️</button>
   </div>
 </div>
@@ -789,9 +843,9 @@
   <div class="config-card">
     <h3>🚒 Estación</h3>
     <div class="campo">
-      <label>Prefijo de la estación / unidad</label>
-      <input type="text" id="cfg_prefijo" placeholder="Ej. CENTRAL, LOPEZ, SUR">
-      <div class="ayuda">Se usa para generar el consecutivo. Ej: CENTRAL-2026-0001</div>
+      <label>Estación / Unidad</label>
+      <input type="text" id="cfg_estacion" placeholder="Ej. CBVI">
+      <div class="ayuda">Identificador de la estación o unidad. Solo informativo.</div>
     </div>
     <div class="campo">
       <label>Nombre del operador habitual</label>
@@ -800,11 +854,25 @@
   </div>
 
   <div class="config-card">
+    <h3>🔢 Consecutivo</h3>
+    <div class="campo">
+      <label>Próximo número de reporte</label>
+      <input type="number" id="cfg_proximo_numero" min="1" value="1">
+      <div class="ayuda">Si están en el reporte #84 actualmente, ponga 85 aquí. Genera consecutivos como RE-2026-0085.</div>
+    </div>
+    <div class="campo">
+      <label>Prefijo del consecutivo</label>
+      <input type="text" id="cfg_prefijo" placeholder="RE" value="RE">
+      <div class="ayuda">Por defecto "RE" (Reporte de Emergencia).</div>
+    </div>
+  </div>
+
+  <div class="config-card">
     <h3>☁️ Sincronización en la nube</h3>
     <div class="campo">
       <label>URL del backend (Google Apps Script)</label>
       <input type="text" id="cfg_url_backend" placeholder="https://script.google.com/macros/s/..." style="font-size: 12px;">
-      <div class="ayuda">Pegue aquí la URL que obtuvo al desplegar el Apps Script. Si está vacío, los reportes se guardan solo localmente.</div>
+      <div class="ayuda">Si está vacío, los reportes se guardan solo localmente.</div>
     </div>
     <div class="campo">
       <label>Token secreto (opcional)</label>
@@ -848,9 +916,33 @@
   </div>
 </div>
 
-<!-- INPUT DE FOTO OCULTO -->
-<input type="file" id="inputFoto" accept="image/*" capture="environment" style="display:none;">
+<!-- MODAL OPCIONES DE FOTO -->
+<div class="modal-foto-opciones" id="modalFotoOpciones">
+  <div class="opciones">
+    <h3>📷 Agregar fotografía</h3>
+    <button onclick="app.tomarFoto('camara')">
+      <span class="icono">📸</span>
+      <div>Tomar foto con cámara</div>
+    </button>
+    <button onclick="app.tomarFoto('galeria')">
+      <span class="icono">🖼️</span>
+      <div>Seleccionar de galería</div>
+    </button>
+    <button class="cancelar" onclick="app.cerrarModalFoto()">
+      <span class="icono">✕</span>
+      <div>Cancelar</div>
+    </button>
+  </div>
+</div>
 
+<!-- INPUTS DE FOTO OCULTOS -->
+<input type="file" id="inputFotoCamara" accept="image/*" capture="environment" style="display:none;">
+<input type="file" id="inputFotoGaleria" accept="image/*" style="display:none;">
+
+<!-- CONTENEDOR PARA EL PDF DE IMPRESIÓN -->
+<div id="pdfContenedor"></div>
+
+<script src="logos.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
