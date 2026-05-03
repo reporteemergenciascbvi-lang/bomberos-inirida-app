@@ -1,7 +1,5 @@
-/* Service Worker - Bomberos Inírida v3
-   Hace que la app funcione sin conexión y se actualice sola */
-
-const CACHE = 'bomberos-inirida-v3';
+/* Service Worker v4 - CBVI Reportes */
+const CACHE = 'bomberos-inirida-v4';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -11,35 +9,40 @@ const ARCHIVOS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(ARCHIVOS))
-  );
   self.skipWaiting();
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(ARCHIVOS).catch(() => {}))
+  );
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then(claves =>
-      Promise.all(claves.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (e) => {
-  if (e.request.url.includes('script.google.com')) return;
+  // No interceptar peticiones a Google (login) ni al backend
+  const url = e.request.url;
+  if (url.includes('accounts.google.com') ||
+      url.includes('googleapis.com') ||
+      url.includes('script.google.com') ||
+      url.includes('nominatim.openstreetmap.org') ||
+      url.includes('googleusercontent.com')) {
+    return;
+  }
 
   e.respondWith(
-    caches.match(e.request).then(respuesta => {
-      return respuesta || fetch(e.request).then(red => {
-        if (red && red.status === 200 && e.request.method === 'GET') {
-          const copia = red.clone();
-          caches.open(CACHE).then(cache => cache.put(e.request, copia));
+    caches.match(e.request).then(resp => {
+      return resp || fetch(e.request).then(r => {
+        if (r && r.status === 200 && e.request.method === 'GET') {
+          const clon = r.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clon)).catch(() => {});
         }
-        return red;
-      }).catch(() => {
-        return new Response('Sin conexión', { status: 503 });
-      });
+        return r;
+      }).catch(() => caches.match('./index.html'));
     })
   );
 });

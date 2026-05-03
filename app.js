@@ -1,7 +1,21 @@
 /* ============================================================
-   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v3
-   Funciona 100% offline, sincroniza cuando hay señal.
+   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v4
+   Login con Google, Sistema de administrador, Auto-completado GPS
    ============================================================ */
+
+// ==================== CONFIGURACIÓN HARDCODED ====================
+const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.googleusercontent.com';
+const ADMIN_EMAIL = 'gilrangeljeancarlosjeferson@gmail.com';
+const TELEFONO_ESTACION = '314 531 1605';
+const NOMBRE_ESTACION = 'CBVI';
+
+const CREDITO_AUTOR = {
+  nombre: 'Bombero Jeferson Jeancarlos Rangel Gil',
+  cuerpo: 'Cuerpo de Bomberos Voluntarios de Inírida',
+  correo: 'gilrangeljeancarlosjeferson@gmail.com',
+  telefono: '320 960 6428',
+  facebook: 'https://www.facebook.com/jeancarlos.rangel.1420'
+};
 
 const TIPOS_EVENTO = [
   'Incendio estructural', 'Incendio forestal', 'Incendio vehicular', 'Rescate vehicular',
@@ -17,8 +31,7 @@ const CAUSAS = [
   'En investigación', 'Otra'
 ];
 
-const TELEFONO_ESTACION = '314 531 1605';
-
+// ==================== BASE DE DATOS LOCAL ====================
 const DB = {
   db: null,
   NOMBRE: 'BomberosIniridaDB',
@@ -103,17 +116,21 @@ const DB = {
   }
 };
 
+// ==================== APP ====================
 const app = {
   reporteActual: null,
-  pantallaActual: 'pantallaBienvenida',
+  pantallaActual: 'pantallaLogin',
+  pilaPantallas: [],  // Para navegación atrás
+
   config: {
-    estacion: 'CBVI', operador: '', urlBackend: '', token: '',
-    proximoNumero: 1, prefijo: 'RE',
-    perfilNombre: '', perfilGrado: '', perfilCedula: '',
-    perfilCorreo: '', perfilTelefono: '',
-    credito: '',
-    perfilCompletado: false
+    urlBackend: '',
+    token: '',
+    proximoNumero: 1,
+    prefijo: 'RE'
   },
+
+  usuario: null,  // {email, nombre, foto, grado, cedula, telefono}
+
   fotosTemp: [null, null, null, null],
   firmas: { afectado: null, comandante: null },
   modalCallback: null,
@@ -123,7 +140,7 @@ const app = {
   async init() {
     if (typeof LOGO_SMALL !== 'undefined') {
       document.getElementById('logoHeader').src = LOGO_SMALL;
-      document.getElementById('logoBienvenida').src = LOGO_SMALL;
+      document.getElementById('logoLogin').src = LOGO_SMALL;
     }
 
     await DB.abrir();
@@ -132,14 +149,24 @@ const app = {
     this.inicializarCheckboxes();
     this.inicializarFirmas();
     this.configurarFoto();
+    this.configurarBotonAtrasMovil();
     this.registrarServiceWorker();
 
-    // Si NO ha completado el perfil, mostrar pantalla de bienvenida
-    if (!this.config.perfilCompletado) {
-      this.irA('pantallaBienvenida');
+    // Verificar si hay sesión activa
+    const sesion = await DB.obtenerConfig('sesion');
+    if (sesion && sesion.email) {
+      this.usuario = sesion;
+      this.actualizarUIUsuario();
+      // Si ya completó registro complementario, ir a Home
+      if (sesion.registroCompleto) {
+        this.irA('pantallaHome');
+        await this.actualizarHome();
+      } else {
+        this.irA('pantallaRegistroComplemento');
+      }
     } else {
-      this.irA('pantallaHome');
-      await this.actualizarHome();
+      // Esperar a que cargue Google Identity Services
+      this.iniciarGoogleSignIn();
     }
 
     window.addEventListener('online', () => {
@@ -148,63 +175,200 @@ const app = {
     });
   },
 
+  // ==================== LOGIN GOOGLE ====================
+  iniciarGoogleSignIn() {
+    const intentar = () => {
+      if (typeof google === 'undefined' || !google.accounts) {
+        setTimeout(intentar, 500);
+        return;
+      }
+      try {
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (resp) => this.manejarRespuestaGoogle(resp),
+          auto_select: false
+        });
+        const btnDiv = document.getElementById('google-signin-btn');
+        if (btnDiv) {
+          btnDiv.innerHTML = '';
+          google.accounts.id.renderButton(btnDiv, {
+            theme: 'filled_blue',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'rectangular',
+            logo_alignment: 'left',
+            width: 280
+          });
+        }
+      } catch (err) {
+        console.error('Error iniciando Google:', err);
+        document.getElementById('loginErrorBox').style.display = 'block';
+        document.getElementById('loginErrorBox').textContent =
+          'Error cargando login de Google. Verifique que tiene conexión a internet y recargue la página.';
+      }
+    };
+    intentar();
+  },
+
+  async manejarRespuestaGoogle(response) {
+    try {
+      // Decodificar el JWT (sin verificar firma — Google ya lo firmó)
+      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+
+      const usuario = {
+        email: payload.email,
+        nombre: payload.name || '',
+        nombrePila: payload.given_name || '',
+        foto: payload.picture || '',
+        emailVerificado: payload.email_verified,
+        // Datos complementarios (se llenan después)
+        nombreCompleto: '',
+        grado: '',
+        cedula: '',
+        telefono: '',
+        registroCompleto: false
+      };
+
+      this.usuario = usuario;
+      await DB.guardarConfig('sesion', usuario);
+
+      this.toast(`Bienvenido, ${usuario.nombrePila || usuario.email}`, 'exito');
+
+      // Mostrar pantalla de registro complementario para completar datos del bombero
+      document.getElementById('saludoRegistro').textContent =
+        `${usuario.email} — Complete sus datos para empezar`;
+      document.getElementById('reg_nombre').value = usuario.nombre || '';
+      this.irA('pantallaRegistroComplemento');
+
+    } catch (err) {
+      console.error('Error procesando login:', err);
+      document.getElementById('loginErrorBox').style.display = 'block';
+      document.getElementById('loginErrorBox').textContent =
+        'Error procesando el login. Intente de nuevo.';
+    }
+  },
+
+  async completarRegistro() {
+    const nombre = document.getElementById('reg_nombre').value.trim();
+    const grado = document.getElementById('reg_grado').value;
+    const cedula = document.getElementById('reg_cedula').value.trim();
+    const telefono = document.getElementById('reg_telefono').value.trim();
+
+    if (!nombre || !grado || !cedula || !telefono) {
+      this.toast('Llene todos los campos obligatorios', 'error');
+      return;
+    }
+
+    this.usuario.nombreCompleto = nombre;
+    this.usuario.grado = grado;
+    this.usuario.cedula = cedula;
+    this.usuario.telefono = telefono;
+    this.usuario.registroCompleto = true;
+    await DB.guardarConfig('sesion', this.usuario);
+
+    this.actualizarUIUsuario();
+    this.toast(`Listo, ${this.usuario.nombrePila || nombre.split(' ')[0]} 🚒`, 'exito');
+    this.irA('pantallaHome');
+    await this.actualizarHome();
+  },
+
+  esAdmin() {
+    return this.usuario && this.usuario.email === ADMIN_EMAIL;
+  },
+
+  actualizarUIUsuario() {
+    if (!this.usuario) return;
+    const inicial = (this.usuario.nombreCompleto || this.usuario.nombre || this.usuario.email).charAt(0).toUpperCase();
+
+    // Avatar header
+    const avatar = document.getElementById('userAvatar');
+    if (this.esAdmin()) avatar.classList.add('admin');
+    else avatar.classList.remove('admin');
+
+    if (this.usuario.foto) {
+      avatar.innerHTML = `<img src="${this.usuario.foto}" alt="">`;
+    } else {
+      avatar.innerHTML = `<span>${inicial}</span>`;
+    }
+
+    // Menú desplegable
+    const avatarGrande = document.getElementById('avatarGrande');
+    if (this.usuario.foto) {
+      avatarGrande.innerHTML = `<img src="${this.usuario.foto}" alt="">`;
+    } else {
+      avatarGrande.innerHTML = `<span>${inicial}</span>`;
+    }
+    document.getElementById('menuNombreUsuario').textContent = this.usuario.nombreCompleto || this.usuario.nombre;
+    document.getElementById('menuGradoUsuario').textContent =
+      (this.usuario.grado || 'Bombero') + ' · ' + NOMBRE_ESTACION;
+    document.getElementById('menuCorreoUsuario').textContent = this.usuario.email;
+    document.getElementById('menuBadgeAdmin').style.display = this.esAdmin() ? 'inline-block' : 'none';
+  },
+
+  toggleUserMenu() {
+    document.getElementById('userMenu').classList.toggle('visible');
+  },
+
+  cerrarUserMenu() {
+    document.getElementById('userMenu').classList.remove('visible');
+  },
+
+  async cerrarSesion() {
+    const ok = await this.confirmar('Cerrar sesión',
+      '¿Está seguro? Se cerrará su sesión pero los reportes guardados no se borrarán.');
+    if (!ok) return;
+    this.cerrarUserMenu();
+    await DB.guardarConfig('sesion', null);
+    this.usuario = null;
+    location.reload();
+  },
+
+  // ==================== CONFIG ====================
   async cargarConfig() {
     const cfg = await DB.obtenerConfig('app');
     if (cfg) this.config = { ...this.config, ...cfg };
 
-    // Llenar campos en pantalla Configuración
-    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    set('cfg_estacion', this.config.estacion || 'CBVI');
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
     set('cfg_url_backend', this.config.urlBackend);
     set('cfg_token', this.config.token);
     set('cfg_proximo_numero', this.config.proximoNumero || 1);
     set('cfg_prefijo', this.config.prefijo || 'RE');
-    set('cfg_perfil_nombre', this.config.perfilNombre);
-    set('cfg_perfil_grado', this.config.perfilGrado);
-    set('cfg_perfil_cedula', this.config.perfilCedula);
-    set('cfg_perfil_correo', this.config.perfilCorreo);
-    set('cfg_perfil_telefono', this.config.perfilTelefono);
-    set('cfg_credito', this.config.credito);
   },
 
   async guardarConfig() {
-    this.config.estacion = document.getElementById('cfg_estacion').value.trim() || 'CBVI';
+    // Datos del usuario (todos pueden editar los suyos)
+    if (this.usuario) {
+      this.usuario.nombreCompleto = document.getElementById('cfg_perfil_nombre').value.trim();
+      this.usuario.grado = document.getElementById('cfg_perfil_grado').value.trim();
+      this.usuario.cedula = document.getElementById('cfg_perfil_cedula').value.trim();
+      this.usuario.telefono = document.getElementById('cfg_perfil_telefono').value.trim();
+      await DB.guardarConfig('sesion', this.usuario);
+      this.actualizarUIUsuario();
+    }
+
+    // Backend (todos pueden ver/cambiar)
     this.config.urlBackend = document.getElementById('cfg_url_backend').value.trim();
     this.config.token = document.getElementById('cfg_token').value.trim();
-    this.config.proximoNumero = +document.getElementById('cfg_proximo_numero').value || 1;
-    this.config.prefijo = document.getElementById('cfg_prefijo').value.trim().toUpperCase() || 'RE';
-    this.config.perfilNombre = document.getElementById('cfg_perfil_nombre').value.trim();
-    this.config.perfilGrado = document.getElementById('cfg_perfil_grado').value.trim();
-    this.config.perfilCedula = document.getElementById('cfg_perfil_cedula').value.trim();
-    this.config.perfilCorreo = document.getElementById('cfg_perfil_correo').value.trim();
-    this.config.perfilTelefono = document.getElementById('cfg_perfil_telefono').value.trim();
-    this.config.credito = document.getElementById('cfg_credito').value.trim();
+
+    // Solo admin puede cambiar consecutivo
+    if (this.esAdmin()) {
+      this.config.proximoNumero = +document.getElementById('cfg_proximo_numero').value || 1;
+      this.config.prefijo = document.getElementById('cfg_prefijo').value.trim().toUpperCase() || 'RE';
+    }
+
     await DB.guardarConfig('app', this.config);
     this.toast('Configuración guardada', 'exito');
-    this.irA('pantallaHome');
   },
 
-  // BIENVENIDA - guardar perfil al inicio
-  async guardarPerfilBienvenida() {
-    const nombre = document.getElementById('biv_nombre').value.trim();
-    if (!nombre) {
-      this.toast('Por favor ingrese su nombre', 'error');
-      return;
+  // ==================== NAVEGACIÓN ====================
+  irA(pantallaId, sinHistorial = false) {
+    if (!sinHistorial && this.pantallaActual !== pantallaId) {
+      // Solo guardamos en historial las pantallas principales
+      if (['pantallaHome', 'pantallaForm', 'pantallaDetalle', 'pantallaConfig'].includes(this.pantallaActual)) {
+        this.pilaPantallas.push(this.pantallaActual);
+      }
     }
-    this.config.perfilNombre = nombre;
-    this.config.perfilGrado = document.getElementById('biv_grado').value.trim();
-    this.config.perfilCedula = document.getElementById('biv_cedula').value.trim();
-    this.config.perfilCorreo = document.getElementById('biv_correo').value.trim();
-    this.config.perfilTelefono = document.getElementById('biv_telefono').value.trim();
-    this.config.perfilCompletado = true;
-    await DB.guardarConfig('app', this.config);
-    this.toast(`Bienvenido, ${nombre.split(' ')[0]} 🚒`, 'exito');
-    await this.cargarConfig();
-    this.irA('pantallaHome');
-    this.actualizarHome();
-  },
 
-  irA(pantallaId) {
     document.querySelectorAll('.pantalla').forEach(p => p.classList.remove('activa'));
     document.getElementById(pantallaId).classList.add('activa');
     this.pantallaActual = pantallaId;
@@ -213,28 +377,102 @@ const app = {
     const header = document.getElementById('header');
     const btnVolver = document.getElementById('btnVolver');
 
-    if (pantallaId === 'pantallaBienvenida') {
+    if (pantallaId === 'pantallaLogin' || pantallaId === 'pantallaRegistroComplemento') {
       header.style.display = 'none';
       return;
     }
     header.style.display = 'flex';
 
+    // Llenar configuración con datos del usuario actual
+    if (pantallaId === 'pantallaConfig' && this.usuario) {
+      document.getElementById('cfg_perfil_nombre').value = this.usuario.nombreCompleto || this.usuario.nombre || '';
+      document.getElementById('cfg_perfil_grado').value = this.usuario.grado || '';
+      document.getElementById('cfg_perfil_cedula').value = this.usuario.cedula || '';
+      document.getElementById('cfg_perfil_correo').value = this.usuario.email || '';
+      document.getElementById('cfg_perfil_telefono').value = this.usuario.telefono || '';
+      // Mostrar zona admin solo si es administrador
+      document.getElementById('zonaAdmin').style.display = this.esAdmin() ? 'block' : 'none';
+    }
+
     if (pantallaId === 'pantallaHome') {
       btnVolver.style.display = 'none';
-      document.getElementById('headerTitulo').textContent = 'Bomberos Inírida';
+      document.getElementById('headerTitulo').textContent = 'CBVI Reportes';
       this.actualizarHome();
     } else {
       btnVolver.style.display = 'inline-block';
-      btnVolver.onclick = () => this.irA('pantallaHome');
+      btnVolver.onclick = () => this.atras();
       const titulos = {
         pantallaForm: 'Reporte de Emergencia',
         pantallaDetalle: 'Detalle del Reporte',
         pantallaConfig: 'Configuración'
       };
-      document.getElementById('headerTitulo').textContent = titulos[pantallaId] || '';
+      document.getElementById('headerTitulo').textContent = titulos[pantallaId] || 'CBVI Reportes';
     }
   },
 
+  async atras() {
+    // Si estamos en formulario, preguntar si quiere guardar borrador
+    if (this.pantallaActual === 'pantallaForm') {
+      const ok = await this.confirmar('Salir del reporte',
+        '¿Desea salir? Los cambios sin guardar se perderán. Use "Borrador" para guardar el progreso.');
+      if (!ok) return;
+    }
+
+    if (this.pilaPantallas.length > 0) {
+      const anterior = this.pilaPantallas.pop();
+      this.irA(anterior, true);
+    } else {
+      this.irA('pantallaHome', true);
+    }
+  },
+
+  configurarBotonAtrasMovil() {
+    // Manejar el botón Atrás del navegador y del celular
+    history.pushState({ pantalla: 'inicio' }, '');
+    window.addEventListener('popstate', (e) => {
+      // Cerrar menús/modales primero
+      const userMenu = document.getElementById('userMenu');
+      if (userMenu.classList.contains('visible')) {
+        userMenu.classList.remove('visible');
+        history.pushState({ pantalla: this.pantallaActual }, '');
+        return;
+      }
+      const modalConfirmar = document.getElementById('modalConfirmar');
+      if (modalConfirmar.classList.contains('visible')) {
+        this.cerrarModal();
+        history.pushState({ pantalla: this.pantallaActual }, '');
+        return;
+      }
+      const modalFoto = document.getElementById('modalFotoOpciones');
+      if (modalFoto.classList.contains('visible')) {
+        modalFoto.classList.remove('visible');
+        history.pushState({ pantalla: this.pantallaActual }, '');
+        return;
+      }
+
+      // Si está en login, dejar que el navegador haga su acción
+      if (this.pantallaActual === 'pantallaLogin' || this.pantallaActual === 'pantallaRegistroComplemento') {
+        return;
+      }
+
+      // Si está en home, preguntar antes de cerrar
+      if (this.pantallaActual === 'pantallaHome') {
+        if (confirm('¿Cerrar la app?')) {
+          // Permitir que el navegador cierre
+          history.back();
+        } else {
+          history.pushState({ pantalla: 'pantallaHome' }, '');
+        }
+        return;
+      }
+
+      // En cualquier otra pantalla, ir atrás
+      this.atras();
+      history.pushState({ pantalla: this.pantallaActual }, '');
+    });
+  },
+
+  // ==================== HOME ====================
   async actualizarHome() {
     const reportes = await DB.listarReportes();
     document.getElementById('statTotal').textContent = reportes.length;
@@ -242,23 +480,6 @@ const app = {
       reportes.filter(r => r.estado === 'pendiente').length;
     document.getElementById('statEnviados').textContent =
       reportes.filter(r => r.estado === 'enviado').length;
-
-    // Saludo del bombero
-    if (this.config.perfilNombre) {
-      const saludo = document.getElementById('saludoBombero');
-      saludo.style.display = 'flex';
-      const inicial = this.config.perfilNombre.trim().charAt(0).toUpperCase();
-      document.getElementById('avatarLetra').textContent = inicial;
-      document.getElementById('nombreBombero').textContent = this.config.perfilNombre;
-      document.getElementById('gradoBombero').textContent =
-        (this.config.perfilGrado || 'Bombero') + (this.config.estacion ? ' · ' + this.config.estacion : '');
-    }
-
-    // Crédito en home
-    const credito = document.getElementById('creditoHome');
-    if (credito && this.config.credito) {
-      credito.textContent = this.config.credito;
-    }
 
     const lista = document.getElementById('listaReportes');
     if (reportes.length === 0) {
@@ -278,7 +499,7 @@ const app = {
       return `
         <div class="reporte-item ${r.estado}" onclick="app.verDetalle('${r.id}')">
           <div class="info">
-            <div class="consec">${r.consecutivo || 'Sin número'}</div>
+            <div class="consec">${r.consecutivo || 'Sin asignar'}</div>
             <div class="desc">${tipos}</div>
             <div class="fecha">${fecha}</div>
           </div>
@@ -291,26 +512,27 @@ const app = {
     return { borrador: 'Borrador', pendiente: 'Pendiente', enviado: 'Enviado' }[estado] || estado;
   },
 
-  generarConsecutivo() {
+  // ==================== NUEVO REPORTE ====================
+  generarConsecutivoLocal() {
     const anio = new Date().getFullYear();
     const numero = String(this.config.proximoNumero || 1).padStart(4, '0');
     return `${this.config.prefijo}-${anio}-${numero}`;
   },
 
   async nuevoReporte() {
-    const consec = this.generarConsecutivo();
     const ahora = new Date();
     this.reporteActual = {
       id: this.uuid(),
-      consecutivo: consec,
+      consecutivo: '',  // El backend lo asigna al enviar
+      consecutivoLocal: this.generarConsecutivoLocal(),
       estado: 'borrador',
       fechaCreacion: ahora.toISOString(),
       fechaModificacion: ahora.toISOString(),
-      operador: this.config.perfilNombre || '',
-      operadorGrado: this.config.perfilGrado || '',
-      operadorCC: this.config.perfilCedula || '',
-      operadorTel: this.config.perfilTelefono || '',
-      operadorCorreo: this.config.perfilCorreo || '',
+      operador: this.usuario?.nombreCompleto || '',
+      operadorEmail: this.usuario?.email || '',
+      operadorGrado: this.usuario?.grado || '',
+      operadorCC: this.usuario?.cedula || '',
+      operadorTel: this.usuario?.telefono || '',
       clasificacion: [],
       causas: [],
       recursos: [],
@@ -327,17 +549,16 @@ const app = {
     this.modoUbicacion = 'auto';
 
     this.limpiarFormulario();
-    document.getElementById('f_consecutivo').value = consec;
-    document.getElementById('f_estacion').value = this.config.estacion || 'CBVI';
+    document.getElementById('f_consecutivo').value = 'Se asigna al enviar';
     document.getElementById('f_fecha_llamada').value = this.fechaLocalISO(ahora);
     document.getElementById('f_municipio').value = 'Inírida';
 
-    // Pre-llenar comandante con datos del perfil
-    if (this.config.perfilNombre) {
-      document.getElementById('f_comandante_nombre').value = this.config.perfilNombre;
-      document.getElementById('f_comandante_grado').value = this.config.perfilGrado || '';
-      document.getElementById('f_comandante_cc').value = this.config.perfilCedula || '';
-      document.getElementById('f_comandante_estacion').value = this.config.estacion || 'CBVI';
+    // Pre-llenar comandante con datos del usuario
+    if (this.usuario && this.usuario.nombreCompleto) {
+      document.getElementById('f_comandante_nombre').value = this.usuario.nombreCompleto;
+      document.getElementById('f_comandante_grado').value = this.usuario.grado || '';
+      document.getElementById('f_comandante_cc').value = this.usuario.cedula || '';
+      document.getElementById('f_comandante_estacion').value = NOMBRE_ESTACION;
     }
 
     this.actualizarUIGPS();
@@ -352,6 +573,8 @@ const app = {
       else if (el.type === 'number') el.value = el.defaultValue || '';
       else el.value = '';
     });
+    document.getElementById('f_municipio').value = 'Inírida';
+    document.getElementById('f_comandante_estacion').value = NOMBRE_ESTACION;
     document.querySelectorAll('.foto-slot').forEach((slot, i) => {
       slot.innerHTML = `<span class="icono">📷</span><span>Foto ${i+1}</span>`;
       slot.classList.remove('con-foto');
@@ -361,6 +584,7 @@ const app = {
     document.getElementById('tablaRecursos').innerHTML = '';
     document.getElementById('tablaVictimas').innerHTML = '';
     document.getElementById('tablaOrgs').innerHTML = '';
+    document.getElementById('autoCompletarInfo').classList.remove('visible');
   },
 
   inicializarCheckboxes() {
@@ -381,6 +605,7 @@ const app = {
     `).join('');
   },
 
+  // ==================== GPS Y AUTO-COMPLETADO ====================
   modoGPS(modo) {
     this.modoUbicacion = modo;
     this.actualizarUIGPS();
@@ -431,14 +656,16 @@ const app = {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
         const acc = Math.round(pos.coords.accuracy);
-        coords.textContent = `${lat}, ${lng} (±${acc}m)`;
+        coords.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)} (±${acc}m)`;
         if (this.reporteActual) {
-          this.reporteActual.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+          this.reporteActual.gps = { lat, lng, accuracy: pos.coords.accuracy };
           this.reporteActual.gpsManual = false;
         }
+        // Auto-completar dirección
+        this.autoCompletarDireccion(lat, lng);
         this.actualizarProgreso();
       },
       (err) => {
@@ -454,6 +681,55 @@ const app = {
     );
   },
 
+  async autoCompletarDireccion(lat, lng) {
+    if (!navigator.onLine) return;  // Sin internet no se puede
+
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=es`;
+      const resp = await fetch(url, {
+        headers: { 'User-Agent': 'CBVI-Reportes/4.0 (gilrangeljeancarlosjeferson@gmail.com)' }
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data || !data.address) return;
+
+      const addr = data.address;
+      const direccionInput = document.getElementById('f_direccion');
+      const barrioInput = document.getElementById('f_barrio');
+      const localidadInput = document.getElementById('f_localidad');
+      const municipioInput = document.getElementById('f_municipio');
+
+      // Solo llenar si están vacíos (no sobrescribir lo que el bombero ya escribió)
+      if (!direccionInput.value) {
+        const partesDir = [];
+        if (addr.road) partesDir.push(addr.road);
+        if (addr.house_number) partesDir.push('#' + addr.house_number);
+        if (partesDir.length === 0 && data.display_name) {
+          partesDir.push(data.display_name.split(',')[0]);
+        }
+        direccionInput.value = partesDir.join(' ');
+      }
+
+      if (!barrioInput.value) {
+        barrioInput.value = addr.suburb || addr.neighbourhood || addr.quarter ||
+                            addr.village || addr.hamlet || '';
+      }
+
+      if (!localidadInput.value) {
+        localidadInput.value = addr.city_district || addr.borough || addr.county || '';
+      }
+
+      if (!municipioInput.value || municipioInput.value === 'Inírida') {
+        municipioInput.value = addr.city || addr.town || addr.municipality || 'Inírida';
+      }
+
+      document.getElementById('autoCompletarInfo').classList.add('visible');
+    } catch (err) {
+      console.log('No se pudo auto-completar dirección:', err);
+    }
+  },
+
+  // ==================== FOTOS ====================
   configurarFoto() {
     const handler = async (e) => {
       const file = e.target.files[0];
@@ -524,6 +800,7 @@ const app = {
     });
   },
 
+  // ==================== FIRMAS ====================
   inicializarFirmas() {
     ['firmaAfectado', 'firmaComandante'].forEach(id => this.configurarCanvasFirma(id));
   },
@@ -592,6 +869,7 @@ const app = {
     this.firmas[tipo] = null;
   },
 
+  // ==================== TABLAS DINÁMICAS ====================
   agregarRecurso(datos) {
     const cont = document.getElementById('tablaRecursos');
     const div = document.createElement('div');
@@ -617,7 +895,7 @@ const app = {
       </div>
       <div class="campo">
         <label>Responsable / Maquinista</label>
-        <input type="text" data-campo="responsable">
+        <input type="text" data-campo="responsable" placeholder="Nombre del bombero a cargo">
       </div>
       <div class="campo personal-bloque" style="display:none;">
         <label>Bomberos asistentes</label>
@@ -681,7 +959,7 @@ const app = {
     div.innerHTML = `
       <button class="quitar-fila" onclick="this.parentElement.remove()">×</button>
       <div class="campo-fila">
-        <div class="campo"><label>Nombre</label><input type="text" data-campo="nombre"></div>
+        <div class="campo"><label>Nombre</label><input type="text" data-campo="nombre" placeholder="Nombre de la víctima"></div>
         <div class="campo"><label>Edad</label><input type="number" data-campo="edad" min="0"></div>
       </div>
       <div class="campo">
@@ -690,9 +968,9 @@ const app = {
           <option>Lesionado</option><option>Fallecido</option><option>Ileso</option>
         </select>
       </div>
-      <div class="campo"><label>Lesiones</label><input type="text" data-campo="lesiones"></div>
-      <div class="campo"><label>Atención brindada</label><input type="text" data-campo="atencion"></div>
-      <div class="campo"><label>Trasladado a</label><input type="text" data-campo="traslado"></div>
+      <div class="campo"><label>Lesiones</label><input type="text" data-campo="lesiones" placeholder="Ej. quemaduras de 2do grado"></div>
+      <div class="campo"><label>Atención brindada</label><input type="text" data-campo="atencion" placeholder="Ej. primeros auxilios, oxígeno"></div>
+      <div class="campo"><label>Trasladado a</label><input type="text" data-campo="traslado" placeholder="Ej. Hospital Manuel Elkin Patarroyo"></div>
     `;
     cont.appendChild(div);
     if (datos) {
@@ -708,9 +986,9 @@ const app = {
     div.className = 'fila';
     div.innerHTML = `
       <button class="quitar-fila" onclick="this.parentElement.remove()">×</button>
-      <div class="campo"><label>Entidad / Persona</label><input type="text" data-campo="entidad"></div>
-      <div class="campo"><label>Rol / Función</label><input type="text" data-campo="rol"></div>
-      <div class="campo"><label>Contacto</label><input type="text" data-campo="contacto"></div>
+      <div class="campo"><label>Entidad / Persona</label><input type="text" data-campo="entidad" placeholder="Ej. Policía Nacional, Defensa Civil"></div>
+      <div class="campo"><label>Rol / Función</label><input type="text" data-campo="rol" placeholder="Ej. Acordonamiento, traslado de heridos"></div>
+      <div class="campo"><label>Contacto</label><input type="text" data-campo="contacto" placeholder="Nombre y teléfono"></div>
     `;
     cont.appendChild(div);
     if (datos) {
@@ -724,10 +1002,11 @@ const app = {
     header.parentElement.classList.toggle('colapsada');
   },
 
+  // ==================== LECTURA / ESCRITURA FORMULARIO ====================
   leerFormulario() {
     const r = this.reporteActual;
     r.fechaModificacion = new Date().toISOString();
-    r.estacion = document.getElementById('f_estacion').value;
+    r.estacion = NOMBRE_ESTACION;
     r.fechaLlamada = document.getElementById('f_fecha_llamada').value;
     r.fechaLlegada = document.getElementById('f_fecha_llegada').value;
     r.fechaCierre = document.getElementById('f_fecha_cierre').value;
@@ -795,12 +1074,12 @@ const app = {
     r.comandanteCC = document.getElementById('f_comandante_cc').value;
     r.comandanteEstacion = document.getElementById('f_comandante_estacion').value;
 
-    // Datos del operador (quien creó el reporte) - viene del perfil
-    r.operador = this.config.perfilNombre || '';
-    r.operadorGrado = this.config.perfilGrado || '';
-    r.operadorCC = this.config.perfilCedula || '';
-    r.operadorTel = this.config.perfilTelefono || '';
-    r.operadorCorreo = this.config.perfilCorreo || '';
+    // Datos del operador (quien creó el reporte) - viene del usuario logueado
+    r.operador = this.usuario?.nombreCompleto || '';
+    r.operadorEmail = this.usuario?.email || '';
+    r.operadorGrado = this.usuario?.grado || '';
+    r.operadorCC = this.usuario?.cedula || '';
+    r.operadorTel = this.usuario?.telefono || '';
 
     r.firmas = { ...this.firmas };
     return r;
@@ -838,8 +1117,7 @@ const app = {
   },
 
   cargarEnFormulario(r) {
-    document.getElementById('f_consecutivo').value = r.consecutivo || '';
-    document.getElementById('f_estacion').value = r.estacion || '';
+    document.getElementById('f_consecutivo').value = r.consecutivo || 'Se asigna al enviar';
     document.getElementById('f_fecha_llamada').value = r.fechaLlamada || '';
     document.getElementById('f_fecha_llegada').value = r.fechaLlegada || '';
     document.getElementById('f_fecha_cierre').value = r.fechaCierre || '';
@@ -856,7 +1134,7 @@ const app = {
     document.getElementById('f_direccion').value = r.direccion || '';
     document.getElementById('f_barrio').value = r.barrio || '';
     document.getElementById('f_localidad').value = r.localidad || '';
-    document.getElementById('f_municipio').value = r.municipio || '';
+    document.getElementById('f_municipio').value = r.municipio || 'Inírida';
     document.getElementById('f_referencia').value = r.referencia || '';
 
     document.getElementById('f_narrativa').value = r.narrativa || '';
@@ -917,7 +1195,7 @@ const app = {
     document.getElementById('f_comandante_nombre').value = r.comandanteNombre || '';
     document.getElementById('f_comandante_grado').value = r.comandanteGrado || '';
     document.getElementById('f_comandante_cc').value = r.comandanteCC || '';
-    document.getElementById('f_comandante_estacion').value = r.comandanteEstacion || '';
+    document.getElementById('f_comandante_estacion').value = r.comandanteEstacion || NOMBRE_ESTACION;
 
     this.firmas = { ...(r.firmas || {}) };
     this.modoUbicacion = r.gpsManual ? 'manual' : 'auto';
@@ -957,24 +1235,28 @@ const app = {
     document.getElementById('progresoTexto').textContent = pct + '%';
   },
 
+  // ==================== GUARDAR Y ENVIAR ====================
   async guardarBorrador() {
     const r = this.leerFormulario();
     r.estado = 'borrador';
     await DB.guardarReporte(r);
     this.toast('Borrador guardado', 'exito');
+    if (navigator.vibrate) navigator.vibrate(50);
     this.irA('pantallaHome');
   },
 
   async enviarReporte() {
     const r = this.leerFormulario();
-    if (!r.narrativa || !r.direccion || !r.comandanteNombre) {
-      this.toast('Faltan: narrativa, dirección y comandante', 'error');
+    if (!r.narrativa || !r.direccion || !r.comandanteNombre || !r.fechaLlamada) {
+      this.toast('Faltan: fecha llamada, narrativa, dirección y comandante', 'error');
       return;
     }
     r.estado = 'pendiente';
-    await DB.guardarReporte(r);
 
-    if (r.consecutivo && r.consecutivo.includes(this.config.prefijo + '-')) {
+    // Si no tiene consecutivo aún, asignar el local provisional
+    if (!r.consecutivo) {
+      r.consecutivo = r.consecutivoLocal || this.generarConsecutivoLocal();
+      // Avanzar contador local
       const numActual = parseInt(r.consecutivo.split('-').pop());
       if (numActual === this.config.proximoNumero) {
         this.config.proximoNumero = numActual + 1;
@@ -982,6 +1264,9 @@ const app = {
       }
     }
 
+    await DB.guardarReporte(r);
+
+    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
     this.toast('Reporte guardado. Sincronizando...', 'exito');
     this.irA('pantallaHome');
 
@@ -1043,6 +1328,7 @@ const app = {
     if (ok) this.verDetalle(this.reporteActual.id);
   },
 
+  // ==================== DETALLE ====================
   async verDetalle(id) {
     const r = await DB.obtenerReporte(id);
     if (!r) return;
@@ -1062,7 +1348,7 @@ const app = {
 
     cont.innerHTML = `
       <div class="config-card">
-        <h3>${r.consecutivo}</h3>
+        <h3>${r.consecutivo || 'Sin consecutivo'}</h3>
         <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 12px;">
           <span class="badge ${r.estado}">${this.etiquetaEstado(r.estado)}</span>
           ${fecha}
@@ -1108,9 +1394,7 @@ const app = {
     this.irA('pantallaHome');
   },
 
-  /* ============================================================
-     IMPRESIÓN — PDF estilo formato oficial con hoja de fotos grande
-     ============================================================ */
+  // ==================== IMPRESIÓN PDF ====================
   async imprimirReporte() {
     if (!this.reporteActual) return;
     const r = this.reporteActual;
@@ -1133,7 +1417,6 @@ const app = {
     const fecha = (s) => s ? new Date(s).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '';
     const sn = (v) => v || '_____________';
     const checkbox = (chk) => chk ? '☒' : '☐';
-
     const isClasif = (t) => (r.clasificacion || []).includes(t);
     const isCausa = (c) => (r.causas || []).includes(c);
 
@@ -1171,10 +1454,8 @@ const app = {
     const fotos = r.fotos || [];
     const tieneFotos = fotos.length > 0;
 
-    // Página de fotos: 2x2 grandes que ocupan toda la hoja
     let paginaFotos = '';
     if (tieneFotos) {
-      // Llenar hasta 4 espacios
       const slotsFotos = [];
       for (let i = 0; i < 4; i++) {
         if (fotos[i]) {
@@ -1194,20 +1475,15 @@ const app = {
             <img src="${typeof LOGO_BIG !== 'undefined' ? LOGO_BIG : ''}" alt="">
             <div>
               <strong>CUERPO DE BOMBEROS VOLUNTARIOS — INÍRIDA, GUAINÍA</strong><br>
-              <span style="font-size: 9pt;">Anexo fotográfico — Reporte ${r.consecutivo}</span>
+              <span style="font-size: 9pt;">Anexo fotográfico — Reporte ${r.consecutivo || ''}</span>
             </div>
           </div>
           <div class="fotos-grid-pdf">
             ${slotsFotos.join('')}
           </div>
-          <div class="pie-pagina">
-            ${this.config.credito || ''}
-          </div>
         </div>
       `;
     }
-
-    const creditoLinea = this.config.credito || '';
 
     return `<!DOCTYPE html>
 <html>
@@ -1236,20 +1512,14 @@ const app = {
   .header .info { flex: 1; text-align: center; font-size: 8pt; }
   .header .info h2 { font-size: 11pt; margin: 0 0 2px 0; }
   .header .invisible { width: 70px; visibility: hidden; }
-  .titulo {
-    text-align: center; font-size: 12pt; font-weight: bold;
-    margin: 8px 0 3px;
-  }
+  .titulo { text-align: center; font-size: 12pt; font-weight: bold; margin: 8px 0 3px; }
   .lema { text-align: center; font-style: italic; font-size: 8pt; margin-bottom: 8px; }
   .seccion { margin-bottom: 4px; }
   .seccion-titulo {
     background: #000; color: #fff; padding: 2px 5px;
     font-size: 9pt; font-weight: bold;
   }
-  table {
-    width: 100%; border-collapse: collapse;
-    font-size: 8pt;
-  }
+  table { width: 100%; border-collapse: collapse; font-size: 8pt; }
   table.tabla-datos td {
     border: 1px solid #000; padding: 2px 4px; vertical-align: top;
   }
@@ -1259,14 +1529,11 @@ const app = {
   .checkbox-row { display: flex; gap: 10px; flex-wrap: wrap; padding: 3px; font-size: 8pt; border: 1px solid #000; }
   .checkbox-row > div { flex: 0 0 calc(25% - 8px); }
   .narrativa-box {
-    border: 1px solid #000; padding: 4px; min-height: 30px;
-    font-size: 8pt;
+    border: 1px solid #000; padding: 4px; min-height: 30px; font-size: 8pt;
   }
   .firma-img { max-height: 40px; max-width: 100px; }
   .pie-pagina {
-    border-top: 1px solid #000;
-    padding-top: 3px;
-    margin-top: 5px;
+    border-top: 1px solid #000; padding-top: 3px; margin-top: 5px;
     font-size: 7pt; text-align: center; font-style: italic;
   }
   .pie-pagina .credito {
@@ -1274,15 +1541,12 @@ const app = {
   }
   .aviso { font-size: 7pt; font-style: italic; margin: 3px 0; padding: 2px; background: #fffbe6; }
 
-  /* HOJA DE FOTOS - 4 grandes en 2x2 que ocupan toda la página */
   .pagina-fotos {
     display: flex; flex-direction: column; height: 277mm;
   }
   .header-mini {
     display: flex; align-items: center; gap: 10px;
-    border: 1px solid #000; padding: 4px;
-    margin-bottom: 6px;
-    font-size: 9pt;
+    border: 1px solid #000; padding: 4px; margin-bottom: 6px; font-size: 9pt;
   }
   .header-mini img { width: 40px; height: 40px; object-fit: contain; }
   .fotos-grid-pdf {
@@ -1295,8 +1559,7 @@ const app = {
   .foto-grande {
     border: 1px solid #000;
     display: flex; flex-direction: column;
-    overflow: hidden;
-    background: #fafafa;
+    overflow: hidden; background: #fafafa;
   }
   .foto-grande.vacia { background: white; border: 1px dashed #ccc; }
   .foto-grande img {
@@ -1306,8 +1569,7 @@ const app = {
   }
   .foto-grande .foto-pie {
     font-size: 8pt; text-align: center;
-    padding: 2px; background: #f0f0f0;
-    border-top: 1px solid #000;
+    padding: 2px; background: #f0f0f0; border-top: 1px solid #000;
   }
 </style>
 </head>
@@ -1333,7 +1595,7 @@ const app = {
     <table class="tabla-datos">
       <tr>
         <td class="label">N° DE REPORTE / RADICADO:</td><td>${sn(r.consecutivo)}</td>
-        <td class="label">ESTACIÓN QUE ATIENDE:</td><td>${sn(r.estacion)}</td>
+        <td class="label">ESTACIÓN QUE ATIENDE:</td><td>${sn(r.estacion || NOMBRE_ESTACION)}</td>
       </tr>
       <tr>
         <td class="label">FECHA Y HORA DE LLAMADA:</td><td>${sn(fecha(r.fechaLlamada))}</td>
@@ -1348,7 +1610,7 @@ const app = {
         <td class="label">TELÉFONO REPORTANTE:</td><td>${sn(r.reportaTel)}</td>
       </tr>
       <tr>
-        <td class="label" colspan="1">RELACIÓN CON EL EVENTO:</td>
+        <td class="label">RELACIÓN CON EL EVENTO:</td>
         <td colspan="3">${sn(r.reportaRelacion)}</td>
       </tr>
     </table>
@@ -1535,7 +1797,7 @@ const app = {
   <div class="pie-pagina">
     Documento bajo Ley 1575 de 2012 (Ley General de Bomberos de Colombia) | Ley 1581 de 2012 (Habeas Data)<br>
     Cuerpo de Bomberos Voluntarios Inírida – Guainía | "ABNEGACIÓN Y DISCIPLINA" | Calle 15 N° 5-07 Zona Indígena | Tel. ${TELEFONO_ESTACION}
-    ${creditoLinea ? `<span class="credito">— ${creditoLinea} —</span>` : ''}
+    <span class="credito">— App desarrollada por ${CREDITO_AUTOR.nombre} · ${CREDITO_AUTOR.cuerpo} · 📧 ${CREDITO_AUTOR.correo} · 📱 ${CREDITO_AUTOR.telefono} —</span>
   </div>
 </div>
 
@@ -1558,6 +1820,7 @@ ${paginaFotos}
     this.toast(`${reportes.length} reportes exportados`, 'exito');
   },
 
+  // ==================== UTILIDADES ====================
   toast(mensaje, tipo = '') {
     const t = document.getElementById('toast');
     t.textContent = mensaje;
@@ -1626,6 +1889,17 @@ ${paginaFotos}
     return local.toISOString().slice(0, 16);
   }
 };
+
+// Cerrar menú usuario al tocar afuera
+document.addEventListener('click', (e) => {
+  const userMenu = document.getElementById('userMenu');
+  const userAvatar = document.getElementById('userAvatar');
+  if (userMenu && userMenu.classList.contains('visible')) {
+    if (!userMenu.contains(e.target) && !userAvatar.contains(e.target)) {
+      userMenu.classList.remove('visible');
+    }
+  }
+});
 
 window.addEventListener('DOMContentLoaded', () => app.init());
 

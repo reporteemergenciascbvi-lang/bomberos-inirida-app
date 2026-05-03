@@ -6,23 +6,30 @@
 <meta name="theme-color" content="#7a1010">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Bomberos Inírida">
-<title>Reporte de Emergencias — Bomberos Inírida</title>
+<meta name="apple-mobile-web-app-title" content="CBVI Reportes">
+<title>CBVI Reportes — Bomberos Inírida</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚒</text></svg>">
+
+<!-- Google Identity Services (login con Google) -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
 <style>
   :root {
     --rojo: #7a1010;
     --rojo-claro: #c41e3a;
     --rojo-oscuro: #4a0808;
     --amarillo: #f4c430;
+    --amarillo-claro: #fef9c3;
     --negro: #1a1a1a;
     --gris-fondo: #f5f5f5;
     --gris-borde: #d4d4d4;
     --gris-texto: #555;
     --verde: #2d7a3e;
+    --verde-claro: #d1fae5;
     --naranja: #d97706;
     --azul: #1e40af;
+    --azul-claro: #dbeafe;
     --blanco: #ffffff;
     --sombra: 0 2px 8px rgba(0,0,0,0.08);
     --sombra-fuerte: 0 4px 16px rgba(0,0,0,0.15);
@@ -67,30 +74,113 @@
   }
   header.app-header .btn-volver { color: white; font-size: 22px; padding: 4px 8px; }
 
+  /* Avatar usuario en header */
+  .user-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: white; color: var(--rojo);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+    cursor: pointer; flex-shrink: 0;
+    border: 2px solid white; overflow: hidden;
+    position: relative;
+  }
+  .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .user-avatar.admin::after {
+    content: "★"; position: absolute; bottom: -2px; right: -2px;
+    background: var(--amarillo); color: var(--negro);
+    width: 14px; height: 14px; border-radius: 50%;
+    font-size: 9px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid white;
+  }
+
+  /* Menú desplegable usuario */
+  .user-menu {
+    position: fixed; top: calc(60px + env(safe-area-inset-top)); right: 12px;
+    background: white; border-radius: var(--radio);
+    box-shadow: var(--sombra-fuerte); width: 280px;
+    z-index: 200; display: none; overflow: hidden;
+  }
+  .user-menu.visible { display: block; }
+  .user-menu .user-info {
+    padding: 16px; background: linear-gradient(135deg, var(--rojo-oscuro), var(--rojo));
+    color: white; text-align: center;
+  }
+  .user-menu .user-info .avatar-grande {
+    width: 60px; height: 60px; border-radius: 50%; background: white;
+    color: var(--rojo); display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700; margin: 0 auto 8px;
+    overflow: hidden;
+  }
+  .user-menu .user-info .avatar-grande img { width: 100%; height: 100%; object-fit: cover; }
+  .user-menu .user-info .nombre-usuario { font-weight: 700; font-size: 15px; }
+  .user-menu .user-info .grado-usuario { font-size: 12px; opacity: 0.9; }
+  .user-menu .user-info .correo-usuario { font-size: 11px; opacity: 0.8; margin-top: 4px; word-break: break-all; }
+  .user-menu .user-info .badge-admin {
+    background: var(--amarillo); color: var(--negro); font-size: 10px;
+    font-weight: 700; padding: 2px 6px; border-radius: 10px;
+    display: inline-block; margin-top: 6px;
+  }
+  .user-menu .menu-item {
+    width: 100%; padding: 12px 16px; text-align: left;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 14px; color: var(--negro);
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .user-menu .menu-item:hover { background: #f9fafb; }
+  .user-menu .menu-item:last-child { border-bottom: none; color: var(--rojo); }
+  .user-menu .menu-item .icono { font-size: 18px; }
+
   .pantalla { display: none; padding: 16px; padding-bottom: 100px; max-width: 720px; margin: 0 auto; }
   .pantalla.activa { display: block; }
 
-  .bienvenida {
+  .login-pantalla {
     background: linear-gradient(135deg, var(--rojo-oscuro), var(--rojo));
     min-height: 100vh; display: flex; align-items: center; justify-content: center;
     padding: 20px; color: white; margin: -16px;
   }
-  .bienvenida .caja {
+  .login-pantalla .caja {
     background: white; color: var(--negro); border-radius: 16px;
-    padding: 24px; max-width: 420px; width: 100%;
+    padding: 32px 24px; max-width: 420px; width: 100%;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+  .login-pantalla img.logo {
+    width: 100px; height: 100px; margin: 0 auto 16px; display: block;
+  }
+  .login-pantalla h2 { color: var(--rojo); font-size: 24px; margin-bottom: 4px; }
+  .login-pantalla h3 { color: var(--gris-texto); font-size: 14px; margin-bottom: 4px; font-weight: 500; }
+  .login-pantalla .lema { font-style: italic; color: var(--gris-texto); margin-bottom: 24px; font-size: 12px; }
+
+  .login-pantalla .info-cuerpo {
+    background: var(--amarillo-claro); padding: 14px; border-radius: 8px;
+    font-size: 13px; margin-bottom: 24px; line-height: 1.5;
+    text-align: left; border-left: 4px solid var(--rojo);
+  }
+
+  #google-signin-btn {
+    display: flex; justify-content: center; margin: 16px 0;
+  }
+
+  .login-pantalla .pie-credito {
+    margin-top: 24px; font-size: 10px; color: var(--gris-texto);
+    line-height: 1.5; padding-top: 16px; border-top: 1px solid #eee;
+  }
+  .login-pantalla .pie-credito strong { color: var(--rojo); }
+
+  /* PANTALLA REGISTRO COMPLEMENTARIO */
+  .registro-complemento {
+    background: linear-gradient(135deg, var(--rojo-oscuro), var(--rojo));
+    min-height: 100vh; padding: 20px; color: white; margin: -16px;
+    overflow-y: auto;
+  }
+  .registro-complemento .caja {
+    background: white; color: var(--negro); border-radius: 16px;
+    padding: 24px; max-width: 420px; width: 100%; margin: 20px auto;
     box-shadow: 0 20px 50px rgba(0,0,0,0.3);
   }
-  .bienvenida img.logo {
-    width: 80px; height: 80px; margin: 0 auto 12px; display: block;
-  }
-  .bienvenida h2 { color: var(--rojo); text-align: center; font-size: 22px; margin-bottom: 4px; }
-  .bienvenida .lema {
-    text-align: center; font-style: italic; color: var(--gris-texto);
-    margin-bottom: 16px; font-size: 13px;
-  }
-  .bienvenida .intro {
-    background: #fef9c3; padding: 12px; border-radius: 8px; font-size: 13px;
-    margin-bottom: 16px; line-height: 1.5;
+  .registro-complemento h2 { color: var(--rojo); text-align: center; font-size: 20px; margin-bottom: 4px; }
+  .registro-complemento .saludo {
+    text-align: center; font-size: 13px; color: var(--gris-texto); margin-bottom: 16px;
   }
 
   .home-cta {
@@ -103,20 +193,6 @@
   .home-cta .icono-grande { font-size: 48px; display: block; margin-bottom: 8px; }
   .home-cta .titulo { font-size: 20px; font-weight: 700; }
   .home-cta .subtitulo { font-size: 13px; opacity: 0.9; margin-top: 4px; }
-
-  .saludo-bombero {
-    background: white; padding: 12px 16px; border-radius: var(--radio);
-    margin-bottom: 12px; box-shadow: var(--sombra);
-    display: flex; align-items: center; gap: 10px; font-size: 13px;
-  }
-  .saludo-bombero .avatar {
-    width: 38px; height: 38px; border-radius: 50%; background: var(--rojo);
-    color: white; display: flex; align-items: center; justify-content: center;
-    font-weight: 700; flex-shrink: 0;
-  }
-  .saludo-bombero .info { flex: 1; min-width: 0; }
-  .saludo-bombero .info .nombre { font-weight: 700; color: var(--negro); }
-  .saludo-bombero .info .grado { font-size: 11px; color: var(--gris-texto); }
 
   .seccion-titulo {
     font-size: 13px; font-weight: 700; text-transform: uppercase;
@@ -149,7 +225,7 @@
   .reporte-item .fecha { font-size: 11px; color: var(--gris-texto); margin-top: 2px; }
   .reporte-item .badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
   .badge.pendiente { background: #fef3c7; color: #92400e; }
-  .badge.enviado { background: #d1fae5; color: #065f46; }
+  .badge.enviado { background: var(--verde-claro); color: #065f46; }
   .badge.borrador { background: #e5e7eb; color: #374151; }
 
   .vacio-estado { text-align: center; padding: 40px 20px; color: var(--gris-texto); }
@@ -181,10 +257,26 @@
   .seccion-form.colapsada .seccion-cuerpo { display: none; }
   .seccion-cuerpo { padding: 16px; }
 
+  .ayuda-seccion {
+    background: var(--azul-claro); border-left: 3px solid var(--azul);
+    padding: 10px 12px; border-radius: 4px; font-size: 12px;
+    margin-bottom: 14px; color: #1e3a8a; line-height: 1.5;
+  }
+  .ayuda-seccion strong { color: var(--azul); }
+
   .campo { margin-bottom: 14px; }
-  .campo label { display: block; font-size: 13px; font-weight: 600; color: var(--negro); margin-bottom: 6px; }
+  .campo label { display: block; font-size: 13px; font-weight: 600; color: var(--negro); margin-bottom: 4px; }
   .campo label .requerido { color: var(--rojo); }
-  .campo .ayuda { font-size: 11px; color: var(--gris-texto); margin-top: 4px; }
+  .campo label .opcional { color: var(--gris-texto); font-weight: 400; font-size: 11px; }
+  .campo .ayuda {
+    font-size: 11px; color: var(--gris-texto); margin-top: 4px;
+    line-height: 1.4; padding-left: 4px; border-left: 2px solid #e5e7eb;
+  }
+  .campo .ayuda::before { content: "💡 "; }
+  .campo .ayuda-pre {
+    font-size: 11px; color: var(--gris-texto); margin-bottom: 6px;
+    line-height: 1.4; font-style: italic;
+  }
   .campo input[type="text"], .campo input[type="tel"], .campo input[type="email"],
   .campo input[type="number"], .campo input[type="date"], .campo input[type="time"],
   .campo input[type="datetime-local"], .campo textarea, .campo select {
@@ -250,6 +342,13 @@
     background: white; color: var(--negro); font-size: 13px; margin-bottom: 6px;
   }
   .gps-manual-fields input:last-child { margin-bottom: 0; }
+
+  .auto-completar-info {
+    background: var(--verde-claro); border-left: 3px solid var(--verde);
+    padding: 8px 12px; border-radius: 4px; font-size: 12px;
+    margin-bottom: 12px; color: #065f46; display: none;
+  }
+  .auto-completar-info.visible { display: block; }
 
   .fotos-grid {
     display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px;
@@ -378,6 +477,8 @@
     margin-bottom: 12px; box-shadow: var(--sombra);
   }
   .config-card h3 { font-size: 14px; margin-bottom: 12px; color: var(--rojo); text-transform: uppercase; letter-spacing: 0.5px; }
+  .config-card.admin { border-left: 4px solid var(--amarillo); }
+  .config-card.admin h3 { color: #92400e; }
 
   .lema-pie {
     text-align: center; font-size: 11px; color: var(--gris-texto);
@@ -385,10 +486,18 @@
   }
   .credito-pie {
     text-align: center; font-size: 10px; color: var(--gris-texto);
-    margin-top: 8px; opacity: 0.7;
+    margin-top: 8px; line-height: 1.5;
   }
+  .credito-pie strong { color: var(--rojo); }
+  .credito-pie a { color: var(--azul); text-decoration: none; }
 
   #pdfContenedor { display: none; }
+
+  .badge-admin-section {
+    background: var(--amarillo); color: var(--negro); font-size: 10px;
+    padding: 2px 6px; border-radius: 10px; font-weight: 700;
+    margin-left: 6px;
+  }
 </style>
 </head>
 <body>
@@ -397,75 +506,118 @@
   <button class="btn-volver" id="btnVolver" style="display:none;">←</button>
   <img class="logo" id="logoHeader" src="" alt="Logo">
   <div class="titulo">
-    <h1 id="headerTitulo">Bomberos Inírida</h1>
-    <div class="subtitulo">Reporte de Emergencias</div>
+    <h1 id="headerTitulo">CBVI Reportes</h1>
+    <div class="subtitulo">Bomberos Inírida</div>
   </div>
   <div class="estado-conexion" id="estadoConexion">
     <span class="punto"></span>
     <span id="estadoTexto">En línea</span>
   </div>
+  <div class="user-avatar" id="userAvatar" onclick="app.toggleUserMenu()">
+    <span id="userAvatarLetra">B</span>
+  </div>
 </header>
 
-<div class="pantalla activa" id="pantallaBienvenida">
-  <div class="bienvenida">
+<!-- Menú desplegable usuario -->
+<div class="user-menu" id="userMenu">
+  <div class="user-info">
+    <div class="avatar-grande" id="avatarGrande">
+      <span id="avatarGrandeLetra">B</span>
+    </div>
+    <div class="nombre-usuario" id="menuNombreUsuario">—</div>
+    <div class="grado-usuario" id="menuGradoUsuario">—</div>
+    <div class="correo-usuario" id="menuCorreoUsuario">—</div>
+    <div class="badge-admin" id="menuBadgeAdmin" style="display:none;">★ ADMINISTRADOR</div>
+  </div>
+  <button class="menu-item" onclick="app.irA('pantallaConfig'); app.cerrarUserMenu();">
+    <span class="icono">⚙️</span> Mis datos / Configuración
+  </button>
+  <button class="menu-item" onclick="app.cerrarSesion()">
+    <span class="icono">🚪</span> Cerrar sesión
+  </button>
+</div>
+
+<!-- LOGIN -->
+<div class="pantalla activa" id="pantallaLogin">
+  <div class="login-pantalla">
     <div class="caja">
-      <img class="logo" id="logoBienvenida" src="" alt="">
-      <h2>Bienvenido, Bombero 🚒</h2>
+      <img class="logo" id="logoLogin" src="" alt="">
+      <h2>CBVI Reportes</h2>
+      <h3>Cuerpo de Bomberos Voluntarios de Inírida</h3>
       <p class="lema">"ABNEGACIÓN Y DISCIPLINA"</p>
-      <div class="intro">
-        <strong>Antes de empezar</strong>, registre sus datos. Solo se hace una vez en este teléfono. No se requiere contraseña.
+
+      <div class="info-cuerpo">
+        <strong>🚒 Solo bomberos autorizados</strong><br>
+        Inicie sesión con su cuenta de Google para acceder al sistema de reportes oficial. Su correo será verificado por Google.
       </div>
+
+      <div id="google-signin-btn"></div>
+
+      <div id="loginErrorBox" style="display:none; background:#fee2e2; color:#991b1b; padding:10px; border-radius:6px; font-size:12px; margin-top:12px;"></div>
+
+      <div class="pie-credito">
+        <p>App desarrollada por:</p>
+        <p><strong>Bombero Jeferson Jeancarlos Rangel Gil</strong></p>
+        <p>Cuerpo de Bomberos Voluntarios de Inírida</p>
+        <p style="margin-top:6px;">📧 gilrangeljeancarlosjeferson@gmail.com<br>📱 320 960 6428</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTRO COMPLEMENTARIO (después del login Google, primera vez) -->
+<div class="pantalla" id="pantallaRegistroComplemento">
+  <div class="registro-complemento">
+    <div class="caja">
+      <h2>¡Bienvenido! 🚒</h2>
+      <p class="saludo" id="saludoRegistro">Complete sus datos para empezar</p>
+
+      <div class="ayuda-seccion">
+        <strong>📝 Datos del bombero</strong><br>
+        Estos datos se usan para identificar quién hace cada reporte. Solo se piden una vez.
+      </div>
+
       <div class="campo">
         <label>Nombre completo <span class="requerido">*</span></label>
-        <input type="text" id="biv_nombre" placeholder="Ej. Juan Pérez">
+        <input type="text" id="reg_nombre" placeholder="Ej. Juan Pérez García">
+        <div class="ayuda">Nombre y apellidos completos como aparecen en su cédula.</div>
       </div>
-      <div class="campo-fila">
-        <div class="campo">
-          <label>Grado</label>
-          <select id="biv_grado">
-            <option value="">--</option>
-            <option>Bombero</option>
-            <option>Cabo</option>
-            <option>Sargento</option>
-            <option>Subteniente</option>
-            <option>Teniente</option>
-            <option>Capitán</option>
-            <option>Mayor</option>
-            <option>Comandante</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label>Cédula</label>
-          <input type="text" id="biv_cedula" inputmode="numeric">
-        </div>
-      </div>
+
       <div class="campo">
-        <label>Correo electrónico</label>
-        <input type="email" id="biv_correo" placeholder="ejemplo@correo.com">
+        <label>Grado <span class="requerido">*</span></label>
+        <select id="reg_grado">
+          <option value="">Seleccione su grado</option>
+          <option>Aspirante</option>
+          <option>Bombero</option>
+          <option>Cabo</option>
+          <option>Sargento</option>
+          <option>Subteniente</option>
+          <option>Teniente</option>
+          <option>Capitán</option>
+        </select>
+        <div class="ayuda">Su grado actual dentro del cuerpo de bomberos.</div>
       </div>
+
       <div class="campo">
-        <label>Teléfono celular</label>
-        <input type="tel" id="biv_telefono" placeholder="3XX XXX XXXX">
+        <label>Cédula <span class="requerido">*</span></label>
+        <input type="text" id="reg_cedula" inputmode="numeric" placeholder="Ej. 1234567890">
+        <div class="ayuda">Número de cédula sin puntos ni espacios.</div>
       </div>
-      <button class="btn btn-primary btn-completo" onclick="app.guardarPerfilBienvenida()">
+
+      <div class="campo">
+        <label>Teléfono celular <span class="requerido">*</span></label>
+        <input type="tel" id="reg_telefono" placeholder="Ej. 3209606428">
+        <div class="ayuda">Para que sus compañeros puedan contactarle si es necesario.</div>
+      </div>
+
+      <button class="btn btn-primary btn-completo" onclick="app.completarRegistro()">
         Comenzar a usar la app 🚀
       </button>
-      <p style="text-align:center; margin-top: 12px; font-size: 10px; color: var(--gris-texto);">
-        Sus datos se guardan solo en este teléfono. Puede editarlos después en Configuración.
-      </p>
     </div>
   </div>
 </div>
 
 <div class="pantalla" id="pantallaHome">
-  <div class="saludo-bombero" id="saludoBombero" style="display:none;">
-    <div class="avatar" id="avatarLetra">B</div>
-    <div class="info">
-      <div class="nombre" id="nombreBombero">—</div>
-      <div class="grado" id="gradoBombero">—</div>
-    </div>
-  </div>
-
   <button class="home-cta" onclick="app.nuevoReporte()">
     <span class="icono-grande">🚨</span>
     <div class="titulo">NUEVA EMERGENCIA</div>
@@ -490,12 +642,11 @@
   <div class="seccion-titulo">Reportes recientes</div>
   <div id="listaReportes"></div>
 
-  <button class="btn btn-secundario btn-completo" style="margin-top: 16px;" onclick="app.irA('pantallaConfig')">
-    ⚙️ Configuración
-  </button>
-
   <div class="lema-pie">"ABNEGACIÓN Y DISCIPLINA"</div>
-  <div class="credito-pie" id="creditoHome"></div>
+  <div class="credito-pie">
+    App desarrollada por <strong>Bombero Jeferson Jeancarlos Rangel Gil</strong><br>
+    Cuerpo de Bomberos Voluntarios de Inírida
+  </div>
 </div>
 
 <div class="pantalla" id="pantallaForm">
@@ -510,48 +661,55 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
-      <div class="campo-fila">
-        <div class="campo">
-          <label>N° Reporte</label>
-          <input type="text" id="f_consecutivo" readonly style="background: var(--gris-fondo); font-weight: 700;">
-        </div>
-        <div class="campo">
-          <label>Estación</label>
-          <input type="text" id="f_estacion" placeholder="CBVI">
-        </div>
+      <div class="ayuda-seccion">
+        <strong>📋 Información básica del incidente.</strong> El número de reporte se asigna automáticamente al guardar. Las fechas son cuándo recibieron la llamada, cuándo llegaron al lugar y cuándo terminó la atención.
       </div>
+
+      <div class="campo">
+        <label>N° Reporte <span class="opcional">(asignado automáticamente)</span></label>
+        <input type="text" id="f_consecutivo" readonly style="background: var(--gris-fondo); font-weight: 700;" placeholder="Se asigna al guardar">
+        <div class="ayuda">El sistema asigna el número correlativo automáticamente al enviar.</div>
+      </div>
+
       <div class="campo-fila">
         <div class="campo">
-          <label>Fecha y hora de llamada</label>
+          <label>Fecha y hora de llamada <span class="requerido">*</span></label>
           <input type="datetime-local" id="f_fecha_llamada">
+          <div class="ayuda">Cuándo recibió el cuerpo de bomberos la llamada de auxilio.</div>
         </div>
         <div class="campo">
           <label>Fecha y hora de llegada</label>
           <input type="datetime-local" id="f_fecha_llegada">
+          <div class="ayuda">Cuándo llegaron las unidades al lugar del incidente.</div>
         </div>
       </div>
       <div class="campo">
         <label>Fecha y hora de cierre</label>
         <input type="datetime-local" id="f_fecha_cierre">
+        <div class="ayuda">Cuándo se dio por terminada la atención de la emergencia.</div>
       </div>
       <div class="campo-fila">
         <div class="campo">
           <label>Quién reporta <span class="requerido">*</span></label>
           <input type="text" id="f_reporta_nombre" placeholder="Nombre completo">
+          <div class="ayuda">Nombre de la persona que llamó a reportar la emergencia.</div>
         </div>
         <div class="campo">
           <label>Teléfono reportante</label>
           <input type="tel" id="f_reporta_tel" placeholder="3XX XXX XXXX">
+          <div class="ayuda">Número de quien reportó.</div>
         </div>
       </div>
       <div class="campo-fila">
         <div class="campo">
           <label>Relación con el evento</label>
-          <input type="text" id="f_reporta_relacion" placeholder="Ej. testigo, vecino">
+          <input type="text" id="f_reporta_relacion" placeholder="Ej. testigo, vecino, dueño">
+          <div class="ayuda">¿Qué relación tiene con lo ocurrido? Vecino, testigo, dueño, transeúnte, etc.</div>
         </div>
         <div class="campo">
           <label>Turno / Guardia</label>
-          <input type="text" id="f_turno" placeholder="A, B, C...">
+          <input type="text" id="f_turno" placeholder="A, B, C, Diurno...">
+          <div class="ayuda">Turno en el que se atendió.</div>
         </div>
       </div>
     </div>
@@ -563,10 +721,14 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>🏷️ Tipo de emergencia.</strong> Marque uno o varios tipos según corresponda al evento atendido. Si fue algo distinto a lo listado, use el campo "Otra".
+      </div>
       <div class="checkbox-grid" id="checkboxClasificacion"></div>
       <div class="campo" style="margin-top: 12px;">
-        <label>Otra (especificar)</label>
-        <input type="text" id="f_clasif_otra">
+        <label>Otra (especificar) <span class="opcional">(opcional)</span></label>
+        <input type="text" id="f_clasif_otra" placeholder="Si no es ninguna de las anteriores...">
+        <div class="ayuda">Solo llene si el tipo de evento no está en la lista de arriba.</div>
       </div>
     </div>
   </div>
@@ -577,6 +739,9 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>📍 Dónde ocurrió el evento.</strong> Use el botón "Usar GPS" para que el celular detecte automáticamente las coordenadas y la dirección. Si está llenando el reporte desde la estación, use "Manual" y escriba la dirección donde ocurrió el evento.
+      </div>
       <div class="gps-card" id="gpsCard">
         <div class="top">
           <div class="icono">📍</div>
@@ -586,8 +751,8 @@
           </div>
         </div>
         <div class="acciones">
-          <button id="btnGpsAuto" onclick="app.modoGPS('auto')">📡 Usar GPS</button>
-          <button id="btnGpsManual" onclick="app.modoGPS('manual')">✏️ Manual</button>
+          <button id="btnGpsAuto" onclick="app.modoGPS('auto')">📡 Usar GPS automático</button>
+          <button id="btnGpsManual" onclick="app.modoGPS('manual')">✏️ Llenar manual</button>
           <button id="btnGpsActualizar" onclick="app.capturarGPS()" style="display:none;">🔄 Actualizar</button>
         </div>
         <div class="gps-manual-fields">
@@ -595,27 +760,37 @@
           <input type="text" id="f_lng_manual" placeholder="Longitud (Ej: -67.923900)" inputmode="decimal">
         </div>
       </div>
+
+      <div class="auto-completar-info" id="autoCompletarInfo">
+        ✅ Dirección detectada automáticamente. Puede editar los campos abajo si necesita corregir.
+      </div>
+
       <div class="campo">
         <label>Dirección <span class="requerido">*</span></label>
-        <input type="text" id="f_direccion" placeholder="Calle, carrera, número">
+        <input type="text" id="f_direccion" placeholder="Calle, carrera, número de la casa">
+        <div class="ayuda">Dirección exacta del lugar. Ejemplo: "Calle 15 #5-07" o "Carrera 7 con calle 12".</div>
       </div>
       <div class="campo-fila">
         <div class="campo">
-          <label>Barrio / Sector</label>
-          <input type="text" id="f_barrio">
+          <label>Barrio / Sector <span class="requerido">*</span></label>
+          <input type="text" id="f_barrio" placeholder="Ej. Centro, La Esperanza">
+          <div class="ayuda">Nombre del barrio o sector donde ocurrió.</div>
         </div>
         <div class="campo">
           <label>Localidad / Zona</label>
-          <input type="text" id="f_localidad">
+          <input type="text" id="f_localidad" placeholder="Urbana / Rural / Indígena">
+          <div class="ayuda">Tipo de zona o localidad.</div>
         </div>
       </div>
       <div class="campo">
         <label>Municipio</label>
         <input type="text" id="f_municipio" value="Inírida">
+        <div class="ayuda">Por defecto Inírida. Cambie si el evento ocurrió en otro municipio.</div>
       </div>
       <div class="campo">
         <label>Punto de referencia</label>
-        <textarea id="f_referencia" placeholder="Ej. cerca al parque, frente a la iglesia"></textarea>
+        <textarea id="f_referencia" placeholder="Ej. cerca al parque principal, frente a la iglesia, al lado del colegio"></textarea>
+        <div class="ayuda">Algo cercano y conocido que ayude a ubicar el lugar fácilmente.</div>
       </div>
     </div>
   </div>
@@ -626,16 +801,26 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
-      <div class="campo">
-        <label>Narrativa inicial (lo reportado por el solicitante) <span class="requerido">*</span></label>
-        <textarea id="f_narrativa" rows="4" placeholder="Describa lo que reportó el solicitante..."></textarea>
+      <div class="ayuda-seccion">
+        <strong>✏️ Qué pasó.</strong> Cuente con detalle qué reportó la persona que llamó y qué encontraron al llegar. Adjunte hasta 4 fotografías del evento (las cuales saldrán en hoja aparte tamaño grande al imprimir).
       </div>
+
+      <div class="campo">
+        <label>Narrativa inicial <span class="requerido">*</span></label>
+        <div class="ayuda-pre">¿Qué le contó el solicitante por teléfono?</div>
+        <textarea id="f_narrativa" rows="4" placeholder="Ej: 'Reportan incendio en vivienda de dos pisos, hay personas adentro, mucho humo saliendo del techo...'"></textarea>
+        <div class="ayuda">Resuma lo que reportó la persona que llamó. Sea preciso con lo que dijo.</div>
+      </div>
+
       <div class="campo">
         <label>Condiciones al llegar</label>
-        <textarea id="f_condiciones" rows="4" placeholder="Visibilidad, humo, fuego visible, accesibilidad, riesgos..."></textarea>
+        <div class="ayuda-pre">¿Qué encontraron en el lugar?</div>
+        <textarea id="f_condiciones" rows="4" placeholder="Ej: 'A nuestra llegada se observa fuego en techo, humo denso, vecinos evacuados, vías de acceso despejadas...'"></textarea>
+        <div class="ayuda">Describa qué vieron al llegar: visibilidad, humo, fuego, accesibilidad, riesgos, personas en peligro, etc.</div>
       </div>
+
       <div class="campo">
-        <label>Fotografías del incidente (hasta 4)</label>
+        <label>Fotografías del incidente <span class="opcional">(hasta 4)</span></label>
         <div class="fotos-grid">
           <div class="foto-slot" data-foto="0" onclick="app.elegirFoto(0)">
             <span class="icono">📷</span><span>Foto 1</span>
@@ -650,7 +835,7 @@
             <span class="icono">📷</span><span>Foto 4</span>
           </div>
         </div>
-        <div class="ayuda">Toque cada espacio para tomar foto o seleccionar de su galería. Al imprimir, las fotos salen en una hoja aparte tamaño grande.</div>
+        <div class="ayuda">Toque cada espacio para tomar foto con la cámara o seleccionar una de su galería. Las fotos saldrán en hoja aparte al imprimir.</div>
       </div>
     </div>
   </div>
@@ -661,8 +846,8 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
-      <div style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px; padding: 8px; background: #fef9c3; border-radius: 4px;">
-        💡 Agregue cada vehículo con sus datos. Para personal, agregue el ítem "Personal" y liste los nombres de los bomberos que asistieron.
+      <div class="ayuda-seccion">
+        <strong>🚒 Qué unidades y personal asistieron.</strong> Agregue cada vehículo con sus datos (placa, maquinista, etc.). Para listar bomberos asistentes, agregue el ítem "Personal" y liste los nombres uno por uno.
       </div>
       <div class="tabla-dinamica" id="tablaRecursos"></div>
       <button class="agregar-fila" onclick="app.agregarRecurso()">+ Agregar recurso</button>
@@ -675,34 +860,79 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>📊 Daños y víctimas en números.</strong> Cuente cuántas personas, viviendas, hectáreas, etc. fueron afectadas. Si no hay daños en una categoría, deje el cero.
+      </div>
+
       <div class="campo-fila-3">
-        <div class="campo"><label>Muertos</label><input type="number" id="f_muertos" min="0" value="0"></div>
-        <div class="campo"><label>Heridos</label><input type="number" id="f_heridos" min="0" value="0"></div>
-        <div class="campo"><label>Desaparecidos</label><input type="number" id="f_desaparecidos" min="0" value="0"></div>
+        <div class="campo">
+          <label>Muertos</label>
+          <input type="number" id="f_muertos" min="0" value="0">
+        </div>
+        <div class="campo">
+          <label>Heridos</label>
+          <input type="number" id="f_heridos" min="0" value="0">
+        </div>
+        <div class="campo">
+          <label>Desaparecidos</label>
+          <input type="number" id="f_desaparecidos" min="0" value="0">
+        </div>
       </div>
       <div class="campo-fila">
-        <div class="campo"><label>Personas afectadas</label><input type="number" id="f_personas_afectadas" min="0" value="0"></div>
-        <div class="campo"><label>Familias afectadas</label><input type="number" id="f_familias_afectadas" min="0" value="0"></div>
+        <div class="campo">
+          <label>Personas afectadas</label>
+          <input type="number" id="f_personas_afectadas" min="0" value="0">
+          <div class="ayuda">Personas que perdieron bienes o quedaron en riesgo.</div>
+        </div>
+        <div class="campo">
+          <label>Familias afectadas</label>
+          <input type="number" id="f_familias_afectadas" min="0" value="0">
+          <div class="ayuda">Núcleos familiares afectados.</div>
+        </div>
       </div>
       <div class="campo-fila">
-        <div class="campo"><label>Viviendas destruidas</label><input type="number" id="f_viv_destruidas" min="0" value="0"></div>
-        <div class="campo"><label>Viviendas averiadas</label><input type="number" id="f_viv_averiadas" min="0" value="0"></div>
+        <div class="campo">
+          <label>Viviendas destruidas</label>
+          <input type="number" id="f_viv_destruidas" min="0" value="0">
+          <div class="ayuda">Viviendas que quedaron inhabitables.</div>
+        </div>
+        <div class="campo">
+          <label>Viviendas averiadas</label>
+          <input type="number" id="f_viv_averiadas" min="0" value="0">
+          <div class="ayuda">Con daños pero todavía habitables.</div>
+        </div>
       </div>
       <div class="campo-fila">
-        <div class="campo"><label>Hectáreas afectadas</label><input type="number" id="f_hectareas" min="0" step="0.1" value="0"></div>
-        <div class="campo"><label>Vías afectadas</label><input type="number" id="f_vias" min="0" value="0"></div>
+        <div class="campo">
+          <label>Hectáreas afectadas</label>
+          <input type="number" id="f_hectareas" min="0" step="0.1" value="0">
+          <div class="ayuda">Solo si fue incendio forestal o similar.</div>
+        </div>
+        <div class="campo">
+          <label>Vías afectadas</label>
+          <input type="number" id="f_vias" min="0" value="0">
+        </div>
       </div>
       <div class="campo-fila">
-        <div class="campo"><label>Puentes afectados</label><input type="number" id="f_puentes" min="0" value="0"></div>
-        <div class="campo"><label>Pérdida estimada ($)</label><input type="number" id="f_perdida" min="0" value="0"></div>
+        <div class="campo">
+          <label>Puentes afectados</label>
+          <input type="number" id="f_puentes" min="0" value="0">
+        </div>
+        <div class="campo">
+          <label>Pérdida estimada ($)</label>
+          <input type="number" id="f_perdida" min="0" value="0">
+          <div class="ayuda">Valor aproximado en pesos.</div>
+        </div>
       </div>
       <div class="campo">
         <label>Zona / Punto de origen</label>
-        <input type="text" id="f_origen" placeholder="Ej. cocina, motor, zona forestal">
+        <input type="text" id="f_origen" placeholder="Ej. cocina, motor, zona forestal sector sur">
+        <div class="ayuda">¿Dónde se inició el evento? Punto exacto: cocina, dormitorio, vehículo, monte, etc.</div>
       </div>
       <div class="campo">
         <label>Áreas estructurales afectadas</label>
-        <textarea id="f_areas_afectadas"></textarea>
+        <textarea id="f_areas_afectadas" placeholder="Ej: techo del primer piso, paredes laterales, escalera principal..."></textarea>
+        <div class="ayuda">Detalle qué partes de la estructura sufrieron daño.</div>
       </div>
     </div>
   </div>
@@ -713,13 +943,24 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>👤 Persona que sufrió el daño.</strong> Datos del propietario o residente principal del lugar afectado. La firma sirve como constancia que recibió la atención.
+      </div>
+
       <div class="campo">
         <label>Nombre completo</label>
-        <input type="text" id="f_afectado_nombre">
+        <input type="text" id="f_afectado_nombre" placeholder="Nombre y apellidos del afectado">
+        <div class="ayuda">Persona dueña o responsable del lugar/bien afectado.</div>
       </div>
       <div class="campo-fila">
-        <div class="campo"><label>N° Cédula</label><input type="text" id="f_afectado_cc"></div>
-        <div class="campo"><label>Celular</label><input type="tel" id="f_afectado_cel"></div>
+        <div class="campo">
+          <label>N° Cédula</label>
+          <input type="text" id="f_afectado_cc">
+        </div>
+        <div class="campo">
+          <label>Celular</label>
+          <input type="tel" id="f_afectado_cel">
+        </div>
       </div>
       <div class="campo">
         <label>Firma del afectado</label>
@@ -727,7 +968,8 @@
         <div class="firma-acciones">
           <button onclick="app.limpiarFirma('firmaAfectado')">Limpiar firma</button>
         </div>
-        <div class="ayuda" style="margin-top: 8px;">⚠️ Ley 1581/2012: los datos se tratan exclusivamente para gestión y estadística de emergencias.</div>
+        <div class="ayuda">Pídale al afectado que firme con el dedo. Sirve como constancia de atención recibida.</div>
+        <p style="font-size: 10px; color: var(--gris-texto); margin-top: 8px; padding: 6px; background: var(--amarillo-claro); border-radius: 4px;">⚠️ Ley 1581/2012: los datos se tratan exclusivamente para gestión y estadística de emergencias del CBVI.</p>
       </div>
     </div>
   </div>
@@ -738,9 +980,14 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>🛠️ Qué hizo el cuerpo de bomberos.</strong> Describa con detalle las maniobras, técnicas y operaciones que se ejecutaron para controlar la emergencia.
+      </div>
+
       <div class="campo">
         <label>Estrategias y tácticas empleadas</label>
-        <textarea id="f_acciones" rows="4" placeholder="Extinción, evacuación, estabilización, rescate..."></textarea>
+        <textarea id="f_acciones" rows="5" placeholder="Ej: 'Se procedió a extinguir el incendio con ataque directo e indirecto. Enfriamiento de paredes por dilatación por calor. Ventilación del inmueble. Búsqueda de personas en interior...'"></textarea>
+        <div class="ayuda">Cuente paso a paso qué hicieron: extinción, evacuación, estabilización, rescate, ventilación, búsqueda, etc.</div>
       </div>
     </div>
   </div>
@@ -751,6 +998,9 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>🚑 Personas atendidas.</strong> Agregue una entrada por cada víctima atendida (heridos, fallecidos o ilesos rescatados). Si no hubo víctimas, deje vacío.
+      </div>
       <div class="tabla-dinamica" id="tablaVictimas"></div>
       <button class="agregar-fila" onclick="app.agregarVictima()">+ Agregar víctima</button>
     </div>
@@ -762,18 +1012,31 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
-      <div class="checkbox-grid" id="checkboxCausas"></div>
-      <div class="campo" style="margin-top: 12px;">
-        <label>Causa probable (especificar)</label>
-        <input type="text" id="f_causa_prob">
+      <div class="ayuda-seccion">
+        <strong>🔍 Por qué ocurrió.</strong> Marque las causas posibles que pudieron originar el evento. Si fue intencional, técnico, natural o accidental. Después detalle abajo qué encontraron como evidencia.
       </div>
+
+      <div class="checkbox-grid" id="checkboxCausas"></div>
+
+      <div class="campo" style="margin-top: 12px;">
+        <label>Causa probable (su hipótesis inicial)</label>
+        <div class="ayuda-pre">¿Qué cree usted que originó la emergencia, basado en lo que observó?</div>
+        <textarea id="f_causa_prob" rows="2" placeholder="Ej: 'Posible cortocircuito por sobrecarga eléctrica en el toma corriente de la sala'"></textarea>
+        <div class="ayuda">Escriba la causa que parece más probable según lo observado en el sitio. Es su hipótesis profesional inicial.</div>
+      </div>
+
       <div class="campo">
         <label>Evidencias / indicios encontrados</label>
-        <textarea id="f_evidencias"></textarea>
+        <div class="ayuda-pre">¿Qué encontraron físicamente que apoye esa hipótesis?</div>
+        <textarea id="f_evidencias" rows="3" placeholder="Ej: 'Cables derretidos en el toma corriente del cuarto, marcas de calor en pared sur, restos de aparato eléctrico quemado en el origen'"></textarea>
+        <div class="ayuda">Describa los hallazgos físicos en el lugar: cables quemados, restos de líquido inflamable, dirección del fuego, daños eléctricos, etc.</div>
       </div>
+
       <div class="campo">
         <label>Causa confirmada por comandante</label>
-        <textarea id="f_causa_confirm"></textarea>
+        <div class="ayuda-pre">Después de revisar todo, ¿cuál fue la causa final que el comandante determinó?</div>
+        <textarea id="f_causa_confirm" rows="2" placeholder="Ej: 'Cortocircuito por instalación eléctrica defectuosa en el toma corriente principal'"></textarea>
+        <div class="ayuda">Conclusión final del comandante a cargo. Solo la llena el comandante después de evaluar todo.</div>
       </div>
     </div>
   </div>
@@ -784,6 +1047,9 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>🤝 Apoyo externo.</strong> Liste qué otras instituciones o personas (Policía, Defensa Civil, Cruz Roja, ambulancias, vecinos colaboradores, etc.) participaron en la atención.
+      </div>
       <div class="tabla-dinamica" id="tablaOrgs"></div>
       <button class="agregar-fila" onclick="app.agregarOrg()">+ Agregar organización</button>
     </div>
@@ -795,13 +1061,20 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>📝 Notas adicionales.</strong> Comentarios extra del comandante y recomendaciones de prevención para que esto no se repita.
+      </div>
+
       <div class="campo">
         <label>Observaciones generales</label>
-        <textarea id="f_observaciones" rows="3"></textarea>
+        <textarea id="f_observaciones" rows="3" placeholder="Ej: 'Durante la atención no se presentaron complicaciones. La comunidad colaboró...'"></textarea>
+        <div class="ayuda">Cualquier observación importante que no haya quedado registrada en otras secciones.</div>
       </div>
+
       <div class="campo">
         <label>Recomendaciones de prevención</label>
-        <textarea id="f_recomendaciones" rows="3" placeholder="Inspecciones eléctricas, brigadas, etc."></textarea>
+        <textarea id="f_recomendaciones" rows="3" placeholder="Ej: 'Realizar inspección eléctrica periódica. Revisar cableado por electricista certificado. Capacitar a la familia en prevención...'"></textarea>
+        <div class="ayuda">Sugerencias para que el afectado y la comunidad eviten que vuelva a ocurrir.</div>
       </div>
     </div>
   </div>
@@ -812,17 +1085,28 @@
       <span class="flecha">▼</span>
     </div>
     <div class="seccion-cuerpo">
+      <div class="ayuda-seccion">
+        <strong>✍️ Firma de cierre.</strong> Datos del comandante a cargo de la operación y su firma como respaldo oficial del reporte. Si usted es el comandante, sus datos ya vienen prellenados.
+      </div>
+
       <div class="campo">
         <label>Comandante del incidente <span class="requerido">*</span></label>
-        <input type="text" id="f_comandante_nombre" placeholder="Nombre completo">
+        <input type="text" id="f_comandante_nombre" placeholder="Nombre completo del comandante a cargo">
+        <div class="ayuda">Bombero a cargo de la operación. Por defecto se llena con sus datos.</div>
       </div>
       <div class="campo-fila">
-        <div class="campo"><label>Grado</label><input type="text" id="f_comandante_grado"></div>
-        <div class="campo"><label>Cédula</label><input type="text" id="f_comandante_cc"></div>
+        <div class="campo">
+          <label>Grado</label>
+          <input type="text" id="f_comandante_grado">
+        </div>
+        <div class="campo">
+          <label>Cédula</label>
+          <input type="text" id="f_comandante_cc">
+        </div>
       </div>
       <div class="campo">
         <label>Estación</label>
-        <input type="text" id="f_comandante_estacion">
+        <input type="text" id="f_comandante_estacion" value="CBVI">
       </div>
       <div class="campo">
         <label>Firma del comandante</label>
@@ -830,6 +1114,7 @@
         <div class="firma-acciones">
           <button onclick="app.limpiarFirma('firmaComandante')">Limpiar firma</button>
         </div>
+        <div class="ayuda">Firme con el dedo en el cuadro arriba.</div>
       </div>
     </div>
   </div>
@@ -852,24 +1137,24 @@
 
 <div class="pantalla" id="pantallaConfig">
   <div class="config-card">
-    <h3>👤 Mis datos (perfil)</h3>
+    <h3>👤 Mis datos</h3>
     <div class="campo">
       <label>Nombre completo</label>
       <input type="text" id="cfg_perfil_nombre">
+      <div class="ayuda">Su nombre y apellidos.</div>
     </div>
     <div class="campo-fila">
       <div class="campo">
         <label>Grado</label>
         <select id="cfg_perfil_grado">
           <option value="">--</option>
+          <option>Aspirante</option>
           <option>Bombero</option>
           <option>Cabo</option>
           <option>Sargento</option>
           <option>Subteniente</option>
           <option>Teniente</option>
           <option>Capitán</option>
-          <option>Mayor</option>
-          <option>Comandante</option>
         </select>
       </div>
       <div class="campo">
@@ -878,8 +1163,9 @@
       </div>
     </div>
     <div class="campo">
-      <label>Correo</label>
-      <input type="email" id="cfg_perfil_correo">
+      <label>Correo (Google)</label>
+      <input type="email" id="cfg_perfil_correo" readonly style="background: var(--gris-fondo);">
+      <div class="ayuda">Su correo de Google. No se puede cambiar (es su identidad verificada).</div>
     </div>
     <div class="campo">
       <label>Teléfono</label>
@@ -888,31 +1174,11 @@
   </div>
 
   <div class="config-card">
-    <h3>🚒 Estación</h3>
-    <div class="campo">
-      <label>Estación / Unidad</label>
-      <input type="text" id="cfg_estacion" placeholder="Ej. CBVI">
-    </div>
-  </div>
-
-  <div class="config-card">
-    <h3>🔢 Consecutivo</h3>
-    <div class="campo">
-      <label>Próximo número de reporte</label>
-      <input type="number" id="cfg_proximo_numero" min="1" value="1">
-      <div class="ayuda">Si están en el reporte #84 actualmente, ponga 85 aquí.</div>
-    </div>
-    <div class="campo">
-      <label>Prefijo del consecutivo</label>
-      <input type="text" id="cfg_prefijo" placeholder="RE" value="RE">
-    </div>
-  </div>
-
-  <div class="config-card">
     <h3>☁️ Sincronización en la nube</h3>
     <div class="campo">
       <label>URL del backend (Google Apps Script)</label>
       <input type="text" id="cfg_url_backend" placeholder="https://script.google.com/macros/s/..." style="font-size: 12px;">
+      <div class="ayuda">URL única del cuerpo de bomberos. Configurada al instalar la app.</div>
     </div>
     <div class="campo">
       <label>Token secreto (opcional)</label>
@@ -920,19 +1186,25 @@
     </div>
   </div>
 
-  <div class="config-card">
-    <h3>✍️ Crédito de desarrollo</h3>
+  <!-- ZONA SOLO PARA ADMINISTRADOR -->
+  <div class="config-card admin" id="zonaAdmin" style="display:none;">
+    <h3>★ Zona Administrador <span class="badge-admin-section">SOLO ADMIN</span></h3>
     <div class="campo">
-      <label>Texto de autoría (aparece al pie del PDF y app)</label>
-      <input type="text" id="cfg_credito" placeholder="Ej. App desarrollada por Adrián Rangel">
-      <div class="ayuda">Texto pequeño que aparece al pie de cada reporte impreso y en la pantalla principal.</div>
+      <label>Forzar próximo número de reporte</label>
+      <input type="number" id="cfg_proximo_numero" min="1">
+      <div class="ayuda">Solo el administrador puede ajustar manualmente el siguiente consecutivo. Use con cuidado.</div>
+    </div>
+    <div class="campo">
+      <label>Prefijo del consecutivo</label>
+      <input type="text" id="cfg_prefijo" value="RE" maxlength="5">
+      <div class="ayuda">Por defecto "RE". Cambiar afectará todos los reportes nuevos.</div>
     </div>
   </div>
 
   <div class="config-card">
     <h3>📊 Datos locales</h3>
     <button class="btn btn-secundario btn-completo" onclick="app.exportarTodo()" style="margin-bottom: 8px;">
-      ⬇️ Exportar todos los reportes (JSON)
+      ⬇️ Exportar mis reportes (JSON)
     </button>
     <button class="btn btn-secundario btn-completo" onclick="app.sincronizarPendientes()">
       🔄 Sincronizar pendientes ahora
@@ -946,7 +1218,12 @@
     <p style="margin-bottom: 4px;">Personería Jurídica N° 3561 del 5 de Agosto de 1976</p>
     <p style="margin-bottom: 4px;">NIT: 843000056-0 | Tel. 314 531 1605</p>
     <p style="margin-bottom: 8px;">Ley 1575/2012 | Ley 1581/2012</p>
-    <p style="font-style: italic;">"ABNEGACIÓN Y DISCIPLINA"</p>
+    <p style="font-style: italic; margin-bottom: 8px;">"ABNEGACIÓN Y DISCIPLINA"</p>
+    <p style="border-top: 1px solid #eee; padding-top: 8px; margin-top: 8px;">
+      App desarrollada por:<br>
+      <strong style="color: var(--rojo);">Bombero Jeferson Jeancarlos Rangel Gil</strong><br>
+      📧 gilrangeljeancarlosjeferson@gmail.com<br>📱 320 960 6428
+    </p>
   </div>
 </div>
 
