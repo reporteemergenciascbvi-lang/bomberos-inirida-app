@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#7a1010">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Reporte Bomberos">
+<meta name="apple-mobile-web-app-title" content="Bomberos Inírida">
 <title>Reporte de Emergencias — Bomberos Inírida</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚒</text></svg>">
@@ -31,35 +31,24 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 1.5;
-    color: var(--negro);
-    background: var(--gris-fondo);
-    overscroll-behavior-y: none;
+    font-size: 16px; line-height: 1.5; color: var(--negro);
+    background: var(--gris-fondo); overscroll-behavior-y: none;
     -webkit-font-smoothing: antialiased;
   }
   button { font-family: inherit; cursor: pointer; border: none; background: none; }
   input, textarea, select { font-family: inherit; font-size: 16px; }
 
-  /* Header */
   header.app-header {
     background: linear-gradient(135deg, var(--rojo-oscuro), var(--rojo));
-    color: white;
-    padding: 12px 16px;
+    color: white; padding: 12px 16px;
     padding-top: calc(12px + env(safe-area-inset-top));
     box-shadow: var(--sombra-fuerte);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 10px;
   }
   header.app-header .logo {
     width: 40px; height: 40px; border-radius: 50%;
-    background: white; padding: 2px;
-    flex-shrink: 0;
-    object-fit: contain;
+    background: white; padding: 2px; flex-shrink: 0; object-fit: contain;
   }
   header.app-header .titulo { flex: 1; min-width: 0; }
   header.app-header h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; line-height: 1.2; }
@@ -67,42 +56,67 @@
   header.app-header .estado-conexion {
     display: flex; align-items: center; gap: 5px;
     font-size: 10px; padding: 4px 8px; border-radius: 12px;
-    background: rgba(255,255,255,0.15); font-weight: 600;
-    flex-shrink: 0;
+    background: rgba(255,255,255,0.15); font-weight: 600; flex-shrink: 0;
   }
   header.app-header .estado-conexion .punto {
     width: 7px; height: 7px; border-radius: 50%;
-    background: #4ade80;
-    box-shadow: 0 0 6px #4ade80;
+    background: #4ade80; box-shadow: 0 0 6px #4ade80;
   }
   header.app-header.offline .estado-conexion .punto {
     background: #fb923c; box-shadow: 0 0 6px #fb923c;
   }
-  header.app-header .btn-volver {
-    color: white; font-size: 22px; padding: 4px 8px;
-  }
+  header.app-header .btn-volver { color: white; font-size: 22px; padding: 4px 8px; }
 
-  /* Pantallas */
   .pantalla { display: none; padding: 16px; padding-bottom: 100px; max-width: 720px; margin: 0 auto; }
   .pantalla.activa { display: block; }
 
-  /* HOME */
+  .bienvenida {
+    background: linear-gradient(135deg, var(--rojo-oscuro), var(--rojo));
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 20px; color: white; margin: -16px;
+  }
+  .bienvenida .caja {
+    background: white; color: var(--negro); border-radius: 16px;
+    padding: 24px; max-width: 420px; width: 100%;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+  }
+  .bienvenida img.logo {
+    width: 80px; height: 80px; margin: 0 auto 12px; display: block;
+  }
+  .bienvenida h2 { color: var(--rojo); text-align: center; font-size: 22px; margin-bottom: 4px; }
+  .bienvenida .lema {
+    text-align: center; font-style: italic; color: var(--gris-texto);
+    margin-bottom: 16px; font-size: 13px;
+  }
+  .bienvenida .intro {
+    background: #fef9c3; padding: 12px; border-radius: 8px; font-size: 13px;
+    margin-bottom: 16px; line-height: 1.5;
+  }
+
   .home-cta {
     background: linear-gradient(135deg, var(--rojo), var(--rojo-claro));
-    color: white;
-    padding: 24px 20px;
-    border-radius: var(--radio);
-    text-align: center;
-    margin-bottom: 20px;
-    box-shadow: var(--sombra);
-    cursor: pointer;
-    transition: transform 0.1s;
-    border: none; width: 100%;
+    color: white; padding: 24px 20px; border-radius: var(--radio);
+    text-align: center; margin-bottom: 20px; box-shadow: var(--sombra);
+    cursor: pointer; transition: transform 0.1s; border: none; width: 100%;
   }
   .home-cta:active { transform: scale(0.98); }
   .home-cta .icono-grande { font-size: 48px; display: block; margin-bottom: 8px; }
   .home-cta .titulo { font-size: 20px; font-weight: 700; }
   .home-cta .subtitulo { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+
+  .saludo-bombero {
+    background: white; padding: 12px 16px; border-radius: var(--radio);
+    margin-bottom: 12px; box-shadow: var(--sombra);
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+  }
+  .saludo-bombero .avatar {
+    width: 38px; height: 38px; border-radius: 50%; background: var(--rojo);
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; flex-shrink: 0;
+  }
+  .saludo-bombero .info { flex: 1; min-width: 0; }
+  .saludo-bombero .info .nombre { font-weight: 700; color: var(--negro); }
+  .saludo-bombero .info .grado { font-size: 11px; color: var(--gris-texto); }
 
   .seccion-titulo {
     font-size: 13px; font-weight: 700; text-transform: uppercase;
@@ -133,19 +147,14 @@
   .reporte-item .consec { font-weight: 700; font-size: 14px; color: var(--negro); }
   .reporte-item .desc { font-size: 13px; color: var(--gris-texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .reporte-item .fecha { font-size: 11px; color: var(--gris-texto); margin-top: 2px; }
-  .reporte-item .badge {
-    font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase;
-  }
+  .reporte-item .badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
   .badge.pendiente { background: #fef3c7; color: #92400e; }
   .badge.enviado { background: #d1fae5; color: #065f46; }
   .badge.borrador { background: #e5e7eb; color: #374151; }
 
-  .vacio-estado {
-    text-align: center; padding: 40px 20px; color: var(--gris-texto);
-  }
+  .vacio-estado { text-align: center; padding: 40px 20px; color: var(--gris-texto); }
   .vacio-estado .icono { font-size: 48px; margin-bottom: 8px; opacity: 0.5; }
 
-  /* Formulario */
   .progreso-bar {
     position: sticky; top: 64px; background: white; z-index: 50;
     padding: 8px 16px; border-bottom: 1px solid var(--gris-borde);
@@ -155,10 +164,7 @@
   .progreso-fill { height: 100%; background: linear-gradient(90deg, var(--rojo), var(--rojo-claro)); transition: width 0.3s; }
   .progreso-texto { font-size: 12px; color: var(--gris-texto); font-weight: 600; }
 
-  .seccion-form {
-    background: white; border-radius: var(--radio); margin-bottom: 12px;
-    overflow: hidden; box-shadow: var(--sombra);
-  }
+  .seccion-form { background: white; border-radius: var(--radio); margin-bottom: 12px; overflow: hidden; box-shadow: var(--sombra); }
   .seccion-header {
     padding: 14px 16px; background: var(--negro); color: white;
     display: flex; align-items: center; justify-content: space-between;
@@ -174,28 +180,16 @@
   .seccion-form.colapsada .seccion-header .flecha { transform: rotate(-90deg); }
   .seccion-form.colapsada .seccion-cuerpo { display: none; }
   .seccion-cuerpo { padding: 16px; }
-  .seccion-completa .seccion-header { background: linear-gradient(135deg, #14532d, #166534); }
-  .seccion-completa .seccion-header .num { background: var(--verde); }
 
-  /* Campos */
   .campo { margin-bottom: 14px; }
-  .campo label {
-    display: block; font-size: 13px; font-weight: 600;
-    color: var(--negro); margin-bottom: 6px;
-  }
+  .campo label { display: block; font-size: 13px; font-weight: 600; color: var(--negro); margin-bottom: 6px; }
   .campo label .requerido { color: var(--rojo); }
   .campo .ayuda { font-size: 11px; color: var(--gris-texto); margin-top: 4px; }
-  .campo input[type="text"],
-  .campo input[type="tel"],
-  .campo input[type="number"],
-  .campo input[type="date"],
-  .campo input[type="time"],
-  .campo input[type="datetime-local"],
-  .campo textarea,
-  .campo select {
-    width: 100%; padding: 12px 14px;
-    border: 1.5px solid var(--gris-borde); border-radius: var(--radio);
-    background: white; transition: border-color 0.15s;
+  .campo input[type="text"], .campo input[type="tel"], .campo input[type="email"],
+  .campo input[type="number"], .campo input[type="date"], .campo input[type="time"],
+  .campo input[type="datetime-local"], .campo textarea, .campo select {
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--gris-borde);
+    border-radius: var(--radio); background: white; transition: border-color 0.15s;
   }
   .campo input:focus, .campo textarea:focus, .campo select:focus {
     outline: none; border-color: var(--rojo);
@@ -204,10 +198,7 @@
   .campo-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .campo-fila-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
-  /* Checkboxes */
-  .checkbox-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-  }
+  .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .checkbox-card {
     display: flex; align-items: center; gap: 8px;
     padding: 12px; border: 1.5px solid var(--gris-borde); border-radius: var(--radio);
@@ -217,7 +208,6 @@
   .checkbox-card input { width: 18px; height: 18px; accent-color: var(--rojo); flex-shrink: 0; }
   .checkbox-card:has(input:checked) { border-color: var(--rojo); background: #fef2f2; }
 
-  /* Botones */
   .btn {
     padding: 14px 20px; border-radius: var(--radio); font-weight: 600;
     font-size: 15px; transition: all 0.1s;
@@ -232,7 +222,6 @@
   .btn-completo { width: 100%; }
   .btn-imprimir { background: var(--azul); color: white; }
 
-  /* GPS */
   .gps-card {
     background: linear-gradient(135deg, #1e3a8a, #1e40af); color: white;
     padding: 14px; border-radius: var(--radio); margin-bottom: 14px;
@@ -247,29 +236,23 @@
   .gps-card .acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .gps-card .acciones button {
     background: rgba(255,255,255,0.2); color: white;
-    padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: 600;
-    border: none;
+    padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: 600; border: none;
   }
   .gps-card .acciones button.activo {
-    background: rgba(255,255,255,0.4);
-    box-shadow: 0 0 0 2px white;
+    background: rgba(255,255,255,0.4); box-shadow: 0 0 0 2px white;
   }
   .gps-manual-fields {
-    background: rgba(255,255,255,0.1); padding: 10px; border-radius: 6px; margin-top: 8px;
-    display: none;
+    background: rgba(255,255,255,0.1); padding: 10px; border-radius: 6px; margin-top: 8px; display: none;
   }
   .gps-card.manual .gps-manual-fields { display: block; }
   .gps-manual-fields input {
     width: 100%; padding: 8px; border-radius: 4px; border: none;
-    background: white; color: var(--negro); font-size: 13px;
-    margin-bottom: 6px;
+    background: white; color: var(--negro); font-size: 13px; margin-bottom: 6px;
   }
   .gps-manual-fields input:last-child { margin-bottom: 0; }
 
-  /* Fotos */
   .fotos-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-    margin-top: 8px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px;
   }
   .foto-slot {
     aspect-ratio: 1; border: 2px dashed var(--gris-borde);
@@ -284,12 +267,10 @@
     position: absolute; top: 4px; right: 4px;
     background: rgba(0,0,0,0.7); color: white;
     width: 22px; height: 22px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 14px;
-    border: none;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; border: none;
   }
-  .foto-slot .icono { font-size: 24px; }
+  .foto-slot .icono { font-size: 28px; }
 
-  /* Modal de selección de foto */
   .modal-foto-opciones {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5);
     z-index: 200; display: none; align-items: flex-end; justify-content: center;
@@ -305,17 +286,14 @@
     width: 100%; padding: 14px; margin-bottom: 8px;
     border-radius: var(--radio); border: 1.5px solid var(--gris-borde);
     background: white; font-size: 15px; font-weight: 600;
-    display: flex; align-items: center; gap: 12px;
-    color: var(--negro);
+    display: flex; align-items: center; gap: 12px; color: var(--negro);
   }
   .modal-foto-opciones button .icono { font-size: 22px; }
   .modal-foto-opciones .cancelar { color: var(--rojo); }
 
-  /* Firma */
   .firma-canvas {
     border: 2px dashed var(--gris-borde); border-radius: var(--radio);
-    background: white; width: 100%; height: 160px; touch-action: none;
-    display: block;
+    background: white; width: 100%; height: 160px; touch-action: none; display: block;
   }
   .firma-acciones { display: flex; gap: 8px; margin-top: 8px; }
   .firma-acciones button {
@@ -324,7 +302,6 @@
     border-radius: 4px; font-weight: 600;
   }
 
-  /* Tabla dinámica */
   .tabla-dinamica .fila {
     background: var(--gris-fondo); padding: 10px; border-radius: var(--radio);
     margin-bottom: 8px; position: relative;
@@ -333,8 +310,7 @@
     position: absolute; top: 8px; right: 8px;
     background: var(--rojo); color: white;
     width: 24px; height: 24px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 14px;
-    border: none;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; border: none;
   }
   .tabla-dinamica .agregar-fila {
     width: 100%; padding: 10px; border: 2px dashed var(--gris-borde);
@@ -342,7 +318,6 @@
     background: transparent;
   }
 
-  /* Lista de personal en recursos */
   .personal-lista {
     background: white; border-radius: 4px; padding: 8px;
     margin-top: 6px; border: 1px solid var(--gris-borde);
@@ -362,7 +337,6 @@
     background: transparent; margin-top: 4px;
   }
 
-  /* Acciones flotantes */
   .acciones-flotantes {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: white; padding: 12px 16px;
@@ -373,7 +347,6 @@
   }
   .acciones-flotantes .btn { flex: 1; }
 
-  /* Toasts y modales */
   .toast {
     position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
     background: var(--negro); color: white; padding: 12px 20px;
@@ -388,8 +361,7 @@
 
   .modal-fondo {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-    z-index: 200; display: none; align-items: center; justify-content: center;
-    padding: 20px;
+    z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px;
   }
   .modal-fondo.visible { display: flex; }
   .modal {
@@ -401,7 +373,6 @@
   .modal-acciones { padding: 12px 16px; display: flex; gap: 8px; border-top: 1px solid var(--gris-borde); }
   .modal-acciones .btn { flex: 1; padding: 10px; font-size: 14px; }
 
-  /* Configuración */
   .config-card {
     background: white; border-radius: var(--radio); padding: 16px;
     margin-bottom: 12px; box-shadow: var(--sombra);
@@ -412,23 +383,17 @@
     text-align: center; font-size: 11px; color: var(--gris-texto);
     margin-top: 24px; font-style: italic; letter-spacing: 1px;
   }
-
-  /* Estilos del PDF de impresión */
-  @media print {
-    body * { visibility: hidden; }
-    #pdfContenedor, #pdfContenedor * { visibility: visible; }
-    #pdfContenedor {
-      position: absolute; left: 0; top: 0; width: 100%;
-      padding: 0; background: white;
-    }
+  .credito-pie {
+    text-align: center; font-size: 10px; color: var(--gris-texto);
+    margin-top: 8px; opacity: 0.7;
   }
+
   #pdfContenedor { display: none; }
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
-<header class="app-header" id="header">
+<header class="app-header" id="header" style="display:none;">
   <button class="btn-volver" id="btnVolver" style="display:none;">←</button>
   <img class="logo" id="logoHeader" src="" alt="Logo">
   <div class="titulo">
@@ -441,8 +406,66 @@
   </div>
 </header>
 
-<!-- PANTALLA HOME -->
-<div class="pantalla activa" id="pantallaHome">
+<div class="pantalla activa" id="pantallaBienvenida">
+  <div class="bienvenida">
+    <div class="caja">
+      <img class="logo" id="logoBienvenida" src="" alt="">
+      <h2>Bienvenido, Bombero 🚒</h2>
+      <p class="lema">"ABNEGACIÓN Y DISCIPLINA"</p>
+      <div class="intro">
+        <strong>Antes de empezar</strong>, registre sus datos. Solo se hace una vez en este teléfono. No se requiere contraseña.
+      </div>
+      <div class="campo">
+        <label>Nombre completo <span class="requerido">*</span></label>
+        <input type="text" id="biv_nombre" placeholder="Ej. Juan Pérez">
+      </div>
+      <div class="campo-fila">
+        <div class="campo">
+          <label>Grado</label>
+          <select id="biv_grado">
+            <option value="">--</option>
+            <option>Bombero</option>
+            <option>Cabo</option>
+            <option>Sargento</option>
+            <option>Subteniente</option>
+            <option>Teniente</option>
+            <option>Capitán</option>
+            <option>Mayor</option>
+            <option>Comandante</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Cédula</label>
+          <input type="text" id="biv_cedula" inputmode="numeric">
+        </div>
+      </div>
+      <div class="campo">
+        <label>Correo electrónico</label>
+        <input type="email" id="biv_correo" placeholder="ejemplo@correo.com">
+      </div>
+      <div class="campo">
+        <label>Teléfono celular</label>
+        <input type="tel" id="biv_telefono" placeholder="3XX XXX XXXX">
+      </div>
+      <button class="btn btn-primary btn-completo" onclick="app.guardarPerfilBienvenida()">
+        Comenzar a usar la app 🚀
+      </button>
+      <p style="text-align:center; margin-top: 12px; font-size: 10px; color: var(--gris-texto);">
+        Sus datos se guardan solo en este teléfono. Puede editarlos después en Configuración.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="pantalla" id="pantallaHome">
+  <div class="saludo-bombero" id="saludoBombero" style="display:none;">
+    <div class="avatar" id="avatarLetra">B</div>
+    <div class="info">
+      <div class="nombre" id="nombreBombero">—</div>
+      <div class="grado" id="gradoBombero">—</div>
+    </div>
+  </div>
+
   <button class="home-cta" onclick="app.nuevoReporte()">
     <span class="icono-grande">🚨</span>
     <div class="titulo">NUEVA EMERGENCIA</div>
@@ -472,16 +495,15 @@
   </button>
 
   <div class="lema-pie">"ABNEGACIÓN Y DISCIPLINA"</div>
+  <div class="credito-pie" id="creditoHome"></div>
 </div>
 
-<!-- PANTALLA FORMULARIO -->
 <div class="pantalla" id="pantallaForm">
   <div class="progreso-bar">
     <div class="progreso-texto" id="progresoTexto">0%</div>
     <div class="progreso-track"><div class="progreso-fill" id="progresoFill" style="width: 0%"></div></div>
   </div>
 
-  <!-- SECCIÓN 1: DATOS GENERALES -->
   <div class="seccion-form" data-seccion="1">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">1</span><span class="titulo">Datos Generales</span></div>
@@ -535,7 +557,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 2: CLASIFICACIÓN -->
   <div class="seccion-form" data-seccion="2">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">2</span><span class="titulo">Clasificación del Evento</span></div>
@@ -550,7 +571,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 3: UBICACIÓN -->
   <div class="seccion-form" data-seccion="3">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">3</span><span class="titulo">Ubicación del Incidente</span></div>
@@ -600,7 +620,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 4: DESCRIPCIÓN -->
   <div class="seccion-form" data-seccion="4">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">4</span><span class="titulo">Descripción del Evento</span></div>
@@ -616,7 +635,7 @@
         <textarea id="f_condiciones" rows="4" placeholder="Visibilidad, humo, fuego visible, accesibilidad, riesgos..."></textarea>
       </div>
       <div class="campo">
-        <label>Fotografías del incidente (hasta 3)</label>
+        <label>Fotografías del incidente (hasta 4)</label>
         <div class="fotos-grid">
           <div class="foto-slot" data-foto="0" onclick="app.elegirFoto(0)">
             <span class="icono">📷</span><span>Foto 1</span>
@@ -627,13 +646,15 @@
           <div class="foto-slot" data-foto="2" onclick="app.elegirFoto(2)">
             <span class="icono">📷</span><span>Foto 3</span>
           </div>
+          <div class="foto-slot" data-foto="3" onclick="app.elegirFoto(3)">
+            <span class="icono">📷</span><span>Foto 4</span>
+          </div>
         </div>
-        <div class="ayuda">Toque cada espacio para tomar foto o seleccionar de su galería.</div>
+        <div class="ayuda">Toque cada espacio para tomar foto o seleccionar de su galería. Al imprimir, las fotos salen en una hoja aparte tamaño grande.</div>
       </div>
     </div>
   </div>
 
-  <!-- SECCIÓN 5: RECURSOS -->
   <div class="seccion-form" data-seccion="5">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">5</span><span class="titulo">Recursos Desplegados</span></div>
@@ -648,7 +669,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 6: DIAGNÓSTICO -->
   <div class="seccion-form" data-seccion="6">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">6</span><span class="titulo">Diagnóstico y Áreas Afectadas</span></div>
@@ -687,7 +707,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 7: AFECTADO -->
   <div class="seccion-form" data-seccion="7">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">7</span><span class="titulo">Datos del Afectado / Propietario</span></div>
@@ -713,7 +732,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 8: ACCIONES -->
   <div class="seccion-form" data-seccion="8">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">8</span><span class="titulo">Acciones Realizadas</span></div>
@@ -727,7 +745,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 9: VÍCTIMAS -->
   <div class="seccion-form" data-seccion="9">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">9</span><span class="titulo">Víctimas / Lesionados / Fallecidos</span></div>
@@ -739,7 +756,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 10: CAUSAS -->
   <div class="seccion-form" data-seccion="10">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">10</span><span class="titulo">Investigación y Causas</span></div>
@@ -762,7 +778,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 11: ORGANIZACIONES -->
   <div class="seccion-form" data-seccion="11">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">11</span><span class="titulo">Otras Organizaciones / Personas</span></div>
@@ -774,7 +789,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 12: OBSERVACIONES -->
   <div class="seccion-form" data-seccion="12">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">12</span><span class="titulo">Observaciones y Recomendaciones</span></div>
@@ -792,7 +806,6 @@
     </div>
   </div>
 
-  <!-- SECCIÓN 13: COMANDANTE (antes era 14) -->
   <div class="seccion-form" data-seccion="13">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">13</span><span class="titulo">Firma del Comandante</span></div>
@@ -827,7 +840,6 @@
   </div>
 </div>
 
-<!-- PANTALLA DETALLE -->
 <div class="pantalla" id="pantallaDetalle">
   <div id="detalleContenido"></div>
   <div class="acciones-flotantes">
@@ -838,18 +850,48 @@
   </div>
 </div>
 
-<!-- PANTALLA CONFIGURACIÓN -->
 <div class="pantalla" id="pantallaConfig">
+  <div class="config-card">
+    <h3>👤 Mis datos (perfil)</h3>
+    <div class="campo">
+      <label>Nombre completo</label>
+      <input type="text" id="cfg_perfil_nombre">
+    </div>
+    <div class="campo-fila">
+      <div class="campo">
+        <label>Grado</label>
+        <select id="cfg_perfil_grado">
+          <option value="">--</option>
+          <option>Bombero</option>
+          <option>Cabo</option>
+          <option>Sargento</option>
+          <option>Subteniente</option>
+          <option>Teniente</option>
+          <option>Capitán</option>
+          <option>Mayor</option>
+          <option>Comandante</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label>Cédula</label>
+        <input type="text" id="cfg_perfil_cedula">
+      </div>
+    </div>
+    <div class="campo">
+      <label>Correo</label>
+      <input type="email" id="cfg_perfil_correo">
+    </div>
+    <div class="campo">
+      <label>Teléfono</label>
+      <input type="tel" id="cfg_perfil_telefono">
+    </div>
+  </div>
+
   <div class="config-card">
     <h3>🚒 Estación</h3>
     <div class="campo">
       <label>Estación / Unidad</label>
       <input type="text" id="cfg_estacion" placeholder="Ej. CBVI">
-      <div class="ayuda">Identificador de la estación o unidad. Solo informativo.</div>
-    </div>
-    <div class="campo">
-      <label>Nombre del operador habitual</label>
-      <input type="text" id="cfg_operador">
     </div>
   </div>
 
@@ -858,12 +900,11 @@
     <div class="campo">
       <label>Próximo número de reporte</label>
       <input type="number" id="cfg_proximo_numero" min="1" value="1">
-      <div class="ayuda">Si están en el reporte #84 actualmente, ponga 85 aquí. Genera consecutivos como RE-2026-0085.</div>
+      <div class="ayuda">Si están en el reporte #84 actualmente, ponga 85 aquí.</div>
     </div>
     <div class="campo">
       <label>Prefijo del consecutivo</label>
       <input type="text" id="cfg_prefijo" placeholder="RE" value="RE">
-      <div class="ayuda">Por defecto "RE" (Reporte de Emergencia).</div>
     </div>
   </div>
 
@@ -872,11 +913,19 @@
     <div class="campo">
       <label>URL del backend (Google Apps Script)</label>
       <input type="text" id="cfg_url_backend" placeholder="https://script.google.com/macros/s/..." style="font-size: 12px;">
-      <div class="ayuda">Si está vacío, los reportes se guardan solo localmente.</div>
     </div>
     <div class="campo">
       <label>Token secreto (opcional)</label>
       <input type="text" id="cfg_token" placeholder="Para validar el origen">
+    </div>
+  </div>
+
+  <div class="config-card">
+    <h3>✍️ Crédito de desarrollo</h3>
+    <div class="campo">
+      <label>Texto de autoría (aparece al pie del PDF y app)</label>
+      <input type="text" id="cfg_credito" placeholder="Ej. App desarrollada por Adrián Rangel">
+      <div class="ayuda">Texto pequeño que aparece al pie de cada reporte impreso y en la pantalla principal.</div>
     </div>
   </div>
 
@@ -895,16 +944,14 @@
   <div class="config-card" style="margin-top: 16px; font-size: 11px; color: var(--gris-texto); text-align: center;">
     <p style="margin-bottom: 4px;">Cuerpo de Bomberos Voluntarios de Inírida</p>
     <p style="margin-bottom: 4px;">Personería Jurídica N° 3561 del 5 de Agosto de 1976</p>
-    <p style="margin-bottom: 4px;">NIT: 843000056-0 | Tel. 5 656007</p>
+    <p style="margin-bottom: 4px;">NIT: 843000056-0 | Tel. 314 531 1605</p>
     <p style="margin-bottom: 8px;">Ley 1575/2012 | Ley 1581/2012</p>
     <p style="font-style: italic;">"ABNEGACIÓN Y DISCIPLINA"</p>
   </div>
 </div>
 
-<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<!-- MODAL CONFIRMAR -->
 <div class="modal-fondo" id="modalConfirmar">
   <div class="modal">
     <div class="modal-header" id="modalTitulo">Confirmar</div>
@@ -916,7 +963,6 @@
   </div>
 </div>
 
-<!-- MODAL OPCIONES DE FOTO -->
 <div class="modal-foto-opciones" id="modalFotoOpciones">
   <div class="opciones">
     <h3>📷 Agregar fotografía</h3>
@@ -935,11 +981,9 @@
   </div>
 </div>
 
-<!-- INPUTS DE FOTO OCULTOS -->
 <input type="file" id="inputFotoCamara" accept="image/*" capture="environment" style="display:none;">
 <input type="file" id="inputFotoGaleria" accept="image/*" style="display:none;">
 
-<!-- CONTENEDOR PARA EL PDF DE IMPRESIÓN -->
 <div id="pdfContenedor"></div>
 
 <script src="logos.js"></script>

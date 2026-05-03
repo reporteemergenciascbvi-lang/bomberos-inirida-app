@@ -1,7 +1,7 @@
-/* Service Worker - Bomberos Inírida v2
-   Hace que la app funcione sin conexión incluso después de cerrar el navegador */
+/* Service Worker - Bomberos Inírida v3
+   Hace que la app funcione sin conexión y se actualice sola */
 
-const CACHE = 'bomberos-inirida-v2';
+const CACHE = 'bomberos-inirida-v3';
 const ARCHIVOS = [
   './',
   './index.html',
