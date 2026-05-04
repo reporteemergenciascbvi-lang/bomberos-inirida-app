@@ -1,25 +1,43 @@
 {
-  "name": "Reporte de Emergencias - Bomberos Inírida",
-  "short_name": "Bomberos Inírida",
+  "name": "CBVI Reportes - Bomberos Inírida",
+  "short_name": "CBVI Reportes",
   "description": "Sistema oficial de reporte de emergencias del Cuerpo de Bomberos Voluntarios de Inírida",
+  "id": "/bomberos-inirida-app/",
+  "scope": "./",
   "start_url": "./index.html",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#7a1010",
   "theme_color": "#7a1010",
   "lang": "es-CO",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities", "government"],
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%237a1010'/%3E%3Ctext x='96' y='130' font-size='120' text-anchor='middle'%3E🚒%3C/text%3E%3C/svg%3E",
+      "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%237a1010'/%3E%3Ctext x='256' y='350' font-size='320' text-anchor='middle'%3E🚒%3C/text%3E%3C/svg%3E",
+      "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
