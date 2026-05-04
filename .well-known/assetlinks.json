@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "co.bomberos.inirida.cbvi",
+      "sha256_cert_fingerprints": [
+        "D4:B8:EB:98:97:9D:52:12:1B:15:DE:93:8B:3A:69:92:43:E5:1A:07:61:41:2E:A9:0E:B8:AB:36:9A:0B:47:23"
+      ]
+    }
+  }
+]
