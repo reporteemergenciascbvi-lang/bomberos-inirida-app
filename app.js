@@ -217,18 +217,22 @@ const app = {
       // Decodificar el JWT (sin verificar firma — Google ya lo firmó)
       const payload = JSON.parse(atob(response.credential.split('.')[1]));
 
+      // Buscar si ya hay un perfil guardado para este correo
+      const claveBomberoPorCorreo = 'bombero:' + payload.email;
+      const perfilGuardado = await DB.obtenerConfig(claveBomberoPorCorreo);
+
       const usuario = {
         email: payload.email,
         nombre: payload.name || '',
         nombrePila: payload.given_name || '',
         foto: payload.picture || '',
         emailVerificado: payload.email_verified,
-        // Datos complementarios (se llenan después)
-        nombreCompleto: '',
-        grado: '',
-        cedula: '',
-        telefono: '',
-        registroCompleto: false
+        // Si hay perfil guardado, lo restauramos. Si no, vacío para registrar
+        nombreCompleto: perfilGuardado?.nombreCompleto || '',
+        grado: perfilGuardado?.grado || '',
+        cedula: perfilGuardado?.cedula || '',
+        telefono: perfilGuardado?.telefono || '',
+        registroCompleto: !!(perfilGuardado && perfilGuardado.registroCompleto)
       };
 
       this.usuario = usuario;
@@ -236,11 +240,18 @@ const app = {
 
       this.toast(`Bienvenido, ${usuario.nombrePila || usuario.email}`, 'exito');
 
-      // Mostrar pantalla de registro complementario para completar datos del bombero
-      document.getElementById('saludoRegistro').textContent =
-        `${usuario.email} — Complete sus datos para empezar`;
-      document.getElementById('reg_nombre').value = usuario.nombre || '';
-      this.irA('pantallaRegistroComplemento');
+      if (usuario.registroCompleto) {
+        // Ya tiene perfil completo guardado — ir directo al Home
+        this.actualizarUIUsuario();
+        this.irA('pantallaHome');
+        await this.actualizarHome();
+      } else {
+        // Primera vez con esta cuenta — pedir datos del bombero
+        document.getElementById('saludoRegistro').textContent =
+          `${usuario.email} — Complete sus datos para empezar`;
+        document.getElementById('reg_nombre').value = usuario.nombre || '';
+        this.irA('pantallaRegistroComplemento');
+      }
 
     } catch (err) {
       console.error('Error procesando login:', err);
@@ -268,10 +279,30 @@ const app = {
     this.usuario.registroCompleto = true;
     await DB.guardarConfig('sesion', this.usuario);
 
+    // GUARDAR PERFIL POR CORREO (persiste aunque se cierre sesión)
+    await this.guardarPerfilBombero();
+
     this.actualizarUIUsuario();
     this.toast(`Listo, ${this.usuario.nombrePila || nombre.split(' ')[0]} 🚒`, 'exito');
     this.irA('pantallaHome');
     await this.actualizarHome();
+  },
+
+  // Guarda el perfil del bombero asociado a su correo (sobrevive a cerrar sesión)
+  async guardarPerfilBombero() {
+    if (!this.usuario || !this.usuario.email) return;
+    const clave = 'bombero:' + this.usuario.email;
+    const perfil = {
+      email: this.usuario.email,
+      nombreCompleto: this.usuario.nombreCompleto,
+      grado: this.usuario.grado,
+      cedula: this.usuario.cedula,
+      telefono: this.usuario.telefono,
+      foto: this.usuario.foto,
+      registroCompleto: true,
+      ultimaActualizacion: new Date().toISOString()
+    };
+    await DB.guardarConfig(clave, perfil);
   },
 
   esAdmin() {
@@ -360,6 +391,8 @@ const app = {
       this.usuario.cedula = document.getElementById('cfg_perfil_cedula').value.trim();
       this.usuario.telefono = document.getElementById('cfg_perfil_telefono').value.trim();
       await DB.guardarConfig('sesion', this.usuario);
+      // También actualizar el perfil persistente por correo
+      await this.guardarPerfilBombero();
       this.actualizarUIUsuario();
     }
 
