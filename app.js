@@ -8,6 +8,7 @@ const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.go
 const ADMIN_EMAIL = 'gilrangeljeancarlosjeferson@gmail.com';
 const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
+const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbxke-N2r_Z5QVA-33gChRKF72FJb42T8lRqvxJlS05r34yvSMyA65OyuzdBU7R-aArMgQ/exec';
 
 const CREDITO_AUTOR = {
   nombre: 'Bombero Jeferson Jeancarlos Rangel Gil',
@@ -123,7 +124,7 @@ const app = {
   pilaPantallas: [],  // Para navegación atrás
 
   config: {
-    urlBackend: '',
+    urlBackend: URL_BACKEND,
     token: '',
     proximoNumero: 1,
     prefijo: 'RE'
@@ -375,6 +376,8 @@ const app = {
   async cargarConfig() {
     const cfg = await DB.obtenerConfig('app');
     if (cfg) this.config = { ...this.config, ...cfg };
+    // SIEMPRE forzar la URL hardcoded (los bomberos no pueden cambiarla)
+    this.config.urlBackend = URL_BACKEND;
 
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
     set('cfg_url_backend', this.config.urlBackend);
@@ -396,8 +399,8 @@ const app = {
       this.actualizarUIUsuario();
     }
 
-    // Backend (todos pueden ver/cambiar)
-    this.config.urlBackend = document.getElementById('cfg_url_backend').value.trim();
+    // URL del backend está HARDCODEADA — siempre se usa la del código
+    this.config.urlBackend = URL_BACKEND;
     this.config.token = document.getElementById('cfg_token').value.trim();
 
     // Solo admin puede cambiar consecutivo

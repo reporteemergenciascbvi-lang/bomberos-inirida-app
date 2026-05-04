@@ -1188,17 +1188,18 @@
   </div>
 
   <div class="config-card">
-    <h3>☁️ Sincronización en la nube</h3>
-    <div class="campo">
-      <label>URL del backend (Google Apps Script)</label>
-      <input type="text" id="cfg_url_backend" placeholder="https://script.google.com/macros/s/..." style="font-size: 12px;">
-      <div class="ayuda">URL única del cuerpo de bomberos. Configurada al instalar la app.</div>
+    <h3>☁️ Conexión al servidor</h3>
+    <div style="background: var(--verde-claro); border-left: 3px solid var(--verde); padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #065f46; margin-bottom: 12px;">
+      ✅ <strong>La app ya está configurada</strong> y conectada al servidor del cuerpo de bomberos. No necesita configurar nada para empezar a usar la app.
     </div>
     <div class="campo">
-      <label>Token secreto (opcional)</label>
-      <input type="text" id="cfg_token" placeholder="Para validar el origen">
+      <label>URL del backend <span class="opcional">(solo lectura)</span></label>
+      <input type="text" id="cfg_url_backend" readonly style="background: var(--gris-fondo); font-size: 11px; color: var(--gris-texto);">
+      <div class="ayuda">Configurada en el código. No se puede modificar desde aquí.</div>
     </div>
   </div>
+
+  <input type="hidden" id="cfg_token" value="">
 
   <!-- ZONA SOLO PARA ADMINISTRADOR -->
   <div class="config-card admin" id="zonaAdmin" style="display:none;">
