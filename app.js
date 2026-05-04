@@ -151,6 +151,8 @@ const app = {
     this.configurarFoto();
     this.configurarBotonAtrasMovil();
     this.registrarServiceWorker();
+    // Intentar iniciar brújula sin permiso (Android la deja directo; iOS necesitará botón)
+    try { this.iniciarEscuchaBrujula(); } catch (e) {}
 
     // Verificar si hay sesión activa
     const sesion = await DB.obtenerConfig('sesion');
@@ -314,13 +316,28 @@ const app = {
   },
 
   async cerrarSesion() {
-    const ok = await this.confirmar('Cerrar sesión',
-      '¿Está seguro? Se cerrará su sesión pero los reportes guardados no se borrarán.');
-    if (!ok) return;
+    // Cerrar el menú primero para que la confirmación se vea bien
     this.cerrarUserMenu();
-    await DB.guardarConfig('sesion', null);
+    // Usar confirm() nativo (más robusto que el modal personalizado)
+    const ok = window.confirm('¿Cerrar sesión?\n\nSe cerrará su sesión, pero los reportes guardados localmente NO se borrarán.');
+    if (!ok) return;
+
+    try {
+      await DB.guardarConfig('sesion', null);
+    } catch (e) {
+      console.error('Error borrando sesión:', e);
+    }
     this.usuario = null;
-    location.reload();
+
+    // Avisar a Google que no auto-seleccione esta cuenta
+    try {
+      if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+        google.accounts.id.disableAutoSelect();
+      }
+    } catch (e) {}
+
+    // Forzar recarga limpia (con timestamp para evitar cache)
+    location.replace(location.pathname + '?t=' + Date.now());
   },
 
   // ==================== CONFIG ====================
@@ -635,33 +652,94 @@ const app = {
       card.classList.add('manual');
       btnManual.classList.add('activo');
       btnActualizar.style.display = 'none';
+      const detalles = document.getElementById('gpsDetalles');
+      if (detalles) detalles.style.display = 'none';
     } else {
       btnAuto.classList.add('activo');
       btnActualizar.style.display = 'inline-block';
     }
   },
 
+  // Convertir decimal a Grados Minutos Segundos (formato 3°52'11"N)
+  decimalAGMS(decimal, esLatitud) {
+    if (decimal === null || decimal === undefined || isNaN(decimal)) return '';
+    const dir = decimal >= 0 ? (esLatitud ? 'N' : 'E') : (esLatitud ? 'S' : 'W');
+    const abs = Math.abs(decimal);
+    const grados = Math.floor(abs);
+    const minutosFlotante = (abs - grados) * 60;
+    const minutos = Math.floor(minutosFlotante);
+    const segundos = Math.round((minutosFlotante - minutos) * 60);
+    return `${grados}°${String(minutos).padStart(2,'0')}'${String(segundos).padStart(2,'0')}"${dir}`;
+  },
+
+  // Orientación brújula a texto (105 → "105° E")
+  headingATexto(grados) {
+    if (grados === null || grados === undefined || isNaN(grados)) return '';
+    const g = Math.round(grados);
+    let dir = 'N';
+    if (g >= 22 && g < 67) dir = 'NE';
+    else if (g >= 67 && g < 112) dir = 'E';
+    else if (g >= 112 && g < 157) dir = 'SE';
+    else if (g >= 157 && g < 202) dir = 'S';
+    else if (g >= 202 && g < 247) dir = 'SW';
+    else if (g >= 247 && g < 292) dir = 'W';
+    else if (g >= 292 && g < 337) dir = 'NW';
+    return `${g}° ${dir}`;
+  },
+
   capturarGPS() {
     if (this.modoUbicacion !== 'auto') return;
     const card = document.getElementById('gpsCard');
     const coords = document.getElementById('gpsCoords');
+    const detalles = document.getElementById('gpsDetalles');
 
     if (!navigator.geolocation) {
       coords.textContent = 'GPS no disponible. Use modo manual.';
       card.classList.add('error');
       return;
     }
-    coords.textContent = 'Obteniendo ubicación...';
+    coords.textContent = '⏳ Obteniendo ubicación precisa...';
     card.classList.remove('error');
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        const acc = Math.round(pos.coords.accuracy);
-        coords.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)} (±${acc}m)`;
+        const acc = pos.coords.accuracy;
+        const altitude = pos.coords.altitude; // metros sobre nivel del mar (msnm)
+        const speed = pos.coords.speed;       // m/s
+        const speedKmh = (speed !== null && speed !== undefined) ? speed * 3.6 : null;
+        const headingTxt = this.headingATexto(this._brujulaActual);
+        const gmsLat = this.decimalAGMS(lat, true);
+        const gmsLng = this.decimalAGMS(lng, false);
+        const gmsTexto = `${gmsLat} ${gmsLng}`;
+
+        // Resumen breve
+        coords.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)} (±${Math.round(acc)}m)`;
+
+        // Detalles completos
+        if (detalles) {
+          detalles.style.display = 'block';
+          detalles.innerHTML = `
+            <div class="gps-fila"><span class="gps-etiq">📍 Coords GMS:</span><span class="gps-val">${gmsTexto}</span></div>
+            <div class="gps-fila"><span class="gps-etiq">🌐 Decimal:</span><span class="gps-val">${lat.toFixed(6)}, ${lng.toFixed(6)}</span></div>
+            <div class="gps-fila"><span class="gps-etiq">🎯 Precisión:</span><span class="gps-val">±${Math.round(acc)} m</span></div>
+            ${altitude !== null && altitude !== undefined ? `<div class="gps-fila"><span class="gps-etiq">⛰️ Altitud:</span><span class="gps-val">${altitude.toFixed(1)} msnm</span></div>` : ''}
+            ${speedKmh !== null && speedKmh !== undefined ? `<div class="gps-fila"><span class="gps-etiq">💨 Velocidad:</span><span class="gps-val">${speedKmh.toFixed(1)} km/h</span></div>` : ''}
+            ${headingTxt ? `<div class="gps-fila"><span class="gps-etiq">🧭 Orientación:</span><span class="gps-val">${headingTxt}</span></div>` : '<div class="gps-fila"><span class="gps-etiq">🧭 Orientación:</span><button onclick="app.activarBrujula()" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:3px 8px;border-radius:3px;font-size:10px;cursor:pointer;">Activar brújula</button></div>'}
+            <div class="gps-fila"><span class="gps-etiq">🕒 Capturado:</span><span class="gps-val">${new Date().toLocaleString('es-CO')}</span></div>
+          `;
+        }
+
         if (this.reporteActual) {
-          this.reporteActual.gps = { lat, lng, accuracy: pos.coords.accuracy };
+          this.reporteActual.gps = {
+            lat, lng,
+            accuracy: acc,
+            altitude: altitude !== null ? altitude : null,
+            speedKmh: speedKmh,
+            heading: headingTxt
+          };
+          this.reporteActual.gpsGMS = gmsTexto;
           this.reporteActual.gpsManual = false;
         }
         // Auto-completar dirección
@@ -670,24 +748,64 @@ const app = {
       },
       (err) => {
         const msgs = {
-          1: 'Permiso denegado. Active GPS o use modo manual.',
-          2: 'Sin ubicación. Use modo manual.',
-          3: 'Tiempo agotado. Use modo manual.'
+          1: 'Permiso denegado. Active GPS en su celular o use modo manual.',
+          2: 'Sin señal GPS. Salga al exterior o use modo manual.',
+          3: 'Tiempo agotado. Reintente o use modo manual.'
         };
         coords.textContent = msgs[err.code] || 'Error de GPS';
         card.classList.add('error');
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   },
 
+  // Activar brújula del celular (requiere permiso en iOS)
+  async activarBrujula() {
+    try {
+      // iOS 13+ requiere permiso explícito
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const permiso = await DeviceOrientationEvent.requestPermission();
+        if (permiso !== 'granted') {
+          this.toast('Permiso de brújula denegado', 'error');
+          return;
+        }
+      }
+      this.iniciarEscuchaBrujula();
+      this.toast('Brújula activada. Vuelva a tocar GPS.', 'exito');
+    } catch (e) {
+      console.error('Error activando brújula:', e);
+      this.toast('Brújula no disponible', 'error');
+    }
+  },
+
+  iniciarEscuchaBrujula() {
+    if (this._brujulaActiva) return;
+    this._brujulaActiva = true;
+    const handler = (e) => {
+      // En iOS Safari: webkitCompassHeading; en otros navegadores: alpha
+      let heading = null;
+      if (typeof e.webkitCompassHeading === 'number') {
+        heading = e.webkitCompassHeading;
+      } else if (e.alpha !== null && e.alpha !== undefined) {
+        heading = (360 - e.alpha) % 360;
+      }
+      if (heading !== null) this._brujulaActual = heading;
+    };
+    if ('ondeviceorientationabsolute' in window) {
+      window.addEventListener('deviceorientationabsolute', handler);
+    } else {
+      window.addEventListener('deviceorientation', handler);
+    }
+  },
+
   async autoCompletarDireccion(lat, lng) {
-    if (!navigator.onLine) return;  // Sin internet no se puede
+    if (!navigator.onLine) return;
 
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=es`;
       const resp = await fetch(url, {
-        headers: { 'User-Agent': 'CBVI-Reportes/4.0 (gilrangeljeancarlosjeferson@gmail.com)' }
+        headers: { 'User-Agent': 'CBVI-Reportes/4.1 (gilrangeljeancarlosjeferson@gmail.com)' }
       });
       if (!resp.ok) return;
       const data = await resp.json();
@@ -698,34 +816,56 @@ const app = {
       const barrioInput = document.getElementById('f_barrio');
       const localidadInput = document.getElementById('f_localidad');
       const municipioInput = document.getElementById('f_municipio');
+      const referenciaInput = document.getElementById('f_referencia');
+
+      let huboCambio = false;
 
       // Solo llenar si están vacíos (no sobrescribir lo que el bombero ya escribió)
       if (!direccionInput.value) {
         const partesDir = [];
         if (addr.road) partesDir.push(addr.road);
         if (addr.house_number) partesDir.push('#' + addr.house_number);
-        if (partesDir.length === 0 && data.display_name) {
-          partesDir.push(data.display_name.split(',')[0]);
+        if (partesDir.length > 0) {
+          direccionInput.value = partesDir.join(' ');
+          huboCambio = true;
         }
-        direccionInput.value = partesDir.join(' ');
       }
 
       if (!barrioInput.value) {
-        barrioInput.value = addr.suburb || addr.neighbourhood || addr.quarter ||
-                            addr.village || addr.hamlet || '';
+        const barrio = addr.suburb || addr.neighbourhood || addr.quarter ||
+                       addr.village || addr.hamlet || '';
+        if (barrio) { barrioInput.value = barrio; huboCambio = true; }
       }
 
       if (!localidadInput.value) {
-        localidadInput.value = addr.city_district || addr.borough || addr.county || '';
+        const loc = addr.city_district || addr.borough || addr.county || '';
+        if (loc) { localidadInput.value = loc; huboCambio = true; }
       }
 
       if (!municipioInput.value || municipioInput.value === 'Inírida') {
-        municipioInput.value = addr.city || addr.town || addr.municipality || 'Inírida';
+        const mun = addr.city || addr.town || addr.municipality || '';
+        if (mun) { municipioInput.value = mun; huboCambio = true; }
       }
 
-      document.getElementById('autoCompletarInfo').classList.add('visible');
+      // Si Nominatim no dio dirección detallada, sugerir el display_name como referencia
+      if (!referenciaInput.value && data.display_name && !direccionInput.value) {
+        referenciaInput.value = data.display_name;
+        huboCambio = true;
+      }
+
+      const aviso = document.getElementById('autoCompletarInfo');
+      if (huboCambio) {
+        aviso.classList.add('visible');
+        aviso.innerHTML = '✅ Datos detectados automáticamente. Puede editar abajo si necesita corregir.';
+      } else {
+        aviso.classList.add('visible');
+        aviso.innerHTML = '⚠️ El GPS detectó la zona pero <strong>no tiene la dirección detallada</strong> registrada. Por favor escriba la dirección manualmente abajo. Las coordenadas SÍ quedaron guardadas.';
+      }
     } catch (err) {
       console.log('No se pudo auto-completar dirección:', err);
+      const aviso = document.getElementById('autoCompletarInfo');
+      aviso.classList.add('visible');
+      aviso.innerHTML = '⚠️ Sin internet o falló auto-completado. Escriba la dirección manualmente. Las coordenadas SÍ quedaron guardadas.';
     }
   },
 
@@ -1022,7 +1162,8 @@ const app = {
       const lat = parseFloat(document.getElementById('f_lat_manual').value);
       const lng = parseFloat(document.getElementById('f_lng_manual').value);
       if (!isNaN(lat) && !isNaN(lng)) {
-        r.gps = { lat, lng, accuracy: 0 };
+        r.gps = { lat, lng, accuracy: 0, altitude: null, speedKmh: null, heading: '' };
+        r.gpsGMS = `${this.decimalAGMS(lat, true)} ${this.decimalAGMS(lng, false)}`;
         r.gpsManual = true;
       }
     }
@@ -1834,21 +1975,22 @@ ${paginaFotos}
     document.getElementById('modalConfirmar').classList.add('visible');
     const btnConfirmar = document.getElementById('modalConfirmarBtn');
     return new Promise(resolve => {
-      const cerrar = (valor) => {
-        this.cerrarModal();
-        resolve(valor);
+      // Función única que resuelve y cierra (sin doble llamada)
+      this._modalResolve = (valor) => {
+        document.getElementById('modalConfirmar').classList.remove('visible');
+        const r = this._modalResolve;
+        this._modalResolve = null;
+        if (r) resolve(valor);
       };
-      btnConfirmar.onclick = () => cerrar(true);
-      this.modalCallback = () => cerrar(false);
+      btnConfirmar.onclick = () => { if (this._modalResolve) this._modalResolve(true); };
     });
   },
 
   cerrarModal() {
-    document.getElementById('modalConfirmar').classList.remove('visible');
-    if (this.modalCallback) {
-      const cb = this.modalCallback;
-      this.modalCallback = null;
-      cb();
+    if (this._modalResolve) {
+      this._modalResolve(false);
+    } else {
+      document.getElementById('modalConfirmar').classList.remove('visible');
     }
   },
 
