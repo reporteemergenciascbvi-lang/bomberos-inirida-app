@@ -1204,15 +1204,29 @@
   <!-- ZONA SOLO PARA ADMINISTRADOR -->
   <div class="config-card admin" id="zonaAdmin" style="display:none;">
     <h3>★ Zona Administrador <span class="badge-admin-section">SOLO ADMIN</span></h3>
-    <div class="campo">
-      <label>Forzar próximo número de reporte</label>
-      <input type="number" id="cfg_proximo_numero" min="1">
-      <div class="ayuda">Solo el administrador puede ajustar manualmente el siguiente consecutivo. Use con cuidado.</div>
+
+    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #856404; margin-bottom: 14px;">
+      ⚠️ <strong>Atención:</strong> Los consecutivos los asigna automáticamente el servidor cuando se envía el reporte. Esta sección es solo para casos excepcionales.
     </div>
+
     <div class="campo">
       <label>Prefijo del consecutivo</label>
       <input type="text" id="cfg_prefijo" value="RE" maxlength="5">
       <div class="ayuda">Por defecto "RE". Cambiar afectará todos los reportes nuevos.</div>
+    </div>
+
+    <div class="campo" style="display:none;">
+      <input type="number" id="cfg_proximo_numero" min="1" value="1">
+    </div>
+
+    <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
+      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">🔧 Renumerar reportes (peligroso)</h4>
+      <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
+        Si los consecutivos se desordenaron por usuarios con versiones viejas, este botón pide al servidor renumerar todos los reportes en orden cronológico.
+      </p>
+      <button class="btn btn-secundario btn-completo" onclick="app.renumerarReportes()" style="background: #fef2f2; color: var(--rojo); border-color: #fca5a5;">
+        🔄 Renumerar todos los reportes (Admin)
+      </button>
     </div>
   </div>
 

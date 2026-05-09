@@ -1,5 +1,5 @@
-/* Service Worker v4.2 - CBVI Reportes */
-const CACHE = 'bomberos-inirida-v4-2';
+/* Service Worker v4.3 - CBVI Reportes (fix consecutivos) */
+const CACHE = 'bomberos-inirida-v4-3';
 const ARCHIVOS = [
   './',
   './index.html',

@@ -577,7 +577,6 @@ const app = {
     this.reporteActual = {
       id: this.uuid(),
       consecutivo: '',  // El backend lo asigna al enviar
-      consecutivoLocal: this.generarConsecutivoLocal(),
       estado: 'borrador',
       fechaCreacion: ahora.toISOString(),
       fechaModificacion: ahora.toISOString(),
@@ -1430,16 +1429,9 @@ const app = {
     }
     r.estado = 'pendiente';
 
-    // Si no tiene consecutivo aún, asignar el local provisional
-    if (!r.consecutivo) {
-      r.consecutivo = r.consecutivoLocal || this.generarConsecutivoLocal();
-      // Avanzar contador local
-      const numActual = parseInt(r.consecutivo.split('-').pop());
-      if (numActual === this.config.proximoNumero) {
-        this.config.proximoNumero = numActual + 1;
-        await DB.guardarConfig('app', this.config);
-      }
-    }
+    // El consecutivo lo asigna el SERVIDOR, no el celular
+    // Hasta que el servidor responda, queda como "pendiente de asignación"
+    r.consecutivo = ''; // El servidor lo asignará al sincronizar
 
     await DB.guardarReporte(r);
 
@@ -1456,12 +1448,31 @@ const app = {
     if (!this.config.urlBackend) return false;
     try {
       const payload = { ...reporte, token: this.config.token || '' };
-      await fetch(this.config.urlBackend, {
+      // Usamos modo 'cors' para PODER LEER la respuesta del servidor
+      // El servidor devuelve el consecutivo asignado oficialmente
+      const resp = await fetch(this.config.urlBackend, {
         method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        redirect: 'follow'
       });
+
+      let consecutivoServidor = '';
+      try {
+        const data = await resp.json();
+        if (data && data.ok && data.consecutivo) {
+          consecutivoServidor = data.consecutivo;
+        }
+      } catch (e) {
+        // Si no se puede leer la respuesta (no-cors fallback), seguimos
+        console.warn('No se pudo leer respuesta del servidor:', e);
+      }
+
+      // Si el servidor devolvió un consecutivo, lo guardamos en el reporte local
+      if (consecutivoServidor) {
+        reporte.consecutivo = consecutivoServidor;
+      }
+
       reporte.estado = 'enviado';
       reporte.fechaEnviado = new Date().toISOString();
       await DB.guardarReporte(reporte);
@@ -1470,6 +1481,45 @@ const app = {
     } catch (err) {
       console.error('Error al sincronizar:', err);
       return false;
+    }
+  },
+
+  // Solo admin: renumerar reportes en el servidor
+  async renumerarReportes() {
+    if (!this.esAdmin()) {
+      this.toast('Solo el administrador puede renumerar', 'error');
+      return;
+    }
+    if (!this.config.urlBackend) {
+      this.toast('Configure URL del backend primero', 'error');
+      return;
+    }
+    const ok = await this.confirmar(
+      '⚠️ Renumerar todos los reportes',
+      'Esto reasignará TODOS los consecutivos en orden cronológico. La acción NO se puede deshacer. ¿Continuar?'
+    );
+    if (!ok) return;
+
+    this.toast('Renumerando... espere', 'exito');
+    try {
+      const resp = await fetch(this.config.urlBackend, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'renumerar',
+          adminEmail: this.usuario.email,
+          token: this.config.token || ''
+        })
+      });
+      const data = await resp.json();
+      if (data && data.ok) {
+        this.toast(`✅ ${data.actualizados || 0} reportes renumerados correctamente`, 'exito');
+      } else {
+        this.toast('Error al renumerar: ' + (data?.error || 'desconocido'), 'error');
+      }
+    } catch (err) {
+      console.error('Error renumerando:', err);
+      this.toast('Error de red al renumerar', 'error');
     }
   },
 
