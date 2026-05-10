@@ -1044,6 +1044,48 @@ const app = {
     this.firmas[tipo] = null;
   },
 
+  // Redibuja las firmas guardadas en sus canvas correspondientes.
+  // Se llama al cargar un borrador o al editar un reporte enviado.
+  // Reintenta hasta 3 segundos por si el canvas no es visible aún.
+  redibujarFirmasGuardadas() {
+    ['firmaAfectado', 'firmaComandante'].forEach(canvasId => {
+      const tipo = canvasId === 'firmaAfectado' ? 'afectado' : 'comandante';
+      const dataURL = this.firmas[tipo];
+      if (!dataURL) return;
+
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+
+      let intentos = 0;
+      const dibujar = () => {
+        const rect = canvas.getBoundingClientRect();
+        // Si el canvas no es visible o no tiene dimensiones, reintentar
+        if (rect.width === 0 || canvas.width === 0) {
+          if (intentos < 30) {
+            intentos++;
+            setTimeout(dibujar, 100);
+          }
+          return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+          const ctx = canvas.getContext('2d');
+          // Guardar transformación actual (que tiene scale 2,2 por high-DPI)
+          ctx.save();
+          // Resetear a identidad para dibujar al tamaño nativo del canvas
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // Restaurar transformación (vuelve a tener scale 2,2 para futuros trazos)
+          ctx.restore();
+        };
+        img.src = dataURL;
+      };
+      dibujar();
+    });
+  },
+
   // ==================== TABLAS DINÁMICAS ====================
   agregarRecurso(datos) {
     const cont = document.getElementById('tablaRecursos');
@@ -1374,6 +1416,8 @@ const app = {
     document.getElementById('f_comandante_estacion').value = r.comandanteEstacion || NOMBRE_ESTACION;
 
     this.firmas = { ...(r.firmas || {}) };
+    // Redibujar las firmas guardadas en los canvas (fix bug firma vacía al editar)
+    this.redibujarFirmasGuardadas();
     this.modoUbicacion = r.gpsManual ? 'manual' : 'auto';
     this.actualizarUIGPS();
 
