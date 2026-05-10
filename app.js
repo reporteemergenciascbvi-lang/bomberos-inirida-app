@@ -1734,12 +1734,21 @@ const app = {
     }
 
     cont.innerHTML = reportes.map(r => `
-      <div class="reporte-card" style="margin-bottom:8px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;cursor:pointer;"
-           onclick="app.editarReporteAdmin('${r.id}')">
-        <div style="font-weight:bold;color:#7a1010;">${r.consecutivo || '(sin consecutivo)'}</div>
-        <div style="font-size:13px;color:#333;">${r.direccion || 'Sin dirección'}</div>
+      <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;">
+        <div style="font-weight:bold;color:#7a1010;font-size:15px;">${r.consecutivo || '(sin consecutivo)'}</div>
+        <div style="font-size:13px;color:#333;margin-top:2px;">${r.direccion || 'Sin dirección'}</div>
         <div style="font-size:11px;color:#888;margin-top:4px;">
           ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button onclick="app.editarReporteAdmin('${r.id}')"
+                  style="flex:1;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+            ✏️ Editar
+          </button>
+          <button onclick="app.imprimirReporteAdmin('${r.id}')"
+                  style="flex:1;padding:8px 6px;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+            🖨️ Imprimir
+          </button>
         </div>
       </div>
     `).join('');
@@ -1835,12 +1844,61 @@ const app = {
   },
 
   // ========== IMPRIMIR DESDE ADMIN ==========
+  // Imprime el reporte que se está editando ACTUALMENTE en el panel admin,
+  // tomando los cambios sin guardar como parte del PDF (vista previa de la edición).
+  async imprimirReporteEditandoAdmin() {
+    const r = this._reporteAdminEditando;
+    if (!r) {
+      this.toast('No hay reporte abierto para imprimir', 'error');
+      return;
+    }
+    // Tomar valores actuales del formulario (incluso si no se guardó)
+    const rConCambios = {
+      ...r,
+      consecutivo: document.getElementById('admin_consecutivo').value.trim() || r.consecutivo,
+      direccion: document.getElementById('admin_direccion').value.trim() || r.direccion,
+      barrio: document.getElementById('admin_barrio').value.trim() || r.barrio,
+      municipio: document.getElementById('admin_municipio').value.trim() || r.municipio,
+      narrativa: document.getElementById('admin_narrativa').value.trim() || r.narrativa,
+      acciones: document.getElementById('admin_acciones').value.trim() || r.acciones,
+      observaciones: document.getElementById('admin_observaciones').value.trim() || r.observaciones
+    };
+    await this._imprimirReporteEnVentanaNueva(rConCambios);
+  },
+
+  // ========== IMPRIMIR DESDE LISTA ADMIN ==========
+  // Genera el PDF directamente del reporte del servidor SIN tocar la BD local del bombero,
+  // así puede imprimir reportes de otros usuarios sin que aparezcan en su lista personal.
   async imprimirReporteAdmin(idReporte) {
     const r = (this._reportesAdmin || []).find(x => x.id === idReporte);
-    if (!r) return;
-    // Reutiliza la función de imprimir/exportar PDF normal
-    await DB.guardarReporte({ ...r, estado: 'enviado' });
-    this.verReporte(r.id);
+    if (!r) {
+      this.toast('Reporte no encontrado', 'error');
+      return;
+    }
+    await this._imprimirReporteEnVentanaNueva(r);
+  },
+
+  // Helper interno: abre ventana nueva con el HTML del reporte y lanza el diálogo de impresión
+  async _imprimirReporteEnVentanaNueva(r) {
+    try {
+      const html = this.generarHTMLImpresion(r);
+      const ventana = window.open('', '_blank', 'width=900,height=1200');
+      if (!ventana) {
+        this.toast('El navegador bloqueó la ventana emergente. Permita pop-ups e intente de nuevo.', 'error');
+        return;
+      }
+      ventana.document.open();
+      ventana.document.write(html);
+      ventana.document.close();
+      ventana.onload = () => {
+        setTimeout(() => {
+          try { ventana.print(); } catch (e) { console.warn(e); }
+        }, 800);
+      };
+    } catch (e) {
+      this.toast('Error al generar PDF: ' + e.message, 'error');
+      console.error(e);
+    }
   },
 
   async sincronizarPendientes(silencioso = false) {

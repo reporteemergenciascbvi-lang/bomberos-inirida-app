@@ -1,5 +1,5 @@
-/* Service Worker v5.1 - CBVI Reportes (sync por correo + panel admin + PDF mejorado) */
-const CACHE = 'bomberos-inirida-v5-1';
+/* Service Worker v5.2 - CBVI Reportes (sync por correo + panel admin + PDF mejorado) */
+const CACHE = 'bomberos-inirida-v5-2';
 const ARCHIVOS = [
   './',
   './index.html',

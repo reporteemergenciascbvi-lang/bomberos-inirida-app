@@ -796,9 +796,10 @@
         <textarea id="admin_observaciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
       </div>
 
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        <button onclick="app.cancelarEdicionAdmin()" style="flex:1;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Cancelar</button>
-        <button onclick="app.guardarEdicionAdmin()" style="flex:1;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar cambios</button>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+        <button onclick="app.cancelarEdicionAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Cancelar</button>
+        <button onclick="app.guardarEdicionAdmin()" style="flex:1;min-width:120px;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar</button>
+        <button onclick="app.imprimirReporteEditandoAdmin()" style="flex:1;min-width:110px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Imprimir</button>
       </div>
     </div>
 
