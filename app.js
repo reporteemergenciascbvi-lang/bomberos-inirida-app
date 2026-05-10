@@ -229,6 +229,7 @@ const app = {
           this.toast('Buscando tu perfil en el servidor...', 'info');
           const respServ = await fetch(URL_BACKEND, {
             method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ accion: 'obtenerPerfilBombero', email: payload.email })
           });
           const dataServ = await respServ.json();
@@ -329,6 +330,7 @@ const app = {
     try {
       await fetch(URL_BACKEND, {
         method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ accion: 'guardarPerfilBombero', ...perfil })
       });
     } catch (e) {
@@ -343,6 +345,7 @@ const app = {
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ accion: 'listarMisReportes', email: this.usuario.email })
       });
       const data = await resp.json();
@@ -419,11 +422,26 @@ const app = {
     // Cerrar el menú primero para que la confirmación se vea bien
     this.cerrarUserMenu();
     // Usar confirm() nativo (más robusto que el modal personalizado)
-    const ok = window.confirm('¿Cerrar sesión?\n\nSe cerrará su sesión, pero los reportes guardados localmente NO se borrarán.');
+    const ok = window.confirm('¿Cerrar sesión?\n\nLos reportes ya enviados al servidor seguirán disponibles cuando vuelva a iniciar sesión.\nLos borradores locales no enviados se mantendrán en este dispositivo.');
     if (!ok) return;
 
     try {
       await DB.guardarConfig('sesion', null);
+      // Limpiar reportes ENVIADOS del usuario actual (los descargará del servidor al volver a entrar)
+      // Mantenemos los borradores y pendientes (no se han subido aún)
+      if (this.usuario && this.usuario.email) {
+        const todos = await DB.listarReportes();
+        const emailUsuario = this.usuario.email.toLowerCase();
+        for (const r of todos) {
+          // Borrar reportes enviados del usuario actual
+          // (porque están en el servidor y se redescargarán al iniciar sesión)
+          if (r.estado === 'enviado' &&
+              r.operadorEmail &&
+              r.operadorEmail.toLowerCase() === emailUsuario) {
+            try { await DB.eliminarReporte(r.id); } catch (e) { /* ignore */ }
+          }
+        }
+      }
     } catch (e) {
       console.error('Error borrando sesión:', e);
     }
@@ -595,7 +613,16 @@ const app = {
 
   // ==================== HOME ====================
   async actualizarHome() {
-    const reportes = await DB.listarReportes();
+    let reportes = await DB.listarReportes();
+    // FILTRO POR CORREO: cada bombero solo ve SUS propios reportes
+    // Identificamos por operadorEmail (el correo con que se creó el reporte)
+    if (this.usuario && this.usuario.email) {
+      reportes = reportes.filter(r => {
+        // Reportes legacy sin email se atribuyen al usuario actual la primera vez
+        if (!r.operadorEmail) return true;
+        return r.operadorEmail.toLowerCase() === this.usuario.email.toLowerCase();
+      });
+    }
     document.getElementById('statTotal').textContent = reportes.length;
     document.getElementById('statPendientes').textContent =
       reportes.filter(r => r.estado === 'pendiente').length;
@@ -1664,21 +1691,32 @@ const app = {
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           accion: 'listarTodosReportes',
           adminEmail: this.usuario.email,
           adminPassword: ADMIN_PASSWORD
         })
       });
-      const data = await resp.json();
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) {
+        cont.innerHTML = '<div style="padding:20px;color:#c00;">Error: respuesta del servidor no es JSON. Verifica que el backend Apps Script esté actualizado a la versión más reciente.<br><br><small>Respuesta: ' + text.substring(0, 200) + '</small></div>';
+        return;
+      }
       if (!data.ok) {
-        cont.innerHTML = '<div style="padding:20px;color:#c00;">Error: ' + (data.error || '?') + '</div>';
+        cont.innerHTML = '<div style="padding:20px;color:#c00;">Error: ' + (data.error || 'desconocido') + '<br><br><small>Si dice "No autorizado", verifica que el backend tenga la versión nueva.</small></div>';
         return;
       }
       this._reportesAdmin = data.reportes || [];
+      if (this._reportesAdmin.length === 0) {
+        cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">El servidor respondió correctamente, pero no hay reportes registrados aún.</div>';
+        return;
+      }
       this.renderizarListaAdmin();
     } catch (e) {
-      cont.innerHTML = '<div style="padding:20px;color:#c00;">Error de red: ' + e.message + '</div>';
+      cont.innerHTML = '<div style="padding:20px;color:#c00;">Error de red: ' + e.message + '<br><br><small>Verifica tu conexión a internet.</small></div>';
     }
   },
 
@@ -1755,6 +1793,7 @@ const app = {
       if (nuevoCons && nuevoCons !== r.consecutivo) {
         const respC = await fetch(URL_BACKEND, {
           method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
             accion: 'cambiarConsecutivo',
             adminEmail: this.usuario.email,
@@ -1773,6 +1812,7 @@ const app = {
       // Guardar otros cambios
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           accion: 'editarReporte',
           adminEmail: this.usuario.email,
