@@ -655,10 +655,154 @@
   <div class="seccion-titulo">Reportes recientes</div>
   <div id="listaReportes"></div>
 
+  <!-- Accesos rápidos a información -->
+  <div class="info-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0;">
+    <div onclick="app.irA('pantallaManual')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-size:28px;">📖</div>
+      <div style="font-size:11px;font-weight:700;color:#7a1010;margin-top:4px;">Manual</div>
+    </div>
+    <div onclick="app.irA('pantallaComoFunciona')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-size:28px;">⚙️</div>
+      <div style="font-size:11px;font-weight:700;color:#7a1010;margin-top:4px;">Cómo funciona</div>
+    </div>
+    <div onclick="app.irA('pantallaLegal')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-size:28px;">⚖️</div>
+      <div style="font-size:11px;font-weight:700;color:#7a1010;margin-top:4px;">Bases legales</div>
+    </div>
+  </div>
+
   <div class="lema-pie">"ABNEGACIÓN Y DISCIPLINA"</div>
   <div class="credito-pie">
     App desarrollada por <strong>Bombero Jeferson Jeancarlos Rangel Gil</strong><br>
     Cuerpo de Bomberos Voluntarios de Inírida
+  </div>
+</div>
+
+<!-- ========== PANTALLA: MANUAL DE USUARIO ========== -->
+<div class="pantalla" id="pantallaManual" style="display:none;">
+  <div style="padding:0 4px;">
+    <h2 style="color:#7a1010;margin:10px 0;">📖 Manual rápido</h2>
+    <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;">
+      <p><b>1. Crear un reporte</b><br>Toque <b>"Nueva Emergencia"</b>. Llene las 14 secciones del formulario. Los campos marcados con <span style="color:#c00;">*</span> son obligatorios.</p>
+      <p><b>2. Capturar GPS</b><br>En la sección 3 toque <b>"Usar GPS automático"</b>. La app captura coordenadas, altitud, velocidad y orientación. También puede escribir manualmente.</p>
+      <p><b>3. Tomar fotos</b><br>Hasta <b>4 fotos</b> por reporte. Puede tomar con la cámara o elegir de la galería. Las fotos suben a Drive y aparecen como link en el Sheets.</p>
+      <p><b>4. Firmas</b><br>El afectado firma con el dedo en pantalla, y el comandante también. Si guarda como borrador, las firmas se mantienen al volver a abrir.</p>
+      <p><b>5. Enviar</b><br>Si tiene internet, el reporte se envía al servidor inmediatamente. Si no, queda <b>pendiente</b> y se envía solo cuando recupere conexión.</p>
+      <p><b>6. Imprimir / Descargar PDF</b><br>Desde el detalle de cada reporte toque <b>"Imprimir"</b>. Sale el formato oficial con logo, firmas y fotos.</p>
+      <p><b>7. Sus datos quedan en la nube</b><br>Aunque cambie de teléfono o limpie caché, al iniciar sesión con su correo se restauran sus reportes y su perfil.</p>
+    </div>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+  </div>
+</div>
+
+<!-- ========== PANTALLA: CÓMO FUNCIONA ========== -->
+<div class="pantalla" id="pantallaComoFunciona" style="display:none;">
+  <div style="padding:0 4px;">
+    <h2 style="color:#7a1010;margin:10px 0;">⚙️ Cómo funciona la app</h2>
+    <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;">
+      <p><b>🔐 Inicio de sesión seguro</b><br>La app usa <b>Google OAuth</b>. Solo accede quien inicie sesión con su correo Gmail autorizado. La app NO guarda contraseñas.</p>
+
+      <p><b>💾 Almacenamiento doble</b><br>
+      • <b>Local (IndexedDB):</b> los reportes se guardan en su teléfono para funcionar sin internet.<br>
+      • <b>Servidor (Google Sheets + Drive):</b> al tener internet, los reportes suben automáticamente.</p>
+
+      <p><b>🔄 Sincronización tipo Gmail</b><br>Cuando inicia sesión con su correo, la app pregunta al servidor por sus reportes y los descarga. Si cambia de teléfono o limpia caché, NO pierde nada.</p>
+
+      <p><b>📋 Estructura de la base de datos</b><br>
+      • Hoja <b>"Reportes"</b>: 1 fila por cada reporte con sus 80+ campos.<br>
+      • Hoja <b>"Bomberos"</b>: perfiles (nombre, grado, cédula, teléfono).<br>
+      • Hojas auxiliares: víctimas, recursos, personal por recurso.<br>
+      • Carpeta Drive con subcarpetas por cada reporte (fotos + firmas).</p>
+
+      <p><b>🆔 Consecutivo único</b><br>El servidor asigna el N° de reporte (ej. <code>RE-2026-0085</code>). Es imposible que dos bomberos generen el mismo número.</p>
+
+      <p><b>🔐 Privacidad</b><br>Cada bombero solo ve sus propios reportes. El admin (único) puede ver y editar todos. Los datos NO son públicos en internet — requieren login.</p>
+    </div>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+  </div>
+</div>
+
+<!-- ========== PANTALLA: BASES LEGALES ========== -->
+<div class="pantalla" id="pantallaLegal" style="display:none;">
+  <div style="padding:0 4px;">
+    <h2 style="color:#7a1010;margin:10px 0;">⚖️ Bases legales</h2>
+    <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;font-size:14px;">
+      <p><b>Ley 1575 de 2012 — Ley General de Bomberos de Colombia</b><br>Establece la organización y funciones del Sistema Nacional de Bomberos. El reporte oficial de emergencias es de obligatorio diligenciamiento por las unidades que atienden el evento.</p>
+
+      <p><b>Resolución 661 de 2014</b><br>Reglamenta el formato oficial del reporte de emergencias. La app cumple con las 14 secciones requeridas (datos generales, clasificación, ubicación, descripción, recursos, diagnóstico, afectado, acciones, víctimas, causas, organizaciones participantes, observaciones, firma del comandante).</p>
+
+      <p><b>Ley 1581 de 2012 — Habeas Data</b><br>Los datos personales recolectados (nombre, cédula, teléfono, firma, foto) se tratan exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos. El titular puede solicitar acceso, rectificación o supresión.</p>
+
+      <p><b>Ley 527 de 1999 — Firma electrónica</b><br>Las firmas digitales capturadas en pantalla tienen validez legal como manifestación de voluntad para constancia de atención.</p>
+
+      <p style="background:#fffbe6;padding:10px;border-left:4px solid #f0b800;border-radius:4px;font-size:13px;">
+        <b>Aviso Habeas Data:</b> Los datos personales aquí recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos Voluntarios de Inírida.
+      </p>
+
+      <p style="margin-top:16px;color:#666;font-size:12px;">
+        <b>Cuerpo de Bomberos Voluntarios de Inírida</b><br>
+        Personería Jurídica N° 3561 del 5 de Agosto de 1976<br>
+        NIT: 843000056-0 · Tel: 314 531 1605<br>
+        Calle 15 N° 5-07 Zona Indígena · "ABNEGACIÓN Y DISCIPLINA"
+      </p>
+    </div>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+  </div>
+</div>
+
+<!-- ========== PANTALLA: PANEL ADMIN ========== -->
+<div class="pantalla" id="pantallaPanelAdmin" style="display:none;">
+  <div style="padding:0 4px;">
+    <h2 style="color:#7a1010;margin:10px 0;">🛡️ Panel de Administrador</h2>
+
+    <div id="listaReportesAdminWrap">
+      <input type="text" id="filtroAdmin" placeholder="Buscar por consecutivo, correo o dirección..."
+             oninput="app.filtrarAdmin()"
+             style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;margin-bottom:10px;font-size:14px;">
+      <div id="listaReportesAdmin" style="max-height:60vh;overflow-y:auto;"></div>
+    </div>
+
+    <div id="panelAdminEditando" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid #7a1010;">
+      <h3 id="admin_titulo" style="color:#7a1010;margin:0 0 12px 0;">Editar reporte</h3>
+
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Consecutivo (ej. RE-2026-0087):</label>
+        <input id="admin_consecutivo" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Dirección:</label>
+        <input id="admin_direccion" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div>
+          <label style="font-weight:700;font-size:13px;">Barrio:</label>
+          <input id="admin_barrio" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
+        </div>
+        <div>
+          <label style="font-weight:700;font-size:13px;">Municipio:</label>
+          <input id="admin_municipio" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Narrativa inicial:</label>
+        <textarea id="admin_narrativa" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Acciones realizadas:</label>
+        <textarea id="admin_acciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Observaciones:</label>
+        <textarea id="admin_observaciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button onclick="app.cancelarEdicionAdmin()" style="flex:1;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Cancelar</button>
+        <button onclick="app.guardarEdicionAdmin()" style="flex:1;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar cambios</button>
+      </div>
+    </div>
+
+    <button onclick="app.irA('pantallaConfig')" style="margin-top:16px;padding:14px;background:#444;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver a Configuración</button>
   </div>
 </div>
 
@@ -1217,6 +1361,16 @@
 
     <div class="campo" style="display:none;">
       <input type="number" id="cfg_proximo_numero" min="1" value="1">
+    </div>
+
+    <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
+      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">🛡️ Panel de Administración</h4>
+      <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
+        Ver, editar e imprimir TODOS los reportes (de todas las cuentas). Cambiar consecutivos. Requiere contraseña adicional.
+      </p>
+      <button class="btn btn-completo" onclick="app.abrirPanelAdmin()" style="background: #7a1010; color: #fff;">
+        🛡️ Abrir Panel Admin
+      </button>
     </div>
 
     <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">

@@ -6,6 +6,7 @@
 // ==================== CONFIGURACIÓN HARDCODED ====================
 const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.googleusercontent.com';
 const ADMIN_EMAIL = 'gilrangeljeancarlosjeferson@gmail.com';
+const ADMIN_PASSWORD = '12345Jj*'; // Contraseña para acceder al Panel Admin
 const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
 const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbxke-N2r_Z5QVA-33gChRKF72FJb42T8lRqvxJlS05r34yvSMyA65OyuzdBU7R-aArMgQ/exec';
@@ -218,9 +219,29 @@ const app = {
       // Decodificar el JWT (sin verificar firma — Google ya lo firmó)
       const payload = JSON.parse(atob(response.credential.split('.')[1]));
 
-      // Buscar si ya hay un perfil guardado para este correo
+      // 1. Buscar perfil LOCAL primero (más rápido)
       const claveBomberoPorCorreo = 'bombero:' + payload.email;
-      const perfilGuardado = await DB.obtenerConfig(claveBomberoPorCorreo);
+      let perfilGuardado = await DB.obtenerConfig(claveBomberoPorCorreo);
+
+      // 2. Si NO hay perfil local, intentar traerlo del SERVIDOR (sobrevive a borrar caché)
+      if (!perfilGuardado || !perfilGuardado.registroCompleto) {
+        try {
+          this.toast('Buscando tu perfil en el servidor...', 'info');
+          const respServ = await fetch(URL_BACKEND, {
+            method: 'POST',
+            body: JSON.stringify({ accion: 'obtenerPerfilBombero', email: payload.email })
+          });
+          const dataServ = await respServ.json();
+          if (dataServ.ok && dataServ.perfil && dataServ.perfil.registroCompleto) {
+            perfilGuardado = dataServ.perfil;
+            // Guardar localmente para próximas veces
+            await DB.guardarConfig(claveBomberoPorCorreo, perfilGuardado);
+            this.toast('Perfil restaurado del servidor', 'exito');
+          }
+        } catch (e) {
+          console.warn('No se pudo consultar perfil en servidor:', e);
+        }
+      }
 
       const usuario = {
         email: payload.email,
@@ -228,7 +249,6 @@ const app = {
         nombrePila: payload.given_name || '',
         foto: payload.picture || '',
         emailVerificado: payload.email_verified,
-        // Si hay perfil guardado, lo restauramos. Si no, vacío para registrar
         nombreCompleto: perfilGuardado?.nombreCompleto || '',
         grado: perfilGuardado?.grado || '',
         cedula: perfilGuardado?.cedula || '',
@@ -242,12 +262,12 @@ const app = {
       this.toast(`Bienvenido, ${usuario.nombrePila || usuario.email}`, 'exito');
 
       if (usuario.registroCompleto) {
-        // Ya tiene perfil completo guardado — ir directo al Home
         this.actualizarUIUsuario();
         this.irA('pantallaHome');
         await this.actualizarHome();
+        // Sincronizar reportes del servidor en segundo plano (tipo Gmail)
+        this.sincronizarReportesDesdeServidor().catch(e => console.warn('Sincronización falló:', e));
       } else {
-        // Primera vez con esta cuenta — pedir datos del bombero
         document.getElementById('saludoRegistro').textContent =
           `${usuario.email} — Complete sus datos para empezar`;
         document.getElementById('reg_nombre').value = usuario.nombre || '';
@@ -289,7 +309,7 @@ const app = {
     await this.actualizarHome();
   },
 
-  // Guarda el perfil del bombero asociado a su correo (sobrevive a cerrar sesión)
+  // Guarda el perfil del bombero asociado a su correo (sobrevive a cerrar sesión + borrar caché)
   async guardarPerfilBombero() {
     if (!this.usuario || !this.usuario.email) return;
     const clave = 'bombero:' + this.usuario.email;
@@ -303,7 +323,55 @@ const app = {
       registroCompleto: true,
       ultimaActualizacion: new Date().toISOString()
     };
+    // 1. Guardar local
     await DB.guardarConfig(clave, perfil);
+    // 2. Guardar también en SERVIDOR (sobrevive a limpiar caché del teléfono)
+    try {
+      await fetch(URL_BACKEND, {
+        method: 'POST',
+        body: JSON.stringify({ accion: 'guardarPerfilBombero', ...perfil })
+      });
+    } catch (e) {
+      console.warn('No se pudo guardar perfil en servidor (se reintentará):', e);
+    }
+  },
+
+  // SINCRONIZACIÓN TIPO GMAIL: descargar del servidor todos los reportes del usuario
+  // y reconciliarlos con los locales. Sobrevive a borrar caché del teléfono.
+  async sincronizarReportesDesdeServidor() {
+    if (!this.usuario || !this.usuario.email) return;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        body: JSON.stringify({ accion: 'listarMisReportes', email: this.usuario.email })
+      });
+      const data = await resp.json();
+      if (!data.ok) return;
+
+      const reportesServidor = data.reportes || [];
+      let nuevos = 0;
+      // Reportes locales (mapeados por id)
+      const locales = await DB.listarReportes();
+      const idsLocales = new Set(locales.map(r => r.id));
+
+      for (const r of reportesServidor) {
+        if (!r.id) continue;
+        if (!idsLocales.has(r.id)) {
+          // Reporte que está en servidor pero NO en local: descargarlo
+          r.estado = 'enviado';
+          r.sincronizado = true;
+          await DB.guardarReporte(r);
+          nuevos++;
+        }
+      }
+
+      if (nuevos > 0) {
+        this.toast(`Se descargaron ${nuevos} reportes del servidor`, 'exito');
+        await this.actualizarHome();
+      }
+    } catch (e) {
+      console.warn('Sincronización falló:', e);
+    }
   },
 
   esAdmin() {
@@ -1097,9 +1165,12 @@ const app = {
         <label>Recurso</label>
         <select data-campo="recurso" onchange="app.cambioTipoRecurso(this)">
           <option value="">-- Seleccione --</option>
-          <option>Carro bomba 1</option>
-          <option>Carro bomba 2</option>
-          <option>Vehículo de rescate</option>
+          <option>Máquina extintora 1</option>
+          <option>Máquina extintora 2</option>
+          <option>Intervención rápida (camioneta)</option>
+          <option>Carro tanque 1</option>
+          <option>Carro tanque 2</option>
+          <option>Vehículo liviano</option>
           <option>Ambulancia</option>
           <option>Personal</option>
           <option>Otro</option>
@@ -1124,7 +1195,7 @@ const app = {
 
     if (datos) {
       const sel = div.querySelector('[data-campo="recurso"]');
-      const opciones = ['Carro bomba 1', 'Carro bomba 2', 'Vehículo de rescate', 'Ambulancia', 'Personal', 'Otro'];
+      const opciones = ['Máquina extintora 1', 'Máquina extintora 2', 'Intervención rápida (camioneta)', 'Carro tanque 1', 'Carro tanque 2', 'Vehículo liviano', 'Ambulancia', 'Personal', 'Otro'];
       if (opciones.includes(datos.recurso)) {
         sel.value = datos.recurso;
       } else if (datos.recurso) {
@@ -1567,6 +1638,171 @@ const app = {
     }
   },
 
+  // ========== PANEL ADMIN CON CONTRASEÑA ==========
+  // Lista TODOS los reportes (no solo del usuario actual) para que el admin pueda editar
+  async abrirPanelAdmin() {
+    if (!this.esAdmin()) {
+      this.toast('Solo el administrador', 'error');
+      return;
+    }
+    // Pedir contraseña
+    const pw = window.prompt('🔐 Contraseña de administrador:');
+    if (pw === null) return; // canceló
+    if (pw !== ADMIN_PASSWORD) {
+      this.toast('Contraseña incorrecta', 'error');
+      return;
+    }
+    this._adminAutorizado = true;
+    this.irA('pantallaPanelAdmin');
+    await this.cargarReportesAdmin();
+  },
+
+  async cargarReportesAdmin() {
+    const cont = document.getElementById('listaReportesAdmin');
+    if (!cont) return;
+    cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Cargando reportes del servidor...</div>';
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        body: JSON.stringify({
+          accion: 'listarTodosReportes',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD
+        })
+      });
+      const data = await resp.json();
+      if (!data.ok) {
+        cont.innerHTML = '<div style="padding:20px;color:#c00;">Error: ' + (data.error || '?') + '</div>';
+        return;
+      }
+      this._reportesAdmin = data.reportes || [];
+      this.renderizarListaAdmin();
+    } catch (e) {
+      cont.innerHTML = '<div style="padding:20px;color:#c00;">Error de red: ' + e.message + '</div>';
+    }
+  },
+
+  renderizarListaAdmin(filtro = '') {
+    const cont = document.getElementById('listaReportesAdmin');
+    if (!cont || !this._reportesAdmin) return;
+    const f = filtro.toLowerCase();
+    const reportes = this._reportesAdmin
+      .filter(r => !f || (r.consecutivo + ' ' + (r.operadorEmail || '') + ' ' + (r.direccion || '')).toLowerCase().includes(f))
+      .sort((a, b) => (b.consecutivo || '').localeCompare(a.consecutivo || ''));
+
+    if (reportes.length === 0) {
+      cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">No hay reportes</div>';
+      return;
+    }
+
+    cont.innerHTML = reportes.map(r => `
+      <div class="reporte-card" style="margin-bottom:8px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;cursor:pointer;"
+           onclick="app.editarReporteAdmin('${r.id}')">
+        <div style="font-weight:bold;color:#7a1010;">${r.consecutivo || '(sin consecutivo)'}</div>
+        <div style="font-size:13px;color:#333;">${r.direccion || 'Sin dirección'}</div>
+        <div style="font-size:11px;color:#888;margin-top:4px;">
+          ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
+        </div>
+      </div>
+    `).join('');
+  },
+
+  filtrarAdmin() {
+    const f = document.getElementById('filtroAdmin');
+    this.renderizarListaAdmin(f ? f.value : '');
+  },
+
+  async editarReporteAdmin(idReporte) {
+    const r = (this._reportesAdmin || []).find(x => x.id === idReporte);
+    if (!r) { this.toast('Reporte no encontrado', 'error'); return; }
+    this._reporteAdminEditando = r;
+
+    // Mostrar formulario de edición
+    document.getElementById('panelAdminEditando').style.display = 'block';
+    document.getElementById('listaReportesAdminWrap').style.display = 'none';
+    document.getElementById('admin_consecutivo').value = r.consecutivo || '';
+    document.getElementById('admin_direccion').value = r.direccion || '';
+    document.getElementById('admin_barrio').value = r.barrio || '';
+    document.getElementById('admin_municipio').value = r.municipio || '';
+    document.getElementById('admin_narrativa').value = r.narrativa || '';
+    document.getElementById('admin_acciones').value = r.acciones || '';
+    document.getElementById('admin_observaciones').value = r.observaciones || '';
+    document.getElementById('admin_titulo').textContent = 'Editar ' + (r.consecutivo || r.id);
+  },
+
+  cancelarEdicionAdmin() {
+    document.getElementById('panelAdminEditando').style.display = 'none';
+    document.getElementById('listaReportesAdminWrap').style.display = 'block';
+    this._reporteAdminEditando = null;
+  },
+
+  async guardarEdicionAdmin() {
+    const r = this._reporteAdminEditando;
+    if (!r) return;
+    const nuevoCons = document.getElementById('admin_consecutivo').value.trim();
+
+    const cambios = {
+      direccion: document.getElementById('admin_direccion').value.trim(),
+      barrio: document.getElementById('admin_barrio').value.trim(),
+      municipio: document.getElementById('admin_municipio').value.trim(),
+      narrativa: document.getElementById('admin_narrativa').value.trim(),
+      acciones: document.getElementById('admin_acciones').value.trim(),
+      observaciones: document.getElementById('admin_observaciones').value.trim()
+    };
+
+    try {
+      // Si cambió consecutivo, hacer cambio especial
+      if (nuevoCons && nuevoCons !== r.consecutivo) {
+        const respC = await fetch(URL_BACKEND, {
+          method: 'POST',
+          body: JSON.stringify({
+            accion: 'cambiarConsecutivo',
+            adminEmail: this.usuario.email,
+            adminPassword: ADMIN_PASSWORD,
+            idReporte: r.id,
+            nuevoConsecutivo: nuevoCons
+          })
+        });
+        const dataC = await respC.json();
+        if (!dataC.ok) {
+          this.toast('Error cambiando consecutivo: ' + dataC.error, 'error');
+          return;
+        }
+      }
+
+      // Guardar otros cambios
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        body: JSON.stringify({
+          accion: 'editarReporte',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD,
+          idReporte: r.id,
+          cambios: cambios
+        })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        this.toast(`✅ ${data.actualizados} campos actualizados`, 'exito');
+        this.cancelarEdicionAdmin();
+        await this.cargarReportesAdmin();
+      } else {
+        this.toast('Error: ' + (data.error || '?'), 'error');
+      }
+    } catch (e) {
+      this.toast('Error de red: ' + e.message, 'error');
+    }
+  },
+
+  // ========== IMPRIMIR DESDE ADMIN ==========
+  async imprimirReporteAdmin(idReporte) {
+    const r = (this._reportesAdmin || []).find(x => x.id === idReporte);
+    if (!r) return;
+    // Reutiliza la función de imprimir/exportar PDF normal
+    await DB.guardarReporte({ ...r, estado: 'enviado' });
+    this.verReporte(r.id);
+  },
+
   async sincronizarPendientes(silencioso = false) {
     if (!navigator.onLine) {
       if (!silencioso) this.toast('Sin conexión a internet', 'error');
@@ -1762,6 +1998,7 @@ const app = {
 <meta charset="UTF-8">
 <title>${r.consecutivo}</title>
 <style>
+  :root { --logo-watermark: url("${typeof LOGO_BIG !== 'undefined' ? LOGO_BIG : ''}"); }
   @page { size: A4; margin: 10mm; }
   * { box-sizing: border-box; }
   body {
@@ -1772,52 +2009,72 @@ const app = {
   .pagina {
     width: 100%; max-width: 190mm; margin: 0 auto;
     page-break-after: always;
+    position: relative;
   }
   .pagina:last-child { page-break-after: auto; }
+  /* Marca de agua del logo institucional, tenue, en cada página */
+  .pagina::before {
+    content: "";
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 130mm; height: 130mm;
+    background-image: var(--logo-watermark);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    opacity: 0.06;
+    z-index: 0;
+    pointer-events: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pagina > * { position: relative; z-index: 1; }
   .header {
     display: flex; align-items: center; gap: 10px;
     border: 1px solid #000; padding: 5px;
     margin-bottom: 5px;
   }
   .header img.logo-h { width: 70px; height: 70px; object-fit: contain; background: white; }
-  .header .info { flex: 1; text-align: center; font-size: 8pt; }
-  .header .info h2 { font-size: 11pt; margin: 0 0 2px 0; }
+  .header .info { flex: 1; text-align: center; font-size: 8pt; color: #000; }
+  .header .info h2 { font-size: 11pt; margin: 0 0 2px 0; color: #000; }
   .header .invisible { width: 70px; visibility: hidden; }
-  .titulo { text-align: center; font-size: 12pt; font-weight: bold; margin: 8px 0 3px; }
-  .lema { text-align: center; font-style: italic; font-size: 8pt; margin-bottom: 8px; }
+  .titulo { text-align: center; font-size: 12pt; font-weight: bold; margin: 8px 0 3px; color: #000; }
+  .lema { text-align: center; font-style: italic; font-size: 8pt; margin-bottom: 8px; color: #000; }
   .seccion { margin-bottom: 4px; }
   .seccion-titulo {
     background: #000; color: #fff; padding: 2px 5px;
     font-size: 9pt; font-weight: bold;
   }
-  table { width: 100%; border-collapse: collapse; font-size: 8pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 8pt; color: #000; }
   table.tabla-datos td {
     border: 1px solid #000; padding: 2px 4px; vertical-align: top;
+    color: #000;
   }
   table.tabla-datos td.label {
-    font-weight: bold; background: #f0f0f0; width: 30%;
+    font-weight: bold; background: #e8e8e8; width: 30%; color: #000;
   }
-  .checkbox-row { display: flex; gap: 10px; flex-wrap: wrap; padding: 3px; font-size: 8pt; border: 1px solid #000; }
-  .checkbox-row > div { flex: 0 0 calc(25% - 8px); }
+  .checkbox-row { display: flex; gap: 10px; flex-wrap: wrap; padding: 3px; font-size: 8pt; border: 1px solid #000; color: #000; }
+  .checkbox-row > div { flex: 0 0 calc(25% - 8px); color: #000; }
   .narrativa-box {
-    border: 1px solid #000; padding: 4px; min-height: 30px; font-size: 8pt;
+    border: 1px solid #000; padding: 4px; min-height: 30px; font-size: 8pt; color: #000;
   }
   .firma-img { max-height: 40px; max-width: 100px; }
   .pie-pagina {
     border-top: 1px solid #000; padding-top: 3px; margin-top: 5px;
-    font-size: 7pt; text-align: center; font-style: italic;
+    font-size: 7pt; text-align: center; font-style: italic; color: #000;
   }
   .pie-pagina .credito {
-    display: block; margin-top: 2px; font-style: normal; font-size: 6.5pt; color: #555;
+    display: block; margin-top: 2px; font-style: normal; font-size: 6.5pt; color: #222;
   }
-  .aviso { font-size: 7pt; font-style: italic; margin: 3px 0; padding: 2px; background: #fffbe6; }
+  .aviso { font-size: 7pt; font-style: italic; margin: 3px 0; padding: 2px; background: #fffbe6; color: #000; }
 
   .pagina-fotos {
     display: flex; flex-direction: column; height: 277mm;
   }
   .header-mini {
     display: flex; align-items: center; gap: 10px;
-    border: 1px solid #000; padding: 4px; margin-bottom: 6px; font-size: 9pt;
+    border: 1px solid #000; padding: 4px; margin-bottom: 6px; font-size: 9pt; color: #000;
   }
   .header-mini img { width: 40px; height: 40px; object-fit: contain; }
   .fotos-grid-pdf {
@@ -1831,16 +2088,21 @@ const app = {
     border: 1px solid #000;
     display: flex; flex-direction: column;
     overflow: hidden; background: #fafafa;
+    /* Importante: cada celda del grid debe contener su contenido */
+    min-width: 0; min-height: 0;
   }
-  .foto-grande.vacia { background: white; border: 1px dashed #ccc; }
+  .foto-grande.vacia { background: white; border: 1px dashed #888; }
   .foto-grande img {
-    flex: 1; min-height: 0;
+    flex: 1; min-height: 0; min-width: 0;
     width: 100%; height: 100%;
-    object-fit: contain; background: white;
+    object-fit: contain;
+    background: white;
+    display: block;
   }
   .foto-grande .foto-pie {
     font-size: 8pt; text-align: center;
-    padding: 2px; background: #f0f0f0; border-top: 1px solid #000;
+    padding: 2px; background: #e8e8e8; border-top: 1px solid #000; color: #000;
+    flex-shrink: 0;
   }
 </style>
 </head>
