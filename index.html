@@ -756,6 +756,40 @@
     <h2 style="color:#7a1010;margin:10px 0;">🛡️ Panel de Administrador</h2>
 
     <div id="listaReportesAdminWrap">
+      <!-- ===== ZONA: EXPORTAR A WORD ===== -->
+      <div style="background:#fff;border:2px solid #1e40af;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <h3 style="color:#1e40af;margin:0 0 10px 0;font-size:16px;">📄 Exportar reportes a Word</h3>
+        <p style="margin:0 0 10px 0;font-size:13px;color:#555;">Genera UN solo archivo <b>.docx</b> profesional con los reportes seleccionados.</p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div>
+            <label style="font-weight:700;font-size:12px;display:block;">Desde:</label>
+            <input id="export_fechaDesde" type="date" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
+          </div>
+          <div>
+            <label style="font-weight:700;font-size:12px;display:block;">Hasta:</label>
+            <input id="export_fechaHasta" type="date" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
+          </div>
+        </div>
+
+        <div style="margin-bottom:8px;">
+          <label style="font-weight:700;font-size:12px;display:block;">Bombero (opcional):</label>
+          <select id="export_bombero" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
+            <option value="">— Todos los bomberos —</option>
+          </select>
+        </div>
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button onclick="app.exportarWordTodos()" style="flex:1;min-width:130px;padding:11px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">
+            📄 Exportar todos
+          </button>
+          <button onclick="app.exportarWordFiltrado()" style="flex:1;min-width:130px;padding:11px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">
+            🔍 Exportar con filtros
+          </button>
+        </div>
+        <div id="export_estado" style="margin-top:8px;font-size:12px;color:#555;min-height:16px;"></div>
+      </div>
+
       <input type="text" id="filtroAdmin" placeholder="Buscar por consecutivo, correo o dirección..."
              oninput="app.filtrarAdmin()"
              style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;margin-bottom:10px;font-size:14px;">
@@ -1447,6 +1481,8 @@
 
 <div id="pdfContenedor"></div>
 
+<!-- docx.js para Exportar a Word desde Panel Admin -->
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
 <script src="logos.js"></script>
 <script src="app.js"></script>
 </body>

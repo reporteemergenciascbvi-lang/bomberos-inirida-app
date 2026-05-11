@@ -5,7 +5,12 @@
 
 // ==================== CONFIGURACIÓN HARDCODED ====================
 const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.googleusercontent.com';
-const ADMIN_EMAIL = 'gilrangeljeancarlosjeferson@gmail.com';
+// ===== LISTA DE ADMINS (puedes agregar más correos en el futuro) =====
+const ADMIN_EMAILS = [
+  'gilrangeljeancarlosjeferson@gmail.com',
+  'reporteemergenciascbvi@gmail.com'
+];
+const ADMIN_EMAIL = ADMIN_EMAILS[0]; // compat con código viejo
 const ADMIN_PASSWORD = '12345Jj*'; // Contraseña para acceder al Panel Admin
 const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
@@ -378,7 +383,9 @@ const app = {
   },
 
   esAdmin() {
-    return this.usuario && this.usuario.email === ADMIN_EMAIL;
+    if (!this.usuario || !this.usuario.email) return false;
+    const email = String(this.usuario.email).toLowerCase().trim();
+    return ADMIN_EMAILS.some(a => String(a).toLowerCase().trim() === email);
   },
 
   actualizarUIUsuario() {
@@ -1712,12 +1719,299 @@ const app = {
       this._reportesAdmin = data.reportes || [];
       if (this._reportesAdmin.length === 0) {
         cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">El servidor respondió correctamente, pero no hay reportes registrados aún.</div>';
-        return;
+      } else {
+        this.renderizarListaAdmin();
       }
-      this.renderizarListaAdmin();
+      // Cargar lista de bomberos en el dropdown de exportar (sin bloquear si falla)
+      this.cargarBomberosParaExportar().catch(e => console.warn('No se pudieron cargar bomberos:', e));
     } catch (e) {
       cont.innerHTML = '<div style="padding:20px;color:#c00;">Error de red: ' + e.message + '<br><br><small>Verifica tu conexión a internet.</small></div>';
     }
+  },
+
+  // Carga la lista de bomberos al dropdown del Panel Admin -> Exportar
+  async cargarBomberosParaExportar() {
+    const sel = document.getElementById('export_bombero');
+    if (!sel) return;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'listarBomberos',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD
+        })
+      });
+      const data = await resp.json();
+      if (!data.ok || !Array.isArray(data.bomberos)) return;
+      const opcionesActuales = '<option value="">— Todos los bomberos —</option>';
+      const opciones = data.bomberos.map(b => {
+        const label = (b.nombre || b.email) + (b.grado ? ' (' + b.grado + ')' : '');
+        return `<option value="${this.escapeHtml(b.email)}">${this.escapeHtml(label)}</option>`;
+      }).join('');
+      sel.innerHTML = opcionesActuales + opciones;
+    } catch (e) {
+      console.warn('cargarBomberosParaExportar fallo:', e);
+    }
+  },
+
+  // Helper para escapar HTML (auditoría: evita XSS si algún nombre tuviera <>)
+  escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+
+  // Exportar a Word: TODOS los reportes (ignora filtros)
+  async exportarWordTodos() {
+    return this._exportarWord({ usarFiltros: false });
+  },
+
+  // Exportar a Word: aplicando filtros de fecha y bombero
+  async exportarWordFiltrado() {
+    return this._exportarWord({ usarFiltros: true });
+  },
+
+  async _exportarWord({ usarFiltros }) {
+    if (!this.esAdmin()) {
+      this.toast('Solo el administrador', 'error');
+      return;
+    }
+    if (typeof window.docx === 'undefined') {
+      this.toast('Librería Word no cargó. Recarga la app.', 'error');
+      return;
+    }
+
+    const estado = document.getElementById('export_estado');
+    const setEstado = msg => { if (estado) estado.textContent = msg; };
+
+    setEstado('⏳ Consultando reportes del servidor...');
+
+    const payload = {
+      accion: 'exportarReportes',
+      adminEmail: this.usuario.email,
+      adminPassword: ADMIN_PASSWORD
+    };
+
+    if (usarFiltros) {
+      const fd = document.getElementById('export_fechaDesde').value;
+      const fh = document.getElementById('export_fechaHasta').value;
+      const fb = document.getElementById('export_bombero').value;
+      if (fd) payload.fechaDesde = fd;
+      if (fh) payload.fechaHasta = fh;
+      if (fb) payload.filtroBombero = fb;
+    }
+
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) {
+        setEstado('❌ Respuesta del servidor no es JSON.');
+        return;
+      }
+      if (!data.ok) {
+        setEstado('❌ Error: ' + (data.error || 'desconocido'));
+        return;
+      }
+      const reportes = data.reportes || [];
+      if (reportes.length === 0) {
+        setEstado('⚠️ No hay reportes que coincidan con esos filtros.');
+        return;
+      }
+      setEstado(`📄 Generando Word con ${reportes.length} reporte(s)...`);
+      await this._generarYDescargarDocx(reportes, usarFiltros ? payload : {});
+      setEstado(`✅ Listo. ${reportes.length} reporte(s) exportado(s).`);
+    } catch (e) {
+      setEstado('❌ Error de red: ' + e.message);
+    }
+  },
+
+  // Genera el archivo .docx y lo descarga
+  async _generarYDescargarDocx(reportes, filtros) {
+    const D = window.docx;
+    const {
+      Document, Packer, Paragraph, TextRun, HeadingLevel,
+      AlignmentType, PageBreak
+    } = D;
+
+    const titulo = (txt, level) =>
+      new Paragraph({ heading: level || HeadingLevel.HEADING_2, children: [new TextRun({ text: txt, bold: true })] });
+
+    const parrafo = (txt, bold) =>
+      new Paragraph({ children: [new TextRun({ text: String(txt == null ? '' : txt), bold: !!bold })] });
+
+    const campo = (label, valor) => new Paragraph({
+      children: [
+        new TextRun({ text: label + ': ', bold: true }),
+        new TextRun({ text: String(valor == null || valor === '' ? '—' : valor) })
+      ]
+    });
+
+    const formatearFecha = (f) => {
+      if (!f) return '—';
+      try {
+        const d = new Date(f);
+        if (isNaN(d.getTime())) return String(f);
+        return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
+      } catch (e) { return String(f); }
+    };
+
+    // ===== Portada =====
+    const children = [];
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      heading: HeadingLevel.TITLE,
+      children: [new TextRun({ text: 'CUERPO DE BOMBEROS VOLUNTARIOS DE INÍRIDA', bold: true })]
+    }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: 'ABNEGACIÓN Y DISCIPLINA', italics: true, bold: true })]
+    }));
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun({ text: 'CONSOLIDADO DE REPORTES DE EMERGENCIA', bold: true })]
+    }));
+    children.push(parrafo(''));
+    children.push(parrafo('Total de reportes: ' + reportes.length, true));
+    children.push(parrafo('Generado: ' + new Date().toLocaleString('es-CO'), false));
+    if (filtros.fechaDesde) children.push(campo('Filtro fecha desde', filtros.fechaDesde));
+    if (filtros.fechaHasta) children.push(campo('Filtro fecha hasta', filtros.fechaHasta));
+    if (filtros.filtroBombero) children.push(campo('Filtro bombero', filtros.filtroBombero));
+    children.push(parrafo(''));
+
+    // ===== Un capítulo por cada reporte =====
+    reportes.forEach((r, idx) => {
+      if (idx > 0) {
+        children.push(new Paragraph({ children: [new PageBreak()] }));
+      }
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        heading: HeadingLevel.HEADING_1,
+        children: [new TextRun({ text: 'REPORTE ' + (r.consecutivo || '(sin consecutivo)'), bold: true })]
+      }));
+
+      // 1. Datos generales
+      children.push(titulo('1. Datos Generales'));
+      children.push(campo('Consecutivo', r.consecutivo));
+      children.push(campo('ID interno', r.id));
+      children.push(campo('Estación', r.estacion));
+      children.push(campo('Fecha creación', formatearFecha(r.fechaCreacion)));
+      children.push(campo('Fecha llamada', formatearFecha(r.fechaLlamada)));
+      children.push(campo('Fecha llegada', formatearFecha(r.fechaLlegada)));
+      children.push(campo('Fecha cierre', formatearFecha(r.fechaCierre)));
+      children.push(campo('Turno', r.turno));
+
+      // 2. Quien reporta
+      children.push(titulo('2. Quien reporta'));
+      children.push(campo('Nombre', r.reportaNombre));
+      children.push(campo('Teléfono', r.reportaTel));
+      children.push(campo('Relación', r.reportaRelacion));
+
+      // 3. Clasificación
+      children.push(titulo('3. Clasificación'));
+      children.push(campo('Tipo', r.clasificacion));
+      if (r.otraClasif) children.push(campo('Otra clasificación', r.otraClasif));
+
+      // 4. Ubicación
+      children.push(titulo('4. Ubicación'));
+      children.push(campo('Dirección', r.direccion));
+      children.push(campo('Barrio', r.barrio));
+      children.push(campo('Localidad', r.localidad));
+      children.push(campo('Municipio', r.municipio));
+      children.push(campo('Referencia', r.referencia));
+      children.push(campo('Coordenadas GPS', r.gpsCoordenadas));
+      children.push(campo('GMS', r.gpsGms));
+      children.push(campo('Altitud (msnm)', r.gpsAltitud));
+
+      // 5. Narrativa
+      children.push(titulo('5. Narrativa y condiciones'));
+      children.push(campo('Narrativa', r.narrativa));
+      children.push(campo('Condiciones', r.condiciones));
+
+      // 6. Afectaciones
+      children.push(titulo('6. Afectaciones'));
+      children.push(campo('Muertos', r.muertos));
+      children.push(campo('Heridos', r.heridos));
+      children.push(campo('Desaparecidos', r.desaparecidos));
+      children.push(campo('Personas afectadas', r.personasAfectadas));
+      children.push(campo('Familias afectadas', r.familiasAfectadas));
+      children.push(campo('Viviendas destruidas', r.vivDestruidas));
+      children.push(campo('Viviendas averiadas', r.vivAveriadas));
+      children.push(campo('Hectáreas', r.hectareas));
+      children.push(campo('Vías afectadas', r.viasAfectadas));
+      children.push(campo('Puentes', r.puentes));
+      children.push(campo('Pérdida estimada ($)', r.perdida));
+
+      // 7. Afectado principal
+      children.push(titulo('7. Afectado principal'));
+      children.push(campo('Nombre', r.afectadoNombre));
+      children.push(campo('CC', r.afectadoCc));
+      children.push(campo('Celular', r.afectadoCel));
+
+      // 8. Acciones, causas y observaciones
+      children.push(titulo('8. Acciones y análisis'));
+      children.push(campo('Acciones realizadas', r.acciones));
+      children.push(campo('Causas', r.causas));
+      children.push(campo('Causa probable', r.causaProbable));
+      children.push(campo('Evidencias', r.evidencias));
+      children.push(campo('Causa confirmada', r.causaConfirmada));
+      children.push(campo('Observaciones', r.observaciones));
+      children.push(campo('Recomendaciones', r.recomendaciones));
+
+      // 9. Firma comandante
+      children.push(titulo('9. Comandante en escena'));
+      children.push(campo('Nombre', r.comandanteNombre));
+      children.push(campo('Grado', r.comandanteGrado));
+      children.push(campo('CC', r.comandanteCc));
+      children.push(campo('Estación', r.comandanteEstacion));
+
+      // 10. Operador
+      children.push(titulo('10. Operador del reporte'));
+      children.push(campo('Nombre', r.operadorApp));
+      children.push(campo('Email', r.operadorEmail));
+      children.push(campo('Grado', r.operadorGrado));
+      children.push(campo('CC', r.operadorCc));
+      children.push(campo('Teléfono', r.operadorTel));
+
+      // 11. Fotos (URLs)
+      children.push(titulo('11. Fotos del reporte (enlaces)'));
+      [r.foto1, r.foto2, r.foto3, r.foto4].forEach((url, i) => {
+        if (url) children.push(campo('Foto ' + (i + 1), url));
+      });
+      if (r.firmaAfectado) children.push(campo('Firma afectado', r.firmaAfectado));
+      if (r.firmaComandante) children.push(campo('Firma comandante', r.firmaComandante));
+    });
+
+    const doc = new Document({
+      creator: 'CBVI - Bomberos Inírida',
+      title: 'Consolidado de Reportes CBVI',
+      description: 'Consolidado generado desde el Panel Administrador',
+      sections: [{ children }]
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const fecha = new Date().toISOString().slice(0, 10);
+    const nombre = `CBVI_Reportes_${fecha}.docx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
   },
 
   renderizarListaAdmin(filtro = '') {
@@ -1733,25 +2027,32 @@ const app = {
       return;
     }
 
-    cont.innerHTML = reportes.map(r => `
-      <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;">
-        <div style="font-weight:bold;color:#7a1010;font-size:15px;">${r.consecutivo || '(sin consecutivo)'}</div>
-        <div style="font-size:13px;color:#333;margin-top:2px;">${r.direccion || 'Sin dirección'}</div>
-        <div style="font-size:11px;color:#888;margin-top:4px;">
-          ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
+    cont.innerHTML = reportes.map(r => {
+      const id = this.escapeHtml(r.id);
+      const cons = this.escapeHtml(r.consecutivo || '(sin consecutivo)');
+      const dir = this.escapeHtml(r.direccion || 'Sin dirección');
+      const email = this.escapeHtml(r.operadorEmail || '');
+      const clas = this.escapeHtml((r.clasificacion || []).join(', ') || 'Sin clasificar');
+      return `
+        <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;">
+          <div style="font-weight:bold;color:#7a1010;font-size:15px;">${cons}</div>
+          <div style="font-size:13px;color:#333;margin-top:2px;">${dir}</div>
+          <div style="font-size:11px;color:#888;margin-top:4px;">
+            ${email} · ${clas}
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            <button onclick="app.editarReporteAdmin('${id}')"
+                    style="flex:1;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+              ✏️ Editar
+            </button>
+            <button onclick="app.imprimirReporteAdmin('${id}')"
+                    style="flex:1;padding:8px 6px;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+              🖨️ Imprimir
+            </button>
+          </div>
         </div>
-        <div style="display:flex;gap:6px;margin-top:8px;">
-          <button onclick="app.editarReporteAdmin('${r.id}')"
-                  style="flex:1;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
-            ✏️ Editar
-          </button>
-          <button onclick="app.imprimirReporteAdmin('${r.id}')"
-                  style="flex:1;padding:8px 6px;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
-            🖨️ Imprimir
-          </button>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   },
 
   filtrarAdmin() {
