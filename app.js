@@ -9,7 +9,7 @@ const ADMIN_EMAIL = 'gilrangeljeancarlosjeferson@gmail.com';
 const ADMIN_PASSWORD = '12345CBVI*'; // Contraseña para acceder al Panel Admin
 const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
-const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbx0H08sP4aoUoE4lzDPwanTOSDi3XWSVsPqBjfam5i3AXJioXvthS27sHZjL98eZpyE/exec';
+const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwc1lAVkykdYEcY-Z9L53vN3IOnlksnW3dx1iYPWh8uVdwlhqRq7wO7zYFFIQyYGACe8Q/exec';
 
 const CREDITO_AUTOR = {
   nombre: 'Bombero Jeferson Jeancarlos Rangel Gil',
