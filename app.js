@@ -1730,6 +1730,45 @@ const app = {
     }
   },
 
+  // Solo admin: reparar URLs de fotos rotas (con sufijo ?usp=drivesdk)
+  async repararUrlsFotos() {
+    if (!this.esAdmin()) {
+      this.toast('Solo el administrador puede usar esto', 'error');
+      return;
+    }
+    const ok = await this.confirmar(
+      '🛠️ Reparar URLs de fotos',
+      'Este proceso busca URLs rotas en las columnas Foto y Firma del Sheets y las reemplaza por el formato limpio.\n\nNO borra ninguna foto, solo arregla la fórmula. ¿Continuar?'
+    );
+    if (!ok) return;
+
+    this.toast('🛠️ Reparando URLs... espere', 'exito');
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'repararUrlsFotos',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD
+        })
+      });
+      const data = await resp.json();
+      if (data && data.ok) {
+        if (data.reparados > 0) {
+          this.toast(`✅ ${data.reparados} URLs reparadas en el Sheets`, 'exito');
+        } else {
+          this.toast(`✅ No hay URLs rotas para reparar`, 'exito');
+        }
+      } else {
+        this.toast('Error: ' + (data?.error || 'desconocido'), 'error');
+      }
+    } catch (err) {
+      console.error('Error reparando:', err);
+      this.toast('Error de red al reparar', 'error');
+    }
+  },
+
   // ========== PANEL ADMIN CON CONTRASEÑA ==========
   // Lista TODOS los reportes (no solo del usuario actual) para que el admin pueda editar
   async abrirPanelAdmin() {
