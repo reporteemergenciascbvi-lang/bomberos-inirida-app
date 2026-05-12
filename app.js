@@ -343,6 +343,50 @@ const app = {
   async sincronizarReportesDesdeServidor() {
     if (!this.usuario || !this.usuario.email) return;
     try {
+      // ===== PASO 1: Procesar eliminaciones pendientes del admin =====
+      // Si el admin eliminó reportes que pertenecen a este operador, los borramos local.
+      try {
+        const respElim = await fetch(URL_BACKEND, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'obtenerEliminacionesPendientes', email: this.usuario.email })
+        });
+        const dataElim = await respElim.json();
+        if (dataElim && dataElim.ok && Array.isArray(dataElim.eliminaciones) && dataElim.eliminaciones.length > 0) {
+          const idsBorrados = [];
+          for (const e of dataElim.eliminaciones) {
+            if (!e.id) continue;
+            try {
+              await DB.eliminarReporte(e.id);
+              idsBorrados.push(e.id);
+              console.log(`Reporte ${e.consecutivo || e.id} eliminado por admin — borrado local`);
+            } catch (errLocal) {
+              // Si el reporte ya no estaba local, igual lo agregamos para confirmar al servidor
+              idsBorrados.push(e.id);
+            }
+          }
+          if (idsBorrados.length > 0) {
+            // Confirmar al servidor para que limpie esos registros
+            try {
+              await fetch(URL_BACKEND, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                  accion: 'confirmarEliminacionLocal',
+                  email: this.usuario.email,
+                  ids: idsBorrados
+                })
+              });
+            } catch (e) { /* sigue, no crítico */ }
+            this.toast(`🗑️ El admin eliminó ${idsBorrados.length} reporte(s) — sincronizado`, 'exito');
+            await this.actualizarHome();
+          }
+        }
+      } catch (errElim) {
+        console.warn('No se pudieron sincronizar eliminaciones admin:', errElim);
+      }
+
+      // ===== PASO 2: Descargar reportes nuevos del servidor =====
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -356,6 +400,7 @@ const app = {
       // Reportes locales (mapeados por id)
       const locales = await DB.listarReportes();
       const idsLocales = new Set(locales.map(r => r.id));
+      const idsServidor = new Set(reportesServidor.map(r => r.id));
 
       for (const r of reportesServidor) {
         if (!r.id) continue;
@@ -368,8 +413,28 @@ const app = {
         }
       }
 
+      // ===== PASO 3: Detección "huérfanos" — reportes sincronizados localmente
+      // que YA NO están en el servidor (admin los eliminó pero el celular no se enteró).
+      // Solo borramos los que estaban marcados como sincronizados/enviados.
+      let huerfanos = 0;
+      for (const local of locales) {
+        if (!local.id) continue;
+        if (idsServidor.has(local.id)) continue;
+        // Solo borrar si estaba sincronizado al servidor (no borres borradores)
+        if (local.sincronizado === true || local.estado === 'enviado') {
+          try {
+            await DB.eliminarReporte(local.id);
+            huerfanos++;
+            console.log(`Reporte huérfano ${local.consecutivo || local.id} (no existe en servidor) — borrado local`);
+          } catch (e) { /* sigue */ }
+        }
+      }
+
       if (nuevos > 0) {
         this.toast(`Se descargaron ${nuevos} reportes del servidor`, 'exito');
+        await this.actualizarHome();
+      }
+      if (huerfanos > 0) {
         await this.actualizarHome();
       }
     } catch (e) {
@@ -2025,15 +2090,18 @@ const app = {
       this.toast('No hay reporte abierto para eliminar', 'error');
       return;
     }
+    const operadorReporte = r.operadorEmail || r.operador || '(operador desconocido)';
     // Doble confirmación porque es destructivo
     const ok1 = await this.confirmar(
       '⚠️ Eliminar reporte',
       `¿Está SEGURO de eliminar el reporte ${r.consecutivo || r.id}?\n\n` +
+      `Operador: ${operadorReporte}\n\n` +
       `Esta acción NO se puede deshacer.\n` +
       `Se borrarán:\n` +
       `• El reporte de la hoja principal\n` +
       `• Sus víctimas, recursos, personal y organizaciones\n` +
-      `• Su carpeta de Drive con fotos y firmas`
+      `• Su carpeta de Drive con fotos y firmas\n` +
+      `• La copia local del celular del operador (en su próxima sincronización)`
     );
     if (!ok1) return;
 
@@ -2060,8 +2128,9 @@ const app = {
       const data = await resp.json();
       if (data.ok) {
         let msg = `🗑️ Reporte ${data.consecutivo || ''} eliminado`;
-        if (data.auxBorradas) msg += ` (${data.auxBorradas} registros auxiliares)`;
-        if (data.carpetaBorrada) msg += ' + carpeta Drive';
+        if (data.auxBorradas) msg += ` (+ ${data.auxBorradas} aux)`;
+        if (data.carpetaBorrada) msg += ' + Drive';
+        if (data.operadorEmail) msg += ` · Avisado a ${data.operadorEmail}`;
         this.toast(msg, 'exito');
 
         // También eliminar de la lista local si existe (por si era propio del admin)
