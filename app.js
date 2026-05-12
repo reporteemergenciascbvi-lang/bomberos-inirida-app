@@ -5,16 +5,11 @@
 
 // ==================== CONFIGURACIÓN HARDCODED ====================
 const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.googleusercontent.com';
-// ===== LISTA DE ADMINS (puedes agregar más correos en el futuro) =====
-const ADMIN_EMAILS = [
-  'gilrangeljeancarlosjeferson@gmail.com',
-  'reporteemergenciascbvi@gmail.com'
-];
-const ADMIN_EMAIL = ADMIN_EMAILS[0]; // compat con código viejo
-const ADMIN_PASSWORD = '12345Jj*'; // Contraseña para acceder al Panel Admin
+const ADMIN_EMAIL = 'gilrangeljeancarlosjeferson@gmail.com';
+const ADMIN_PASSWORD = '12345CBVI*'; // Contraseña para acceder al Panel Admin
 const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
-const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbxke-N2r_Z5QVA-33gChRKF72FJb42T8lRqvxJlS05r34yvSMyA65OyuzdBU7R-aArMgQ/exec';
+const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbx0H08sP4aoUoE4lzDPwanTOSDi3XWSVsPqBjfam5i3AXJioXvthS27sHZjL98eZpyE/exec';
 
 const CREDITO_AUTOR = {
   nombre: 'Bombero Jeferson Jeancarlos Rangel Gil',
@@ -383,9 +378,7 @@ const app = {
   },
 
   esAdmin() {
-    if (!this.usuario || !this.usuario.email) return false;
-    const email = String(this.usuario.email).toLowerCase().trim();
-    return ADMIN_EMAILS.some(a => String(a).toLowerCase().trim() === email);
+    return this.usuario && this.usuario.email === ADMIN_EMAIL;
   },
 
   actualizarUIUsuario() {
@@ -1719,299 +1712,12 @@ const app = {
       this._reportesAdmin = data.reportes || [];
       if (this._reportesAdmin.length === 0) {
         cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">El servidor respondió correctamente, pero no hay reportes registrados aún.</div>';
-      } else {
-        this.renderizarListaAdmin();
+        return;
       }
-      // Cargar lista de bomberos en el dropdown de exportar (sin bloquear si falla)
-      this.cargarBomberosParaExportar().catch(e => console.warn('No se pudieron cargar bomberos:', e));
+      this.renderizarListaAdmin();
     } catch (e) {
       cont.innerHTML = '<div style="padding:20px;color:#c00;">Error de red: ' + e.message + '<br><br><small>Verifica tu conexión a internet.</small></div>';
     }
-  },
-
-  // Carga la lista de bomberos al dropdown del Panel Admin -> Exportar
-  async cargarBomberosParaExportar() {
-    const sel = document.getElementById('export_bombero');
-    if (!sel) return;
-    try {
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          accion: 'listarBomberos',
-          adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD
-        })
-      });
-      const data = await resp.json();
-      if (!data.ok || !Array.isArray(data.bomberos)) return;
-      const opcionesActuales = '<option value="">— Todos los bomberos —</option>';
-      const opciones = data.bomberos.map(b => {
-        const label = (b.nombre || b.email) + (b.grado ? ' (' + b.grado + ')' : '');
-        return `<option value="${this.escapeHtml(b.email)}">${this.escapeHtml(label)}</option>`;
-      }).join('');
-      sel.innerHTML = opcionesActuales + opciones;
-    } catch (e) {
-      console.warn('cargarBomberosParaExportar fallo:', e);
-    }
-  },
-
-  // Helper para escapar HTML (auditoría: evita XSS si algún nombre tuviera <>)
-  escapeHtml(str) {
-    if (str == null) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  },
-
-  // Exportar a Word: TODOS los reportes (ignora filtros)
-  async exportarWordTodos() {
-    return this._exportarWord({ usarFiltros: false });
-  },
-
-  // Exportar a Word: aplicando filtros de fecha y bombero
-  async exportarWordFiltrado() {
-    return this._exportarWord({ usarFiltros: true });
-  },
-
-  async _exportarWord({ usarFiltros }) {
-    if (!this.esAdmin()) {
-      this.toast('Solo el administrador', 'error');
-      return;
-    }
-    if (typeof window.docx === 'undefined') {
-      this.toast('Librería Word no cargó. Recarga la app.', 'error');
-      return;
-    }
-
-    const estado = document.getElementById('export_estado');
-    const setEstado = msg => { if (estado) estado.textContent = msg; };
-
-    setEstado('⏳ Consultando reportes del servidor...');
-
-    const payload = {
-      accion: 'exportarReportes',
-      adminEmail: this.usuario.email,
-      adminPassword: ADMIN_PASSWORD
-    };
-
-    if (usarFiltros) {
-      const fd = document.getElementById('export_fechaDesde').value;
-      const fh = document.getElementById('export_fechaHasta').value;
-      const fb = document.getElementById('export_bombero').value;
-      if (fd) payload.fechaDesde = fd;
-      if (fh) payload.fechaHasta = fh;
-      if (fb) payload.filtroBombero = fb;
-    }
-
-    try {
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
-      const text = await resp.text();
-      let data;
-      try { data = JSON.parse(text); }
-      catch (e) {
-        setEstado('❌ Respuesta del servidor no es JSON.');
-        return;
-      }
-      if (!data.ok) {
-        setEstado('❌ Error: ' + (data.error || 'desconocido'));
-        return;
-      }
-      const reportes = data.reportes || [];
-      if (reportes.length === 0) {
-        setEstado('⚠️ No hay reportes que coincidan con esos filtros.');
-        return;
-      }
-      setEstado(`📄 Generando Word con ${reportes.length} reporte(s)...`);
-      await this._generarYDescargarDocx(reportes, usarFiltros ? payload : {});
-      setEstado(`✅ Listo. ${reportes.length} reporte(s) exportado(s).`);
-    } catch (e) {
-      setEstado('❌ Error de red: ' + e.message);
-    }
-  },
-
-  // Genera el archivo .docx y lo descarga
-  async _generarYDescargarDocx(reportes, filtros) {
-    const D = window.docx;
-    const {
-      Document, Packer, Paragraph, TextRun, HeadingLevel,
-      AlignmentType, PageBreak
-    } = D;
-
-    const titulo = (txt, level) =>
-      new Paragraph({ heading: level || HeadingLevel.HEADING_2, children: [new TextRun({ text: txt, bold: true })] });
-
-    const parrafo = (txt, bold) =>
-      new Paragraph({ children: [new TextRun({ text: String(txt == null ? '' : txt), bold: !!bold })] });
-
-    const campo = (label, valor) => new Paragraph({
-      children: [
-        new TextRun({ text: label + ': ', bold: true }),
-        new TextRun({ text: String(valor == null || valor === '' ? '—' : valor) })
-      ]
-    });
-
-    const formatearFecha = (f) => {
-      if (!f) return '—';
-      try {
-        const d = new Date(f);
-        if (isNaN(d.getTime())) return String(f);
-        return d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
-      } catch (e) { return String(f); }
-    };
-
-    // ===== Portada =====
-    const children = [];
-    children.push(new Paragraph({
-      alignment: AlignmentType.CENTER,
-      heading: HeadingLevel.TITLE,
-      children: [new TextRun({ text: 'CUERPO DE BOMBEROS VOLUNTARIOS DE INÍRIDA', bold: true })]
-    }));
-    children.push(new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: 'ABNEGACIÓN Y DISCIPLINA', italics: true, bold: true })]
-    }));
-    children.push(new Paragraph({
-      alignment: AlignmentType.CENTER,
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun({ text: 'CONSOLIDADO DE REPORTES DE EMERGENCIA', bold: true })]
-    }));
-    children.push(parrafo(''));
-    children.push(parrafo('Total de reportes: ' + reportes.length, true));
-    children.push(parrafo('Generado: ' + new Date().toLocaleString('es-CO'), false));
-    if (filtros.fechaDesde) children.push(campo('Filtro fecha desde', filtros.fechaDesde));
-    if (filtros.fechaHasta) children.push(campo('Filtro fecha hasta', filtros.fechaHasta));
-    if (filtros.filtroBombero) children.push(campo('Filtro bombero', filtros.filtroBombero));
-    children.push(parrafo(''));
-
-    // ===== Un capítulo por cada reporte =====
-    reportes.forEach((r, idx) => {
-      if (idx > 0) {
-        children.push(new Paragraph({ children: [new PageBreak()] }));
-      }
-      children.push(new Paragraph({
-        alignment: AlignmentType.CENTER,
-        heading: HeadingLevel.HEADING_1,
-        children: [new TextRun({ text: 'REPORTE ' + (r.consecutivo || '(sin consecutivo)'), bold: true })]
-      }));
-
-      // 1. Datos generales
-      children.push(titulo('1. Datos Generales'));
-      children.push(campo('Consecutivo', r.consecutivo));
-      children.push(campo('ID interno', r.id));
-      children.push(campo('Estación', r.estacion));
-      children.push(campo('Fecha creación', formatearFecha(r.fechaCreacion)));
-      children.push(campo('Fecha llamada', formatearFecha(r.fechaLlamada)));
-      children.push(campo('Fecha llegada', formatearFecha(r.fechaLlegada)));
-      children.push(campo('Fecha cierre', formatearFecha(r.fechaCierre)));
-      children.push(campo('Turno', r.turno));
-
-      // 2. Quien reporta
-      children.push(titulo('2. Quien reporta'));
-      children.push(campo('Nombre', r.reportaNombre));
-      children.push(campo('Teléfono', r.reportaTel));
-      children.push(campo('Relación', r.reportaRelacion));
-
-      // 3. Clasificación
-      children.push(titulo('3. Clasificación'));
-      children.push(campo('Tipo', r.clasificacion));
-      if (r.otraClasif) children.push(campo('Otra clasificación', r.otraClasif));
-
-      // 4. Ubicación
-      children.push(titulo('4. Ubicación'));
-      children.push(campo('Dirección', r.direccion));
-      children.push(campo('Barrio', r.barrio));
-      children.push(campo('Localidad', r.localidad));
-      children.push(campo('Municipio', r.municipio));
-      children.push(campo('Referencia', r.referencia));
-      children.push(campo('Coordenadas GPS', r.gpsCoordenadas));
-      children.push(campo('GMS', r.gpsGms));
-      children.push(campo('Altitud (msnm)', r.gpsAltitud));
-
-      // 5. Narrativa
-      children.push(titulo('5. Narrativa y condiciones'));
-      children.push(campo('Narrativa', r.narrativa));
-      children.push(campo('Condiciones', r.condiciones));
-
-      // 6. Afectaciones
-      children.push(titulo('6. Afectaciones'));
-      children.push(campo('Muertos', r.muertos));
-      children.push(campo('Heridos', r.heridos));
-      children.push(campo('Desaparecidos', r.desaparecidos));
-      children.push(campo('Personas afectadas', r.personasAfectadas));
-      children.push(campo('Familias afectadas', r.familiasAfectadas));
-      children.push(campo('Viviendas destruidas', r.vivDestruidas));
-      children.push(campo('Viviendas averiadas', r.vivAveriadas));
-      children.push(campo('Hectáreas', r.hectareas));
-      children.push(campo('Vías afectadas', r.viasAfectadas));
-      children.push(campo('Puentes', r.puentes));
-      children.push(campo('Pérdida estimada ($)', r.perdida));
-
-      // 7. Afectado principal
-      children.push(titulo('7. Afectado principal'));
-      children.push(campo('Nombre', r.afectadoNombre));
-      children.push(campo('CC', r.afectadoCc));
-      children.push(campo('Celular', r.afectadoCel));
-
-      // 8. Acciones, causas y observaciones
-      children.push(titulo('8. Acciones y análisis'));
-      children.push(campo('Acciones realizadas', r.acciones));
-      children.push(campo('Causas', r.causas));
-      children.push(campo('Causa probable', r.causaProbable));
-      children.push(campo('Evidencias', r.evidencias));
-      children.push(campo('Causa confirmada', r.causaConfirmada));
-      children.push(campo('Observaciones', r.observaciones));
-      children.push(campo('Recomendaciones', r.recomendaciones));
-
-      // 9. Firma comandante
-      children.push(titulo('9. Comandante en escena'));
-      children.push(campo('Nombre', r.comandanteNombre));
-      children.push(campo('Grado', r.comandanteGrado));
-      children.push(campo('CC', r.comandanteCc));
-      children.push(campo('Estación', r.comandanteEstacion));
-
-      // 10. Operador
-      children.push(titulo('10. Operador del reporte'));
-      children.push(campo('Nombre', r.operadorApp));
-      children.push(campo('Email', r.operadorEmail));
-      children.push(campo('Grado', r.operadorGrado));
-      children.push(campo('CC', r.operadorCc));
-      children.push(campo('Teléfono', r.operadorTel));
-
-      // 11. Fotos (URLs)
-      children.push(titulo('11. Fotos del reporte (enlaces)'));
-      [r.foto1, r.foto2, r.foto3, r.foto4].forEach((url, i) => {
-        if (url) children.push(campo('Foto ' + (i + 1), url));
-      });
-      if (r.firmaAfectado) children.push(campo('Firma afectado', r.firmaAfectado));
-      if (r.firmaComandante) children.push(campo('Firma comandante', r.firmaComandante));
-    });
-
-    const doc = new Document({
-      creator: 'CBVI - Bomberos Inírida',
-      title: 'Consolidado de Reportes CBVI',
-      description: 'Consolidado generado desde el Panel Administrador',
-      sections: [{ children }]
-    });
-
-    const blob = await Packer.toBlob(doc);
-    const fecha = new Date().toISOString().slice(0, 10);
-    const nombre = `CBVI_Reportes_${fecha}.docx`;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nombre;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
   },
 
   renderizarListaAdmin(filtro = '') {
@@ -2027,32 +1733,25 @@ const app = {
       return;
     }
 
-    cont.innerHTML = reportes.map(r => {
-      const id = this.escapeHtml(r.id);
-      const cons = this.escapeHtml(r.consecutivo || '(sin consecutivo)');
-      const dir = this.escapeHtml(r.direccion || 'Sin dirección');
-      const email = this.escapeHtml(r.operadorEmail || '');
-      const clas = this.escapeHtml((r.clasificacion || []).join(', ') || 'Sin clasificar');
-      return `
-        <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;">
-          <div style="font-weight:bold;color:#7a1010;font-size:15px;">${cons}</div>
-          <div style="font-size:13px;color:#333;margin-top:2px;">${dir}</div>
-          <div style="font-size:11px;color:#888;margin-top:4px;">
-            ${email} · ${clas}
-          </div>
-          <div style="display:flex;gap:6px;margin-top:8px;">
-            <button onclick="app.editarReporteAdmin('${id}')"
-                    style="flex:1;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
-              ✏️ Editar
-            </button>
-            <button onclick="app.imprimirReporteAdmin('${id}')"
-                    style="flex:1;padding:8px 6px;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
-              🖨️ Imprimir
-            </button>
-          </div>
+    cont.innerHTML = reportes.map(r => `
+      <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;">
+        <div style="font-weight:bold;color:#7a1010;font-size:15px;">${r.consecutivo || '(sin consecutivo)'}</div>
+        <div style="font-size:13px;color:#333;margin-top:2px;">${r.direccion || 'Sin dirección'}</div>
+        <div style="font-size:11px;color:#888;margin-top:4px;">
+          ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
         </div>
-      `;
-    }).join('');
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button onclick="app.editarReporteAdmin('${r.id}')"
+                  style="flex:1;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+            ✏️ Editar
+          </button>
+          <button onclick="app.imprimirReporteAdmin('${r.id}')"
+                  style="flex:1;padding:8px 6px;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+            🖨️ Imprimir
+          </button>
+        </div>
+      </div>
+    `).join('');
   },
 
   filtrarAdmin() {
@@ -2065,17 +1764,110 @@ const app = {
     if (!r) { this.toast('Reporte no encontrado', 'error'); return; }
     this._reporteAdminEditando = r;
 
+    // Helper local para asignar valor a un input si existe
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = (val === null || val === undefined) ? '' : val;
+    };
+
+    // Helper para formato datetime-local (YYYY-MM-DDTHH:mm)
+    const toLocalDT = (v) => {
+      if (!v) return '';
+      try {
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return '';
+        const off = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - off).toISOString().slice(0, 16);
+      } catch (e) { return ''; }
+    };
+
     // Mostrar formulario de edición
     document.getElementById('panelAdminEditando').style.display = 'block';
     document.getElementById('listaReportesAdminWrap').style.display = 'none';
-    document.getElementById('admin_consecutivo').value = r.consecutivo || '';
-    document.getElementById('admin_direccion').value = r.direccion || '';
-    document.getElementById('admin_barrio').value = r.barrio || '';
-    document.getElementById('admin_municipio').value = r.municipio || '';
-    document.getElementById('admin_narrativa').value = r.narrativa || '';
-    document.getElementById('admin_acciones').value = r.acciones || '';
-    document.getElementById('admin_observaciones').value = r.observaciones || '';
+
+    // === Sección 1: Identificación ===
+    set('admin_consecutivo', r.consecutivo);
+    set('admin_estacion', r.estacion);
+    set('admin_turno', r.turno);
+    set('admin_fechaLlamada', toLocalDT(r.fechaLlamada));
+    set('admin_fechaLlegada', toLocalDT(r.fechaLlegada));
+    set('admin_fechaCierre', toLocalDT(r.fechaCierre));
+
+    // === Sección 2: Quien reportó ===
+    set('admin_reportaNombre', r.reportaNombre);
+    set('admin_reportaTel', r.reportaTel);
+    set('admin_reportaRelacion', r.reportaRelacion);
+
+    // === Sección 3: Clasificación ===
+    set('admin_clasificacion', Array.isArray(r.clasificacion) ? r.clasificacion.join(', ') : (r.clasificacion || ''));
+    set('admin_clasificacionOtra', r.clasificacionOtra);
+
+    // === Sección 4: Ubicación ===
+    set('admin_direccion', r.direccion);
+    set('admin_barrio', r.barrio);
+    set('admin_localidad', r.localidad);
+    set('admin_municipio', r.municipio);
+    set('admin_referencia', r.referencia);
+
+    // === Sección 5: GPS ===
+    const gpsCoords = r.gps ? `${r.gps.lat}, ${r.gps.lng}` : '';
+    set('admin_gpsCoordenadas', gpsCoords);
+    set('admin_gpsGMS', r.gpsGMS);
+    set('admin_gpsAltitud', r.gps && r.gps.altitude !== null && r.gps.altitude !== undefined ? r.gps.altitude : '');
+    set('admin_gpsVelocidad', r.gps && r.gps.speedKmh !== null && r.gps.speedKmh !== undefined ? r.gps.speedKmh : '');
+    set('admin_gpsOrientacion', r.gps && r.gps.heading ? r.gps.heading : '');
+
+    // === Sección 6: Descripción ===
+    set('admin_narrativa', r.narrativa);
+    set('admin_condiciones', r.condiciones);
+
+    // === Sección 7: Diagnóstico ===
+    set('admin_muertos', r.muertos);
+    set('admin_heridos', r.heridos);
+    set('admin_desaparecidos', r.desaparecidos);
+    set('admin_personasAfectadas', r.personasAfectadas);
+    set('admin_familiasAfectadas', r.familiasAfectadas);
+    set('admin_viviendasDestruidas', r.viviendasDestruidas);
+    set('admin_viviendasAveriadas', r.viviendasAveriadas);
+    set('admin_hectareas', r.hectareas);
+    set('admin_viasAfectadas', r.viasAfectadas);
+    set('admin_puentesAfectados', r.puentesAfectados);
+    set('admin_perdidaEstimada', r.perdidaEstimada);
+    set('admin_zonaOrigen', r.zonaOrigen);
+    set('admin_areasAfectadas', r.areasAfectadas);
+
+    // === Sección 8: Afectado ===
+    set('admin_afectadoNombre', r.afectadoNombre);
+    set('admin_afectadoCC', r.afectadoCC);
+    set('admin_afectadoCel', r.afectadoCel);
+
+    // === Sección 9: Acciones y causas ===
+    set('admin_acciones', r.acciones);
+    set('admin_causas', Array.isArray(r.causas) ? r.causas.join(', ') : (r.causas || ''));
+    set('admin_causaProbable', r.causaProbable);
+    set('admin_evidencias', r.evidencias);
+    set('admin_causaConfirmada', r.causaConfirmada);
+
+    // === Sección 10: Observaciones ===
+    set('admin_observaciones', r.observaciones);
+    set('admin_recomendaciones', r.recomendaciones);
+
+    // === Sección 11: Comandante ===
+    set('admin_comandanteNombre', r.comandanteNombre);
+    set('admin_comandanteGrado', r.comandanteGrado);
+    set('admin_comandanteCC', r.comandanteCC);
+    set('admin_comandanteEstacion', r.comandanteEstacion);
+
+    // === Sección 12: Operador ===
+    set('admin_operador', r.operador);
+    set('admin_operadorGrado', r.operadorGrado);
+    set('admin_operadorCC', r.operadorCC);
+    set('admin_operadorTel', r.operadorTel);
+
     document.getElementById('admin_titulo').textContent = 'Editar ' + (r.consecutivo || r.id);
+
+    // Scroll arriba para que el admin vea desde el inicio
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
   cancelarEdicionAdmin() {
@@ -2084,22 +1876,101 @@ const app = {
     this._reporteAdminEditando = null;
   },
 
+  // Recopila todos los valores del formulario admin como objeto de cambios
+  _recopilarCambiosAdmin() {
+    const get = (id) => {
+      const el = document.getElementById(id);
+      return el ? (el.value || '').trim() : '';
+    };
+    const getNum = (id) => {
+      const v = get(id);
+      if (v === '') return 0;
+      const n = Number(v);
+      return isNaN(n) ? 0 : n;
+    };
+    const fromLocalDT = (id) => {
+      const v = get(id);
+      if (!v) return '';
+      try { return new Date(v).toISOString(); } catch (e) { return v; }
+    };
+
+    return {
+      // Identificación
+      estacion: get('admin_estacion'),
+      turno: get('admin_turno'),
+      fechaLlamada: fromLocalDT('admin_fechaLlamada'),
+      fechaLlegada: fromLocalDT('admin_fechaLlegada'),
+      fechaCierre: fromLocalDT('admin_fechaCierre'),
+      // Quien reportó
+      reportaNombre: get('admin_reportaNombre'),
+      reportaTel: get('admin_reportaTel'),
+      reportaRelacion: get('admin_reportaRelacion'),
+      // Clasificación
+      clasificacion: get('admin_clasificacion'),
+      clasificacionOtra: get('admin_clasificacionOtra'),
+      // Ubicación
+      direccion: get('admin_direccion'),
+      barrio: get('admin_barrio'),
+      localidad: get('admin_localidad'),
+      municipio: get('admin_municipio'),
+      referencia: get('admin_referencia'),
+      // GPS
+      gpsCoordenadas: get('admin_gpsCoordenadas'),
+      gpsGMS: get('admin_gpsGMS'),
+      gpsAltitud: get('admin_gpsAltitud'),
+      gpsVelocidad: get('admin_gpsVelocidad'),
+      gpsOrientacion: get('admin_gpsOrientacion'),
+      // Descripción
+      narrativa: get('admin_narrativa'),
+      condiciones: get('admin_condiciones'),
+      // Diagnóstico
+      muertos: getNum('admin_muertos'),
+      heridos: getNum('admin_heridos'),
+      desaparecidos: getNum('admin_desaparecidos'),
+      personasAfectadas: getNum('admin_personasAfectadas'),
+      familiasAfectadas: getNum('admin_familiasAfectadas'),
+      viviendasDestruidas: getNum('admin_viviendasDestruidas'),
+      viviendasAveriadas: getNum('admin_viviendasAveriadas'),
+      hectareas: getNum('admin_hectareas'),
+      viasAfectadas: getNum('admin_viasAfectadas'),
+      puentesAfectados: getNum('admin_puentesAfectados'),
+      perdidaEstimada: getNum('admin_perdidaEstimada'),
+      zonaOrigen: get('admin_zonaOrigen'),
+      areasAfectadas: get('admin_areasAfectadas'),
+      // Afectado
+      afectadoNombre: get('admin_afectadoNombre'),
+      afectadoCC: get('admin_afectadoCC'),
+      afectadoCel: get('admin_afectadoCel'),
+      // Acciones y causas
+      acciones: get('admin_acciones'),
+      causas: get('admin_causas'),
+      causaProbable: get('admin_causaProbable'),
+      evidencias: get('admin_evidencias'),
+      causaConfirmada: get('admin_causaConfirmada'),
+      // Observaciones
+      observaciones: get('admin_observaciones'),
+      recomendaciones: get('admin_recomendaciones'),
+      // Comandante
+      comandanteNombre: get('admin_comandanteNombre'),
+      comandanteGrado: get('admin_comandanteGrado'),
+      comandanteCC: get('admin_comandanteCC'),
+      comandanteEstacion: get('admin_comandanteEstacion'),
+      // Operador
+      operador: get('admin_operador'),
+      operadorGrado: get('admin_operadorGrado'),
+      operadorCC: get('admin_operadorCC'),
+      operadorTel: get('admin_operadorTel')
+    };
+  },
+
   async guardarEdicionAdmin() {
     const r = this._reporteAdminEditando;
     if (!r) return;
     const nuevoCons = document.getElementById('admin_consecutivo').value.trim();
-
-    const cambios = {
-      direccion: document.getElementById('admin_direccion').value.trim(),
-      barrio: document.getElementById('admin_barrio').value.trim(),
-      municipio: document.getElementById('admin_municipio').value.trim(),
-      narrativa: document.getElementById('admin_narrativa').value.trim(),
-      acciones: document.getElementById('admin_acciones').value.trim(),
-      observaciones: document.getElementById('admin_observaciones').value.trim()
-    };
+    const cambios = this._recopilarCambiosAdmin();
 
     try {
-      // Si cambió consecutivo, hacer cambio especial
+      // Si cambió consecutivo, hacer cambio especial primero
       if (nuevoCons && nuevoCons !== r.consecutivo) {
         const respC = await fetch(URL_BACKEND, {
           method: 'POST',
@@ -2119,7 +1990,8 @@ const app = {
         }
       }
 
-      // Guardar otros cambios
+      // Guardar todos los demás cambios
+      this.toast('Guardando cambios...', 'exito');
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -2144,6 +2016,67 @@ const app = {
     }
   },
 
+  // ========== ELIMINAR REPORTE DESDE ADMIN ==========
+  // Elimina el reporte que se está editando ACTUALMENTE.
+  // Borra la fila de la hoja Reportes, filas auxiliares y la subcarpeta de Drive.
+  async eliminarReporteAdmin() {
+    const r = this._reporteAdminEditando;
+    if (!r) {
+      this.toast('No hay reporte abierto para eliminar', 'error');
+      return;
+    }
+    // Doble confirmación porque es destructivo
+    const ok1 = await this.confirmar(
+      '⚠️ Eliminar reporte',
+      `¿Está SEGURO de eliminar el reporte ${r.consecutivo || r.id}?\n\n` +
+      `Esta acción NO se puede deshacer.\n` +
+      `Se borrarán:\n` +
+      `• El reporte de la hoja principal\n` +
+      `• Sus víctimas, recursos, personal y organizaciones\n` +
+      `• Su carpeta de Drive con fotos y firmas`
+    );
+    if (!ok1) return;
+
+    // Pedir confirmación escrita del consecutivo
+    const escrito = window.prompt(`Para confirmar, escriba el consecutivo exacto:\n${r.consecutivo}`);
+    if (escrito === null) return;
+    if ((escrito || '').trim() !== (r.consecutivo || '').trim()) {
+      this.toast('El consecutivo no coincide. Cancelado.', 'error');
+      return;
+    }
+
+    this.toast('Eliminando reporte...', 'exito');
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'eliminarReporte',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD,
+          idReporte: r.id
+        })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        let msg = `🗑️ Reporte ${data.consecutivo || ''} eliminado`;
+        if (data.auxBorradas) msg += ` (${data.auxBorradas} registros auxiliares)`;
+        if (data.carpetaBorrada) msg += ' + carpeta Drive';
+        this.toast(msg, 'exito');
+
+        // También eliminar de la lista local si existe (por si era propio del admin)
+        try { await DB.eliminarReporte(r.id); } catch (e) { /* puede no estar local */ }
+
+        this.cancelarEdicionAdmin();
+        await this.cargarReportesAdmin();
+      } else {
+        this.toast('Error: ' + (data.error || '?'), 'error');
+      }
+    } catch (e) {
+      this.toast('Error de red: ' + e.message, 'error');
+    }
+  },
+
   // ========== IMPRIMIR DESDE ADMIN ==========
   // Imprime el reporte que se está editando ACTUALMENTE en el panel admin,
   // tomando los cambios sin guardar como parte del PDF (vista previa de la edición).
@@ -2153,16 +2086,68 @@ const app = {
       this.toast('No hay reporte abierto para imprimir', 'error');
       return;
     }
+    const get = (id) => {
+      const el = document.getElementById(id);
+      return el ? (el.value || '').trim() : '';
+    };
+    const getNum = (id) => {
+      const v = get(id);
+      if (v === '') return 0;
+      const n = Number(v);
+      return isNaN(n) ? 0 : n;
+    };
     // Tomar valores actuales del formulario (incluso si no se guardó)
     const rConCambios = {
       ...r,
-      consecutivo: document.getElementById('admin_consecutivo').value.trim() || r.consecutivo,
-      direccion: document.getElementById('admin_direccion').value.trim() || r.direccion,
-      barrio: document.getElementById('admin_barrio').value.trim() || r.barrio,
-      municipio: document.getElementById('admin_municipio').value.trim() || r.municipio,
-      narrativa: document.getElementById('admin_narrativa').value.trim() || r.narrativa,
-      acciones: document.getElementById('admin_acciones').value.trim() || r.acciones,
-      observaciones: document.getElementById('admin_observaciones').value.trim() || r.observaciones
+      consecutivo: get('admin_consecutivo') || r.consecutivo,
+      estacion: get('admin_estacion') || r.estacion,
+      turno: get('admin_turno') || r.turno,
+      fechaLlamada: get('admin_fechaLlamada') || r.fechaLlamada,
+      fechaLlegada: get('admin_fechaLlegada') || r.fechaLlegada,
+      fechaCierre: get('admin_fechaCierre') || r.fechaCierre,
+      reportaNombre: get('admin_reportaNombre') || r.reportaNombre,
+      reportaTel: get('admin_reportaTel') || r.reportaTel,
+      reportaRelacion: get('admin_reportaRelacion') || r.reportaRelacion,
+      clasificacion: (get('admin_clasificacion') || '').split(',').map(s => s.trim()).filter(Boolean),
+      clasificacionOtra: get('admin_clasificacionOtra') || r.clasificacionOtra,
+      direccion: get('admin_direccion') || r.direccion,
+      barrio: get('admin_barrio') || r.barrio,
+      localidad: get('admin_localidad') || r.localidad,
+      municipio: get('admin_municipio') || r.municipio,
+      referencia: get('admin_referencia') || r.referencia,
+      narrativa: get('admin_narrativa') || r.narrativa,
+      condiciones: get('admin_condiciones') || r.condiciones,
+      muertos: getNum('admin_muertos'),
+      heridos: getNum('admin_heridos'),
+      desaparecidos: getNum('admin_desaparecidos'),
+      personasAfectadas: getNum('admin_personasAfectadas'),
+      familiasAfectadas: getNum('admin_familiasAfectadas'),
+      viviendasDestruidas: getNum('admin_viviendasDestruidas'),
+      viviendasAveriadas: getNum('admin_viviendasAveriadas'),
+      hectareas: getNum('admin_hectareas'),
+      viasAfectadas: getNum('admin_viasAfectadas'),
+      puentesAfectados: getNum('admin_puentesAfectados'),
+      perdidaEstimada: getNum('admin_perdidaEstimada'),
+      zonaOrigen: get('admin_zonaOrigen') || r.zonaOrigen,
+      areasAfectadas: get('admin_areasAfectadas') || r.areasAfectadas,
+      afectadoNombre: get('admin_afectadoNombre') || r.afectadoNombre,
+      afectadoCC: get('admin_afectadoCC') || r.afectadoCC,
+      afectadoCel: get('admin_afectadoCel') || r.afectadoCel,
+      acciones: get('admin_acciones') || r.acciones,
+      causas: (get('admin_causas') || '').split(',').map(s => s.trim()).filter(Boolean),
+      causaProbable: get('admin_causaProbable') || r.causaProbable,
+      evidencias: get('admin_evidencias') || r.evidencias,
+      causaConfirmada: get('admin_causaConfirmada') || r.causaConfirmada,
+      observaciones: get('admin_observaciones') || r.observaciones,
+      recomendaciones: get('admin_recomendaciones') || r.recomendaciones,
+      comandanteNombre: get('admin_comandanteNombre') || r.comandanteNombre,
+      comandanteGrado: get('admin_comandanteGrado') || r.comandanteGrado,
+      comandanteCC: get('admin_comandanteCC') || r.comandanteCC,
+      comandanteEstacion: get('admin_comandanteEstacion') || r.comandanteEstacion,
+      operador: get('admin_operador') || r.operador,
+      operadorGrado: get('admin_operadorGrado') || r.operadorGrado,
+      operadorCC: get('admin_operadorCC') || r.operadorCC,
+      operadorTel: get('admin_operadorTel') || r.operadorTel
     };
     await this._imprimirReporteEnVentanaNueva(rConCambios);
   },
