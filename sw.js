@@ -1,5 +1,5 @@
-/* Service Worker v5.3 - CBVI Reportes (cierre de mes por fecha de llamada) */
-const CACHE = 'bomberos-inirida-v5-3';
+/* Service Worker v5.4 - CBVI Reportes (nueva URL backend + cierre de mes) */
+const CACHE = 'bomberos-inirida-v5-4';
 const ARCHIVOS = [
   './',
   './index.html',
