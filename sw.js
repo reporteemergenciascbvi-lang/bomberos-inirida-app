@@ -1,5 +1,5 @@
-/* Service Worker v5.6 - CBVI Reportes (reparar hipervínculos + cierre de mes) */
-const CACHE = 'bomberos-inirida-v5-6';
+/* Service Worker v5.7 - CBVI Reportes (RichText fix #ERROR!) */
+const CACHE = 'bomberos-inirida-v5-7';
 const ARCHIVOS = [
   './',
   './index.html',

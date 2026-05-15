@@ -1,8 +1,9 @@
 /* ============================================================
-   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v5.6
+   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v5.7
    ✅ URL_BACKEND actualizada al nuevo Apps Script (AKfycbzVI3...)
    ✅ Cierre de mes por fecha de llamada (Panel Admin)
    ✅ Reparar hipervínculos rotos (#ERROR! en Sheets)
+   ✅ RichTextValue en lugar de HYPERLINK (arregla bug dueño-mismo)
    Login con Google, Sistema de administrador, Auto-completado GPS
    ============================================================ */
 
