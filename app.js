@@ -1,12 +1,14 @@
 /* ============================================================
-   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v4
+   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v5.5
+   ✅ URL_BACKEND actualizada al nuevo Apps Script (AKfycbzVI3...)
+   ✅ Cierre de mes por fecha de llamada (Panel Admin)
    Login con Google, Sistema de administrador, Auto-completado GPS
    ============================================================ */
 
 // ==================== CONFIGURACIÓN HARDCODED ====================
 const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.googleusercontent.com';
 const ADMIN_EMAIL = 'gilrangeljeancarlosjeferson@gmail.com';
-const ADMIN_PASSWORD = '12345CBVI*'; // Contraseña para acceder al Panel Admin
+const ADMIN_PASSWORD = '12345Jj*'; // Contraseña para acceder al Panel Admin
 const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
 const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15oz-U1jpkR0-L56cxEwby8tMi2mVJi5A5D74XMi25WKdod6wn2QA/exec';
