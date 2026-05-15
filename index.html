@@ -765,345 +765,41 @@
     <div id="panelAdminEditando" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid #7a1010;">
       <h3 id="admin_titulo" style="color:#7a1010;margin:0 0 12px 0;">Editar reporte</h3>
 
-      <!-- ===== SECCIÓN 1: Identificación y fechas ===== -->
-      <details open style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">📋 1. Identificación y fechas</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Consecutivo (ej. RE-2026-0087):</label>
-            <input id="admin_consecutivo" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:13px;">Estación:</label>
-              <input id="admin_estacion" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:13px;">Turno:</label>
-              <input id="admin_turno" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:12px;">Fecha Llamada:</label>
-              <input id="admin_fechaLlamada" type="datetime-local" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Fecha Llegada:</label>
-              <input id="admin_fechaLlegada" type="datetime-local" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Fecha Cierre:</label>
-              <input id="admin_fechaCierre" type="datetime-local" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-            </div>
-          </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Consecutivo (ej. RE-2026-0087):</label>
+        <input id="admin_consecutivo" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Dirección:</label>
+        <input id="admin_direccion" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div>
+          <label style="font-weight:700;font-size:13px;">Barrio:</label>
+          <input id="admin_barrio" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
         </div>
-      </details>
-
-      <!-- ===== SECCIÓN 2: Quien reportó ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">📞 2. Quien reportó la emergencia</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Nombre:</label>
-            <input id="admin_reportaNombre" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div>
-              <label style="font-weight:700;font-size:13px;">Teléfono:</label>
-              <input id="admin_reportaTel" type="tel" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:13px;">Relación:</label>
-              <input id="admin_reportaRelacion" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
+        <div>
+          <label style="font-weight:700;font-size:13px;">Municipio:</label>
+          <input id="admin_municipio" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
         </div>
-      </details>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Narrativa inicial:</label>
+        <textarea id="admin_narrativa" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Acciones realizadas:</label>
+        <textarea id="admin_acciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-weight:700;font-size:13px;">Observaciones:</label>
+        <textarea id="admin_observaciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
+      </div>
 
-      <!-- ===== SECCIÓN 3: Clasificación ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">🚨 3. Clasificación del evento</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Tipos (separados por coma):</label>
-            <input id="admin_clasificacion" type="text" placeholder="Incendio estructural, Rescate, ..." style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div>
-            <label style="font-weight:700;font-size:13px;">Otra clasificación:</label>
-            <input id="admin_clasificacionOtra" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 4: Ubicación ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">📍 4. Ubicación</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Dirección:</label>
-            <input id="admin_direccion" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:13px;">Barrio:</label>
-              <input id="admin_barrio" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:13px;">Localidad:</label>
-              <input id="admin_localidad" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:13px;">Municipio:</label>
-              <input id="admin_municipio" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:13px;">Referencia:</label>
-              <input id="admin_referencia" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 5: GPS ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">🛰️ 5. Coordenadas GPS</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:12px;">Coordenadas (lat, lng):</label>
-            <input id="admin_gpsCoordenadas" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-          </div>
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:12px;">GMS:</label>
-            <input id="admin_gpsGMS" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-            <div>
-              <label style="font-weight:700;font-size:12px;">Altitud (msnm):</label>
-              <input id="admin_gpsAltitud" type="text" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Velocidad (km/h):</label>
-              <input id="admin_gpsVelocidad" type="text" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Orientación:</label>
-              <input id="admin_gpsOrientacion" type="text" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 6: Descripción ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">📝 6. Descripción del evento</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Narrativa inicial:</label>
-            <textarea id="admin_narrativa" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
-          </div>
-          <div>
-            <label style="font-weight:700;font-size:13px;">Condiciones al llegar:</label>
-            <textarea id="admin_condiciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 7: Diagnóstico ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">🩺 7. Diagnóstico (víctimas y daños)</summary>
-        <div style="padding:10px;">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:12px;">Muertos:</label>
-              <input id="admin_muertos" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Heridos:</label>
-              <input id="admin_heridos" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Desaparecidos:</label>
-              <input id="admin_desaparecidos" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:12px;">Personas afectadas:</label>
-              <input id="admin_personasAfectadas" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Familias afectadas:</label>
-              <input id="admin_familiasAfectadas" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:12px;">Viviendas destruidas:</label>
-              <input id="admin_viviendasDestruidas" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Viviendas averiadas:</label>
-              <input id="admin_viviendasAveriadas" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:12px;">Hectáreas:</label>
-              <input id="admin_hectareas" type="number" min="0" step="0.01" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Vías afectadas:</label>
-              <input id="admin_viasAfectadas" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Puentes:</label>
-              <input id="admin_puentesAfectados" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:12px;">Pérdida estimada ($ COP):</label>
-            <input id="admin_perdidaEstimada" type="number" min="0" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div>
-              <label style="font-weight:700;font-size:12px;">Zona de origen:</label>
-              <input id="admin_zonaOrigen" type="text" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:12px;">Áreas afectadas:</label>
-              <input id="admin_areasAfectadas" type="text" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;">
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 8: Datos del afectado ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">👤 8. Datos del afectado</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Nombre:</label>
-            <input id="admin_afectadoNombre" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div>
-              <label style="font-weight:700;font-size:13px;">Cédula:</label>
-              <input id="admin_afectadoCC" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:13px;">Celular:</label>
-              <input id="admin_afectadoCel" type="tel" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 9: Acciones y causas ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">⚡ 9. Acciones y causas</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Acciones realizadas:</label>
-            <textarea id="admin_acciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
-          </div>
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Causas (separadas por coma):</label>
-            <input id="admin_causas" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Causa probable:</label>
-            <textarea id="admin_causaProbable" rows="2" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
-          </div>
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Evidencias:</label>
-            <textarea id="admin_evidencias" rows="2" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
-          </div>
-          <div>
-            <label style="font-weight:700;font-size:13px;">Causa confirmada:</label>
-            <textarea id="admin_causaConfirmada" rows="2" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 10: Observaciones ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">📋 10. Observaciones y recomendaciones</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Observaciones:</label>
-            <textarea id="admin_observaciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
-          </div>
-          <div>
-            <label style="font-weight:700;font-size:13px;">Recomendaciones:</label>
-            <textarea id="admin_recomendaciones" rows="3" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea>
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 11: Comandante ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">👨‍🚒 11. Comandante de la atención</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Nombre:</label>
-            <input id="admin_comandanteNombre" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:13px;">Grado:</label>
-              <input id="admin_comandanteGrado" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:13px;">Cédula:</label>
-              <input id="admin_comandanteCC" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-          <div>
-            <label style="font-weight:700;font-size:13px;">Estación:</label>
-            <input id="admin_comandanteEstacion" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== SECCIÓN 12: Operador (quien realizó el reporte) ===== -->
-      <details style="margin-bottom:10px;border:1px solid #e5e7eb;border-radius:6px;">
-        <summary style="padding:10px;background:#fef2f2;font-weight:700;color:#7a1010;cursor:pointer;">📲 12. Operador (quien hizo el reporte)</summary>
-        <div style="padding:10px;">
-          <div style="margin-bottom:8px;">
-            <label style="font-weight:700;font-size:13px;">Nombre:</label>
-            <input id="admin_operador" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-            <div>
-              <label style="font-weight:700;font-size:13px;">Grado:</label>
-              <input id="admin_operadorGrado" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-            <div>
-              <label style="font-weight:700;font-size:13px;">Cédula:</label>
-              <input id="admin_operadorCC" type="text" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-            </div>
-          </div>
-          <div>
-            <label style="font-weight:700;font-size:13px;">Teléfono:</label>
-            <input id="admin_operadorTel" type="tel" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;">
-          </div>
-          <div style="margin-top:8px;padding:8px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:4px;font-size:11px;color:#78350f;">
-            ℹ️ El correo del operador NO se puede cambiar (es la identidad verificada con Google).
-          </div>
-        </div>
-      </details>
-
-      <!-- ===== BOTONES ===== -->
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
         <button onclick="app.cancelarEdicionAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Cancelar</button>
         <button onclick="app.guardarEdicionAdmin()" style="flex:1;min-width:120px;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar</button>
         <button onclick="app.imprimirReporteEditandoAdmin()" style="flex:1;min-width:110px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Imprimir</button>
-      </div>
-      <div style="margin-top:10px;">
-        <button onclick="app.eliminarReporteAdmin()" style="width:100%;padding:12px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🗑️ Eliminar este reporte</button>
       </div>
     </div>
 
@@ -1679,22 +1375,22 @@
     </div>
 
     <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
+      <h4 style="color: #7a1010; font-size: 14px; margin-bottom: 8px;">📅 Cierre de mes por fecha de llamada (recomendado)</h4>
+      <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
+        Reorganiza los consecutivos de un mes específico según la <strong>fecha y hora de la llamada</strong> (no según cuándo se subió). Ideal para usar al final de cada mes. Solo afecta el mes seleccionado.
+      </p>
+      <button class="btn btn-completo" onclick="app.abrirCierreMes()" style="background: #7a1010; color: #fff;">
+        📅 Cerrar mes y reorganizar consecutivos
+      </button>
+    </div>
+
+    <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
       <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">🔧 Renumerar reportes (peligroso)</h4>
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Si los consecutivos se desordenaron por usuarios con versiones viejas, este botón pide al servidor renumerar todos los reportes en orden cronológico.
       </p>
       <button class="btn btn-secundario btn-completo" onclick="app.renumerarReportes()" style="background: #fef2f2; color: var(--rojo); border-color: #fca5a5;">
         🔄 Renumerar todos los reportes (Admin)
-      </button>
-    </div>
-
-    <div style="padding: 12px; background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 6px; margin-bottom: 10px;">
-      <h4 style="color: #b45309; font-size: 14px; margin-bottom: 8px;">🔧 Reparar URLs de fotos rotas</h4>
-      <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
-        Si en la hoja Reportes aparecen <strong>#ERROR!</strong> en las columnas de Foto/Firma, este botón normaliza las URLs viejas (con <code>?usp=drivesdk</code>) al formato limpio que Sheets acepta.
-      </p>
-      <button class="btn btn-secundario btn-completo" onclick="app.repararUrlsFotos()" style="background: #fef3c7; color: #b45309; border-color: #fcd34d;">
-        🛠️ Reparar URLs rotas en Sheets
       </button>
     </div>
   </div>

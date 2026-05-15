@@ -6,10 +6,10 @@
 // ==================== CONFIGURACIÓN HARDCODED ====================
 const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.googleusercontent.com';
 const ADMIN_EMAIL = 'gilrangeljeancarlosjeferson@gmail.com';
-const ADMIN_PASSWORD = '12345CBVI*'; // Contraseña para acceder al Panel Admin
+const ADMIN_PASSWORD = '12345Jj*'; // Contraseña para acceder al Panel Admin
 const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
-const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbwc1lAVkykdYEcY-Z9L53vN3IOnlksnW3dx1iYPWh8uVdwlhqRq7wO7zYFFIQyYGACe8Q/exec';
+const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbxke-N2r_Z5QVA-33gChRKF72FJb42T8lRqvxJlS05r34yvSMyA65OyuzdBU7R-aArMgQ/exec';
 
 const CREDITO_AUTOR = {
   nombre: 'Bombero Jeferson Jeancarlos Rangel Gil',
@@ -343,50 +343,6 @@ const app = {
   async sincronizarReportesDesdeServidor() {
     if (!this.usuario || !this.usuario.email) return;
     try {
-      // ===== PASO 1: Procesar eliminaciones pendientes del admin =====
-      // Si el admin eliminó reportes que pertenecen a este operador, los borramos local.
-      try {
-        const respElim = await fetch(URL_BACKEND, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'obtenerEliminacionesPendientes', email: this.usuario.email })
-        });
-        const dataElim = await respElim.json();
-        if (dataElim && dataElim.ok && Array.isArray(dataElim.eliminaciones) && dataElim.eliminaciones.length > 0) {
-          const idsBorrados = [];
-          for (const e of dataElim.eliminaciones) {
-            if (!e.id) continue;
-            try {
-              await DB.eliminarReporte(e.id);
-              idsBorrados.push(e.id);
-              console.log(`Reporte ${e.consecutivo || e.id} eliminado por admin — borrado local`);
-            } catch (errLocal) {
-              // Si el reporte ya no estaba local, igual lo agregamos para confirmar al servidor
-              idsBorrados.push(e.id);
-            }
-          }
-          if (idsBorrados.length > 0) {
-            // Confirmar al servidor para que limpie esos registros
-            try {
-              await fetch(URL_BACKEND, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({
-                  accion: 'confirmarEliminacionLocal',
-                  email: this.usuario.email,
-                  ids: idsBorrados
-                })
-              });
-            } catch (e) { /* sigue, no crítico */ }
-            this.toast(`🗑️ El admin eliminó ${idsBorrados.length} reporte(s) — sincronizado`, 'exito');
-            await this.actualizarHome();
-          }
-        }
-      } catch (errElim) {
-        console.warn('No se pudieron sincronizar eliminaciones admin:', errElim);
-      }
-
-      // ===== PASO 2: Descargar reportes nuevos del servidor =====
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -400,7 +356,6 @@ const app = {
       // Reportes locales (mapeados por id)
       const locales = await DB.listarReportes();
       const idsLocales = new Set(locales.map(r => r.id));
-      const idsServidor = new Set(reportesServidor.map(r => r.id));
 
       for (const r of reportesServidor) {
         if (!r.id) continue;
@@ -413,28 +368,8 @@ const app = {
         }
       }
 
-      // ===== PASO 3: Detección "huérfanos" — reportes sincronizados localmente
-      // que YA NO están en el servidor (admin los eliminó pero el celular no se enteró).
-      // Solo borramos los que estaban marcados como sincronizados/enviados.
-      let huerfanos = 0;
-      for (const local of locales) {
-        if (!local.id) continue;
-        if (idsServidor.has(local.id)) continue;
-        // Solo borrar si estaba sincronizado al servidor (no borres borradores)
-        if (local.sincronizado === true || local.estado === 'enviado') {
-          try {
-            await DB.eliminarReporte(local.id);
-            huerfanos++;
-            console.log(`Reporte huérfano ${local.consecutivo || local.id} (no existe en servidor) — borrado local`);
-          } catch (e) { /* sigue */ }
-        }
-      }
-
       if (nuevos > 0) {
         this.toast(`Se descargaron ${nuevos} reportes del servidor`, 'exito');
-        await this.actualizarHome();
-      }
-      if (huerfanos > 0) {
         await this.actualizarHome();
       }
     } catch (e) {
@@ -1730,43 +1665,223 @@ const app = {
     }
   },
 
-  // Solo admin: reparar URLs de fotos rotas (con sufijo ?usp=drivesdk)
-  async repararUrlsFotos() {
+  // ========== 🆕 v5.3: CIERRE DE MES POR FECHA DE LLAMADA ==========
+  // Renumera SOLO los reportes de un mes específico, ordenándolos
+  // cronológicamente por fecha de llamada.
+  async abrirCierreMes() {
     if (!this.esAdmin()) {
-      this.toast('Solo el administrador puede usar esto', 'error');
+      this.toast('Solo el administrador', 'error');
       return;
     }
-    const ok = await this.confirmar(
-      '🛠️ Reparar URLs de fotos',
-      'Este proceso busca URLs rotas en las columnas Foto y Firma del Sheets y las reemplaza por el formato limpio.\n\nNO borra ninguna foto, solo arregla la fórmula. ¿Continuar?'
-    );
-    if (!ok) return;
+    if (!this.config.urlBackend) {
+      this.toast('Configure URL del backend primero', 'error');
+      return;
+    }
 
-    this.toast('🛠️ Reparando URLs... espere', 'exito');
+    // Construir selector de mes/año
+    const ahora = new Date();
+    const mesActual = ahora.getMonth() + 1;
+    const anioActual = ahora.getFullYear();
+    const nombresMeses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+    // Generar opciones de meses
+    const opcionesMeses = nombresMeses.map((nom, idx) =>
+      `<option value="${idx + 1}" ${idx + 1 === mesActual ? 'selected' : ''}>${nom}</option>`
+    ).join('');
+
+    // Generar opciones de años (3 años atrás, año actual, 1 adelante)
+    const opcionesAnios = [];
+    for (let a = anioActual - 3; a <= anioActual + 1; a++) {
+      opcionesAnios.push(`<option value="${a}" ${a === anioActual ? 'selected' : ''}>${a}</option>`);
+    }
+
+    const html = `
+      <div style="padding: 20px;">
+        <h3 style="color: #7a1010; margin-bottom: 12px;">📅 Cierre de mes y renumeración</h3>
+        <p style="font-size: 14px; color: #555; margin-bottom: 16px; line-height: 1.5;">
+          Esta acción reorganizará los consecutivos del mes seleccionado en <strong>orden cronológico por fecha de llamada</strong>.
+          Los reportes de otros meses NO se tocan.
+        </p>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-weight: 600; margin-bottom: 6px;">Mes:</label>
+          <select id="cierre_mes" style="width: 100%; padding: 10px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px;">
+            ${opcionesMeses}
+          </select>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-weight: 600; margin-bottom: 6px;">Año:</label>
+          <select id="cierre_anio" style="width: 100%; padding: 10px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px;">
+            ${opcionesAnios.join('')}
+          </select>
+        </div>
+        <div id="cierre_previsualizacion" style="margin-top: 12px;"></div>
+        <div style="display: flex; gap: 8px; margin-top: 20px;">
+          <button class="btn btn-secundario" onclick="app.cerrarModalCierreMes()" style="flex: 1;">Cancelar</button>
+          <button class="btn" onclick="app.previsualizarCierreMes()" style="flex: 1; background: #f59e0b; color: #fff;">👁️ Previsualizar</button>
+        </div>
+        <button id="btn_aplicar_cierre" class="btn btn-completo" onclick="app.aplicarCierreMes()" style="display: none; margin-top: 8px; background: #7a1010; color: #fff;">
+          ✅ Aplicar cambios definitivamente
+        </button>
+      </div>
+    `;
+
+    this.mostrarModalCierreMes(html);
+  },
+
+  mostrarModalCierreMes(html) {
+    // Crear o reutilizar modal
+    let modal = document.getElementById('modalCierreMes');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'modalCierreMes';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:12px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;">
+        ${html}
+      </div>
+    `;
+    modal.style.display = 'flex';
+  },
+
+  cerrarModalCierreMes() {
+    const modal = document.getElementById('modalCierreMes');
+    if (modal) modal.style.display = 'none';
+  },
+
+  async previsualizarCierreMes() {
+    const mes = parseInt(document.getElementById('cierre_mes').value, 10);
+    const anio = parseInt(document.getElementById('cierre_anio').value, 10);
+    const cont = document.getElementById('cierre_previsualizacion');
+    cont.innerHTML = '<p style="text-align:center;padding:12px;">⏳ Consultando servidor...</p>';
+
     try {
-      const resp = await fetch(URL_BACKEND, {
+      const resp = await fetch(this.config.urlBackend, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          accion: 'repararUrlsFotos',
+          accion: 'previsualizarCierreMes',
           adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD
+          mes: mes,
+          anio: anio,
+          token: this.config.token || ''
         })
       });
       const data = await resp.json();
+
+      if (!data.ok) {
+        cont.innerHTML = `<div style="background:#fee;padding:12px;border-radius:8px;color:#c00;">❌ ${data.error}</div>`;
+        return;
+      }
+
+      if (data.totalReportesMes === 0) {
+        cont.innerHTML = `<div style="background:#f0f0f0;padding:12px;border-radius:8px;">ℹ️ No hay reportes en ${data.nombreMes} ${data.anio}</div>`;
+        document.getElementById('btn_aplicar_cierre').style.display = 'none';
+        return;
+      }
+
+      if (data.cambiosRealizarian === 0) {
+        cont.innerHTML = `
+          <div style="background:#dcfce7;padding:12px;border-radius:8px;color:#15803d;">
+            ✅ <strong>Todo está en orden</strong><br>
+            ${data.totalReportesMes} reportes en ${data.nombreMes} ${data.anio} ya están en el orden correcto. No es necesario renumerar.
+          </div>`;
+        document.getElementById('btn_aplicar_cierre').style.display = 'none';
+        return;
+      }
+
+      // Construir tabla de cambios
+      const filasCambios = data.previsualizacion
+        .filter(p => p.cambio)
+        .slice(0, 20)
+        .map(p => {
+          const fecha = new Date(p.fechaLlamada).toLocaleString('es-CO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+          return `
+            <tr>
+              <td style="padding:6px;font-size:12px;">${fecha}</td>
+              <td style="padding:6px;font-size:12px;color:#999;text-decoration:line-through;">${p.consecutivoAnterior}</td>
+              <td style="padding:6px;font-size:12px;color:#15803d;font-weight:700;">→ ${p.consecutivoNuevo}</td>
+            </tr>`;
+        }).join('');
+
+      const masTexto = data.cambiosRealizarian > 20 ? `<p style="font-size:12px;color:#888;text-align:center;margin-top:8px;">... y ${data.cambiosRealizarian - 20} cambios más</p>` : '';
+
+      cont.innerHTML = `
+        <div style="background:#fff7ed;padding:12px;border-radius:8px;border:1px solid #fed7aa;">
+          <p style="font-weight:600;margin-bottom:8px;">
+            📊 ${data.nombreMes} ${data.anio}: ${data.totalReportesMes} reportes totales · ${data.cambiosRealizarian} cambiarán
+          </p>
+          <div style="max-height:280px;overflow-y:auto;background:#fff;border-radius:6px;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead>
+                <tr style="background:#f3f4f6;position:sticky;top:0;">
+                  <th style="padding:6px;text-align:left;">Fecha llamada</th>
+                  <th style="padding:6px;text-align:left;">Antes</th>
+                  <th style="padding:6px;text-align:left;">Después</th>
+                </tr>
+              </thead>
+              <tbody>${filasCambios}</tbody>
+            </table>
+          </div>
+          ${masTexto}
+        </div>
+      `;
+
+      // Guardar el mes/año para el botón de aplicar
+      this._cierreMesPendiente = { mes, anio, totalReportesMes: data.totalReportesMes, cambiosRealizarian: data.cambiosRealizarian, nombreMes: data.nombreMes };
+      document.getElementById('btn_aplicar_cierre').style.display = 'block';
+    } catch (err) {
+      console.error('Error previsualizando:', err);
+      cont.innerHTML = `<div style="background:#fee;padding:12px;border-radius:8px;color:#c00;">❌ Error de red: ${err.message}</div>`;
+    }
+  },
+
+  async aplicarCierreMes() {
+    if (!this._cierreMesPendiente) {
+      this.toast('Primero debes previsualizar', 'error');
+      return;
+    }
+    const info = this._cierreMesPendiente;
+
+    const ok = await this.confirmar(
+      '⚠️ ¿Confirmar cierre de mes?',
+      `Se renumerarán ${info.cambiosRealizarian} reportes de ${info.nombreMes} ${info.anio}. Esta acción NO se puede deshacer. ¿Continuar?`
+    );
+    if (!ok) return;
+
+    this.cerrarModalCierreMes();
+    this.toast('Aplicando cierre de mes... espere', 'exito');
+
+    try {
+      const resp = await fetch(this.config.urlBackend, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'cerrarMesYRenumerar',
+          adminEmail: this.usuario.email,
+          mes: info.mes,
+          anio: info.anio,
+          token: this.config.token || ''
+        })
+      });
+      const data = await resp.json();
+
       if (data && data.ok) {
-        if (data.reparados > 0) {
-          this.toast(`✅ ${data.reparados} URLs reparadas en el Sheets`, 'exito');
-        } else {
-          this.toast(`✅ No hay URLs rotas para reparar`, 'exito');
+        this.toast(`✅ ${info.nombreMes} ${info.anio}: ${data.cambiosRealizados} consecutivos actualizados`, 'exito');
+        // Re-sincronizar reportes locales para reflejar los nuevos consecutivos
+        if (this.sincronizarReportesDesdeServidor) {
+          setTimeout(() => this.sincronizarReportesDesdeServidor(), 1500);
         }
       } else {
         this.toast('Error: ' + (data?.error || 'desconocido'), 'error');
       }
     } catch (err) {
-      console.error('Error reparando:', err);
-      this.toast('Error de red al reparar', 'error');
+      console.error('Error aplicando cierre de mes:', err);
+      this.toast('Error de red: ' + err.message, 'error');
     }
+
+    this._cierreMesPendiente = null;
   },
 
   // ========== PANEL ADMIN CON CONTRASEÑA ==========
@@ -1868,110 +1983,17 @@ const app = {
     if (!r) { this.toast('Reporte no encontrado', 'error'); return; }
     this._reporteAdminEditando = r;
 
-    // Helper local para asignar valor a un input si existe
-    const set = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.value = (val === null || val === undefined) ? '' : val;
-    };
-
-    // Helper para formato datetime-local (YYYY-MM-DDTHH:mm)
-    const toLocalDT = (v) => {
-      if (!v) return '';
-      try {
-        const d = new Date(v);
-        if (isNaN(d.getTime())) return '';
-        const off = d.getTimezoneOffset() * 60000;
-        return new Date(d.getTime() - off).toISOString().slice(0, 16);
-      } catch (e) { return ''; }
-    };
-
     // Mostrar formulario de edición
     document.getElementById('panelAdminEditando').style.display = 'block';
     document.getElementById('listaReportesAdminWrap').style.display = 'none';
-
-    // === Sección 1: Identificación ===
-    set('admin_consecutivo', r.consecutivo);
-    set('admin_estacion', r.estacion);
-    set('admin_turno', r.turno);
-    set('admin_fechaLlamada', toLocalDT(r.fechaLlamada));
-    set('admin_fechaLlegada', toLocalDT(r.fechaLlegada));
-    set('admin_fechaCierre', toLocalDT(r.fechaCierre));
-
-    // === Sección 2: Quien reportó ===
-    set('admin_reportaNombre', r.reportaNombre);
-    set('admin_reportaTel', r.reportaTel);
-    set('admin_reportaRelacion', r.reportaRelacion);
-
-    // === Sección 3: Clasificación ===
-    set('admin_clasificacion', Array.isArray(r.clasificacion) ? r.clasificacion.join(', ') : (r.clasificacion || ''));
-    set('admin_clasificacionOtra', r.clasificacionOtra);
-
-    // === Sección 4: Ubicación ===
-    set('admin_direccion', r.direccion);
-    set('admin_barrio', r.barrio);
-    set('admin_localidad', r.localidad);
-    set('admin_municipio', r.municipio);
-    set('admin_referencia', r.referencia);
-
-    // === Sección 5: GPS ===
-    const gpsCoords = r.gps ? `${r.gps.lat}, ${r.gps.lng}` : '';
-    set('admin_gpsCoordenadas', gpsCoords);
-    set('admin_gpsGMS', r.gpsGMS);
-    set('admin_gpsAltitud', r.gps && r.gps.altitude !== null && r.gps.altitude !== undefined ? r.gps.altitude : '');
-    set('admin_gpsVelocidad', r.gps && r.gps.speedKmh !== null && r.gps.speedKmh !== undefined ? r.gps.speedKmh : '');
-    set('admin_gpsOrientacion', r.gps && r.gps.heading ? r.gps.heading : '');
-
-    // === Sección 6: Descripción ===
-    set('admin_narrativa', r.narrativa);
-    set('admin_condiciones', r.condiciones);
-
-    // === Sección 7: Diagnóstico ===
-    set('admin_muertos', r.muertos);
-    set('admin_heridos', r.heridos);
-    set('admin_desaparecidos', r.desaparecidos);
-    set('admin_personasAfectadas', r.personasAfectadas);
-    set('admin_familiasAfectadas', r.familiasAfectadas);
-    set('admin_viviendasDestruidas', r.viviendasDestruidas);
-    set('admin_viviendasAveriadas', r.viviendasAveriadas);
-    set('admin_hectareas', r.hectareas);
-    set('admin_viasAfectadas', r.viasAfectadas);
-    set('admin_puentesAfectados', r.puentesAfectados);
-    set('admin_perdidaEstimada', r.perdidaEstimada);
-    set('admin_zonaOrigen', r.zonaOrigen);
-    set('admin_areasAfectadas', r.areasAfectadas);
-
-    // === Sección 8: Afectado ===
-    set('admin_afectadoNombre', r.afectadoNombre);
-    set('admin_afectadoCC', r.afectadoCC);
-    set('admin_afectadoCel', r.afectadoCel);
-
-    // === Sección 9: Acciones y causas ===
-    set('admin_acciones', r.acciones);
-    set('admin_causas', Array.isArray(r.causas) ? r.causas.join(', ') : (r.causas || ''));
-    set('admin_causaProbable', r.causaProbable);
-    set('admin_evidencias', r.evidencias);
-    set('admin_causaConfirmada', r.causaConfirmada);
-
-    // === Sección 10: Observaciones ===
-    set('admin_observaciones', r.observaciones);
-    set('admin_recomendaciones', r.recomendaciones);
-
-    // === Sección 11: Comandante ===
-    set('admin_comandanteNombre', r.comandanteNombre);
-    set('admin_comandanteGrado', r.comandanteGrado);
-    set('admin_comandanteCC', r.comandanteCC);
-    set('admin_comandanteEstacion', r.comandanteEstacion);
-
-    // === Sección 12: Operador ===
-    set('admin_operador', r.operador);
-    set('admin_operadorGrado', r.operadorGrado);
-    set('admin_operadorCC', r.operadorCC);
-    set('admin_operadorTel', r.operadorTel);
-
+    document.getElementById('admin_consecutivo').value = r.consecutivo || '';
+    document.getElementById('admin_direccion').value = r.direccion || '';
+    document.getElementById('admin_barrio').value = r.barrio || '';
+    document.getElementById('admin_municipio').value = r.municipio || '';
+    document.getElementById('admin_narrativa').value = r.narrativa || '';
+    document.getElementById('admin_acciones').value = r.acciones || '';
+    document.getElementById('admin_observaciones').value = r.observaciones || '';
     document.getElementById('admin_titulo').textContent = 'Editar ' + (r.consecutivo || r.id);
-
-    // Scroll arriba para que el admin vea desde el inicio
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
   cancelarEdicionAdmin() {
@@ -1980,101 +2002,22 @@ const app = {
     this._reporteAdminEditando = null;
   },
 
-  // Recopila todos los valores del formulario admin como objeto de cambios
-  _recopilarCambiosAdmin() {
-    const get = (id) => {
-      const el = document.getElementById(id);
-      return el ? (el.value || '').trim() : '';
-    };
-    const getNum = (id) => {
-      const v = get(id);
-      if (v === '') return 0;
-      const n = Number(v);
-      return isNaN(n) ? 0 : n;
-    };
-    const fromLocalDT = (id) => {
-      const v = get(id);
-      if (!v) return '';
-      try { return new Date(v).toISOString(); } catch (e) { return v; }
-    };
-
-    return {
-      // Identificación
-      estacion: get('admin_estacion'),
-      turno: get('admin_turno'),
-      fechaLlamada: fromLocalDT('admin_fechaLlamada'),
-      fechaLlegada: fromLocalDT('admin_fechaLlegada'),
-      fechaCierre: fromLocalDT('admin_fechaCierre'),
-      // Quien reportó
-      reportaNombre: get('admin_reportaNombre'),
-      reportaTel: get('admin_reportaTel'),
-      reportaRelacion: get('admin_reportaRelacion'),
-      // Clasificación
-      clasificacion: get('admin_clasificacion'),
-      clasificacionOtra: get('admin_clasificacionOtra'),
-      // Ubicación
-      direccion: get('admin_direccion'),
-      barrio: get('admin_barrio'),
-      localidad: get('admin_localidad'),
-      municipio: get('admin_municipio'),
-      referencia: get('admin_referencia'),
-      // GPS
-      gpsCoordenadas: get('admin_gpsCoordenadas'),
-      gpsGMS: get('admin_gpsGMS'),
-      gpsAltitud: get('admin_gpsAltitud'),
-      gpsVelocidad: get('admin_gpsVelocidad'),
-      gpsOrientacion: get('admin_gpsOrientacion'),
-      // Descripción
-      narrativa: get('admin_narrativa'),
-      condiciones: get('admin_condiciones'),
-      // Diagnóstico
-      muertos: getNum('admin_muertos'),
-      heridos: getNum('admin_heridos'),
-      desaparecidos: getNum('admin_desaparecidos'),
-      personasAfectadas: getNum('admin_personasAfectadas'),
-      familiasAfectadas: getNum('admin_familiasAfectadas'),
-      viviendasDestruidas: getNum('admin_viviendasDestruidas'),
-      viviendasAveriadas: getNum('admin_viviendasAveriadas'),
-      hectareas: getNum('admin_hectareas'),
-      viasAfectadas: getNum('admin_viasAfectadas'),
-      puentesAfectados: getNum('admin_puentesAfectados'),
-      perdidaEstimada: getNum('admin_perdidaEstimada'),
-      zonaOrigen: get('admin_zonaOrigen'),
-      areasAfectadas: get('admin_areasAfectadas'),
-      // Afectado
-      afectadoNombre: get('admin_afectadoNombre'),
-      afectadoCC: get('admin_afectadoCC'),
-      afectadoCel: get('admin_afectadoCel'),
-      // Acciones y causas
-      acciones: get('admin_acciones'),
-      causas: get('admin_causas'),
-      causaProbable: get('admin_causaProbable'),
-      evidencias: get('admin_evidencias'),
-      causaConfirmada: get('admin_causaConfirmada'),
-      // Observaciones
-      observaciones: get('admin_observaciones'),
-      recomendaciones: get('admin_recomendaciones'),
-      // Comandante
-      comandanteNombre: get('admin_comandanteNombre'),
-      comandanteGrado: get('admin_comandanteGrado'),
-      comandanteCC: get('admin_comandanteCC'),
-      comandanteEstacion: get('admin_comandanteEstacion'),
-      // Operador
-      operador: get('admin_operador'),
-      operadorGrado: get('admin_operadorGrado'),
-      operadorCC: get('admin_operadorCC'),
-      operadorTel: get('admin_operadorTel')
-    };
-  },
-
   async guardarEdicionAdmin() {
     const r = this._reporteAdminEditando;
     if (!r) return;
     const nuevoCons = document.getElementById('admin_consecutivo').value.trim();
-    const cambios = this._recopilarCambiosAdmin();
+
+    const cambios = {
+      direccion: document.getElementById('admin_direccion').value.trim(),
+      barrio: document.getElementById('admin_barrio').value.trim(),
+      municipio: document.getElementById('admin_municipio').value.trim(),
+      narrativa: document.getElementById('admin_narrativa').value.trim(),
+      acciones: document.getElementById('admin_acciones').value.trim(),
+      observaciones: document.getElementById('admin_observaciones').value.trim()
+    };
 
     try {
-      // Si cambió consecutivo, hacer cambio especial primero
+      // Si cambió consecutivo, hacer cambio especial
       if (nuevoCons && nuevoCons !== r.consecutivo) {
         const respC = await fetch(URL_BACKEND, {
           method: 'POST',
@@ -2094,8 +2037,7 @@ const app = {
         }
       }
 
-      // Guardar todos los demás cambios
-      this.toast('Guardando cambios...', 'exito');
+      // Guardar otros cambios
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -2120,71 +2062,6 @@ const app = {
     }
   },
 
-  // ========== ELIMINAR REPORTE DESDE ADMIN ==========
-  // Elimina el reporte que se está editando ACTUALMENTE.
-  // Borra la fila de la hoja Reportes, filas auxiliares y la subcarpeta de Drive.
-  async eliminarReporteAdmin() {
-    const r = this._reporteAdminEditando;
-    if (!r) {
-      this.toast('No hay reporte abierto para eliminar', 'error');
-      return;
-    }
-    const operadorReporte = r.operadorEmail || r.operador || '(operador desconocido)';
-    // Doble confirmación porque es destructivo
-    const ok1 = await this.confirmar(
-      '⚠️ Eliminar reporte',
-      `¿Está SEGURO de eliminar el reporte ${r.consecutivo || r.id}?\n\n` +
-      `Operador: ${operadorReporte}\n\n` +
-      `Esta acción NO se puede deshacer.\n` +
-      `Se borrarán:\n` +
-      `• El reporte de la hoja principal\n` +
-      `• Sus víctimas, recursos, personal y organizaciones\n` +
-      `• Su carpeta de Drive con fotos y firmas\n` +
-      `• La copia local del celular del operador (en su próxima sincronización)`
-    );
-    if (!ok1) return;
-
-    // Pedir confirmación escrita del consecutivo
-    const escrito = window.prompt(`Para confirmar, escriba el consecutivo exacto:\n${r.consecutivo}`);
-    if (escrito === null) return;
-    if ((escrito || '').trim() !== (r.consecutivo || '').trim()) {
-      this.toast('El consecutivo no coincide. Cancelado.', 'error');
-      return;
-    }
-
-    this.toast('Eliminando reporte...', 'exito');
-    try {
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          accion: 'eliminarReporte',
-          adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD,
-          idReporte: r.id
-        })
-      });
-      const data = await resp.json();
-      if (data.ok) {
-        let msg = `🗑️ Reporte ${data.consecutivo || ''} eliminado`;
-        if (data.auxBorradas) msg += ` (+ ${data.auxBorradas} aux)`;
-        if (data.carpetaBorrada) msg += ' + Drive';
-        if (data.operadorEmail) msg += ` · Avisado a ${data.operadorEmail}`;
-        this.toast(msg, 'exito');
-
-        // También eliminar de la lista local si existe (por si era propio del admin)
-        try { await DB.eliminarReporte(r.id); } catch (e) { /* puede no estar local */ }
-
-        this.cancelarEdicionAdmin();
-        await this.cargarReportesAdmin();
-      } else {
-        this.toast('Error: ' + (data.error || '?'), 'error');
-      }
-    } catch (e) {
-      this.toast('Error de red: ' + e.message, 'error');
-    }
-  },
-
   // ========== IMPRIMIR DESDE ADMIN ==========
   // Imprime el reporte que se está editando ACTUALMENTE en el panel admin,
   // tomando los cambios sin guardar como parte del PDF (vista previa de la edición).
@@ -2194,68 +2071,16 @@ const app = {
       this.toast('No hay reporte abierto para imprimir', 'error');
       return;
     }
-    const get = (id) => {
-      const el = document.getElementById(id);
-      return el ? (el.value || '').trim() : '';
-    };
-    const getNum = (id) => {
-      const v = get(id);
-      if (v === '') return 0;
-      const n = Number(v);
-      return isNaN(n) ? 0 : n;
-    };
     // Tomar valores actuales del formulario (incluso si no se guardó)
     const rConCambios = {
       ...r,
-      consecutivo: get('admin_consecutivo') || r.consecutivo,
-      estacion: get('admin_estacion') || r.estacion,
-      turno: get('admin_turno') || r.turno,
-      fechaLlamada: get('admin_fechaLlamada') || r.fechaLlamada,
-      fechaLlegada: get('admin_fechaLlegada') || r.fechaLlegada,
-      fechaCierre: get('admin_fechaCierre') || r.fechaCierre,
-      reportaNombre: get('admin_reportaNombre') || r.reportaNombre,
-      reportaTel: get('admin_reportaTel') || r.reportaTel,
-      reportaRelacion: get('admin_reportaRelacion') || r.reportaRelacion,
-      clasificacion: (get('admin_clasificacion') || '').split(',').map(s => s.trim()).filter(Boolean),
-      clasificacionOtra: get('admin_clasificacionOtra') || r.clasificacionOtra,
-      direccion: get('admin_direccion') || r.direccion,
-      barrio: get('admin_barrio') || r.barrio,
-      localidad: get('admin_localidad') || r.localidad,
-      municipio: get('admin_municipio') || r.municipio,
-      referencia: get('admin_referencia') || r.referencia,
-      narrativa: get('admin_narrativa') || r.narrativa,
-      condiciones: get('admin_condiciones') || r.condiciones,
-      muertos: getNum('admin_muertos'),
-      heridos: getNum('admin_heridos'),
-      desaparecidos: getNum('admin_desaparecidos'),
-      personasAfectadas: getNum('admin_personasAfectadas'),
-      familiasAfectadas: getNum('admin_familiasAfectadas'),
-      viviendasDestruidas: getNum('admin_viviendasDestruidas'),
-      viviendasAveriadas: getNum('admin_viviendasAveriadas'),
-      hectareas: getNum('admin_hectareas'),
-      viasAfectadas: getNum('admin_viasAfectadas'),
-      puentesAfectados: getNum('admin_puentesAfectados'),
-      perdidaEstimada: getNum('admin_perdidaEstimada'),
-      zonaOrigen: get('admin_zonaOrigen') || r.zonaOrigen,
-      areasAfectadas: get('admin_areasAfectadas') || r.areasAfectadas,
-      afectadoNombre: get('admin_afectadoNombre') || r.afectadoNombre,
-      afectadoCC: get('admin_afectadoCC') || r.afectadoCC,
-      afectadoCel: get('admin_afectadoCel') || r.afectadoCel,
-      acciones: get('admin_acciones') || r.acciones,
-      causas: (get('admin_causas') || '').split(',').map(s => s.trim()).filter(Boolean),
-      causaProbable: get('admin_causaProbable') || r.causaProbable,
-      evidencias: get('admin_evidencias') || r.evidencias,
-      causaConfirmada: get('admin_causaConfirmada') || r.causaConfirmada,
-      observaciones: get('admin_observaciones') || r.observaciones,
-      recomendaciones: get('admin_recomendaciones') || r.recomendaciones,
-      comandanteNombre: get('admin_comandanteNombre') || r.comandanteNombre,
-      comandanteGrado: get('admin_comandanteGrado') || r.comandanteGrado,
-      comandanteCC: get('admin_comandanteCC') || r.comandanteCC,
-      comandanteEstacion: get('admin_comandanteEstacion') || r.comandanteEstacion,
-      operador: get('admin_operador') || r.operador,
-      operadorGrado: get('admin_operadorGrado') || r.operadorGrado,
-      operadorCC: get('admin_operadorCC') || r.operadorCC,
-      operadorTel: get('admin_operadorTel') || r.operadorTel
+      consecutivo: document.getElementById('admin_consecutivo').value.trim() || r.consecutivo,
+      direccion: document.getElementById('admin_direccion').value.trim() || r.direccion,
+      barrio: document.getElementById('admin_barrio').value.trim() || r.barrio,
+      municipio: document.getElementById('admin_municipio').value.trim() || r.municipio,
+      narrativa: document.getElementById('admin_narrativa').value.trim() || r.narrativa,
+      acciones: document.getElementById('admin_acciones').value.trim() || r.acciones,
+      observaciones: document.getElementById('admin_observaciones').value.trim() || r.observaciones
     };
     await this._imprimirReporteEnVentanaNueva(rConCambios);
   },
