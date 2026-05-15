@@ -1,7 +1,8 @@
 /* ============================================================
-   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v5.5
+   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v5.6
    ✅ URL_BACKEND actualizada al nuevo Apps Script (AKfycbzVI3...)
    ✅ Cierre de mes por fecha de llamada (Panel Admin)
+   ✅ Reparar hipervínculos rotos (#ERROR! en Sheets)
    Login con Google, Sistema de administrador, Auto-completado GPS
    ============================================================ */
 
@@ -1884,6 +1885,52 @@ const app = {
     }
 
     this._cierreMesPendiente = null;
+  },
+
+  // ========== 🆕 v5.6: REPARAR HIPERVÍNCULOS ROTOS ==========
+  async repararHipervinculos() {
+    if (!this.esAdmin()) {
+      this.toast('Solo el administrador', 'error');
+      return;
+    }
+    if (!this.config.urlBackend) {
+      this.toast('Configure URL del backend primero', 'error');
+      return;
+    }
+
+    const ok = await this.confirmar(
+      '🔧 ¿Reparar hipervínculos de fotos?',
+      'Esta acción busca las celdas con #ERROR! en Google Sheets y arregla los enlaces de fotos y firmas. NO re-sube fotos, solo arregla las fórmulas rotas. ¿Continuar?'
+    );
+    if (!ok) return;
+
+    this.toast('Reparando enlaces... espere unos segundos', 'exito');
+
+    try {
+      const resp = await fetch(this.config.urlBackend, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'repararHipervinculos',
+          adminEmail: this.usuario.email,
+          token: this.config.token || ''
+        })
+      });
+      const data = await resp.json();
+
+      if (data && data.ok) {
+        if (data.reparados === 0) {
+          this.toast('✅ No había enlaces rotos. Todo en orden.', 'exito');
+        } else {
+          this.toast(`✅ ${data.reparados} enlaces reparados de ${data.totalFilas} reportes`, 'exito');
+        }
+      } else {
+        this.toast('Error: ' + (data?.error || 'desconocido'), 'error');
+      }
+    } catch (err) {
+      console.error('Error reparando:', err);
+      this.toast('Error de red: ' + err.message, 'error');
+    }
   },
 
   // ========== PANEL ADMIN CON CONTRASEÑA ==========
