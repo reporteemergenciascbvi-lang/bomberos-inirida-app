@@ -221,7 +221,9 @@ const app = {
   async manejarRespuestaGoogle(response) {
     try {
       // Decodificar el JWT (sin verificar firma — Google ya lo firmó)
-      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      // JWT usa base64url: reemplazar - y _ antes de pasar a atob()
+      const b64 = response.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(b64));
 
       // 1. Buscar perfil LOCAL primero (más rápido)
       const claveBomberoPorCorreo = 'bombero:' + payload.email;
@@ -724,6 +726,8 @@ const app = {
       else if (el.type === 'number') el.value = el.defaultValue || '';
       else el.value = '';
     });
+    // Resetear selects (turno, etc.) para que no queden datos del reporte anterior
+    document.querySelectorAll('#pantallaForm select').forEach(sel => sel.value = '');
     document.getElementById('f_municipio').value = 'Inírida';
     document.getElementById('f_comandante_estacion').value = NOMBRE_ESTACION;
     document.querySelectorAll('.foto-slot').forEach((slot, i) => {
@@ -1417,7 +1421,7 @@ const app = {
         .map(i => i.value.trim()).filter(v => v);
       return {
         recurso,
-        cantidad: fila.querySelector('[data-campo="cantidad"]').value,
+        cantidad: +fila.querySelector('[data-campo="cantidad"]').value || 1,
         codigo: fila.querySelector('[data-campo="codigo"]').value,
         responsable: fila.querySelector('[data-campo="responsable"]').value,
         personal
@@ -1548,8 +1552,8 @@ const app = {
     if (document.getElementById('f_acciones').value) llenas++;
     if (document.getElementById('tablaVictimas').children.length > 0 || (+document.getElementById('f_heridos').value === 0 && +document.getElementById('f_muertos').value === 0)) llenas++;
     if (document.querySelectorAll('[data-grupo="causas"]:checked').length > 0) llenas++;
-    llenas++;
-    llenas++;
+    if (document.getElementById('f_fecha_llamada').value) llenas++;
+    if (this.reporteActual?.gps) llenas++;
     if (document.getElementById('f_comandante_nombre').value) llenas++;
 
     const pct = Math.min(100, Math.round((llenas / total) * 100));
@@ -1606,11 +1610,16 @@ const app = {
       let consecutivoServidor = '';
       try {
         const data = await resp.json();
+        // Si el servidor rechaza el reporte (ok:false), mantener estado pendiente
+        if (data && !data.ok) {
+          console.error('Servidor rechazó el reporte:', data.error);
+          return false;
+        }
         if (data && data.ok && data.consecutivo) {
           consecutivoServidor = data.consecutivo;
         }
       } catch (e) {
-        // Si no se puede leer la respuesta (no-cors fallback), seguimos
+        // Si no se puede leer la respuesta (no-cors fallback), asumimos éxito
         console.warn('No se pudo leer respuesta del servidor:', e);
       }
 
@@ -2708,7 +2717,12 @@ ${paginaFotos}
   },
 
   async exportarTodo() {
-    const reportes = await DB.listarReportes();
+    let reportes = await DB.listarReportes();
+    // Filtrar solo los reportes del usuario actual (igual que la pantalla Home)
+    if (this.usuario && this.usuario.email) {
+      const email = this.usuario.email.toLowerCase();
+      reportes = reportes.filter(r => !r.operadorEmail || r.operadorEmail.toLowerCase() === email);
+    }
     if (reportes.length === 0) { this.toast('No hay reportes', 'error'); return; }
     const blob = new Blob([JSON.stringify(reportes, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
