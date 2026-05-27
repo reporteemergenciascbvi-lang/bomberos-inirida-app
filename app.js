@@ -165,6 +165,11 @@ const app = {
       if (sesion.registroCompleto) {
         this.irA('pantallaHome');
         await this.actualizarHome();
+        // Sincronizar reportes del servidor en segundo plano
+        // (al abrir la app con sesión activa también, no solo tras login nuevo).
+        // Esto permite que un reporte hecho en otro dispositivo con el mismo
+        // correo aparezca aquí al refrescar.
+        this.sincronizarReportesDesdeServidor().catch(e => console.warn('Sincronización falló:', e));
       } else {
         this.irA('pantallaRegistroComplemento');
       }
@@ -1959,18 +1964,76 @@ const app = {
         <div style="font-size:11px;color:#888;margin-top:4px;">
           ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
         </div>
-        <div style="display:flex;gap:6px;margin-top:8px;">
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
           <button onclick="app.editarReporteAdmin('${r.id}')"
-                  style="flex:1;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+                  style="flex:1;min-width:80px;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
             ✏️ Editar
           </button>
           <button onclick="app.imprimirReporteAdmin('${r.id}')"
-                  style="flex:1;padding:8px 6px;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+                  style="flex:1;min-width:80px;padding:8px 6px;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
             🖨️ Imprimir
+          </button>
+          <button onclick="app.eliminarReporteAdmin('${r.id}', '${(r.consecutivo || '').replace(/'/g, '')}')"
+                  style="flex:1;min-width:80px;padding:8px 6px;background:#991b1b;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+            🗑️ Eliminar
           </button>
         </div>
       </div>
     `).join('');
+  },
+
+  async eliminarReporteAdmin(id, consecutivo) {
+    if (!this.esAdmin()) {
+      this.toast('Solo el administrador', 'error');
+      return;
+    }
+    const ok = window.confirm(
+      `⚠️ ELIMINAR REPORTE\n\n` +
+      `Consecutivo: ${consecutivo || '(sin consecutivo)'}\n\n` +
+      `Se borrará la fila del Google Sheets Y la subcarpeta de fotos/firmas en Drive.\n\n` +
+      `Esta acción NO se puede deshacer.\n\n` +
+      `¿Continuar?`
+    );
+    if (!ok) return;
+
+    const cont = document.getElementById('listaReportesAdmin');
+    const cardOriginal = cont ? cont.innerHTML : '';
+    if (cont) cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Eliminando reporte del servidor...</div>';
+
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'eliminarReporte',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD,
+          idReporte: id
+        })
+      });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) {
+        if (cont) cont.innerHTML = cardOriginal;
+        this.toast('Respuesta del servidor no válida. Verifica que el backend esté actualizado.', 'error');
+        return;
+      }
+      if (!data.ok) {
+        if (cont) cont.innerHTML = cardOriginal;
+        this.toast('Error: ' + (data.error || 'desconocido'), 'error');
+        return;
+      }
+      // También borrar localmente si está en este dispositivo
+      try { await DB.eliminarReporte(id); } catch (e) { /* ignore */ }
+      this._reportesAdmin = (this._reportesAdmin || []).filter(r => r.id !== id);
+      this.renderizarListaAdmin(document.getElementById('filtroAdmin')?.value || '');
+      await this.actualizarHome();
+      this.toast(`Reporte ${consecutivo || ''} eliminado`, 'exito');
+    } catch (e) {
+      if (cont) cont.innerHTML = cardOriginal;
+      this.toast('Error de red al eliminar: ' + e.message, 'error');
+    }
   },
 
   filtrarAdmin() {
