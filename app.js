@@ -2328,11 +2328,16 @@ const app = {
 <style>
   :root { --logo-watermark: url("${typeof LOGO_BIG !== 'undefined' ? LOGO_BIG : ''}"); }
   @page { size: A4; margin: 10mm; }
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   body {
     font-family: 'Times New Roman', Times, serif;
-    font-size: 9pt; color: #000; margin: 0; padding: 0;
+    font-size: 9pt; color: #000 !important; margin: 0; padding: 0;
     line-height: 1.3;
+    font-weight: 500;   /* texto más sólido para que no se vea opaco al imprimir */
   }
   .pagina {
     width: 100%; max-width: 190mm; margin: 0 auto;
@@ -2340,18 +2345,18 @@ const app = {
     position: relative;
   }
   .pagina:last-child { page-break-after: auto; }
-  /* Marca de agua del logo institucional, tenue, en cada página */
+  /* Marca de agua del logo institucional — MUY tenue para no opacar el texto */
   .pagina::before {
     content: "";
     position: fixed;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    width: 130mm; height: 130mm;
+    width: 120mm; height: 120mm;
     background-image: var(--logo-watermark);
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
-    opacity: 0.06;
+    opacity: 0.035;     /* bajada de 0.06 → 0.035 para que el texto se vea negro nítido */
     z-index: 0;
     pointer-events: none;
     -webkit-print-color-adjust: exact;
@@ -2398,38 +2403,47 @@ const app = {
   .aviso { font-size: 7pt; font-style: italic; margin: 3px 0; padding: 2px; background: #fffbe6; color: #000; }
 
   .pagina-fotos {
-    display: flex; flex-direction: column; height: 277mm;
+    display: flex; flex-direction: column;
   }
   .header-mini {
     display: flex; align-items: center; gap: 10px;
     border: 1px solid #000; padding: 4px; margin-bottom: 6px; font-size: 9pt; color: #000;
   }
   .header-mini img { width: 40px; height: 40px; object-fit: contain; }
+  /* === Anexo fotográfico ===
+     3 fotos por hoja apiladas verticalmente, cada slot con tamaño fijo
+     (no flex) para evitar desalineación al imprimir. Las imágenes se
+     recortan al aspect ratio 3:2 horizontal uniforme (object-fit: cover)
+     para que TODAS encajen igual, sean verticales u horizontales. */
   .fotos-grid-pdf {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 4mm;
   }
   .foto-grande {
     border: 1px solid #000;
+    background: #fafafa;
+    width: 100%;
+    height: 82mm;          /* 3 × 82mm + 2 × 4mm gap = 254mm — cabe en A4 */
     display: flex; flex-direction: column;
-    overflow: hidden; background: #fafafa;
-    /* Importante: cada celda del grid debe contener su contenido */
-    min-width: 0; min-height: 0;
+    overflow: hidden;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .foto-grande.vacia { background: white; border: 1px dashed #888; }
   .foto-grande img {
-    flex: 1; min-height: 0; min-width: 0;
-    width: 100%; height: 100%;
-    object-fit: contain;
+    width: 100%;
+    height: calc(82mm - 6mm);   /* descuenta alto del pie */
+    object-fit: cover;          /* uniforma todas las fotos: recorta sin distorsionar */
+    object-position: center;
     background: white;
     display: block;
   }
   .foto-grande .foto-pie {
     font-size: 8pt; text-align: center;
-    padding: 2px; background: #e8e8e8; border-top: 1px solid #000; color: #000;
+    padding: 1px 2px; background: #e8e8e8; border-top: 1px solid #000; color: #000;
+    height: 5mm; line-height: 5mm;
     flex-shrink: 0;
   }
 </style>

@@ -1,5 +1,5 @@
-/* Service Worker v5.5 - CBVI Reportes (soporte 6 fotos + PDF anexo en 2 hojas) */
-const CACHE = 'bomberos-inirida-v5-5';
+/* Service Worker v5.6 - CBVI Reportes (fix layout PDF + texto más nítido + RichText hyperlinks) */
+const CACHE = 'bomberos-inirida-v5-6';
 const ARCHIVOS = [
   './',
   './index.html',
