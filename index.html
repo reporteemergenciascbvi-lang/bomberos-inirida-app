@@ -685,7 +685,7 @@
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;">
       <p><b>1. Crear un reporte</b><br>Toque <b>"Nueva Emergencia"</b>. Llene las 14 secciones del formulario. Los campos marcados con <span style="color:#c00;">*</span> son obligatorios.</p>
       <p><b>2. Capturar GPS</b><br>En la sección 3 toque <b>"Usar GPS automático"</b>. La app captura coordenadas, altitud, velocidad y orientación. También puede escribir manualmente.</p>
-      <p><b>3. Tomar fotos</b><br>Hasta <b>4 fotos</b> por reporte. Puede tomar con la cámara o elegir de la galería. Las fotos suben a Drive y aparecen como link en el Sheets.</p>
+      <p><b>3. Tomar fotos</b><br>Hasta <b>6 fotos</b> por reporte. Puede tomar con la cámara o elegir de la galería. Las fotos suben a Drive y aparecen como link en el Sheets.</p>
       <p><b>4. Firmas</b><br>El afectado firma con el dedo en pantalla, y el comandante también. Si guarda como borrador, las firmas se mantienen al volver a abrir.</p>
       <p><b>5. Enviar</b><br>Si tiene internet, el reporte se envía al servidor inmediatamente. Si no, queda <b>pendiente</b> y se envía solo cuando recupere conexión.</p>
       <p><b>6. Imprimir / Descargar PDF</b><br>Desde el detalle de cada reporte toque <b>"Imprimir"</b>. Sale el formato oficial con logo, firmas y fotos.</p>
@@ -961,7 +961,7 @@
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>✏️ Qué pasó.</strong> Cuente con detalle qué reportó la persona que llamó y qué encontraron al llegar. Adjunte hasta 4 fotografías del evento (las cuales saldrán en hoja aparte tamaño grande al imprimir).
+        <strong>✏️ Qué pasó.</strong> Cuente con detalle qué reportó la persona que llamó y qué encontraron al llegar. Adjunte hasta 6 fotografías del evento (saldrán en dos hojas aparte tamaño grande al imprimir, 3 por hoja).
       </div>
 
       <div class="campo">
@@ -979,7 +979,7 @@
       </div>
 
       <div class="campo">
-        <label>Fotografías del incidente <span class="opcional">(hasta 4)</span></label>
+        <label>Fotografías del incidente <span class="opcional">(hasta 6)</span></label>
         <div class="fotos-grid">
           <div class="foto-slot" data-foto="0" onclick="app.elegirFoto(0)">
             <span class="icono">📷</span><span>Foto 1</span>
@@ -993,8 +993,14 @@
           <div class="foto-slot" data-foto="3" onclick="app.elegirFoto(3)">
             <span class="icono">📷</span><span>Foto 4</span>
           </div>
+          <div class="foto-slot" data-foto="4" onclick="app.elegirFoto(4)">
+            <span class="icono">📷</span><span>Foto 5</span>
+          </div>
+          <div class="foto-slot" data-foto="5" onclick="app.elegirFoto(5)">
+            <span class="icono">📷</span><span>Foto 6</span>
+          </div>
         </div>
-        <div class="ayuda">Toque cada espacio para tomar foto con la cámara o seleccionar una de su galería. Las fotos saldrán en hoja aparte al imprimir.</div>
+        <div class="ayuda">Toque cada espacio para tomar foto con la cámara o seleccionar una de su galería. Las fotos saldrán en hojas aparte al imprimir (3 fotos por hoja).</div>
       </div>
     </div>
   </div>
@@ -1381,16 +1387,6 @@
       </p>
       <button class="btn btn-completo" onclick="app.abrirCierreMes()" style="background: #7a1010; color: #fff;">
         📅 Cerrar mes y reorganizar consecutivos
-      </button>
-    </div>
-
-    <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
-      <h4 style="color: #1e40af; font-size: 14px; margin-bottom: 8px;">🔧 Reparar enlaces de fotos (#ERROR!)</h4>
-      <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
-        Si en Google Sheets aparece <strong>#ERROR!</strong> en las columnas de fotos o firmas, este botón arregla las fórmulas usando los IDs de Drive. No re-sube fotos, solo limpia los enlaces.
-      </p>
-      <button class="btn btn-completo" onclick="app.repararHipervinculos()" style="background: #1e40af; color: #fff;">
-        🔧 Reparar enlaces rotos en Google Sheets
       </button>
     </div>
 

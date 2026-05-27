@@ -1,9 +1,5 @@
 /* ============================================================
-   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v5.7
-   ✅ URL_BACKEND actualizada al nuevo Apps Script (AKfycbzVI3...)
-   ✅ Cierre de mes por fecha de llamada (Panel Admin)
-   ✅ Reparar hipervínculos rotos (#ERROR! en Sheets)
-   ✅ RichTextValue en lugar de HYPERLINK (arregla bug dueño-mismo)
+   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v4
    Login con Google, Sistema de administrador, Auto-completado GPS
    ============================================================ */
 
@@ -137,7 +133,7 @@ const app = {
 
   usuario: null,  // {email, nombre, foto, grado, cedula, telefono}
 
-  fotosTemp: [null, null, null, null],
+  fotosTemp: [null, null, null, null, null, null],
   firmas: { afectado: null, comandante: null },
   modalCallback: null,
   fotoSlotActivo: null,
@@ -221,9 +217,7 @@ const app = {
   async manejarRespuestaGoogle(response) {
     try {
       // Decodificar el JWT (sin verificar firma — Google ya lo firmó)
-      // JWT usa base64url: reemplazar - y _ antes de pasar a atob()
-      const b64 = response.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(atob(b64));
+      const payload = JSON.parse(atob(response.credential.split('.')[1]));
 
       // 1. Buscar perfil LOCAL primero (más rápido)
       const claveBomberoPorCorreo = 'bombero:' + payload.email;
@@ -697,7 +691,7 @@ const app = {
       firmas: {}
     };
 
-    this.fotosTemp = [null, null, null, null];
+    this.fotosTemp = [null, null, null, null, null, null];
     this.firmas = { afectado: null, comandante: null };
     this.modoUbicacion = 'auto';
 
@@ -726,8 +720,6 @@ const app = {
       else if (el.type === 'number') el.value = el.defaultValue || '';
       else el.value = '';
     });
-    // Resetear selects (turno, etc.) para que no queden datos del reporte anterior
-    document.querySelectorAll('#pantallaForm select').forEach(sel => sel.value = '');
     document.getElementById('f_municipio').value = 'Inírida';
     document.getElementById('f_comandante_estacion').value = NOMBRE_ESTACION;
     document.querySelectorAll('.foto-slot').forEach((slot, i) => {
@@ -1421,7 +1413,7 @@ const app = {
         .map(i => i.value.trim()).filter(v => v);
       return {
         recurso,
-        cantidad: +fila.querySelector('[data-campo="cantidad"]').value || 1,
+        cantidad: fila.querySelector('[data-campo="cantidad"]').value,
         codigo: fila.querySelector('[data-campo="codigo"]').value,
         responsable: fila.querySelector('[data-campo="responsable"]').value,
         personal
@@ -1464,9 +1456,9 @@ const app = {
     document.getElementById('f_narrativa').value = r.narrativa || '';
     document.getElementById('f_condiciones').value = r.condiciones || '';
 
-    this.fotosTemp = [null, null, null, null];
+    this.fotosTemp = [null, null, null, null, null, null];
     (r.fotos || []).forEach((f, i) => {
-      if (i < 4) {
+      if (i < 6) {
         this.fotosTemp[i] = f;
         const slotEl = document.querySelector(`.foto-slot[data-foto="${i}"]`);
         slotEl.innerHTML = `
@@ -1552,8 +1544,8 @@ const app = {
     if (document.getElementById('f_acciones').value) llenas++;
     if (document.getElementById('tablaVictimas').children.length > 0 || (+document.getElementById('f_heridos').value === 0 && +document.getElementById('f_muertos').value === 0)) llenas++;
     if (document.querySelectorAll('[data-grupo="causas"]:checked').length > 0) llenas++;
-    if (document.getElementById('f_fecha_llamada').value) llenas++;
-    if (this.reporteActual?.gps) llenas++;
+    llenas++;
+    llenas++;
     if (document.getElementById('f_comandante_nombre').value) llenas++;
 
     const pct = Math.min(100, Math.round((llenas / total) * 100));
@@ -1610,16 +1602,11 @@ const app = {
       let consecutivoServidor = '';
       try {
         const data = await resp.json();
-        // Si el servidor rechaza el reporte (ok:false), mantener estado pendiente
-        if (data && !data.ok) {
-          console.error('Servidor rechazó el reporte:', data.error);
-          return false;
-        }
         if (data && data.ok && data.consecutivo) {
           consecutivoServidor = data.consecutivo;
         }
       } catch (e) {
-        // Si no se puede leer la respuesta (no-cors fallback), asumimos éxito
+        // Si no se puede leer la respuesta (no-cors fallback), seguimos
         console.warn('No se pudo leer respuesta del servidor:', e);
       }
 
@@ -1895,52 +1882,6 @@ const app = {
     }
 
     this._cierreMesPendiente = null;
-  },
-
-  // ========== 🆕 v5.6: REPARAR HIPERVÍNCULOS ROTOS ==========
-  async repararHipervinculos() {
-    if (!this.esAdmin()) {
-      this.toast('Solo el administrador', 'error');
-      return;
-    }
-    if (!this.config.urlBackend) {
-      this.toast('Configure URL del backend primero', 'error');
-      return;
-    }
-
-    const ok = await this.confirmar(
-      '🔧 ¿Reparar hipervínculos de fotos?',
-      'Esta acción busca las celdas con #ERROR! en Google Sheets y arregla los enlaces de fotos y firmas. NO re-sube fotos, solo arregla las fórmulas rotas. ¿Continuar?'
-    );
-    if (!ok) return;
-
-    this.toast('Reparando enlaces... espere unos segundos', 'exito');
-
-    try {
-      const resp = await fetch(this.config.urlBackend, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          accion: 'repararHipervinculos',
-          adminEmail: this.usuario.email,
-          token: this.config.token || ''
-        })
-      });
-      const data = await resp.json();
-
-      if (data && data.ok) {
-        if (data.reparados === 0) {
-          this.toast('✅ No había enlaces rotos. Todo en orden.', 'exito');
-        } else {
-          this.toast(`✅ ${data.reparados} enlaces reparados de ${data.totalFilas} reportes`, 'exito');
-        }
-      } else {
-        this.toast('Error: ' + (data?.error || 'desconocido'), 'error');
-      }
-    } catch (err) {
-      console.error('Error reparando:', err);
-      this.toast('Error de red: ' + err.message, 'error');
-    }
   },
 
   // ========== PANEL ADMIN CON CONTRASEÑA ==========
@@ -2265,7 +2206,7 @@ const app = {
   async editarReporte() {
     if (!this.reporteActual) return;
     this.cargarEnFormulario(this.reporteActual);
-    this.fotosTemp = [...(this.reporteActual.fotos || []), null, null, null, null].slice(0, 4);
+    this.fotosTemp = [...(this.reporteActual.fotos || []), null, null, null, null, null, null].slice(0, 6);
     this.irA('pantallaForm');
   },
 
@@ -2337,10 +2278,10 @@ const app = {
     const fotos = r.fotos || [];
     const tieneFotos = fotos.length > 0;
 
-    let paginaFotos = '';
-    if (tieneFotos) {
+    // Genera una hoja de anexo con 3 fotos (indiceInicio..indiceInicio+2)
+    const construirHojaFotos = (indiceInicio, etiquetaHoja, totalHojas) => {
       const slotsFotos = [];
-      for (let i = 0; i < 4; i++) {
+      for (let i = indiceInicio; i < indiceInicio + 3; i++) {
         if (fotos[i]) {
           slotsFotos.push(`
             <div class="foto-grande">
@@ -2352,13 +2293,13 @@ const app = {
           slotsFotos.push(`<div class="foto-grande vacia"></div>`);
         }
       }
-      paginaFotos = `
+      return `
         <div class="pagina pagina-fotos">
           <div class="header-mini">
             <img src="${typeof LOGO_BIG !== 'undefined' ? LOGO_BIG : ''}" alt="">
             <div>
               <strong>CUERPO DE BOMBEROS VOLUNTARIOS — INÍRIDA, GUAINÍA</strong><br>
-              <span style="font-size: 9pt;">Anexo fotográfico — Reporte ${r.consecutivo || ''}</span>
+              <span style="font-size: 9pt;">Anexo fotográfico — Reporte ${r.consecutivo || ''} — Hoja ${etiquetaHoja}/${totalHojas}</span>
             </div>
           </div>
           <div class="fotos-grid-pdf">
@@ -2366,6 +2307,17 @@ const app = {
           </div>
         </div>
       `;
+    };
+
+    let paginaFotos = '';
+    if (tieneFotos) {
+      // Hoja 1: fotos 1-3. Hoja 2: fotos 4-6 (solo si hay al menos una de las últimas tres).
+      const hayHoja2 = fotos.length > 3;
+      const totalHojas = hayHoja2 ? 2 : 1;
+      paginaFotos = construirHojaFotos(0, 1, totalHojas);
+      if (hayHoja2) {
+        paginaFotos += construirHojaFotos(3, 2, totalHojas);
+      }
     }
 
     return `<!DOCTYPE html>
@@ -2456,8 +2408,8 @@ const app = {
   .fotos-grid-pdf {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
     gap: 4mm;
   }
   .foto-grande {
@@ -2717,12 +2669,7 @@ ${paginaFotos}
   },
 
   async exportarTodo() {
-    let reportes = await DB.listarReportes();
-    // Filtrar solo los reportes del usuario actual (igual que la pantalla Home)
-    if (this.usuario && this.usuario.email) {
-      const email = this.usuario.email.toLowerCase();
-      reportes = reportes.filter(r => !r.operadorEmail || r.operadorEmail.toLowerCase() === email);
-    }
+    const reportes = await DB.listarReportes();
     if (reportes.length === 0) { this.toast('No hay reportes', 'error'); return; }
     const blob = new Blob([JSON.stringify(reportes, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
