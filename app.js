@@ -1965,6 +1965,10 @@ const app = {
           ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
         </div>
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          <button onclick="app.verReporteAdmin('${r.id}')"
+                  style="flex:1;min-width:80px;padding:8px 6px;background:#065f46;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+            👁️ Ver
+          </button>
           <button onclick="app.editarReporteAdmin('${r.id}')"
                   style="flex:1;min-width:80px;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
             ✏️ Editar
@@ -2039,6 +2043,183 @@ const app = {
   filtrarAdmin() {
     const f = document.getElementById('filtroAdmin');
     this.renderizarListaAdmin(f ? f.value : '');
+  },
+
+  // ========== VER DETALLE DE UN REPORTE (admin) ==========
+  // Descarga el reporte completo del servidor (con fotos+firmas) y lo muestra
+  // en read-only dentro del panel admin, sin tocar la BD local del bombero.
+  async verReporteAdmin(idReporte) {
+    const rBase = (this._reportesAdmin || []).find(x => x.id === idReporte);
+    if (!rBase) { this.toast('Reporte no encontrado', 'error'); return; }
+
+    // Mostrar el panel de visualización
+    document.getElementById('listaReportesAdminWrap').style.display = 'none';
+    document.getElementById('panelAdminViendo').style.display = 'block';
+    const cont = document.getElementById('panelAdminViendoContenido');
+    cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Cargando reporte completo desde el servidor...</div>';
+
+    // Descargar reporte completo
+    const r = await this._descargarReporteCompletoAdmin(idReporte) || rBase;
+    this._reporteAdminViendo = r;
+
+    // Conectar el botón "Imprimir" del panel a este reporte
+    const btnImpr = document.getElementById('btnImprimirDesdeVista');
+    if (btnImpr) {
+      btnImpr.onclick = () => this._imprimirReporteEnVentanaNueva(r);
+    }
+
+    // Renderizar contenido
+    cont.innerHTML = this._renderDetalleReporteAdmin(r);
+  },
+
+  cerrarVistaAdmin() {
+    document.getElementById('panelAdminViendo').style.display = 'none';
+    document.getElementById('listaReportesAdminWrap').style.display = 'block';
+    this._reporteAdminViendo = null;
+  },
+
+  // Renderiza el HTML de detalle de un reporte (read-only) — incluye todas
+  // las secciones del formulario más fotos clickeables (se abren a tamaño real).
+  _renderDetalleReporteAdmin(r) {
+    const fmt = (v) => (v === null || v === undefined || v === '') ? '<span style="color:#999;">—</span>' : String(v);
+    const fecha = (v) => {
+      if (!v) return '—';
+      try { return new Date(v).toLocaleString('es-CO'); } catch (e) { return String(v); }
+    };
+    const lista = (arr) => (arr && arr.length) ? arr.join(', ') : '—';
+
+    const fotos = r.fotos || [];
+    const fotosHTML = fotos.length === 0
+      ? '<div style="color:#999;font-style:italic;padding:8px;">Sin fotografías</div>'
+      : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">${
+          fotos.map((url, i) => `
+            <a href="${url}" target="_blank" style="display:block;border:1px solid #ccc;border-radius:6px;overflow:hidden;text-decoration:none;">
+              <img src="${url}" alt="Foto ${i+1}"
+                   style="width:100%;height:120px;object-fit:cover;background:#f0f0f0;display:block;"
+                   onerror="this.style.display='none';this.parentNode.innerHTML+='<div style=&quot;padding:8px;color:#c00;font-size:11px;&quot;>No se pudo cargar la foto ${i+1}</div>';">
+              <div style="padding:4px;font-size:11px;text-align:center;background:#f8f8f8;color:#333;">📷 Foto ${i+1}</div>
+            </a>
+          `).join('')
+        }</div>`;
+
+    const firmas = r.firmas || {};
+    const renderFirma = (url, etiqueta) => {
+      if (!url) return `<div style="color:#999;font-style:italic;">${etiqueta}: —</div>`;
+      return `
+        <div style="border:1px solid #ccc;border-radius:6px;padding:6px;background:#fafafa;">
+          <div style="font-size:11px;color:#666;margin-bottom:4px;">${etiqueta}</div>
+          <a href="${url}" target="_blank">
+            <img src="${url}" alt="${etiqueta}"
+                 style="max-width:100%;max-height:80px;background:white;border:1px solid #eee;"
+                 onerror="this.style.display='none';">
+          </a>
+        </div>
+      `;
+    };
+
+    const card = (titulo, contenidoHTML) => `
+      <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px;margin-bottom:10px;">
+        <h4 style="color:#7a1010;margin:0 0 8px 0;font-size:14px;">${titulo}</h4>
+        <div style="font-size:13px;color:#222;line-height:1.5;">${contenidoHTML}</div>
+      </div>
+    `;
+
+    const fila = (label, valor) => `<div><strong>${label}:</strong> ${fmt(valor)}</div>`;
+
+    return `
+      <h3 style="color:#7a1010;margin:0 0 12px 0;">📄 ${r.consecutivo || '(sin consecutivo)'}</h3>
+      <div style="font-size:12px;color:#666;margin-bottom:12px;">
+        ID: <code>${r.id}</code> · Estación: ${fmt(r.estacion)}
+      </div>
+
+      ${card('🕐 Fechas y reportante', `
+        ${fila('Creación', fecha(r.fechaCreacion))}
+        ${fila('Llamada', fecha(r.fechaLlamada))}
+        ${fila('Llegada', fecha(r.fechaLlegada))}
+        ${fila('Cierre', fecha(r.fechaCierre))}
+        ${fila('Reporta nombre', r.reportaNombre)}
+        ${fila('Reporta tel', r.reportaTel)}
+        ${fila('Relación', r.reportaRelacion)}
+        ${fila('Turno', r.turno)}
+      `)}
+
+      ${card('🚨 Clasificación', `
+        ${fila('Tipos', lista(r.clasificacion))}
+        ${fila('Otra clasificación', r.clasificacionOtra)}
+      `)}
+
+      ${card('📍 Ubicación', `
+        ${fila('Dirección', r.direccion)}
+        ${fila('Barrio', r.barrio)}
+        ${fila('Localidad', r.localidad)}
+        ${fila('Municipio', r.municipio)}
+        ${fila('Referencia', r.referencia)}
+      `)}
+
+      ${card('📝 Descripción del evento', `
+        <div><strong>Narrativa:</strong><br>${fmt(r.narrativa)}</div>
+        <div style="margin-top:6px;"><strong>Condiciones al llegar:</strong><br>${fmt(r.condiciones)}</div>
+      `)}
+
+      ${card('🩺 Diagnóstico', `
+        ${fila('Muertos', r.muertos)}
+        ${fila('Heridos', r.heridos)}
+        ${fila('Desaparecidos', r.desaparecidos)}
+        ${fila('Personas afectadas', r.personasAfectadas)}
+        ${fila('Familias afectadas', r.familiasAfectadas)}
+        ${fila('Viviendas destruidas', r.viviendasDestruidas)}
+        ${fila('Viviendas averiadas', r.viviendasAveriadas)}
+        ${fila('Hectáreas', r.hectareas)}
+        ${fila('Vías afectadas', r.viasAfectadas)}
+        ${fila('Puentes', r.puentesAfectados)}
+        ${fila('Pérdida estimada $', r.perdidaEstimada)}
+        ${fila('Zona origen', r.zonaOrigen)}
+        ${fila('Áreas afectadas', r.areasAfectadas)}
+      `)}
+
+      ${card('👤 Afectado', `
+        ${fila('Nombre', r.afectadoNombre)}
+        ${fila('CC', r.afectadoCC)}
+        ${fila('Celular', r.afectadoCel)}
+      `)}
+
+      ${card('🛠️ Acciones y causas', `
+        <div><strong>Acciones realizadas:</strong><br>${fmt(r.acciones)}</div>
+        <div style="margin-top:6px;">${fila('Causas', lista(r.causas))}</div>
+        ${fila('Causa probable', r.causaProbable)}
+        <div><strong>Evidencias:</strong><br>${fmt(r.evidencias)}</div>
+        ${fila('Causa confirmada', r.causaConfirmada)}
+      `)}
+
+      ${card('💬 Observaciones', `
+        <div><strong>Observaciones:</strong><br>${fmt(r.observaciones)}</div>
+        <div style="margin-top:6px;"><strong>Recomendaciones:</strong><br>${fmt(r.recomendaciones)}</div>
+      `)}
+
+      ${card('👨‍🚒 Comandante', `
+        ${fila('Nombre', r.comandanteNombre)}
+        ${fila('Grado', r.comandanteGrado)}
+        ${fila('CC', r.comandanteCC)}
+        ${fila('Estación', r.comandanteEstacion)}
+      `)}
+
+      ${card('📱 Operador que reportó', `
+        ${fila('Nombre', r.operador)}
+        ${fila('Email', r.operadorEmail)}
+        ${fila('Grado', r.operadorGrado)}
+        ${fila('CC', r.operadorCC)}
+        ${fila('Tel', r.operadorTel)}
+      `)}
+
+      ${card(`📷 Fotografías (${fotos.length})`, fotosHTML)}
+
+      ${card('✍️ Firmas', `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          ${renderFirma(firmas.afectado, 'Firma del afectado')}
+          ${renderFirma(firmas.comandante, 'Firma del comandante')}
+        </div>
+      `)}
+    `;
   },
 
   async editarReporteAdmin(idReporte) {
@@ -2151,13 +2332,47 @@ const app = {
   // ========== IMPRIMIR DESDE LISTA ADMIN ==========
   // Genera el PDF directamente del reporte del servidor SIN tocar la BD local del bombero,
   // así puede imprimir reportes de otros usuarios sin que aparezcan en su lista personal.
+  // Primero descarga el reporte COMPLETO del servidor (con fotos+firmas extraídas
+  // de los hipervínculos del Sheet) para que aparezcan en el PDF.
   async imprimirReporteAdmin(idReporte) {
-    const r = (this._reportesAdmin || []).find(x => x.id === idReporte);
-    if (!r) {
+    const rBase = (this._reportesAdmin || []).find(x => x.id === idReporte);
+    if (!rBase) {
       this.toast('Reporte no encontrado', 'error');
       return;
     }
-    await this._imprimirReporteEnVentanaNueva(r);
+    this.toast('Cargando fotos y firmas del servidor...', 'info');
+    try {
+      const r = await this._descargarReporteCompletoAdmin(idReporte) || rBase;
+      await this._imprimirReporteEnVentanaNueva(r);
+    } catch (e) {
+      // Fallback: imprimir con lo que ya tenemos (sin fotos)
+      console.warn('No se pudo obtener reporte completo, imprimiendo con datos básicos:', e);
+      await this._imprimirReporteEnVentanaNueva(rBase);
+    }
+  },
+
+  // Descarga UN reporte completo del backend (incluye fotos+firmas como URLs).
+  // Devuelve null si falla.
+  async _descargarReporteCompletoAdmin(idReporte) {
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'obtenerReporteCompleto',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD,
+          idReporte: idReporte
+        })
+      });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); } catch (e) { return null; }
+      if (data && data.ok && data.reporte) return data.reporte;
+      return null;
+    } catch (e) {
+      return null;
+    }
   },
 
   // Helper interno: abre ventana nueva con el HTML del reporte y lanza el diálogo de impresión

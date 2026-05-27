@@ -762,6 +762,14 @@
       <div id="listaReportesAdmin" style="max-height:60vh;overflow-y:auto;"></div>
     </div>
 
+    <div id="panelAdminViendo" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid #7a1010;">
+      <div id="panelAdminViendoContenido"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+        <button onclick="app.cerrarVistaAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">← Volver</button>
+        <button id="btnImprimirDesdeVista" style="flex:1;min-width:120px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Imprimir</button>
+      </div>
+    </div>
+
     <div id="panelAdminEditando" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid #7a1010;">
       <h3 id="admin_titulo" style="color:#7a1010;margin:0 0 12px 0;">Editar reporte</h3>
 
