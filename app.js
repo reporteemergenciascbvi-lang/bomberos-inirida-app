@@ -2426,21 +2426,201 @@ const app = {
   },
 
   async editarReporteAdmin(idReporte) {
-    const r = (this._reportesAdmin || []).find(x => x.id === idReporte);
-    if (!r) { this.toast('Reporte no encontrado', 'error'); return; }
-    this._reporteAdminEditando = r;
+    const rBase = (this._reportesAdmin || []).find(x => x.id === idReporte);
+    if (!rBase) { this.toast('Reporte no encontrado', 'error'); return; }
 
-    // Mostrar formulario de edición
-    document.getElementById('panelAdminEditando').style.display = 'block';
-    document.getElementById('listaReportesAdminWrap').style.display = 'none';
-    document.getElementById('admin_consecutivo').value = r.consecutivo || '';
-    document.getElementById('admin_direccion').value = r.direccion || '';
-    document.getElementById('admin_barrio').value = r.barrio || '';
-    document.getElementById('admin_municipio').value = r.municipio || '';
-    document.getElementById('admin_narrativa').value = r.narrativa || '';
-    document.getElementById('admin_acciones').value = r.acciones || '';
-    document.getElementById('admin_observaciones').value = r.observaciones || '';
-    document.getElementById('admin_titulo').textContent = 'Editar ' + (r.consecutivo || r.id);
+    // Descargar reporte completo (con fotos+firmas) para poder editar TODO
+    this.toast('Cargando reporte completo para editar...', 'info');
+    const r = (await this._descargarReporteCompletoAdmin(idReporte)) || rBase;
+
+    // === MODO EDICIÓN ADMIN ===
+    // Reusamos el formulario principal (las 14 secciones) en lugar de
+    // un editor con solo 6 campos. Se marca una bandera para que al
+    // guardar se llame al endpoint editarReporte (no a crear uno nuevo).
+    this._modoEdicionAdmin = true;
+    this._reporteAdminEditando = r;
+    this._reporteAdminOriginalId = r.id;
+    this._reporteAdminOriginalConsec = r.consecutivo;
+
+    // Cargar el reporte completo en el formulario principal
+    this.cargarEnFormulario(r);
+    this.fotosTemp = [...(r.fotos || []), null, null, null, null, null, null].slice(0, 6);
+
+    // Cambiar UI a modo edición admin
+    this._aplicarUIEdicionAdmin(true, r);
+
+    this.irA('pantallaForm');
+  },
+
+  // Aplica los cambios de UI cuando entramos / salimos del modo edición admin
+  _aplicarUIEdicionAdmin(activo, r) {
+    const acciones = document.querySelector('#pantallaForm .acciones-form, #pantallaForm .acciones-flotantes, #pantallaForm .botones-form');
+    // Si no encontramos el contenedor por clase, buscar por botones conocidos
+    const btnEnviar  = document.querySelector('#pantallaForm button[onclick*="enviarReporte"]');
+    const btnBorrad  = document.querySelector('#pantallaForm button[onclick*="guardarBorrador"]');
+
+    // Marcar consecutivo si está visible (solo lectura)
+    const lblConsec = document.getElementById('f_consecutivo');
+    if (lblConsec) {
+      if (activo) {
+        lblConsec.value = (r && r.consecutivo) || lblConsec.value;
+      }
+    }
+
+    // Quitar / reponer botones que YA existían (los conservamos pero ocultos en modo admin)
+    if (btnEnviar) btnEnviar.style.display = activo ? 'none' : '';
+    if (btnBorrad) btnBorrad.style.display = activo ? 'none' : '';
+
+    // Crear o quitar barra admin
+    let barra = document.getElementById('barraEdicionAdmin');
+    if (activo) {
+      if (!barra) {
+        barra = document.createElement('div');
+        barra.id = 'barraEdicionAdmin';
+        barra.style.cssText = 'position:sticky;bottom:0;left:0;right:0;background:#7a1010;color:#fff;padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;z-index:50;box-shadow:0 -2px 8px rgba(0,0,0,0.25);';
+        barra.innerHTML = `
+          <div style="flex:1 1 100%;font-size:13px;font-weight:700;margin-bottom:4px;">
+            🛡️ Editando como administrador — ${ (r && r.consecutivo) || '' }
+          </div>
+          <button onclick="app.cancelarEdicionAdminCompleta()"
+                  style="flex:1;min-width:120px;padding:10px;background:#444;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">
+            ← Cancelar
+          </button>
+          <button onclick="app.guardarEdicionAdminCompleta()"
+                  style="flex:2;min-width:160px;padding:10px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">
+            💾 Guardar cambios admin
+          </button>
+        `;
+        const formContenedor = document.getElementById('pantallaForm');
+        if (formContenedor) formContenedor.appendChild(barra);
+      } else {
+        barra.style.display = 'flex';
+      }
+    } else if (barra) {
+      barra.remove();
+    }
+  },
+
+  cancelarEdicionAdminCompleta() {
+    const ok = window.confirm('¿Cancelar la edición? Los cambios no guardados se perderán.');
+    if (!ok) return;
+    this._modoEdicionAdmin = false;
+    this._reporteAdminEditando = null;
+    this._aplicarUIEdicionAdmin(false);
+    // Volver al panel admin
+    this.irA('pantallaPanelAdmin');
+  },
+
+  // Lee el formulario completo y envía editarReporte al backend con TODOS los campos
+  // (incluye recursos, víctimas, organizaciones para regenerar hojas auxiliares)
+  async guardarEdicionAdminCompleta() {
+    if (!this._modoEdicionAdmin) { this.toast('No está en modo edición admin', 'error'); return; }
+    const idOrig = this._reporteAdminOriginalId;
+    if (!idOrig) { this.toast('Falta ID del reporte', 'error'); return; }
+
+    const r = this.leerFormulario();
+
+    // Si cambió el consecutivo, hacer cambio aparte
+    const consecForm = (document.getElementById('admin_consecutivo')?.value || r.consecutivo || '').trim();
+
+    // Construir payload de cambios (todos los campos del reporte)
+    const cambios = {
+      fechaLlamada: r.fechaLlamada || '',
+      fechaLlegada: r.fechaLlegada || '',
+      fechaCierre: r.fechaCierre || '',
+      reportaNombre: r.reportaNombre || '',
+      reportaTel: r.reportaTel || '',
+      reportaRelacion: r.reportaRelacion || '',
+      turno: r.turno || '',
+      clasificacion: r.clasificacion || [],
+      clasificacionOtra: r.clasificacionOtra || '',
+      direccion: r.direccion || '',
+      barrio: r.barrio || '',
+      localidad: r.localidad || '',
+      municipio: r.municipio || '',
+      referencia: r.referencia || '',
+      narrativa: r.narrativa || '',
+      condiciones: r.condiciones || '',
+      muertos: r.muertos || 0,
+      heridos: r.heridos || 0,
+      desaparecidos: r.desaparecidos || 0,
+      personasAfectadas: r.personasAfectadas || 0,
+      familiasAfectadas: r.familiasAfectadas || 0,
+      viviendasDestruidas: r.viviendasDestruidas || 0,
+      viviendasAveriadas: r.viviendasAveriadas || 0,
+      hectareas: r.hectareas || 0,
+      viasAfectadas: r.viasAfectadas || 0,
+      puentesAfectados: r.puentesAfectados || 0,
+      perdidaEstimada: r.perdidaEstimada || 0,
+      zonaOrigen: r.zonaOrigen || '',
+      areasAfectadas: r.areasAfectadas || '',
+      afectadoNombre: r.afectadoNombre || '',
+      afectadoCC: r.afectadoCC || '',
+      afectadoCel: r.afectadoCel || '',
+      acciones: r.acciones || '',
+      causas: r.causas || [],
+      causaProbable: r.causaProbable || '',
+      evidencias: r.evidencias || '',
+      causaConfirmada: r.causaConfirmada || '',
+      observaciones: r.observaciones || '',
+      recomendaciones: r.recomendaciones || '',
+      comandanteNombre: r.comandanteNombre || '',
+      comandanteGrado: r.comandanteGrado || '',
+      comandanteCC: r.comandanteCC || '',
+      comandanteEstacion: r.comandanteEstacion || ''
+    };
+
+    try {
+      // 1) Cambios de campos planos + recursos/victimas/organizaciones
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'editarReporte',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD,
+          idReporte: idOrig,
+          cambios: cambios,
+          recursos: r.recursos || [],
+          victimas: r.victimas || [],
+          organizaciones: r.organizaciones || []
+        })
+      });
+      const data = await resp.json();
+      if (!data.ok) {
+        this.toast('Error guardando: ' + (data.error || '?'), 'error');
+        return;
+      }
+
+      // 2) Si cambió consecutivo, llamar cambiarConsecutivo
+      const consecOrig = this._reporteAdminOriginalConsec || '';
+      if (consecForm && consecForm !== consecOrig) {
+        const respC = await fetch(URL_BACKEND, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            accion: 'cambiarConsecutivo',
+            adminEmail: this.usuario.email,
+            adminPassword: ADMIN_PASSWORD,
+            idReporte: idOrig,
+            nuevoConsecutivo: consecForm
+          })
+        });
+        const dataC = await respC.json();
+        if (!dataC.ok) {
+          this.toast('Datos guardados, pero el consecutivo no cambió: ' + (dataC.error || '?'), 'error');
+        }
+      }
+
+      this.toast(`✅ Reporte actualizado (${data.actualizados || 0} campos)`, 'exito');
+      this._modoEdicionAdmin = false;
+      this._reporteAdminEditando = null;
+      this._aplicarUIEdicionAdmin(false);
+      this.irA('pantallaPanelAdmin');
+      await this.cargarReportesAdmin();
+    } catch (e) {
+      this.toast('Error de red al guardar: ' + e.message, 'error');
+    }
   },
 
   cancelarEdicionAdmin() {
@@ -2681,17 +2861,69 @@ const app = {
     document.getElementById('btnReintentarEnvio').style.display =
       r.estado === 'pendiente' ? 'inline-flex' : 'none';
 
+    // === REGLA 24 HORAS ===
+    // El bombero solo puede editar/eliminar su reporte durante las
+    // primeras 24 horas después de creado. Pasado ese plazo, solo el
+    // administrador (desde el Panel Admin) puede modificarlo.
+    const btnEdit = document.getElementById('btnEditarDetalle');
+    const btnDel  = document.getElementById('btnEliminarDetalle');
+    if (btnEdit && btnDel) {
+      const puede = this.puedeEditarReporte(r);
+      if (puede.permitido) {
+        btnEdit.style.display = '';
+        btnDel.style.display = '';
+        btnEdit.disabled = false;
+        btnDel.disabled = false;
+        btnEdit.title = '';
+        btnDel.title = '';
+      } else {
+        // Bombero NO-admin con reporte >24h: ocultar acciones destructivas
+        btnEdit.style.display = 'none';
+        btnDel.style.display = 'none';
+        btnEdit.disabled = true;
+        btnDel.disabled = true;
+      }
+    }
+
     this.irA('pantallaDetalle');
+  },
+
+  // Política de edición: admin SIEMPRE puede; bombero solo durante las
+  // primeras 24h desde fechaCreacion. Devuelve { permitido, razon, horas }.
+  puedeEditarReporte(r) {
+    if (this.esAdmin()) return { permitido: true, razon: 'admin' };
+    if (!r || !r.fechaCreacion) return { permitido: true, razon: 'sin fecha' };
+    const creado = new Date(r.fechaCreacion);
+    if (isNaN(creado.getTime())) return { permitido: true, razon: 'fecha inválida' };
+    const horas = (Date.now() - creado.getTime()) / 36e5;
+    if (horas <= 24) return { permitido: true, razon: 'dentro de 24h', horas };
+    return {
+      permitido: false,
+      razon: `Han pasado ${Math.floor(horas)} horas desde la creación. ` +
+             `Solo el administrador puede modificar reportes con más de 24 horas.`,
+      horas
+    };
   },
 
   async editarReporte() {
     if (!this.reporteActual) return;
+    const puede = this.puedeEditarReporte(this.reporteActual);
+    if (!puede.permitido) {
+      this.toast(puede.razon, 'error');
+      return;
+    }
     this.cargarEnFormulario(this.reporteActual);
     this.fotosTemp = [...(this.reporteActual.fotos || []), null, null, null, null, null, null].slice(0, 6);
     this.irA('pantallaForm');
   },
 
   async confirmarEliminar() {
+    if (!this.reporteActual) return;
+    const puede = this.puedeEditarReporte(this.reporteActual);
+    if (!puede.permitido) {
+      this.toast(puede.razon, 'error');
+      return;
+    }
     const ok = await this.confirmar('Eliminar reporte', '¿Seguro que desea eliminar este reporte? Esta acción no se puede deshacer.');
     if (!ok) return;
     await DB.eliminarReporte(this.reporteActual.id);

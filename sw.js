@@ -1,5 +1,5 @@
-/* Service Worker v5.12 - CBVI Reportes (Auto-sync bonificaciones al abrir app) */
-const CACHE = 'bomberos-inirida-v5-12';
+/* Service Worker v5.13 - CBVI Reportes (Eliminar cascada + Estadísticas + Editor admin completo + Regla 24h + Manuales) */
+const CACHE = 'bomberos-inirida-v5-13';
 const ARCHIVOS = [
   './',
   './index.html',

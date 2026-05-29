@@ -685,11 +685,14 @@
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;">
       <p><b>1. Crear un reporte</b><br>Toque <b>"Nueva Emergencia"</b>. Llene las 14 secciones del formulario. Los campos marcados con <span style="color:#c00;">*</span> son obligatorios.</p>
       <p><b>2. Capturar GPS</b><br>En la sección 3 toque <b>"Usar GPS automático"</b>. La app captura coordenadas, altitud, velocidad y orientación. También puede escribir manualmente.</p>
-      <p><b>3. Tomar fotos</b><br>Hasta <b>6 fotos</b> por reporte. Puede tomar con la cámara o elegir de la galería. Las fotos suben a Drive y aparecen como link en el Sheets.</p>
+      <p><b>3. Tomar fotos</b><br>Hasta <b>6 fotografías</b> por reporte. Puede tomar con la cámara o elegir de la galería. Las fotos suben a Drive y al imprimir salen en <b>2 hojas anexas</b> (3 fotos por hoja).</p>
       <p><b>4. Firmas</b><br>El afectado firma con el dedo en pantalla, y el comandante también. Si guarda como borrador, las firmas se mantienen al volver a abrir.</p>
-      <p><b>5. Enviar</b><br>Si tiene internet, el reporte se envía al servidor inmediatamente. Si no, queda <b>pendiente</b> y se envía solo cuando recupere conexión.</p>
-      <p><b>6. Imprimir / Descargar PDF</b><br>Desde el detalle de cada reporte toque <b>"Imprimir"</b>. Sale el formato oficial con logo, firmas y fotos.</p>
-      <p><b>7. Sus datos quedan en la nube</b><br>Aunque cambie de teléfono o limpie caché, al iniciar sesión con su correo se restauran sus reportes y su perfil.</p>
+      <p><b>5. Recursos y personal</b><br>En la sección <b>"Recursos Desplegados"</b> agregue cada vehículo/unidad con su responsable y la lista de bomberos que asistieron. Esta lista se usa luego para reconocer las bonificaciones post-emergencia.</p>
+      <p><b>6. Enviar</b><br>Si tiene internet, el reporte se envía al servidor inmediatamente. Si no, queda <b>pendiente</b> y se envía solo cuando recupere conexión.</p>
+      <p><b>7. Editar / Eliminar (regla 24h)</b><br>Solo puede modificar o eliminar su propio reporte durante las <b>primeras 24 horas</b> desde que lo creó. Pasado ese plazo solo el administrador puede modificarlo, para evitar alteración tardía de la información oficial.</p>
+      <p><b>8. Imprimir / Descargar PDF</b><br>Desde el detalle de cada reporte toque <b>"Imprimir"</b>. Sale el formato oficial con logo, firmas, fotos y anexo fotográfico.</p>
+      <p><b>9. Sus datos quedan en la nube</b><br>Aunque cambie de teléfono o limpie caché, al iniciar sesión con su correo se restauran automáticamente sus reportes, su perfil y las fotos asociadas.</p>
+      <p><b>10. Sincronización entre dispositivos</b><br>Si entra con su mismo correo en otro dispositivo, al abrir la app se descargan todos sus reportes y se sincronizan las bonificaciones pendientes.</p>
     </div>
     <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
   </div>
@@ -706,15 +709,25 @@
       • <b>Local (IndexedDB):</b> los reportes se guardan en su teléfono para funcionar sin internet.<br>
       • <b>Servidor (Google Sheets + Drive):</b> al tener internet, los reportes suben automáticamente.</p>
 
-      <p><b>🔄 Sincronización tipo Gmail</b><br>Cuando inicia sesión con su correo, la app pregunta al servidor por sus reportes y los descarga. Si cambia de teléfono o limpia caché, NO pierde nada.</p>
+      <p><b>🔄 Sincronización tipo Gmail (multi-dispositivo)</b><br>Cuando inicia sesión con su correo —o cada vez que abre la app— se preguntan al servidor sus reportes y se descargan los nuevos. Si cambia de teléfono o limpia caché, NO pierde nada. Lo mismo aplica si crea un reporte en el PC: aparece en el teléfono al refrescar.</p>
 
       <p><b>📋 Estructura de la base de datos</b><br>
-      • Hoja <b>"Reportes"</b>: 1 fila por cada reporte con sus 80+ campos.<br>
+      • Hoja <b>"Reportes"</b>: 1 fila por cada reporte con todos los campos del formulario.<br>
       • Hoja <b>"Bomberos"</b>: perfiles (nombre, grado, cédula, teléfono).<br>
-      • Hojas auxiliares: víctimas, recursos, personal por recurso.<br>
+      • Hoja <b>"Recursos"</b> y <b>"Personal_por_Recurso"</b>: vehículos y bomberos por emergencia.<br>
+      • Hoja <b>"Victimas"</b> y <b>"Organizaciones"</b>: detalle por reporte.<br>
+      • Hoja <b>"Bonificaciones"</b>: una fila por bombero × emergencia (lista única, sin duplicados por reporte).<br>
+      • Hoja <b>"Bonificaciones_Resumen"</b>: total emergencias por bombero, del año actual y del mes actual. Se recalcula sola en cada envío.<br>
+      • Hoja <b>"Estadisticas_Mensuales"</b>: por año-mes, total de emergencias, tipos más frecuentes, víctimas y daños materiales.<br>
       • Carpeta Drive con subcarpetas por cada reporte (fotos + firmas).</p>
 
-      <p><b>🆔 Consecutivo único</b><br>El servidor asigna el N° de reporte (ej. <code>RE-2026-0085</code>). Es imposible que dos bomberos generen el mismo número.</p>
+      <p><b>🆔 Consecutivo único</b><br>El servidor asigna el N° de reporte (ej. <code>RE-2026-0085</code>). Es imposible que dos bomberos generen el mismo número, incluso si reportan al mismo tiempo.</p>
+
+      <p><b>⏱️ Bloqueo de edición a 24 horas</b><br>El bombero que crea un reporte solo puede editarlo o eliminarlo durante las primeras 24 horas. Después, únicamente el administrador puede modificarlo desde el Panel Admin. Esto protege la información oficial y previene alteraciones tardías.</p>
+
+      <p><b>🛡️ Panel de Administrador</b><br>Solo el correo administrador puede ver el Panel Admin (con contraseña). Desde ahí: ver, editar (formulario completo de las 14 secciones), imprimir, eliminar y registrar manualmente bomberos para bonificaciones. Al eliminar un reporte se borra <b>en cascada</b>: la fila principal + todas las hojas relacionadas + la subcarpeta de Drive (a la papelera, recuperable 30 días).</p>
+
+      <p><b>💰 Bonificaciones post-emergencia</b><br>Cada bombero que figure en el personal de cualquier recurso de una emergencia se registra automáticamente en la hoja de Bonificaciones (una sola vez por emergencia aunque aparezca en varios recursos). El tesorero consulta la hoja Resumen para el reconocimiento.</p>
 
       <p><b>🔐 Privacidad</b><br>Cada bombero solo ve sus propios reportes. El admin (único) puede ver y editar todos. Los datos NO son públicos en internet — requieren login.</p>
     </div>
@@ -729,14 +742,22 @@
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;font-size:14px;">
       <p><b>Ley 1575 de 2012 — Ley General de Bomberos de Colombia</b><br>Establece la organización y funciones del Sistema Nacional de Bomberos. El reporte oficial de emergencias es de obligatorio diligenciamiento por las unidades que atienden el evento.</p>
 
+      <p><b>Decreto 953 de 2014</b><br>Reglamenta parcialmente la Ley 1575 y precisa las obligaciones operativas de los cuerpos de bomberos respecto al registro y manejo estadístico de las emergencias atendidas.</p>
+
       <p><b>Resolución 661 de 2014</b><br>Reglamenta el formato oficial del reporte de emergencias. La app cumple con las 14 secciones requeridas (datos generales, clasificación, ubicación, descripción, recursos, diagnóstico, afectado, acciones, víctimas, causas, organizaciones participantes, observaciones, firma del comandante).</p>
 
-      <p><b>Ley 1581 de 2012 — Habeas Data</b><br>Los datos personales recolectados (nombre, cédula, teléfono, firma, foto) se tratan exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos. El titular puede solicitar acceso, rectificación o supresión.</p>
+      <p><b>Ley 1581 de 2012 — Habeas Data</b><br>Los datos personales recolectados (nombre, cédula, teléfono, firma, foto) se tratan exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos. El titular puede solicitar acceso, rectificación o supresión en cualquier momento ante el administrador.</p>
 
-      <p><b>Ley 527 de 1999 — Firma electrónica</b><br>Las firmas digitales capturadas en pantalla tienen validez legal como manifestación de voluntad para constancia de atención.</p>
+      <p><b>Decreto 1377 de 2013</b><br>Reglamenta la Ley 1581 sobre el tratamiento de datos personales. La app respeta los principios de finalidad, libertad, veracidad, transparencia y seguridad de los datos almacenados en Google Sheets y Drive bajo cuenta institucional del CBVI.</p>
+
+      <p><b>Ley 527 de 1999 — Firma electrónica</b><br>Las firmas digitales capturadas en pantalla tienen validez legal como manifestación de voluntad para constancia de atención del incidente.</p>
+
+      <p><b>Ley 1437 de 2011 — CPACA (documentos electrónicos)</b><br>Los reportes generados por la app, almacenados en la nube institucional y firmados electrónicamente, tienen el mismo valor probatorio que un documento físico para fines administrativos y estadísticos.</p>
+
+      <p><b>🔒 Política interna de integridad (24 horas)</b><br>Para preservar la veracidad de la información oficial, cada bombero solo puede modificar o eliminar su propio reporte durante las primeras <b>24 horas</b> desde su creación. Pasado ese plazo, solo el administrador del cuerpo de bomberos puede realizar correcciones, garantizando la trazabilidad de los cambios.</p>
 
       <p style="background:#fffbe6;padding:10px;border-left:4px solid #f0b800;border-radius:4px;font-size:13px;">
-        <b>Aviso Habeas Data:</b> Los datos personales aquí recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos Voluntarios de Inírida.
+        <b>Aviso Habeas Data:</b> Los datos personales aquí recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos Voluntarios de Inírida, así como para el reconocimiento de bonificaciones post-emergencia al personal interviniente.
       </p>
 
       <p style="margin-top:16px;color:#666;font-size:12px;">
@@ -1302,9 +1323,9 @@
   <div id="detalleContenido"></div>
   <div class="acciones-flotantes">
     <button class="btn btn-imprimir" onclick="app.imprimirReporte()">🖨️ Imprimir</button>
-    <button class="btn btn-secundario" onclick="app.editarReporte()">✏️ Editar</button>
+    <button class="btn btn-secundario" id="btnEditarDetalle" onclick="app.editarReporte()">✏️ Editar</button>
     <button class="btn btn-primary" id="btnReintentarEnvio" onclick="app.reintentarEnvio()" style="display:none;">📤 Enviar</button>
-    <button class="btn btn-peligro" onclick="app.confirmarEliminar()">🗑️</button>
+    <button class="btn btn-peligro" id="btnEliminarDetalle" onclick="app.confirmarEliminar()">🗑️</button>
   </div>
 </div>
 
