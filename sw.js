@@ -1,5 +1,7 @@
-/* Service Worker v5.17 - CBVI Reportes (Editar y reenviar SÍ actualiza el servidor + banner de versión) */
-const CACHE = 'bomberos-inirida-v5-17';
+/* Service Worker v5.18 - CBVI Reportes
+   29 mayo 2026 — Autocompletado nombres, lista canónica CBVI,
+   normalización bonificaciones, herramientas mantenimiento admin */
+const CACHE = 'bomberos-inirida-v5-18';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -24,7 +26,6 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // No interceptar peticiones a Google (login) ni al backend
   const url = e.request.url;
   if (url.includes('accounts.google.com') ||
       url.includes('googleapis.com') ||
