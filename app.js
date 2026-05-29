@@ -377,8 +377,59 @@ const app = {
         this.toast(`Se descargaron ${nuevos} reportes del servidor`, 'exito');
         await this.actualizarHome();
       }
+
+      // === Auto-sincronización de bonificaciones ===
+      // Para cada reporte LOCAL ya enviado que tenga recursos+personal,
+      // mandar los recursos al servidor. El backend es IDEMPOTENTE: solo
+      // llena la hoja Bonificaciones si está vacía para ese reporte
+      // (no sobreescribe lo que el admin haya registrado manualmente).
+      // Esto permite que los reportes viejos (sin bonificaciones) se
+      // completen automáticamente cuando el bombero original abre su app.
+      this._sincronizarBonificacionesLocales(locales).catch(e =>
+        console.warn('Auto-sync bonificaciones falló:', e)
+      );
+
     } catch (e) {
       console.warn('Sincronización falló:', e);
+    }
+  },
+
+  // Recorre los reportes locales del usuario y sube sus recursos al servidor.
+  // El backend decide por sí mismo si ese reporte necesita llenar bonificaciones.
+  async _sincronizarBonificacionesLocales(locales) {
+    if (!this.usuario || !this.usuario.email) return;
+    const candidatos = (locales || []).filter(r =>
+      r &&
+      r.id &&
+      r.estado === 'enviado' &&
+      Array.isArray(r.recursos) &&
+      r.recursos.length > 0
+    );
+    if (candidatos.length === 0) return;
+
+    let sincronizados = 0;
+    for (const r of candidatos) {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            accion: 'sincronizarRecursosReporte',
+            email: this.usuario.email,
+            idReporte: r.id,
+            recursos: r.recursos
+          })
+        });
+        const data = await resp.json();
+        if (data && data.ok && data.sincronizado) sincronizados++;
+        // Si responde { omitido: true } no contamos (ya estaba sincronizado)
+      } catch (e) {
+        // Silencioso: si falla, el admin puede registrar manual con los chips
+        console.warn('No se pudo sincronizar bonificaciones del reporte ' + r.id, e);
+      }
+    }
+    if (sincronizados > 0) {
+      this.toast(`✅ ${sincronizados} reporte(s) sincronizaron sus bonificaciones`, 'exito');
     }
   },
 
@@ -2070,6 +2121,9 @@ const app = {
 
     // Renderizar contenido
     cont.innerHTML = this._renderDetalleReporteAdmin(r);
+
+    // Cargar chips de bomberos para bonificaciones (asíncrono, no bloquea render)
+    this._cargarBomberosBonifAdmin(r.id);
   },
 
   cerrarVistaAdmin() {
@@ -2219,7 +2273,156 @@ const app = {
           ${renderFirma(firmas.comandante, 'Firma del comandante')}
         </div>
       `)}
+
+      ${card('💰 Bonificaciones — bomberos que participaron', `
+        <div style="font-size:12px;color:#555;background:#fffbe6;padding:8px;border-radius:4px;margin-bottom:10px;border:1px solid #f0dca0;">
+          Lista de bomberos registrados en la hoja <em>Bonificaciones</em>
+          para este reporte. Agrega o quita uno a uno. Cada cambio se guarda
+          inmediatamente y recalcula el resumen del tesorero.
+        </div>
+        <div id="adminBonifChips_${r.id}" style="min-height:36px;display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f8f8f8;border:1px solid #e5e5e5;border-radius:6px;margin-bottom:8px;">
+          <span style="color:#888;font-style:italic;font-size:12px;">Cargando...</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <input id="adminBonifInput_${r.id}"
+                 type="text"
+                 placeholder="Nombre completo del bombero"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();app.agregarBomberoBonifAdmin('${r.id}')}"
+                 style="flex:1;min-width:180px;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
+          <button onclick="app.agregarBomberoBonifAdmin('${r.id}')"
+                  style="padding:8px 14px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">
+            + Agregar
+          </button>
+        </div>
+      `)}
     `;
+  },
+
+  // Carga la lista de bomberos registrados en Bonificaciones para un reporte
+  // y la pinta como chips dentro del contenedor adminBonifChips_<id>.
+  async _cargarBomberosBonifAdmin(idReporte) {
+    const cont = document.getElementById('adminBonifChips_' + idReporte);
+    if (!cont) return;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'listarBomberosBonificacion',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD,
+          idReporte: idReporte
+        })
+      });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) {
+        cont.innerHTML = '<span style="color:#c00;font-size:12px;">Error de respuesta del servidor</span>';
+        return;
+      }
+      if (!data.ok) {
+        cont.innerHTML = '<span style="color:#c00;font-size:12px;">' + (data.error || 'Error') + '</span>';
+        return;
+      }
+      const bomberos = data.bomberos || [];
+      if (bomberos.length === 0) {
+        cont.innerHTML = '<span style="color:#888;font-style:italic;font-size:12px;">Sin bomberos registrados aún. Agrega el primero abajo.</span>';
+        return;
+      }
+      // Render chips
+      cont.innerHTML = bomberos.map(nombre => {
+        const safe = String(nombre).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        return `
+          <span style="display:inline-flex;align-items:center;gap:6px;background:#065f46;color:#fff;padding:5px 8px 5px 10px;border-radius:14px;font-size:12px;font-weight:600;">
+            ${safe}
+            <button onclick="app.quitarBomberoBonifAdmin('${idReporte}', '${safe}')"
+                    title="Quitar"
+                    style="background:rgba(255,255,255,0.25);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;">×</button>
+          </span>
+        `;
+      }).join('') +
+      `<span style="width:100%;font-size:11px;color:#666;margin-top:4px;">Total: ${bomberos.length} bombero(s)</span>`;
+    } catch (e) {
+      cont.innerHTML = '<span style="color:#c00;font-size:12px;">Error de red: ' + e.message + '</span>';
+    }
+  },
+
+  // Agrega UN bombero a Bonificaciones del reporte
+  async agregarBomberoBonifAdmin(idReporte) {
+    const inp = document.getElementById('adminBonifInput_' + idReporte);
+    if (!inp) return;
+    const nombre = (inp.value || '').trim();
+    if (!nombre) { this.toast('Escribe un nombre', 'error'); return; }
+
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'agregarBomberoBonificacion',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD,
+          idReporte: idReporte,
+          nombre: nombre
+        })
+      });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) {
+        this.toast('Respuesta no válida del servidor', 'error');
+        return;
+      }
+      if (!data.ok) {
+        this.toast('Error: ' + (data.error || '?'), 'error');
+        return;
+      }
+      if (data.duplicado) {
+        this.toast(data.mensaje || 'Ya estaba registrado', 'info');
+      } else {
+        this.toast(`✅ ${data.bombero} agregado`, 'exito');
+      }
+      inp.value = '';
+      inp.focus();
+      await this._cargarBomberosBonifAdmin(idReporte);
+    } catch (e) {
+      this.toast('Error de red: ' + e.message, 'error');
+    }
+  },
+
+  // Quita UN bombero específico de Bonificaciones del reporte
+  async quitarBomberoBonifAdmin(idReporte, nombre) {
+    const ok = window.confirm(`¿Quitar a "${nombre}" de las bonificaciones de este reporte?`);
+    if (!ok) return;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'quitarBomberoBonificacion',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD,
+          idReporte: idReporte,
+          nombre: nombre
+        })
+      });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) {
+        this.toast('Respuesta no válida del servidor', 'error');
+        return;
+      }
+      if (!data.ok) {
+        this.toast('Error: ' + (data.error || '?'), 'error');
+        return;
+      }
+      this.toast(`🗑️ ${nombre} eliminado`, 'exito');
+      await this._cargarBomberosBonifAdmin(idReporte);
+    } catch (e) {
+      this.toast('Error de red: ' + e.message, 'error');
+    }
   },
 
   async editarReporteAdmin(idReporte) {
