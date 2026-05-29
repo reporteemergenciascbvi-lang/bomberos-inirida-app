@@ -358,19 +358,52 @@ const app = {
 
       const reportesServidor = data.reportes || [];
       let nuevos = 0;
-      // Reportes locales (mapeados por id)
+      let rehidratados = 0;
+      // Reportes locales indexados por id
       const locales = await DB.listarReportes();
-      const idsLocales = new Set(locales.map(r => r.id));
+      const localesPorId = new Map(locales.map(l => [l.id, l]));
 
       for (const r of reportesServidor) {
         if (!r.id) continue;
-        if (!idsLocales.has(r.id)) {
-          // Reporte que está en servidor pero NO en local: descargarlo
-          r.estado = 'enviado';
-          r.sincronizado = true;
-          await DB.guardarReporte(r);
+        const local = localesPorId.get(r.id);
+
+        if (!local) {
+          // Reporte que está en servidor pero NO en local: descargar TODO
+          // (campos planos + fotos + firmas + recursos + víctimas + organizaciones)
+          // para que el bombero vea la info completa al cambiar de dispositivo
+          // o reinstalar la app.
+          const completo = await this._descargarMiReporteCompleto(r.id);
+          const final = completo ? Object.assign({}, r, completo) : r;
+          final.estado = 'enviado';
+          final.sincronizado = true;
+          final._hidratadoServidor = true;
+          await DB.guardarReporte(final);
           nuevos++;
+          continue;
         }
+
+        // Reporte YA está en local pero nunca fue hidratado con el endpoint
+        // nuevo Y le faltan fotos/recursos (descargado con código viejo).
+        // Re-hidratar UNA sola vez para completar la información.
+        const necesitaHidratacion =
+          !local._hidratadoServidor &&
+          local.estado === 'enviado' &&
+          (local.fotos === undefined || local.recursos === undefined);
+        if (necesitaHidratacion) {
+          const completo = await this._descargarMiReporteCompleto(r.id);
+          if (completo) {
+            const merged = Object.assign({}, local, completo);
+            merged._hidratadoServidor = true;
+            merged.estado = 'enviado';
+            merged.sincronizado = true;
+            await DB.guardarReporte(merged);
+            rehidratados++;
+          }
+        }
+      }
+      if (rehidratados > 0) {
+        this.toast(`🔄 Se completó la información de ${rehidratados} reporte(s)`, 'exito');
+        await this.actualizarHome();
       }
 
       if (nuevos > 0) {
@@ -391,6 +424,33 @@ const app = {
 
     } catch (e) {
       console.warn('Sincronización falló:', e);
+    }
+  },
+
+  // Descarga UN reporte propio completo desde el servidor (con fotos+firmas+
+  // recursos+víctimas+organizaciones). El backend valida que el email del
+  // solicitante coincida con el operadorEmail del reporte.
+  // Devuelve el objeto reporte o null si falla.
+  async _descargarMiReporteCompleto(idReporte) {
+    if (!this.usuario || !this.usuario.email) return null;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'obtenerMiReporteCompleto',
+          email: this.usuario.email,
+          idReporte: idReporte
+        })
+      });
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); } catch (e) { return null; }
+      if (data && data.ok && data.reporte) return data.reporte;
+      return null;
+    } catch (e) {
+      console.warn('No se pudo descargar reporte completo ' + idReporte, e);
+      return null;
     }
   },
 
@@ -1488,11 +1548,31 @@ const app = {
     });
   },
 
+  // Convierte una fecha ISO o cualquier string parseable a 'YYYY-MM-DDTHH:MM'
+  // que es el formato requerido por <input type="datetime-local">.
+  // Devuelve '' si la fecha no es válida o está vacía.
+  _isoADatetimeLocal(v) {
+    if (!v) return '';
+    // Si ya viene en formato datetime-local (sin Z ni segundos), respetar
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) {
+      return v;
+    }
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    // Construir 'YYYY-MM-DDTHH:MM' en HORA LOCAL (no UTC)
+    const pad = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' +
+           pad(d.getMonth() + 1) + '-' +
+           pad(d.getDate()) + 'T' +
+           pad(d.getHours()) + ':' +
+           pad(d.getMinutes());
+  },
+
   cargarEnFormulario(r) {
     document.getElementById('f_consecutivo').value = r.consecutivo || 'Se asigna al enviar';
-    document.getElementById('f_fecha_llamada').value = r.fechaLlamada || '';
-    document.getElementById('f_fecha_llegada').value = r.fechaLlegada || '';
-    document.getElementById('f_fecha_cierre').value = r.fechaCierre || '';
+    document.getElementById('f_fecha_llamada').value = this._isoADatetimeLocal(r.fechaLlamada);
+    document.getElementById('f_fecha_llegada').value = this._isoADatetimeLocal(r.fechaLlegada);
+    document.getElementById('f_fecha_cierre').value = this._isoADatetimeLocal(r.fechaCierre);
     document.getElementById('f_reporta_nombre').value = r.reportaNombre || '';
     document.getElementById('f_reporta_tel').value = r.reportaTel || '';
     document.getElementById('f_reporta_relacion').value = r.reportaRelacion || '';
@@ -1512,16 +1592,24 @@ const app = {
     document.getElementById('f_narrativa').value = r.narrativa || '';
     document.getElementById('f_condiciones').value = r.condiciones || '';
 
+    // FIX foto fantasma: primero limpiar TODOS los 6 slots (no solo los que
+    // tengan foto), si no quedan visibles las del reporte anterior.
     this.fotosTemp = [null, null, null, null, null, null];
+    document.querySelectorAll('.foto-slot').forEach((slot, i) => {
+      slot.innerHTML = `<span class="icono">📷</span><span>Foto ${i+1}</span>`;
+      slot.classList.remove('con-foto');
+    });
     (r.fotos || []).forEach((f, i) => {
-      if (i < 6) {
+      if (i < 6 && f) {
         this.fotosTemp[i] = f;
         const slotEl = document.querySelector(`.foto-slot[data-foto="${i}"]`);
-        slotEl.innerHTML = `
-          <img src="${f}" alt="">
-          <button class="quitar" onclick="event.stopPropagation(); app.quitarFoto(${i})">×</button>
-        `;
-        slotEl.classList.add('con-foto');
+        if (slotEl) {
+          slotEl.innerHTML = `
+            <img src="${f}" alt="">
+            <button class="quitar" onclick="event.stopPropagation(); app.quitarFoto(${i})">×</button>
+          `;
+          slotEl.classList.add('con-foto');
+        }
       }
     });
 
@@ -2520,6 +2608,27 @@ const app = {
 
     const r = this.leerFormulario();
 
+    // Aviso: las fotos NO se actualizan desde el editor admin
+    // (las fotos del Sheet/Drive se mantienen intactas; este editor edita
+    // solo campos de texto, datos numéricos y listas de recursos/víctimas).
+    const fotosOriginal = (this._reporteAdminEditando.fotos || []).filter(Boolean);
+    const fotosActual = (r.fotos || []).filter(Boolean);
+    const fotosCambiadas =
+      fotosOriginal.length !== fotosActual.length ||
+      fotosActual.some((f, i) => f !== fotosOriginal[i]);
+    if (fotosCambiadas) {
+      const ok = window.confirm(
+        '⚠️ Detecté cambios en las FOTOS de este reporte.\n\n' +
+        'El editor admin NO sube fotos nuevas al servidor. ' +
+        'Las fotos que ya tenía el reporte en Drive se mantienen igual.\n\n' +
+        'Si necesitas cambiar fotos, pídele al bombero original que abra ' +
+        'el reporte desde su dispositivo (dentro de 24h) o elimínalo y ' +
+        'créalo de nuevo.\n\n' +
+        '¿Continuar y guardar el resto de cambios?'
+      );
+      if (!ok) return;
+    }
+
     // Si cambió el consecutivo, hacer cambio aparte
     const consecForm = (document.getElementById('admin_consecutivo')?.value || r.consecutivo || '').trim();
 
@@ -2867,8 +2976,9 @@ const app = {
     // administrador (desde el Panel Admin) puede modificarlo.
     const btnEdit = document.getElementById('btnEditarDetalle');
     const btnDel  = document.getElementById('btnEliminarDetalle');
+    const puede = this.puedeEditarReporte(r);
+
     if (btnEdit && btnDel) {
-      const puede = this.puedeEditarReporte(r);
       if (puede.permitido) {
         btnEdit.style.display = '';
         btnDel.style.display = '';
@@ -2883,6 +2993,27 @@ const app = {
         btnEdit.disabled = true;
         btnDel.disabled = true;
       }
+    }
+
+    // Banner amarillo visible cuando el reporte ya pasó las 24h y NO es admin
+    // (también muestra ventana restante cuando aún se puede editar pero está cerca del límite).
+    if (!puede.permitido) {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'margin:0 0 12px 0;padding:12px 14px;background:#fff3cd;border:1px solid #f0b800;border-left:4px solid #f0b800;border-radius:6px;color:#5a4500;font-size:13px;line-height:1.5;';
+      banner.innerHTML = `
+        <strong>🔒 Reporte protegido (más de 24 horas)</strong><br>
+        Este reporte ya no puede ser modificado ni eliminado por usted.
+        Si necesita corregir información, <strong>comuníquese con el administrador</strong>
+        del Cuerpo de Bomberos para que realice el cambio desde el Panel Admin.
+      `;
+      cont.insertBefore(banner, cont.firstChild);
+    } else if (puede.horas && puede.horas > 20 && !this.esAdmin()) {
+      // Aviso amistoso cuando se acerca el límite (faltan menos de 4h)
+      const horasRest = (24 - puede.horas).toFixed(1);
+      const banner = document.createElement('div');
+      banner.style.cssText = 'margin:0 0 12px 0;padding:10px 12px;background:#fef3c7;border-left:4px solid #f0b800;border-radius:6px;color:#5a4500;font-size:12px;';
+      banner.innerHTML = `⏳ <strong>Quedan ~${horasRest} horas</strong> para editar este reporte. Después solo el administrador podrá modificarlo.`;
+      cont.insertBefore(banner, cont.firstChild);
     }
 
     this.irA('pantallaDetalle');
@@ -2900,7 +3031,8 @@ const app = {
     return {
       permitido: false,
       razon: `Han pasado ${Math.floor(horas)} horas desde la creación. ` +
-             `Solo el administrador puede modificar reportes con más de 24 horas.`,
+             `Solo el administrador puede modificar reportes con más de 24 horas. ` +
+             `Si necesita corregir información, comuníquese con el administrador.`,
       horas
     };
   },
