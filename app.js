@@ -15,7 +15,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.18.1';
+const APP_VERSION = '5.18.2';
 const APP_VERSION_FECHA = '29 de mayo de 2026';
 const APP_VERSION_NOTAS = [
   'Autocompletado de nombres de bomberos al registrar personal en recursos (evita duplicados).',
@@ -1513,20 +1513,62 @@ const app = {
   },
 
   // Autocompletado de nombres de bomberos usando PERSONAL_CANONICO
-  autocompletarBombero(input) {
-    // El input guarda referencia a su lista para que seleccionarBombero la encuentre
-    // aunque el contenedor tenga estructura variable (responsable vs bombero asistente).
-    let lista = input._autoLista;
-    if (!lista) {
-      lista = input.parentElement.querySelector('.autocomplete-lista');
-      if (!lista) return;
-      input._autoLista = lista;
+  // ─── AUTOCOMPLETADO DE BOMBEROS ───────────────────────────────────────
+  // Estrategia: un único listener global en document para manejar la
+  // selección. Evita el problema de blur vs click/touch en móvil y APK.
+  _initAutocompletadoGlobal() {
+    if (this._autocompletadoGlobalListo) return;
+    this._autocompletadoGlobalListo = true;
 
-      // Cerrar lista al perder foco — con delay para que el click en item se procese primero
+    // Cerrar cualquier lista abierta al tocar fuera
+    document.addEventListener('touchstart', (e) => {
+      if (!e.target.closest('.autocomplete-lista') &&
+          !e.target.closest('input[oninput*="autocompletarBombero"]')) {
+        document.querySelectorAll('.autocomplete-lista').forEach(l => l.style.display = 'none');
+      }
+    }, { passive: true });
+
+    document.addEventListener('mousedown', (e) => {
+      // Si el click es DENTRO de una lista de autocompletado → seleccionar
+      const item = e.target.closest('.autocomplete-item');
+      if (item) {
+        e.preventDefault();
+        const nombre = item.dataset.nombre;
+        const lista = item.closest('.autocomplete-lista');
+        if (lista && nombre) {
+          // Encontrar el input asociado a esta lista
+          const contenedor = lista.parentElement;
+          const inp = contenedor.querySelector('input[type="text"]');
+          if (inp) inp.value = nombre;
+          lista.style.display = 'none';
+        }
+        return;
+      }
+      // Si el click es fuera de cualquier lista → cerrar todas
+      if (!e.target.closest('.autocomplete-lista')) {
+        document.querySelectorAll('.autocomplete-lista').forEach(l => l.style.display = 'none');
+      }
+    });
+  },
+
+  autocompletarBombero(input) {
+    // Inicializar listener global la primera vez
+    this._initAutocompletadoGlobal();
+
+    // Asociar blur con delay solo una vez por input
+    if (!input._autoBlurListo) {
+      input._autoBlurListo = true;
       input.addEventListener('blur', () => {
-        setTimeout(() => { lista.style.display = 'none'; }, 200);
+        // Delay: deja que el mousedown global se procese primero
+        setTimeout(() => {
+          const lista = input.parentElement.querySelector('.autocomplete-lista');
+          if (lista) lista.style.display = 'none';
+        }, 250);
       });
     }
+
+    const lista = input.parentElement.querySelector('.autocomplete-lista');
+    if (!lista) return;
 
     const q = input.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (q.length < 2) { lista.style.display = 'none'; return; }
@@ -1541,26 +1583,13 @@ const app = {
 
     if (coincidencias.length === 0) { lista.style.display = 'none'; return; }
 
-    lista.innerHTML = '';
-    coincidencias.forEach(p => {
-      const item = document.createElement('div');
-      item.className = 'autocomplete-item';
-      item.innerHTML = `<span style="font-weight:600;">${p.nombre}</span><span style="font-size:11px;color:#666;margin-left:8px;">${p.cargo}</span>`;
-      // mousedown en vez de click: se dispara ANTES del blur del input
-      item.addEventListener('mousedown', (e) => {
-        e.preventDefault(); // evita que el input pierda foco antes de asignar
-        input.value = p.nombre;
-        lista.style.display = 'none';
-        input.dispatchEvent(new Event('input')); // por si hay listeners downstream
-      });
-      // touch para móvil
-      item.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        input.value = p.nombre;
-        lista.style.display = 'none';
-      });
-      lista.appendChild(item);
-    });
+    // Construir items con data-nombre en el elemento — el listener global los lee
+    lista.innerHTML = coincidencias.map(p =>
+      `<div class="autocomplete-item" data-nombre="${p.nombre.replace(/"/g, '&quot;')}">
+        <span style="font-weight:600;pointer-events:none;">${p.nombre}</span>
+        <span style="font-size:11px;color:#666;margin-left:8px;pointer-events:none;">${p.cargo}</span>
+      </div>`
+    ).join('');
 
     lista.style.cssText = [
       'display:block', 'position:absolute', 'top:100%', 'left:0', 'right:0',
@@ -1570,15 +1599,7 @@ const app = {
     ].join(';');
   },
 
-  seleccionarBombero(item, nombre) {
-    // Fallback — ya no se usa normalmente (mousedown lo maneja directo)
-    const lista = item.closest('.autocomplete-lista');
-    if (lista) {
-      const input = lista.parentElement.querySelector('input[type="text"]');
-      if (input) input.value = nombre;
-      lista.style.display = 'none';
-    }
-  },
+  seleccionarBombero() { /* deprecated — manejo vía listener global */ },
 
   agregarVictima(datos) {
     const cont = document.getElementById('tablaVictimas');
