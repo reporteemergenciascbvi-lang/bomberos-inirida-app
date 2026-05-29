@@ -11,6 +11,17 @@ const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
 const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15oz-U1jpkR0-L56cxEwby8tMi2mVJi5A5D74XMi25WKdod6wn2QA/exec';
 
+// ===== VERSIONADO DE LA APP =====
+// Subir este número cada vez que se despliegue una versión nueva.
+// Cuando un dispositivo detecta versión distinta a la guardada,
+// muestra el banner verde por 10 min con la lista de cambios.
+const APP_VERSION = '5.17';
+const APP_VERSION_NOTAS = [
+  'Editar y reenviar reporte ahora SÍ actualiza el servidor (antes lo rechazaba como duplicado).',
+  'Las hojas Recursos / Personal / Víctimas / Organizaciones / Bonificaciones se regeneran al reenviar.',
+  'Banner de notificación cuando hay nueva versión instalada (10 minutos).'
+];
+
 const CREDITO_AUTOR = {
   nombre: 'Bombero Jeferson Jeancarlos Rangel Gil',
   cuerpo: 'Cuerpo de Bomberos Voluntarios de Inírida',
@@ -145,6 +156,9 @@ const app = {
       document.getElementById('logoLogin').src = LOGO_SMALL;
     }
 
+    // === Detectar nueva versión y mostrar banner por 10 min ===
+    this._mostrarBannerSiHayNuevaVersion();
+
     await DB.abrir();
     await this.cargarConfig();
     this.escucharConexion();
@@ -182,6 +196,75 @@ const app = {
       this.toast('Conexión restablecida. Sincronizando...', 'exito');
       this.sincronizarPendientes(true);
     });
+  },
+
+  // Banner de notificación de nueva versión.
+  // Compara APP_VERSION con la guardada en localStorage; si cambió o no
+  // existe, muestra un banner verde arriba con la versión y los cambios.
+  // El banner se auto-oculta a los 10 minutos o cuando el usuario pulsa "Cerrar".
+  _mostrarBannerSiHayNuevaVersion() {
+    let versionGuardada = null;
+    try { versionGuardada = localStorage.getItem('cbvi_app_version'); }
+    catch (e) { /* localStorage puede no estar disponible */ }
+
+    // Primera vez en este dispositivo: solo guardar la versión, no mostrar banner
+    if (!versionGuardada) {
+      try { localStorage.setItem('cbvi_app_version', APP_VERSION); } catch (e) {}
+      return;
+    }
+    if (versionGuardada === APP_VERSION) return; // ya está al día
+
+    // Hay versión nueva → mostrar banner
+    const versionAnterior = versionGuardada;
+    try { localStorage.setItem('cbvi_app_version', APP_VERSION); } catch (e) {}
+
+    const notasHTML = (APP_VERSION_NOTAS || [])
+      .map(n => `<li style="margin:2px 0;">${n}</li>`).join('');
+
+    const banner = document.createElement('div');
+    banner.id = 'bannerNuevaVersion';
+    banner.style.cssText = [
+      'position:fixed', 'top:0', 'left:0', 'right:0',
+      'background:#065f46', 'color:#fff',
+      'padding:12px 16px', 'z-index:10000',
+      'font-size:13px', 'line-height:1.5',
+      'box-shadow:0 2px 12px rgba(0,0,0,0.3)',
+      'display:flex', 'gap:12px', 'align-items:flex-start',
+      'flex-wrap:wrap'
+    ].join(';');
+    banner.innerHTML = `
+      <div style="flex:1;min-width:220px;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px;">
+          🆕 Nueva versión instalada: v${APP_VERSION}
+          <span style="font-weight:400;opacity:0.75;font-size:11px;">
+            (anterior: v${versionAnterior})
+          </span>
+        </div>
+        <div style="font-size:12px;opacity:0.95;margin-bottom:4px;">Cambios:</div>
+        <ul style="margin:0;padding-left:18px;font-size:12px;opacity:0.95;">${notasHTML}</ul>
+      </div>
+      <button onclick="document.getElementById('bannerNuevaVersion').remove()"
+              style="flex-shrink:0;background:rgba(255,255,255,0.25);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;align-self:center;">
+        ✕ Cerrar
+      </button>
+    `;
+    if (document.body) {
+      document.body.appendChild(banner);
+      // Auto-quitar a los 10 minutos
+      setTimeout(() => {
+        const el = document.getElementById('bannerNuevaVersion');
+        if (el) el.remove();
+      }, 10 * 60 * 1000);
+    } else {
+      // Por si el DOM no está aún listo
+      document.addEventListener('DOMContentLoaded', () => {
+        document.body.appendChild(banner);
+        setTimeout(() => {
+          const el = document.getElementById('bannerNuevaVersion');
+          if (el) el.remove();
+        }, 10 * 60 * 1000);
+      });
+    }
   },
 
   // ==================== LOGIN GOOGLE ====================
@@ -1715,19 +1798,34 @@ const app = {
     }
     r.estado = 'pendiente';
 
-    // El consecutivo lo asigna el SERVIDOR, no el celular
-    // Hasta que el servidor responda, queda como "pendiente de asignación"
-    r.consecutivo = ''; // El servidor lo asignará al sincronizar
+    // === EDICIÓN vs CREACIÓN ===
+    // Si esta sesión del formulario es una edición de un reporte que ya está
+    // en el servidor, preservamos el consecutivo y marcamos _actualizar:true
+    // para que el backend actualice la fila + regenere hojas auxiliares
+    // (Recursos, Personal, Victimas, Organizaciones, Bonificaciones).
+    // Si es uno nuevo: consecutivo vacío → el servidor asigna nuevo.
+    const esEdicion = this._esEdicionReporteExistente && r.id === this._idReporteEditandoBombero;
+    if (esEdicion) {
+      r.consecutivo = this._consecutivoOriginalBombero || '';
+      r._actualizar = true;
+    } else {
+      r.consecutivo = '';
+    }
 
     await DB.guardarReporte(r);
 
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
-    this.toast('Reporte guardado. Sincronizando...', 'exito');
+    this.toast(esEdicion ? 'Cambios guardados. Sincronizando...' : 'Reporte guardado. Sincronizando...', 'exito');
     this.irA('pantallaHome');
 
     if (navigator.onLine && this.config.urlBackend) {
       this.sincronizarReporte(r);
     }
+
+    // Limpiar bandera de edición después de enviar
+    this._esEdicionReporteExistente = false;
+    this._idReporteEditandoBombero = null;
+    this._consecutivoOriginalBombero = '';
   },
 
   async sincronizarReporte(reporte) {
@@ -1761,6 +1859,7 @@ const app = {
 
       reporte.estado = 'enviado';
       reporte.fechaEnviado = new Date().toISOString();
+      delete reporte._actualizar; // bandera temporal, no debe persistir local
       await DB.guardarReporte(reporte);
       this.actualizarHome();
       return true;
@@ -3044,6 +3143,13 @@ const app = {
       this.toast(puede.razon, 'error');
       return;
     }
+    // Marcar que esta sesión del formulario es una EDICIÓN de un reporte
+    // que ya está en el servidor, para que al pulsar "Enviar" el cliente
+    // mande _actualizar:true (en lugar de pedir nuevo consecutivo).
+    this._esEdicionReporteExistente = true;
+    this._idReporteEditandoBombero = this.reporteActual.id;
+    this._consecutivoOriginalBombero = this.reporteActual.consecutivo || '';
+
     this.cargarEnFormulario(this.reporteActual);
     this.fotosTemp = [...(this.reporteActual.fotos || []), null, null, null, null, null, null].slice(0, 6);
     this.irA('pantallaForm');

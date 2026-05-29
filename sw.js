@@ -1,5 +1,5 @@
-/* Service Worker v5.16 - CBVI Reportes (Hidratación completa de reportes al sincronizar entre dispositivos) */
-const CACHE = 'bomberos-inirida-v5-16';
+/* Service Worker v5.17 - CBVI Reportes (Editar y reenviar SÍ actualiza el servidor + banner de versión) */
+const CACHE = 'bomberos-inirida-v5-17';
 const ARCHIVOS = [
   './',
   './index.html',
