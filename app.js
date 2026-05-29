@@ -15,7 +15,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.18';
+const APP_VERSION = '5.18.1';
 const APP_VERSION_FECHA = '29 de mayo de 2026';
 const APP_VERSION_NOTAS = [
   'Autocompletado de nombres de bomberos al registrar personal en recursos (evita duplicados).',
@@ -1514,14 +1514,23 @@ const app = {
 
   // Autocompletado de nombres de bomberos usando PERSONAL_CANONICO
   autocompletarBombero(input) {
-    const contenedor = input.parentElement;
-    let lista = contenedor.querySelector('.autocomplete-lista');
-    if (!lista) return;
+    // El input guarda referencia a su lista para que seleccionarBombero la encuentre
+    // aunque el contenedor tenga estructura variable (responsable vs bombero asistente).
+    let lista = input._autoLista;
+    if (!lista) {
+      lista = input.parentElement.querySelector('.autocomplete-lista');
+      if (!lista) return;
+      input._autoLista = lista;
+
+      // Cerrar lista al perder foco — con delay para que el click en item se procese primero
+      input.addEventListener('blur', () => {
+        setTimeout(() => { lista.style.display = 'none'; }, 200);
+      });
+    }
 
     const q = input.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (q.length < 2) { lista.style.display = 'none'; return; }
 
-    // Filtrar coincidencias — busca en nombre, cargo o rango
     const coincidencias = (typeof PERSONAL_CANONICO !== 'undefined' ? PERSONAL_CANONICO : [])
       .filter(p => {
         const haystack = (p.nombre + ' ' + p.cargo + ' ' + p.rango)
@@ -1532,14 +1541,26 @@ const app = {
 
     if (coincidencias.length === 0) { lista.style.display = 'none'; return; }
 
-    lista.innerHTML = coincidencias.map(p => `
-      <div class="autocomplete-item"
-           onmousedown="event.preventDefault();"
-           onclick="app.seleccionarBombero(this, '${p.nombre.replace(/'/g, "\'")}')">
-        <span style="font-weight:600;">${p.nombre}</span>
-        <span style="font-size:11px;color:#666;margin-left:6px;">${p.cargo}</span>
-      </div>
-    `).join('');
+    lista.innerHTML = '';
+    coincidencias.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'autocomplete-item';
+      item.innerHTML = `<span style="font-weight:600;">${p.nombre}</span><span style="font-size:11px;color:#666;margin-left:8px;">${p.cargo}</span>`;
+      // mousedown en vez de click: se dispara ANTES del blur del input
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // evita que el input pierda foco antes de asignar
+        input.value = p.nombre;
+        lista.style.display = 'none';
+        input.dispatchEvent(new Event('input')); // por si hay listeners downstream
+      });
+      // touch para móvil
+      item.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        input.value = p.nombre;
+        lista.style.display = 'none';
+      });
+      lista.appendChild(item);
+    });
 
     lista.style.cssText = [
       'display:block', 'position:absolute', 'top:100%', 'left:0', 'right:0',
@@ -1550,11 +1571,13 @@ const app = {
   },
 
   seleccionarBombero(item, nombre) {
-    const contenedor = item.closest('[style*="position"]') || item.parentElement.parentElement;
-    const input = contenedor.querySelector('input[type="text"]');
-    if (input) input.value = nombre;
-    const lista = contenedor.querySelector('.autocomplete-lista');
-    if (lista) lista.style.display = 'none';
+    // Fallback — ya no se usa normalmente (mousedown lo maneja directo)
+    const lista = item.closest('.autocomplete-lista');
+    if (lista) {
+      const input = lista.parentElement.querySelector('input[type="text"]');
+      if (input) input.value = nombre;
+      lista.style.display = 'none';
+    }
   },
 
   agregarVictima(datos) {
