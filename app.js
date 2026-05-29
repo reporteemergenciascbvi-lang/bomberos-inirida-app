@@ -15,7 +15,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.18.2';
+const APP_VERSION = '5.18.3';
 const APP_VERSION_FECHA = '29 de mayo de 2026';
 const APP_VERSION_NOTAS = [
   'Autocompletado de nombres de bomberos al registrar personal en recursos (evita duplicados).',
@@ -248,12 +248,13 @@ const app = {
     try { versionGuardada = localStorage.getItem('cbvi_app_version'); }
     catch (e) { /* localStorage puede no estar disponible */ }
 
-    // Primera vez en este dispositivo: solo guardar la versión, no mostrar banner
-    if (!versionGuardada) {
-      try { localStorage.setItem('cbvi_app_version', APP_VERSION); } catch (e) {}
-      return;
-    }
-    if (versionGuardada === APP_VERSION) return; // ya está al día
+    // Si ya tiene esta versión exacta guardada → no mostrar
+    if (versionGuardada === APP_VERSION) return;
+
+    // Si no tiene ninguna versión guardada → primera instalación en este
+    // dispositivo. Igual mostrar el banner para confirmar que la app cargó bien.
+    // (Antes no se mostraba — eso causaba que reinstalar la APK nunca mostrara
+    // el mensaje de actualización porque el localStorage quedaba vacío.)
 
     // Hay versión nueva → mostrar banner
     const versionAnterior = versionGuardada;
@@ -1520,50 +1521,56 @@ const app = {
     if (this._autocompletadoGlobalListo) return;
     this._autocompletadoGlobalListo = true;
 
-    // Cerrar cualquier lista abierta al tocar fuera
-    document.addEventListener('touchstart', (e) => {
-      if (!e.target.closest('.autocomplete-lista') &&
-          !e.target.closest('input[oninput*="autocompletarBombero"]')) {
-        document.querySelectorAll('.autocomplete-lista').forEach(l => l.style.display = 'none');
+    const seleccionar = (item) => {
+      const nombre = item.dataset.nombre;
+      const lista = item.closest('.autocomplete-lista');
+      if (!lista || !nombre) return;
+      const inp = lista.parentElement.querySelector('input[type="text"]');
+      if (inp) {
+        inp._seleccionandoAuto = true; // flag: no regenerar lista en este oninput
+        inp.value = nombre;
+        inp._seleccionandoAuto = false;
+        inp.focus();
       }
-    }, { passive: true });
+      lista.style.display = 'none';
+    };
 
+    // PC: mousedown (antes del blur)
     document.addEventListener('mousedown', (e) => {
-      // Si el click es DENTRO de una lista de autocompletado → seleccionar
       const item = e.target.closest('.autocomplete-item');
       if (item) {
         e.preventDefault();
-        const nombre = item.dataset.nombre;
-        const lista = item.closest('.autocomplete-lista');
-        if (lista && nombre) {
-          // Encontrar el input asociado a esta lista
-          const contenedor = lista.parentElement;
-          const inp = contenedor.querySelector('input[type="text"]');
-          if (inp) inp.value = nombre;
-          lista.style.display = 'none';
-        }
+        seleccionar(item);
         return;
       }
-      // Si el click es fuera de cualquier lista → cerrar todas
       if (!e.target.closest('.autocomplete-lista')) {
         document.querySelectorAll('.autocomplete-lista').forEach(l => l.style.display = 'none');
       }
     });
+
+    // Móvil/APK: touchend
+    document.addEventListener('touchend', (e) => {
+      const item = e.target.closest('.autocomplete-item');
+      if (item) {
+        e.preventDefault();
+        seleccionar(item);
+      }
+    }, { passive: false });
   },
 
   autocompletarBombero(input) {
-    // Inicializar listener global la primera vez
     this._initAutocompletadoGlobal();
 
-    // Asociar blur con delay solo una vez por input
+    // Si la llamada vino de la selección interna → no regenerar lista
+    if (input._seleccionandoAuto) return;
+
     if (!input._autoBlurListo) {
       input._autoBlurListo = true;
       input.addEventListener('blur', () => {
-        // Delay: deja que el mousedown global se procese primero
         setTimeout(() => {
           const lista = input.parentElement.querySelector('.autocomplete-lista');
           if (lista) lista.style.display = 'none';
-        }, 250);
+        }, 300);
       });
     }
 
@@ -1583,23 +1590,24 @@ const app = {
 
     if (coincidencias.length === 0) { lista.style.display = 'none'; return; }
 
-    // Construir items con data-nombre en el elemento — el listener global los lee
     lista.innerHTML = coincidencias.map(p =>
-      `<div class="autocomplete-item" data-nombre="${p.nombre.replace(/"/g, '&quot;')}">
-        <span style="font-weight:600;pointer-events:none;">${p.nombre}</span>
-        <span style="font-size:11px;color:#666;margin-left:8px;pointer-events:none;">${p.cargo}</span>
+      `<div class="autocomplete-item" data-nombre="${p.nombre.replace(/"/g, '&quot;')}"
+            style="padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0;user-select:none;">
+        <strong style="pointer-events:none;">${p.nombre}</strong>
+        <span style="font-size:11px;color:#888;margin-left:8px;pointer-events:none;">${p.cargo}</span>
       </div>`
     ).join('');
 
     lista.style.cssText = [
       'display:block', 'position:absolute', 'top:100%', 'left:0', 'right:0',
-      'background:#fff', 'border:1px solid #ccc', 'border-radius:0 0 6px 6px',
-      'z-index:9999', 'max-height:200px', 'overflow-y:auto',
-      'box-shadow:0 4px 12px rgba(0,0,0,0.15)'
+      'background:#fff', 'border:1px solid #bbb', 'border-top:none',
+      'border-radius:0 0 8px 8px', 'z-index:9999',
+      'max-height:220px', 'overflow-y:auto',
+      'box-shadow:0 6px 16px rgba(0,0,0,0.18)'
     ].join(';');
   },
 
-  seleccionarBombero() { /* deprecated — manejo vía listener global */ },
+  seleccionarBombero() { /* manejado por listener global en _initAutocompletadoGlobal */ },
 
   agregarVictima(datos) {
     const cont = document.getElementById('tablaVictimas');
