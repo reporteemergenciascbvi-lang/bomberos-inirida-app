@@ -15,7 +15,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.18.3';
+const APP_VERSION = '5.18.4';
 const APP_VERSION_FECHA = '29 de mayo de 2026';
 const APP_VERSION_NOTAS = [
   'Autocompletado de nombres de bomberos al registrar personal en recursos (evita duplicados).',
@@ -2908,28 +2908,19 @@ const app = {
     const idOrig = this._reporteAdminOriginalId;
     if (!idOrig) { this.toast('Falta ID del reporte', 'error'); return; }
 
+    // CRÍTICO: leerFormulario() usa this.reporteActual como objeto base.
+    // En modo edición admin, this.reporteActual puede ser null o apuntar al
+    // reporte del bombero actual (no al que está editando el admin).
+    // Lo forzamos a apuntar al reporte correcto antes de leer.
+    if (!this.reporteActual || this.reporteActual.id !== idOrig) {
+      this.reporteActual = { ...(this._reporteAdminEditando || {}), id: idOrig };
+    }
+
     const r = this.leerFormulario();
 
-    // Aviso: las fotos NO se actualizan desde el editor admin
-    // (las fotos del Sheet/Drive se mantienen intactas; este editor edita
-    // solo campos de texto, datos numéricos y listas de recursos/víctimas).
-    const fotosOriginal = (this._reporteAdminEditando.fotos || []).filter(Boolean);
-    const fotosActual = (r.fotos || []).filter(Boolean);
-    const fotosCambiadas =
-      fotosOriginal.length !== fotosActual.length ||
-      fotosActual.some((f, i) => f !== fotosOriginal[i]);
-    if (fotosCambiadas) {
-      const ok = window.confirm(
-        '⚠️ Detecté cambios en las FOTOS de este reporte.\n\n' +
-        'El editor admin NO sube fotos nuevas al servidor. ' +
-        'Las fotos que ya tenía el reporte en Drive se mantienen igual.\n\n' +
-        'Si necesitas cambiar fotos, pídele al bombero original que abra ' +
-        'el reporte desde su dispositivo (dentro de 24h) o elimínalo y ' +
-        'créalo de nuevo.\n\n' +
-        '¿Continuar y guardar el resto de cambios?'
-      );
-      if (!ok) return;
-    }
+    // Las fotos NO se actualizan desde el editor admin.
+    // Las fotos del Sheet/Drive se mantienen intactas.
+    // Solo se guardan campos de texto, datos numéricos y listas de recursos/víctimas.
 
     // Si cambió el consecutivo, hacer cambio aparte
     const consecForm = (document.getElementById('admin_consecutivo')?.value || r.consecutivo || '').trim();
@@ -2981,6 +2972,7 @@ const app = {
       comandanteEstacion: r.comandanteEstacion || ''
     };
 
+    this.toast('Guardando cambios...', 'info');
     try {
       // 1) Cambios de campos planos + recursos/victimas/organizaciones
       const resp = await fetch(URL_BACKEND, {
