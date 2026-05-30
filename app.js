@@ -15,7 +15,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.19';
+const APP_VERSION = '5.19.1';
 const APP_VERSION_FECHA = '30 de mayo de 2026';
 const APP_VERSION_NOTAS = [
   'Sección 5 (Recursos): cada vehículo muestra su propio campo de tripulantes.',
@@ -3456,14 +3456,14 @@ const app = {
       const personalHTML = tripulantes.length
         ? '<br><small style="font-size:7pt;color:#333;">👥 ' + tripulantes.join('<br>') + '</small>'
         : '';
-      return \`
+      return `
       <tr>
-        <td>\${rec.recurso || ''}</td>
-        <td style="text-align:center;">\${rec.cantidad || ''}</td>
-        <td>\${rec.codigo || ''}</td>
-        <td>\${rec.responsable || ''}\${personalHTML}</td>
+        <td>${rec.recurso || ''}</td>
+        <td style="text-align:center;">${rec.cantidad || ''}</td>
+        <td>${rec.codigo || ''}</td>
+        <td>${rec.responsable || ''}${personalHTML}</td>
       </tr>
-    \`;
+    `;
     }).join('');
 
     const victimasFilas = (r.victimas || []).map(v => `
