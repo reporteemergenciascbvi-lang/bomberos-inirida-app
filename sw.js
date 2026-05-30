@@ -1,7 +1,7 @@
-/* Service Worker v5.18.4 - CBVI Reportes
+/* Service Worker v5.19 - CBVI Reportes
    29 mayo 2026 — Autocompletado nombres, lista canónica CBVI,
    normalización bonificaciones, herramientas mantenimiento admin */
-const CACHE = 'bomberos-inirida-v5-18-4';
+const CACHE = 'bomberos-inirida-v5-19';
 const ARCHIVOS = [
   './',
   './index.html',

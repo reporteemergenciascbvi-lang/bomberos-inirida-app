@@ -15,14 +15,14 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.18.4';
-const APP_VERSION_FECHA = '29 de mayo de 2026';
+const APP_VERSION = '5.19';
+const APP_VERSION_FECHA = '30 de mayo de 2026';
 const APP_VERSION_NOTAS = [
-  'Autocompletado de nombres de bomberos al registrar personal en recursos (evita duplicados).',
-  'Lista canónica oficial de 31 bomberos del CBVI integrada en la app.',
-  'Sistema de corrección automática de nombres en bonificaciones.',
-  'Herramienta admin para limpiar y reconstruir hojas auxiliares del libro Excel.',
-  'Corrección: al editar un reporte propio, ahora carga recursos/personal del servidor antes de abrir el formulario.'
+  'Sección 5 (Recursos): cada vehículo muestra su propio campo de tripulantes.',
+  'PDF: nombres duplicados en recursos eliminados automáticamente.',
+  'PDF: fotos ahora se muestran completas (sin recorte) con fondo negro.',
+  'PDF: páginas en blanco al final eliminadas.',
+  'Corrección: botón Guardar cambios admin ahora funciona correctamente.',
 ];
 
 const CREDITO_AUTOR = {
@@ -1449,13 +1449,13 @@ const app = {
         <div class="campo"><label>Placa/Código</label><input type="text" data-campo="codigo"></div>
       </div>
       <div class="campo">
-        <label>Responsable / Maquinista</label>
-        <input type="text" data-campo="responsable" placeholder="Nombre del bombero a cargo"
+        <label>Conductor / Maquinista / Responsable</label>
+        <input type="text" data-campo="responsable" placeholder="Quién conduce o lidera este recurso"
                oninput="app.autocompletarBombero(this)" autocomplete="off">
         <div class="autocomplete-lista" style="display:none;"></div>
       </div>
       <div class="campo personal-bloque" style="display:none;">
-        <label>Bomberos asistentes</label>
+        <label>👥 Tripulantes / Bomberos asistentes en este recurso</label>
         <div class="personal-lista" data-personal></div>
         <button type="button" class="agregar-personal" onclick="app.agregarBombero(this)">+ Agregar bombero</button>
       </div>
@@ -1476,6 +1476,9 @@ const app = {
       div.querySelector('[data-campo="cantidad"]').value = datos.cantidad || 1;
       div.querySelector('[data-campo="codigo"]').value = datos.codigo || '';
       div.querySelector('[data-campo="responsable"]').value = datos.responsable || '';
+      // Siempre mostrar bloque personal al cargar datos (independiente del tipo de recurso)
+      const pb = div.querySelector('.personal-bloque');
+      if (pb) pb.style.display = 'block';
       if (datos.personal && Array.isArray(datos.personal)) {
         datos.personal.forEach(nombre => this.agregarBomberoConNombre(div, nombre));
       }
@@ -1490,8 +1493,12 @@ const app = {
     if (select.value === 'Otro') otroInput.style.display = 'block';
     else otroInput.style.display = 'none';
 
-    if (select.value === 'Personal') personalBloque.style.display = 'block';
-    else personalBloque.style.display = 'none';
+    // Mostrar tripulación en TODOS los recursos (cada vehículo lleva su personal)
+    if (select.value && select.value !== '') {
+      personalBloque.style.display = 'block';
+    } else {
+      personalBloque.style.display = 'none';
+    }
   },
 
   agregarBombero(btn) {
@@ -3415,14 +3422,49 @@ const app = {
     const isClasif = (t) => (r.clasificacion || []).includes(t);
     const isCausa = (c) => (r.causas || []).includes(c);
 
-    const recursosFilas = (r.recursos || []).map(rec => `
+    // Deduplicar recursos: agrupar por recurso+codigo, unir personal sin repetir
+    const recursosMap = new Map();
+    (r.recursos || []).forEach(rec => {
+      const clave = (rec.recurso || '') + '|' + (rec.codigo || '');
+      if (!recursosMap.has(clave)) {
+        recursosMap.set(clave, {
+          recurso: rec.recurso || '',
+          cantidad: rec.cantidad || 1,
+          codigo: rec.codigo || '',
+          responsable: rec.responsable || '',
+          personal: []
+        });
+      }
+      const entry = recursosMap.get(clave);
+      // Agregar personal sin duplicar (normalizado)
+      (rec.personal || []).forEach(nombre => {
+        const norm = nombre.trim().toUpperCase();
+        if (norm && !entry.personal.some(p => p.trim().toUpperCase() === norm)) {
+          entry.personal.push(nombre.trim());
+        }
+      });
+      // Si este tiene responsable y el entry no, tomarlo
+      if (!entry.responsable && rec.responsable) entry.responsable = rec.responsable;
+    });
+
+    const recursosFilas = Array.from(recursosMap.values()).map(rec => {
+      // Personal: responsable + tripulantes sin repetir el responsable
+      const resp = (rec.responsable || '').trim().toUpperCase();
+      const tripulantes = (rec.personal || []).filter(p =>
+        p.trim().toUpperCase() !== resp
+      );
+      const personalHTML = tripulantes.length
+        ? '<br><small style="font-size:7pt;color:#333;">👥 ' + tripulantes.join('<br>') + '</small>'
+        : '';
+      return \`
       <tr>
-        <td>${rec.recurso || ''}</td>
-        <td style="text-align:center;">${rec.cantidad || ''}</td>
-        <td>${rec.codigo || ''}</td>
-        <td>${rec.responsable || ''}${rec.personal && rec.personal.length ? '<br><small>' + rec.personal.join(', ') + '</small>' : ''}</td>
+        <td>\${rec.recurso || ''}</td>
+        <td style="text-align:center;">\${rec.cantidad || ''}</td>
+        <td>\${rec.codigo || ''}</td>
+        <td>\${rec.responsable || ''}\${personalHTML}</td>
       </tr>
-    `).join('');
+    \`;
+    }).join('');
 
     const victimasFilas = (r.victimas || []).map(v => `
       <tr>
@@ -3482,8 +3524,8 @@ const app = {
 
     let paginaFotos = '';
     if (tieneFotos) {
-      // Hoja 1: fotos 1-3. Hoja 2: fotos 4-6 (solo si hay al menos una de las últimas tres).
-      const hayHoja2 = fotos.length > 3;
+      // Hoja 1: fotos 1-3. Hoja 2: fotos 4-6 solo si hay al menos 1 foto en ese rango.
+      const hayHoja2 = fotos.filter((f, i) => i >= 3 && f).length > 0;
       const totalHojas = hayHoja2 ? 2 : 1;
       paginaFotos = construirHojaFotos(0, 1, totalHojas);
       if (hayHoja2) {
@@ -3602,13 +3644,13 @@ const app = {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .foto-grande.vacia { background: white; border: 1px dashed #888; }
+  .foto-grande.vacia { display: none; } /* no mostrar slots vacíos = sin páginas en blanco */
   .foto-grande img {
     width: 100%;
     height: calc(82mm - 6mm);   /* descuenta alto del pie */
-    object-fit: cover;          /* uniforma todas las fotos: recorta sin distorsionar */
+    object-fit: contain;        /* muestra foto completa sin recorte */
     object-position: center;
-    background: white;
+    background: #111;           /* fondo negro para fotos verticales */
     display: block;
   }
   .foto-grande .foto-pie {
