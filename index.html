@@ -449,35 +449,19 @@
     background: transparent; margin-top: 4px;
   }
 
-  /* Personal y roles (lista plana) */
-  .bloque-personal { margin-top: 14px; }
-  .bloque-personal > label.titulo-bloque {
-    display: block; font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--rojo);
+  /* Personal / comandante / total */
+  .campo-comandante {
+    background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px;
+    padding: 12px; margin-bottom: 14px;
   }
-  #tablaPersonalRoles .fila-persona {
-    display: flex; gap: 6px; align-items: center; margin-bottom: 8px;
-  }
-  #tablaPersonalRoles .persona-nombre {
-    flex: 1 1 auto; padding: 10px; font-size: 14px; min-width: 0;
-  }
-  #tablaPersonalRoles .persona-rol {
-    flex: 0 0 auto; padding: 10px 6px; font-size: 13px; max-width: 46%;
-  }
-  #tablaPersonalRoles .quitar-persona {
-    background: var(--rojo); color: white; width: 30px; height: 30px;
-    border-radius: 50%; font-size: 14px; flex-shrink: 0; border: none;
-    display: flex; align-items: center; justify-content: center;
-  }
+  .campo-comandante label { display:block; font-weight:700; color:#9a3412; margin-bottom:6px; font-size:14px; }
+  .campo-comandante input { width:100%; padding:10px; font-size:14px; }
   .resumen-personal {
     background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px;
-    padding: 10px 12px; margin-top: 8px; font-size: 14px;
+    padding: 10px 12px; margin-top: 10px; font-size: 14px;
   }
-  .resumen-personal b { color: #166534; }
-  .resumen-personal .total-num { font-size: 18px; font-weight: 800; color: #166534; }
-  .warn-comandante {
-    display: none; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
-    border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 13px;
-  }
+  .resumen-personal b { color:#166534; }
+  .resumen-personal .total-num { font-size:18px; font-weight:800; color:#166534; }
 
   .acciones-flotantes {
     position: fixed; bottom: 0; left: 0; right: 0;
@@ -544,6 +528,7 @@
 </style>
 </head>
 <body>
+  <datalist id="rosterBomberos"></datalist>
 
 <header class="app-header" id="header" style="display:none;">
   <button class="btn-volver" id="btnVolver" style="display:none;">←</button>
@@ -1071,33 +1056,28 @@
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🚒 Qué unidades y personal asistieron.</strong> Agregue cada vehículo con sus datos (placa, código, etc.). Luego, en <strong>"Personal y roles"</strong> liste cada bombero con su rol; el total se suma automáticamente.
+        <strong>🚒 Qué unidades y personal asistieron.</strong> Ponga arriba el Comandante de Incidente. Luego agregue cada vehículo con su Responsable/Maquinista y los tripulantes que fueron en ese vehículo. Todo con autocompletar. El total se suma solo.
       </div>
+      <div class="campo-comandante">
+        <label>🎖️ Comandante de Incidente</label>
+        <input type="text" id="f_comandante_incidente" list="rosterBomberos"
+               placeholder="Nombre del encargado general (escriba inicial)"
+               oninput="app.recalcularPersonal()">
+        <div class="ayuda" style="margin-top:4px;">Encargado general de la emergencia. Uno por reporte.</div>
+      </div>
+
       <div class="tabla-dinamica" id="tablaRecursos"></div>
       <button class="agregar-fila" onclick="app.agregarRecurso()">+ Agregar recurso</button>
 
-      <div class="bloque-personal">
-        <label class="titulo-bloque">👥 Personal y roles</label>
-        <div class="ayuda-seccion" style="margin-bottom:8px;">
-          Liste <strong>TODA</strong> la gente que asistió (incluido el maquinista), uno por uno, con su rol.
-          El <strong>total se suma solo</strong>. Una misma persona cuenta <strong>1</strong> aunque haya ido varios días en la misma emergencia.
-        </div>
-        <div id="tablaPersonalRoles"></div>
-        <button class="agregar-fila" onclick="app.agregarPersonaRol()">+ Agregar persona</button>
+      <div class="resumen-personal">
+        🔢 Total de personal (suma sola): <span class="total-num" id="totalPersonalAuto">0</span><br>
+        🎖️ <b>Comandante de Incidente:</b> <span id="comandanteIncidenteAuto">— (sin asignar)</span>
+      </div>
 
-        <div class="resumen-personal">
-          🔢 Total de personal: <span class="total-num" id="totalPersonalAuto">0</span><br>
-          🎖️ <b>Comandante de Incidente:</b> <span id="comandanteIncidenteAuto">— (sin asignar)</span>
-        </div>
-        <div class="warn-comandante" id="comandanteIncidenteWarn">
-          ⚠️ Hay más de un Comandante de Incidente marcado. Debe haber solo uno. Corrija los roles.
-        </div>
-
-        <div class="campo" style="margin-top:12px;">
-          <label>📝 Observaciones de mando</label>
-          <textarea id="f_observaciones_mando" rows="3"
-            placeholder="Ej. Transferencia de mando a X. Emergencia continúa el día siguiente..."></textarea>
-        </div>
+      <div class="campo" style="margin-top:12px;">
+        <label>📝 Observaciones de mando</label>
+        <textarea id="f_observaciones_mando" rows="3"
+          placeholder="Ej. Transferencia de mando a X. Emergencia continúa el día siguiente..."></textarea>
       </div>
     </div>
   </div>
