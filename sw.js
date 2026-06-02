@@ -1,7 +1,8 @@
-/* Service Worker v5.19 - CBVI Reportes
-   29 mayo 2026 — Autocompletado nombres, lista canónica CBVI,
-   normalización bonificaciones, herramientas mantenimiento admin */
-const CACHE = 'bomberos-inirida-v5-19-1';
+/* Service Worker v5.18 - CBVI Reportes
+   NETWORK-FIRST para los archivos del propio sitio: con internet SIEMPRE
+   baja la última versión (se acabó el caché viejo pegado en el teléfono).
+   El caché queda solo como respaldo cuando NO hay señal. */
+const CACHE = 'bomberos-inirida-v5-18';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -13,7 +14,10 @@ const ARCHIVOS = [
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ARCHIVOS).catch(() => {}))
+    caches.open(CACHE).then(c =>
+      // add individual: si un archivo falla (404), los demás igual se guardan.
+      Promise.allSettled(ARCHIVOS.map(a => c.add(a)))
+    ).catch(() => {})
   );
 });
 
@@ -26,7 +30,10 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  const url = e.request.url;
+  const req = e.request;
+  const url = req.url;
+
+  // No interceptar Google (login), backend ni mapas: pasan directo a la red.
   if (url.includes('accounts.google.com') ||
       url.includes('googleapis.com') ||
       url.includes('script.google.com') ||
@@ -35,15 +42,23 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
+  // Solo manejar GET del propio origen. El resto pasa directo.
+  let mismoOrigen = false;
+  try { mismoOrigen = (new URL(url).origin === self.location.origin); } catch (_) {}
+  if (req.method !== 'GET' || !mismoOrigen) {
+    return;
+  }
+
+  // NETWORK-FIRST: intenta la red; si falla (sin señal), usa el caché.
   e.respondWith(
-    caches.match(e.request).then(resp => {
-      return resp || fetch(e.request).then(r => {
-        if (r && r.status === 200 && e.request.method === 'GET') {
-          const clon = r.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clon)).catch(() => {});
-        }
-        return r;
-      }).catch(() => caches.match('./index.html'));
-    })
+    fetch(req).then(r => {
+      if (r && r.status === 200) {
+        const clon = r.clone();
+        caches.open(CACHE).then(c => c.put(req, clon)).catch(() => {});
+      }
+      return r;
+    }).catch(() =>
+      caches.match(req).then(resp => resp || caches.match('./index.html'))
+    )
   );
 });

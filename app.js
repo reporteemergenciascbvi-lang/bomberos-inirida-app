@@ -15,14 +15,13 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.19.1';
-const APP_VERSION_FECHA = '30 de mayo de 2026';
+const APP_VERSION = '5.18';
 const APP_VERSION_NOTAS = [
-  'Sección 5 (Recursos): cada vehículo muestra su propio campo de tripulantes.',
-  'PDF: nombres duplicados en recursos eliminados automáticamente.',
-  'PDF: fotos ahora se muestran completas (sin recorte) con fondo negro.',
-  'PDF: páginas en blanco al final eliminadas.',
-  'Corrección: botón Guardar cambios admin ahora funciona correctamente.',
+  'Arreglo importante: la app ya no se queda pegada en la pantalla de inicio por caché viejo. Con internet siempre carga la última versión (ya no hay que borrar caché).',
+  'Login de Google con red de seguridad: si Google no carga, ahora muestra un aviso y un botón "Reintentar" en vez de quedarse en blanco.',
+  'Editar y reenviar reporte ahora SÍ actualiza el servidor (antes lo rechazaba como duplicado).',
+  'Las hojas Recursos / Personal / Víctimas / Organizaciones / Bonificaciones se regeneran al reenviar.',
+  'Banner de notificación cuando hay nueva versión instalada (10 minutos).'
 ];
 
 const CREDITO_AUTOR = {
@@ -32,44 +31,6 @@ const CREDITO_AUTOR = {
   telefono: '320 960 6428',
   facebook: 'https://www.facebook.com/jeancarlos.rangel.1420'
 };
-
-// ===== PERSONAL CANÓNICO CBVI =====
-// Lista oficial de bomberos según Base de Datos Personal Bomberil.
-// Usada para autocompletado y normalización de nombres en bonificaciones.
-// Actualizar aquí cuando ingrese o retire un miembro.
-const PERSONAL_CANONICO = [
-  { nombre: "WILLIAM MARTINEZ PATIÑO",          rango: "CAPITAN",   cargo: "COMANDANTE" },
-  { nombre: "ELIODORO LOPEZ MARTINEZ",           rango: "SARGENTO",  cargo: "SUB-CTE" },
-  { nombre: "HERBHERT ARTEMIO DIAZ AGAPITO",     rango: "SARGENTO",  cargo: "CTE DE GUARDIA" },
-  { nombre: "FREDY ANDREY SIERRA BORRERO",       rango: "NO APLICA", cargo: "MAQUINISTA" },
-  { nombre: "GERMAN ALONSO ROJAS GARZON",        rango: "BOMBERO",   cargo: "MAQUINISTA" },
-  { nombre: "JOSE ROSENDO PALMA NARVAEZ",        rango: "BOMBERO",   cargo: "MAQUINISTA" },
-  { nombre: "LEONIDAS DOMINGUEZ RAMIREZ",        rango: "NO APLICA", cargo: "MAQUINISTA" },
-  { nombre: "JEFERSON JEANCARLOS RANGEL GIL",    rango: "BOMBERO",   cargo: "CTE DE GUARDIA" },
-  { nombre: "ARIEL FERNANDO CARDENAS TEJEIRO",   rango: "BOMBERO",   cargo: "TESORERO" },
-  { nombre: "DELIO PINZON ALDANA",               rango: "BOMBERO",   cargo: "JEFE DE PRENSA" },
-  { nombre: "HAROLD HENDER BARRETO SAENZ",       rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "HELIODORO LOPEZ VALENCIA",          rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "MERY JOSEFINA MORILLO MARIÑO",      rango: "BOMBERO",   cargo: "SERV. GENERALES" },
-  { nombre: "MIGUEL ANGEL CONTRERAS PACHECO",    rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "MONICA LUZ MERY DIAZ AGAPITO",      rango: "BOMBERO",   cargo: "SECRETARIA" },
-  { nombre: "OSCAR ESTIBEN MARTINEZ LOPEZ",      rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "THANYA EDITH RODRIGUEZ AGAPITO",    rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "VERONICA ALEJANDRA CAMICO GARRIDO", rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "WILDER JOSE GAITAN DIAZ",           rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "YADHIRA NAYERLY DIAZ AGAPITO",      rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "YORDY ALONSO MARTINEZ SAMPAYO",     rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "LEIDY KATHERINE ZAPATA RINCON",     rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "ELENA PATRICIA RAMIREZ PEREZ",      rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "ELIPSYS ALEXANDRA RONDON MORILLO",  rango: "ASPIRANTE", cargo: "B. VOLUNTARIO" },
-  { nombre: "DAVID FELIPE MUÑOZ ACOSTA",         rango: "ASPIRANTE", cargo: "B. VOLUNTARIO" },
-  { nombre: "JOSE LUIS FERNANDEZ RODRIGUEZ",     rango: "ASPIRANTE", cargo: "B. VOLUNTARIO" },
-  { nombre: "DARLINGTON ESTIVEN DELGADO MOLINA", rango: "NO APLICA", cargo: "COORDINADOR SG-SST" },
-  { nombre: "CRISTIAN ANDRES VIDAL TRUJILLO",    rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-  { nombre: "HECTOR DE JESUS GARCIA CUARTAS",    rango: "TENIENTE",  cargo: "VICEPRESIDENTE C.O." },
-  { nombre: "GUILLERMO DIAZ SABOGAL",            rango: "CAPITAN",   cargo: "PRESIDENTE C.O." },
-  { nombre: "WILSON GARCIA AGAPITO",             rango: "BOMBERO",   cargo: "B. VOLUNTARIO" },
-];
 
 const TIPOS_EVENTO = [
   'Incendio estructural', 'Incendio forestal', 'Incendio vehicular', 'Rescate vehicular',
@@ -248,13 +209,12 @@ const app = {
     try { versionGuardada = localStorage.getItem('cbvi_app_version'); }
     catch (e) { /* localStorage puede no estar disponible */ }
 
-    // Si ya tiene esta versión exacta guardada → no mostrar
-    if (versionGuardada === APP_VERSION) return;
-
-    // Si no tiene ninguna versión guardada → primera instalación en este
-    // dispositivo. Igual mostrar el banner para confirmar que la app cargó bien.
-    // (Antes no se mostraba — eso causaba que reinstalar la APK nunca mostrara
-    // el mensaje de actualización porque el localStorage quedaba vacío.)
+    // Primera vez en este dispositivo: solo guardar la versión, no mostrar banner
+    if (!versionGuardada) {
+      try { localStorage.setItem('cbvi_app_version', APP_VERSION); } catch (e) {}
+      return;
+    }
+    if (versionGuardada === APP_VERSION) return; // ya está al día
 
     // Hay versión nueva → mostrar banner
     const versionAnterior = versionGuardada;
@@ -277,11 +237,12 @@ const app = {
     banner.innerHTML = `
       <div style="flex:1;min-width:220px;">
         <div style="font-weight:700;font-size:14px;margin-bottom:4px;">
-          🆕 App actualizada — v${APP_VERSION}
-          ${typeof APP_VERSION_FECHA !== 'undefined' ? '<span style="font-weight:600;color:#6ee7b7;"> · ' + APP_VERSION_FECHA + '</span>' : ''}
+          🆕 Nueva versión instalada: v${APP_VERSION}
+          <span style="font-weight:400;opacity:0.75;font-size:11px;">
+            (anterior: v${versionAnterior})
+          </span>
         </div>
-        <div style="font-size:11px;opacity:0.75;margin-bottom:6px;">Versión anterior: v${versionAnterior}</div>
-        <div style="font-size:12px;opacity:0.95;margin-bottom:4px;">✅ Cambios incluidos:</div>
+        <div style="font-size:12px;opacity:0.95;margin-bottom:4px;">Cambios:</div>
         <ul style="margin:0;padding-left:18px;font-size:12px;opacity:0.95;">${notasHTML}</ul>
       </div>
       <button onclick="document.getElementById('bannerNuevaVersion').remove()"
@@ -310,8 +271,28 @@ const app = {
 
   // ==================== LOGIN GOOGLE ====================
   iniciarGoogleSignIn() {
+    let intentos = 0;
+    const MAX_INTENTOS = 24; // ~12 segundos esperando a Google
+
+    const mostrarErrorLogin = (msg) => {
+      const box = document.getElementById('loginErrorBox');
+      if (!box) return;
+      box.style.display = 'block';
+      box.innerHTML =
+        (msg || 'No se pudo cargar el inicio de sesión de Google.') +
+        '<br><button onclick="location.reload()" ' +
+        'style="margin-top:10px;background:#991b1b;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:14px;cursor:pointer;">' +
+        '🔄 Reintentar / Recargar</button>';
+    };
+
     const intentar = () => {
-      if (typeof google === 'undefined' || !google.accounts) {
+      // Aún no cargó el script de Google: reintentar, pero con tope.
+      if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+        intentos++;
+        if (intentos >= MAX_INTENTOS) {
+          mostrarErrorLogin('No se pudo conectar con Google. Revise su conexión a internet y toque Reintentar.');
+          return;
+        }
         setTimeout(intentar, 500);
         return;
       }
@@ -332,12 +313,16 @@ const app = {
             logo_alignment: 'left',
             width: 280
           });
+          // Red de seguridad: si el botón no se dibujó en 3s, avisar.
+          setTimeout(() => {
+            if (btnDiv && btnDiv.childElementCount === 0) {
+              mostrarErrorLogin('El botón de Google no se mostró. Toque Reintentar.');
+            }
+          }, 3000);
         }
       } catch (err) {
         console.error('Error iniciando Google:', err);
-        document.getElementById('loginErrorBox').style.display = 'block';
-        document.getElementById('loginErrorBox').textContent =
-          'Error cargando login de Google. Verifique que tiene conexión a internet y recargue la página.';
+        mostrarErrorLogin('Error cargando login de Google. Verifique su conexión y toque Reintentar.');
       }
     };
     intentar();
@@ -1449,13 +1434,11 @@ const app = {
         <div class="campo"><label>Placa/Código</label><input type="text" data-campo="codigo"></div>
       </div>
       <div class="campo">
-        <label>Conductor / Maquinista / Responsable</label>
-        <input type="text" data-campo="responsable" placeholder="Quién conduce o lidera este recurso"
-               oninput="app.autocompletarBombero(this)" autocomplete="off">
-        <div class="autocomplete-lista" style="display:none;"></div>
+        <label>Responsable / Maquinista</label>
+        <input type="text" data-campo="responsable" placeholder="Nombre del bombero a cargo">
       </div>
       <div class="campo personal-bloque" style="display:none;">
-        <label>👥 Tripulantes / Bomberos asistentes en este recurso</label>
+        <label>Bomberos asistentes</label>
         <div class="personal-lista" data-personal></div>
         <button type="button" class="agregar-personal" onclick="app.agregarBombero(this)">+ Agregar bombero</button>
       </div>
@@ -1476,9 +1459,6 @@ const app = {
       div.querySelector('[data-campo="cantidad"]').value = datos.cantidad || 1;
       div.querySelector('[data-campo="codigo"]').value = datos.codigo || '';
       div.querySelector('[data-campo="responsable"]').value = datos.responsable || '';
-      // Siempre mostrar bloque personal al cargar datos (independiente del tipo de recurso)
-      const pb = div.querySelector('.personal-bloque');
-      if (pb) pb.style.display = 'block';
       if (datos.personal && Array.isArray(datos.personal)) {
         datos.personal.forEach(nombre => this.agregarBomberoConNombre(div, nombre));
       }
@@ -1493,12 +1473,8 @@ const app = {
     if (select.value === 'Otro') otroInput.style.display = 'block';
     else otroInput.style.display = 'none';
 
-    // Mostrar tripulación en TODOS los recursos (cada vehículo lleva su personal)
-    if (select.value && select.value !== '') {
-      personalBloque.style.display = 'block';
-    } else {
-      personalBloque.style.display = 'none';
-    }
+    if (select.value === 'Personal') personalBloque.style.display = 'block';
+    else personalBloque.style.display = 'none';
   },
 
   agregarBombero(btn) {
@@ -1509,112 +1485,12 @@ const app = {
     const lista = filaRecurso.querySelector('[data-personal]');
     const item = document.createElement('div');
     item.className = 'item-personal';
-    item.style.cssText = 'position:relative;';
     item.innerHTML = `
-      <input type="text" placeholder="Escriba nombre del bombero..." value="${nombre.replace(/"/g, '&quot;')}"
-             oninput="app.autocompletarBombero(this)" autocomplete="off"
-             style="flex:1;">
-      <div class="autocomplete-lista" style="display:none;"></div>
-      <button type="button" class="quitar-personal" onclick="this.closest('.item-personal').remove()">×</button>
+      <input type="text" placeholder="Nombre del bombero" value="${nombre.replace(/"/g, '&quot;')}">
+      <button type="button" class="quitar-personal" onclick="this.parentElement.remove()">×</button>
     `;
     lista.appendChild(item);
   },
-
-  // Autocompletado de nombres de bomberos usando PERSONAL_CANONICO
-  // ─── AUTOCOMPLETADO DE BOMBEROS ───────────────────────────────────────
-  // Estrategia: un único listener global en document para manejar la
-  // selección. Evita el problema de blur vs click/touch en móvil y APK.
-  _initAutocompletadoGlobal() {
-    if (this._autocompletadoGlobalListo) return;
-    this._autocompletadoGlobalListo = true;
-
-    const seleccionar = (item) => {
-      const nombre = item.dataset.nombre;
-      const lista = item.closest('.autocomplete-lista');
-      if (!lista || !nombre) return;
-      const inp = lista.parentElement.querySelector('input[type="text"]');
-      if (inp) {
-        inp._seleccionandoAuto = true; // flag: no regenerar lista en este oninput
-        inp.value = nombre;
-        inp._seleccionandoAuto = false;
-        inp.focus();
-      }
-      lista.style.display = 'none';
-    };
-
-    // PC: mousedown (antes del blur)
-    document.addEventListener('mousedown', (e) => {
-      const item = e.target.closest('.autocomplete-item');
-      if (item) {
-        e.preventDefault();
-        seleccionar(item);
-        return;
-      }
-      if (!e.target.closest('.autocomplete-lista')) {
-        document.querySelectorAll('.autocomplete-lista').forEach(l => l.style.display = 'none');
-      }
-    });
-
-    // Móvil/APK: touchend
-    document.addEventListener('touchend', (e) => {
-      const item = e.target.closest('.autocomplete-item');
-      if (item) {
-        e.preventDefault();
-        seleccionar(item);
-      }
-    }, { passive: false });
-  },
-
-  autocompletarBombero(input) {
-    this._initAutocompletadoGlobal();
-
-    // Si la llamada vino de la selección interna → no regenerar lista
-    if (input._seleccionandoAuto) return;
-
-    if (!input._autoBlurListo) {
-      input._autoBlurListo = true;
-      input.addEventListener('blur', () => {
-        setTimeout(() => {
-          const lista = input.parentElement.querySelector('.autocomplete-lista');
-          if (lista) lista.style.display = 'none';
-        }, 300);
-      });
-    }
-
-    const lista = input.parentElement.querySelector('.autocomplete-lista');
-    if (!lista) return;
-
-    const q = input.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (q.length < 2) { lista.style.display = 'none'; return; }
-
-    const coincidencias = (typeof PERSONAL_CANONICO !== 'undefined' ? PERSONAL_CANONICO : [])
-      .filter(p => {
-        const haystack = (p.nombre + ' ' + p.cargo + ' ' + p.rango)
-          .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return haystack.includes(q);
-      })
-      .slice(0, 8);
-
-    if (coincidencias.length === 0) { lista.style.display = 'none'; return; }
-
-    lista.innerHTML = coincidencias.map(p =>
-      `<div class="autocomplete-item" data-nombre="${p.nombre.replace(/"/g, '&quot;')}"
-            style="padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0;user-select:none;">
-        <strong style="pointer-events:none;">${p.nombre}</strong>
-        <span style="font-size:11px;color:#888;margin-left:8px;pointer-events:none;">${p.cargo}</span>
-      </div>`
-    ).join('');
-
-    lista.style.cssText = [
-      'display:block', 'position:absolute', 'top:100%', 'left:0', 'right:0',
-      'background:#fff', 'border:1px solid #bbb', 'border-top:none',
-      'border-radius:0 0 8px 8px', 'z-index:9999',
-      'max-height:220px', 'overflow-y:auto',
-      'box-shadow:0 6px 16px rgba(0,0,0,0.18)'
-    ].join(';');
-  },
-
-  seleccionarBombero() { /* manejado por listener global en _initAutocompletadoGlobal */ },
 
   agregarVictima(datos) {
     const cont = document.getElementById('tablaVictimas');
@@ -2277,66 +2153,6 @@ const app = {
     this._cierreMesPendiente = null;
   },
 
-  // ========== HERRAMIENTAS DE MANTENIMIENTO (admin) ==========
-
-  async normalizarBonificaciones() {
-    if (!this._adminAutorizado) { this.toast('Debes abrir el panel admin primero', 'error'); return; }
-    const ok = await this.confirmar(
-      '🧹 Normalizar nombres',
-      'Esto corregirá nombres como "Maquinista Sierra" → "FREDY ANDREY SIERRA BORRERO" en la hoja Bonificaciones usando la lista oficial del CBVI.\n\n¿Continuar?'
-    );
-    if (!ok) return;
-    this.toast('Normalizando nombres...', 'info');
-    try {
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          accion: 'normalizarBonificaciones',
-          adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD
-        })
-      });
-      const data = await resp.json();
-      if (data.ok) {
-        this.toast('✅ ' + data.mensaje, 'exito');
-      } else {
-        this.toast('Error: ' + (data.error || 'desconocido'), 'error');
-      }
-    } catch (e) {
-      this.toast('Error de red: ' + e.message, 'error');
-    }
-  },
-
-  async reconstruirHojasAuxiliares() {
-    if (!this._adminAutorizado) { this.toast('Debes abrir el panel admin primero', 'error'); return; }
-    const ok = await this.confirmar(
-      '🗑️ Limpiar hojas auxiliares',
-      '⚠️ Esto BORRARÁ las hojas: Recursos, Personal_por_Recurso, Víctimas, Organizaciones, Bonificaciones, Bonificaciones_Resumen y Estadísticas_Mensuales.\n\nNO toca la hoja Reportes ni Bomberos.\n\nLos datos de bomberos por reporte se regeneran cuando cada bombero reenvíe su reporte.\n\n¿Continuar?'
-    );
-    if (!ok) return;
-    this.toast('Limpiando hojas auxiliares...', 'info');
-    try {
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          accion: 'reconstruirHojasAuxiliares',
-          adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD
-        })
-      });
-      const data = await resp.json();
-      if (data.ok) {
-        this.toast('✅ ' + data.mensaje, 'exito');
-      } else {
-        this.toast('Error: ' + (data.error || 'desconocido'), 'error');
-      }
-    } catch (e) {
-      this.toast('Error de red: ' + e.message, 'error');
-    }
-  },
-
   // ========== PANEL ADMIN CON CONTRASEÑA ==========
   // Lista TODOS los reportes (no solo del usuario actual) para que el admin pueda editar
   async abrirPanelAdmin() {
@@ -2915,19 +2731,28 @@ const app = {
     const idOrig = this._reporteAdminOriginalId;
     if (!idOrig) { this.toast('Falta ID del reporte', 'error'); return; }
 
-    // CRÍTICO: leerFormulario() usa this.reporteActual como objeto base.
-    // En modo edición admin, this.reporteActual puede ser null o apuntar al
-    // reporte del bombero actual (no al que está editando el admin).
-    // Lo forzamos a apuntar al reporte correcto antes de leer.
-    if (!this.reporteActual || this.reporteActual.id !== idOrig) {
-      this.reporteActual = { ...(this._reporteAdminEditando || {}), id: idOrig };
-    }
-
     const r = this.leerFormulario();
 
-    // Las fotos NO se actualizan desde el editor admin.
-    // Las fotos del Sheet/Drive se mantienen intactas.
-    // Solo se guardan campos de texto, datos numéricos y listas de recursos/víctimas.
+    // Aviso: las fotos NO se actualizan desde el editor admin
+    // (las fotos del Sheet/Drive se mantienen intactas; este editor edita
+    // solo campos de texto, datos numéricos y listas de recursos/víctimas).
+    const fotosOriginal = (this._reporteAdminEditando.fotos || []).filter(Boolean);
+    const fotosActual = (r.fotos || []).filter(Boolean);
+    const fotosCambiadas =
+      fotosOriginal.length !== fotosActual.length ||
+      fotosActual.some((f, i) => f !== fotosOriginal[i]);
+    if (fotosCambiadas) {
+      const ok = window.confirm(
+        '⚠️ Detecté cambios en las FOTOS de este reporte.\n\n' +
+        'El editor admin NO sube fotos nuevas al servidor. ' +
+        'Las fotos que ya tenía el reporte en Drive se mantienen igual.\n\n' +
+        'Si necesitas cambiar fotos, pídele al bombero original que abra ' +
+        'el reporte desde su dispositivo (dentro de 24h) o elimínalo y ' +
+        'créalo de nuevo.\n\n' +
+        '¿Continuar y guardar el resto de cambios?'
+      );
+      if (!ok) return;
+    }
 
     // Si cambió el consecutivo, hacer cambio aparte
     const consecForm = (document.getElementById('admin_consecutivo')?.value || r.consecutivo || '').trim();
@@ -2979,7 +2804,6 @@ const app = {
       comandanteEstacion: r.comandanteEstacion || ''
     };
 
-    this.toast('Guardando cambios...', 'info');
     try {
       // 1) Cambios de campos planos + recursos/victimas/organizaciones
       const resp = await fetch(URL_BACKEND, {
@@ -3345,40 +3169,15 @@ const app = {
       this.toast(puede.razon, 'error');
       return;
     }
-
-    // === HIDRATACIÓN ANTES DE EDITAR ===
-    // Si el reporte fue descargado con datos planos (sin recursos/víctimas/orgs
-    // completos desde el servidor), primero lo descargamos completo para no
-    // sobrescribir con datos vacíos al guardar.
-    let reporteParaEditar = this.reporteActual;
-    const necesitaHidratar = reporteParaEditar.estado === 'enviado' &&
-      navigator.onLine &&
-      (!Array.isArray(reporteParaEditar.recursos) || reporteParaEditar.recursos.length === 0);
-
-    if (necesitaHidratar) {
-      this.toast('Descargando datos completos...', 'info');
-      try {
-        const completo = await this._descargarMiReporteCompleto(reporteParaEditar.id);
-        if (completo && completo.recursos !== undefined) {
-          reporteParaEditar = Object.assign({}, reporteParaEditar, completo);
-          reporteParaEditar._hidratadoServidor = true;
-          await DB.guardarReporte(reporteParaEditar);
-          this.reporteActual = reporteParaEditar;
-        }
-      } catch (e) {
-        console.warn('No se pudo hidratar reporte antes de editar:', e);
-      }
-    }
-
     // Marcar que esta sesión del formulario es una EDICIÓN de un reporte
     // que ya está en el servidor, para que al pulsar "Enviar" el cliente
     // mande _actualizar:true (en lugar de pedir nuevo consecutivo).
     this._esEdicionReporteExistente = true;
-    this._idReporteEditandoBombero = reporteParaEditar.id;
-    this._consecutivoOriginalBombero = reporteParaEditar.consecutivo || '';
+    this._idReporteEditandoBombero = this.reporteActual.id;
+    this._consecutivoOriginalBombero = this.reporteActual.consecutivo || '';
 
-    this.cargarEnFormulario(reporteParaEditar);
-    this.fotosTemp = [...(reporteParaEditar.fotos || []), null, null, null, null, null, null].slice(0, 6);
+    this.cargarEnFormulario(this.reporteActual);
+    this.fotosTemp = [...(this.reporteActual.fotos || []), null, null, null, null, null, null].slice(0, 6);
     this.irA('pantallaForm');
   },
 
@@ -3422,49 +3221,14 @@ const app = {
     const isClasif = (t) => (r.clasificacion || []).includes(t);
     const isCausa = (c) => (r.causas || []).includes(c);
 
-    // Deduplicar recursos: agrupar por recurso+codigo, unir personal sin repetir
-    const recursosMap = new Map();
-    (r.recursos || []).forEach(rec => {
-      const clave = (rec.recurso || '') + '|' + (rec.codigo || '');
-      if (!recursosMap.has(clave)) {
-        recursosMap.set(clave, {
-          recurso: rec.recurso || '',
-          cantidad: rec.cantidad || 1,
-          codigo: rec.codigo || '',
-          responsable: rec.responsable || '',
-          personal: []
-        });
-      }
-      const entry = recursosMap.get(clave);
-      // Agregar personal sin duplicar (normalizado)
-      (rec.personal || []).forEach(nombre => {
-        const norm = nombre.trim().toUpperCase();
-        if (norm && !entry.personal.some(p => p.trim().toUpperCase() === norm)) {
-          entry.personal.push(nombre.trim());
-        }
-      });
-      // Si este tiene responsable y el entry no, tomarlo
-      if (!entry.responsable && rec.responsable) entry.responsable = rec.responsable;
-    });
-
-    const recursosFilas = Array.from(recursosMap.values()).map(rec => {
-      // Personal: responsable + tripulantes sin repetir el responsable
-      const resp = (rec.responsable || '').trim().toUpperCase();
-      const tripulantes = (rec.personal || []).filter(p =>
-        p.trim().toUpperCase() !== resp
-      );
-      const personalHTML = tripulantes.length
-        ? '<br><small style="font-size:7pt;color:#333;">👥 ' + tripulantes.join('<br>') + '</small>'
-        : '';
-      return `
+    const recursosFilas = (r.recursos || []).map(rec => `
       <tr>
         <td>${rec.recurso || ''}</td>
         <td style="text-align:center;">${rec.cantidad || ''}</td>
         <td>${rec.codigo || ''}</td>
-        <td>${rec.responsable || ''}${personalHTML}</td>
+        <td>${rec.responsable || ''}${rec.personal && rec.personal.length ? '<br><small>' + rec.personal.join(', ') + '</small>' : ''}</td>
       </tr>
-    `;
-    }).join('');
+    `).join('');
 
     const victimasFilas = (r.victimas || []).map(v => `
       <tr>
@@ -3524,8 +3288,8 @@ const app = {
 
     let paginaFotos = '';
     if (tieneFotos) {
-      // Hoja 1: fotos 1-3. Hoja 2: fotos 4-6 solo si hay al menos 1 foto en ese rango.
-      const hayHoja2 = fotos.filter((f, i) => i >= 3 && f).length > 0;
+      // Hoja 1: fotos 1-3. Hoja 2: fotos 4-6 (solo si hay al menos una de las últimas tres).
+      const hayHoja2 = fotos.length > 3;
       const totalHojas = hayHoja2 ? 2 : 1;
       paginaFotos = construirHojaFotos(0, 1, totalHojas);
       if (hayHoja2) {
@@ -3644,13 +3408,13 @@ const app = {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .foto-grande.vacia { display: none; } /* no mostrar slots vacíos = sin páginas en blanco */
+  .foto-grande.vacia { background: white; border: 1px dashed #888; }
   .foto-grande img {
     width: 100%;
     height: calc(82mm - 6mm);   /* descuenta alto del pie */
-    object-fit: contain;        /* muestra foto completa sin recorte */
+    object-fit: cover;          /* uniforma todas las fotos: recorta sin distorsionar */
     object-position: center;
-    background: #111;           /* fondo negro para fotos verticales */
+    background: white;
     display: block;
   }
   .foto-grande .foto-pie {
