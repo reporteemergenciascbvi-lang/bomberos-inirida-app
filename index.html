@@ -436,32 +436,47 @@
   }
   .personal-lista .item-personal {
     display: flex; gap: 6px; align-items: center; margin-bottom: 4px;
-    position: relative;
   }
-  .personal-lista input { flex: 1; padding: 6px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; }
+  .personal-lista input { flex: 1; padding: 6px 8px; font-size: 13px; }
   .personal-lista .quitar-personal {
     background: var(--rojo); color: white; width: 24px; height: 24px;
     border-radius: 50%; font-size: 12px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
   }
-  /* Autocompletado de bomberos */
-  .autocomplete-lista {
-    position: absolute; top: 100%; left: 0; right: 30px;
-    background: #fff; border: 1px solid #ccc;
-    border-radius: 0 0 6px 6px; z-index: 9999;
-    max-height: 200px; overflow-y: auto;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  }
-  .autocomplete-item {
-    padding: 8px 10px; cursor: pointer; font-size: 13px;
-    border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 6px;
-  }
-  .autocomplete-item:hover { background: #f0f5ff; }
-  .autocomplete-item:last-child { border-bottom: none; }
   .agregar-personal {
     width: 100%; padding: 6px; border: 1px dashed var(--gris-borde);
     border-radius: 4px; font-size: 12px; color: var(--gris-texto);
     background: transparent; margin-top: 4px;
+  }
+
+  /* Personal y roles (lista plana) */
+  .bloque-personal { margin-top: 14px; }
+  .bloque-personal > label.titulo-bloque {
+    display: block; font-weight: 700; font-size: 14px; margin-bottom: 6px; color: var(--rojo);
+  }
+  #tablaPersonalRoles .fila-persona {
+    display: flex; gap: 6px; align-items: center; margin-bottom: 8px;
+  }
+  #tablaPersonalRoles .persona-nombre {
+    flex: 1 1 auto; padding: 10px; font-size: 14px; min-width: 0;
+  }
+  #tablaPersonalRoles .persona-rol {
+    flex: 0 0 auto; padding: 10px 6px; font-size: 13px; max-width: 46%;
+  }
+  #tablaPersonalRoles .quitar-persona {
+    background: var(--rojo); color: white; width: 30px; height: 30px;
+    border-radius: 50%; font-size: 14px; flex-shrink: 0; border: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .resumen-personal {
+    background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px;
+    padding: 10px 12px; margin-top: 8px; font-size: 14px;
+  }
+  .resumen-personal b { color: #166534; }
+  .resumen-personal .total-num { font-size: 18px; font-weight: 800; color: #166534; }
+  .warn-comandante {
+    display: none; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+    border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 13px;
   }
 
   .acciones-flotantes {
@@ -791,39 +806,6 @@
   <div style="padding:0 4px;">
     <h2 style="color:#7a1010;margin:10px 0;">🛡️ Panel de Administrador</h2>
 
-    <!-- HERRAMIENTAS DE MANTENIMIENTO -->
-    <details style="margin-bottom:12px;background:#fff7ed;border:1px solid #fb923c;border-radius:8px;padding:12px;">
-      <summary style="font-weight:700;color:#9a3412;cursor:pointer;font-size:14px;">🔧 Herramientas de mantenimiento del libro Excel</summary>
-      <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
-
-        <div style="background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:12px;">
-          <div style="font-weight:600;font-size:13px;margin-bottom:4px;">🧹 Normalizar nombres en Bonificaciones</div>
-          <div style="font-size:12px;color:#666;margin-bottom:8px;">
-            Corrige nombres incorrectos (ej. "Maquinista Sierra" → "FREDY ANDREY SIERRA BORRERO") usando la lista oficial del CBVI.
-            Ejecutar una sola vez para limpiar los 6 reportes existentes.
-          </div>
-          <button onclick="app.normalizarBonificaciones()"
-                  style="width:100%;padding:10px;background:#7a1010;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">
-            🧹 Normalizar nombres ahora
-          </button>
-        </div>
-
-        <div style="background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:12px;">
-          <div style="font-weight:600;font-size:13px;margin-bottom:4px;">🗑️ Limpiar y reconstruir hojas auxiliares</div>
-          <div style="font-size:12px;color:#666;margin-bottom:8px;">
-            Borra las hojas: Recursos, Personal_por_Recurso, Víctimas, Organizaciones, Bonificaciones, Bonificaciones_Resumen, Estadísticas_Mensuales.
-            <b>NO toca la hoja Reportes ni Bomberos.</b> Útil para eliminar datos cruzados o corruptos.
-            Los recursos se regeneran cuando cada bombero reenvía su reporte.
-          </div>
-          <button onclick="app.reconstruirHojasAuxiliares()"
-                  style="width:100%;padding:10px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">
-            🗑️ Limpiar hojas auxiliares
-          </button>
-        </div>
-
-      </div>
-    </details>
-
     <div id="listaReportesAdminWrap">
       <input type="text" id="filtroAdmin" placeholder="Buscar por consecutivo, correo o dirección..."
              oninput="app.filtrarAdmin()"
@@ -1089,10 +1071,34 @@
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🚒 Qué unidades y personal asistieron.</strong> Agregue cada vehículo con sus datos (placa, maquinista, etc.). Para listar bomberos asistentes, agregue el ítem "Personal" y liste los nombres uno por uno.
+        <strong>🚒 Qué unidades y personal asistieron.</strong> Agregue cada vehículo con sus datos (placa, código, etc.). Luego, en <strong>"Personal y roles"</strong> liste cada bombero con su rol; el total se suma automáticamente.
       </div>
       <div class="tabla-dinamica" id="tablaRecursos"></div>
       <button class="agregar-fila" onclick="app.agregarRecurso()">+ Agregar recurso</button>
+
+      <div class="bloque-personal">
+        <label class="titulo-bloque">👥 Personal y roles</label>
+        <div class="ayuda-seccion" style="margin-bottom:8px;">
+          Liste <strong>TODA</strong> la gente que asistió (incluido el maquinista), uno por uno, con su rol.
+          El <strong>total se suma solo</strong>. Una misma persona cuenta <strong>1</strong> aunque haya ido varios días en la misma emergencia.
+        </div>
+        <div id="tablaPersonalRoles"></div>
+        <button class="agregar-fila" onclick="app.agregarPersonaRol()">+ Agregar persona</button>
+
+        <div class="resumen-personal">
+          🔢 Total de personal: <span class="total-num" id="totalPersonalAuto">0</span><br>
+          🎖️ <b>Comandante de Incidente:</b> <span id="comandanteIncidenteAuto">— (sin asignar)</span>
+        </div>
+        <div class="warn-comandante" id="comandanteIncidenteWarn">
+          ⚠️ Hay más de un Comandante de Incidente marcado. Debe haber solo uno. Corrija los roles.
+        </div>
+
+        <div class="campo" style="margin-top:12px;">
+          <label>📝 Observaciones de mando</label>
+          <textarea id="f_observaciones_mando" rows="3"
+            placeholder="Ej. Transferencia de mando a X. Emergencia continúa el día siguiente..."></textarea>
+        </div>
+      </div>
     </div>
   </div>
 

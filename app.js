@@ -15,8 +15,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.18';
+const APP_VERSION = '5.19';
 const APP_VERSION_NOTAS = [
+  'NUEVO: en "Recursos Desplegados" ahora hay un bloque "Personal y roles". Liste cada bombero con su rol (Comandante de Incidente / Maquinista / Tripulante). El total de personal se suma SOLO (no más conteo manual) y una misma persona cuenta 1 aunque vaya varios días.',
+  'NUEVO: campo "Observaciones de mando" para transferencia de mando o emergencias que continúan otro día.',
+  'El total de personal y los roles salen en el PDF del reporte.',
   'Arreglo importante: la app ya no se queda pegada en la pantalla de inicio por caché viejo. Con internet siempre carga la última versión (ya no hay que borrar caché).',
   'Login de Google con red de seguridad: si Google no carga, ahora muestra un aviso y un botón "Reintentar" en vez de quedarse en blanco.',
   'Editar y reenviar reporte ahora SÍ actualiza el servidor (antes lo rechazaba como duplicado).',
@@ -956,6 +959,9 @@ const app = {
     document.getElementById('tablaRecursos').innerHTML = '';
     document.getElementById('tablaVictimas').innerHTML = '';
     document.getElementById('tablaOrgs').innerHTML = '';
+    const _tpr = document.getElementById('tablaPersonalRoles');
+    if (_tpr) _tpr.innerHTML = '';
+    this.recalcularPersonal();
     document.getElementById('autoCompletarInfo').classList.remove('visible');
   },
 
@@ -1492,6 +1498,68 @@ const app = {
     lista.appendChild(item);
   },
 
+  // ==================== PERSONAL Y ROLES (lista plana) ====================
+  ROLES_PERSONAL: ['Tripulante (unidad)', 'Maquinista', 'Comandante de Incidente'],
+
+  agregarPersonaRol(datos) {
+    const cont = document.getElementById('tablaPersonalRoles');
+    if (!cont) return;
+    const nombre = (datos && datos.nombre) ? datos.nombre : '';
+    const rol = (datos && datos.rol) ? datos.rol : 'Tripulante (unidad)';
+    const div = document.createElement('div');
+    div.className = 'fila-persona';
+    const opcionesRol = this.ROLES_PERSONAL.map(rr =>
+      `<option value="${rr}"${rr === rol ? ' selected' : ''}>${rr}</option>`
+    ).join('');
+    div.innerHTML = `
+      <input type="text" class="persona-nombre" placeholder="Nombre del bombero"
+             value="${nombre.replace(/"/g, '&quot;')}" oninput="app.recalcularPersonal()">
+      <select class="persona-rol" onchange="app.recalcularPersonal()">${opcionesRol}</select>
+      <button type="button" class="quitar-persona"
+              onclick="this.parentElement.remove(); app.recalcularPersonal();">×</button>
+    `;
+    cont.appendChild(div);
+    this.recalcularPersonal();
+  },
+
+  leerPersonalRoles() {
+    const filas = document.querySelectorAll('#tablaPersonalRoles .fila-persona');
+    return Array.from(filas).map(f => ({
+      nombre: (f.querySelector('.persona-nombre').value || '').trim(),
+      rol: f.querySelector('.persona-rol').value
+    })).filter(p => p.nombre);
+  },
+
+  // Normaliza un nombre para deduplicar (sin importar mayúsculas ni espacios extra)
+  _normNombre(s) {
+    return (s || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  },
+
+  // Calcula total de personas distintas + quién(es) es/son Comandante de Incidente
+  resumenPersonal(lista) {
+    const datos = lista || this.leerPersonalRoles();
+    const vistos = new Set();
+    const comandantes = [];
+    datos.forEach(p => {
+      vistos.add(this._normNombre(p.nombre));
+      if (p.rol === 'Comandante de Incidente') comandantes.push(p.nombre);
+    });
+    return { total: vistos.size, comandantes };
+  },
+
+  // Actualiza en vivo el total y el comandante de incidente en pantalla
+  recalcularPersonal() {
+    const { total, comandantes } = this.resumenPersonal();
+    const elTotal = document.getElementById('totalPersonalAuto');
+    if (elTotal) elTotal.textContent = total;
+    const elCmd = document.getElementById('comandanteIncidenteAuto');
+    if (elCmd) {
+      elCmd.textContent = comandantes.length === 0 ? '— (sin asignar)' : comandantes[0];
+    }
+    const elWarn = document.getElementById('comandanteIncidenteWarn');
+    if (elWarn) elWarn.style.display = comandantes.length > 1 ? 'block' : 'none';
+  },
+
   agregarVictima(datos) {
     const cont = document.getElementById('tablaVictimas');
     const div = document.createElement('div');
@@ -1579,6 +1647,14 @@ const app = {
     r.fotos = this.fotosTemp.filter(f => f);
 
     r.recursos = this.leerRecursos();
+
+    // Personal y roles (lista plana) + auto-suma + comandante de incidente
+    r.personalRoles = this.leerPersonalRoles();
+    const _resumen = this.resumenPersonal(r.personalRoles);
+    r.totalPersonal = _resumen.total;
+    r.comandanteIncidente = _resumen.comandantes[0] || '';
+    r.observacionesMando = (document.getElementById('f_observaciones_mando') || {}).value || '';
+
     r.victimas = this.leerTabla('tablaVictimas');
     r.organizaciones = this.leerTabla('tablaOrgs');
 
@@ -1724,6 +1800,15 @@ const app = {
 
     document.getElementById('tablaRecursos').innerHTML = '';
     (r.recursos || []).forEach(rec => this.agregarRecurso(rec));
+
+    const _tprEdit = document.getElementById('tablaPersonalRoles');
+    if (_tprEdit) {
+      _tprEdit.innerHTML = '';
+      (r.personalRoles || []).forEach(p => this.agregarPersonaRol(p));
+    }
+    const _obsMando = document.getElementById('f_observaciones_mando');
+    if (_obsMando) _obsMando.value = r.observacionesMando || '';
+    this.recalcularPersonal();
 
     document.getElementById('tablaVictimas').innerHTML = '';
     (r.victimas || []).forEach(v => this.agregarVictima(v));
@@ -3230,6 +3315,17 @@ const app = {
       </tr>
     `).join('');
 
+    // Personal y roles (lista plana) para el PDF
+    const _resumenPdf = this.resumenPersonal(r.personalRoles || []);
+    const _totalPersonalPdf = (typeof r.totalPersonal === 'number') ? r.totalPersonal : _resumenPdf.total;
+    const _comandanteIncPdf = r.comandanteIncidente || _resumenPdf.comandantes[0] || '';
+    const personalRolesFilas = (r.personalRoles || []).map(p => `
+      <tr>
+        <td>${p.nombre || ''}</td>
+        <td style="text-align:center;">${p.rol || ''}</td>
+      </tr>
+    `).join('');
+
     const victimasFilas = (r.victimas || []).map(v => `
       <tr>
         <td>${v.nombre || ''} ${v.edad ? '/ ' + v.edad : ''}</td>
@@ -3399,7 +3495,7 @@ const app = {
   }
   .foto-grande {
     border: 1px solid #000;
-    background: #fafafa;
+    background: #ffffff;
     width: 100%;
     height: 82mm;          /* 3 × 82mm + 2 × 4mm gap = 254mm — cabe en A4 */
     display: flex; flex-direction: column;
@@ -3514,6 +3610,29 @@ const app = {
         <td class="label" style="width:30%;">RESPONSABLE</td>
       </tr>
       ${recursosFilas || filaVacia + filaVacia + filaVacia}
+    </table>
+
+    <div style="font-weight:bold; margin-top:6px;">PERSONAL Y ROLES</div>
+    <table class="tabla-datos">
+      <tr>
+        <td class="label" style="width:70%;">NOMBRE</td>
+        <td class="label" style="width:30%;">ROL</td>
+      </tr>
+      ${personalRolesFilas || '<tr><td>&nbsp;</td><td></td></tr>'}
+      <tr>
+        <td class="label" style="text-align:right;">TOTAL DE PERSONAL:</td>
+        <td style="text-align:center; font-weight:bold;">${_totalPersonalPdf}</td>
+      </tr>
+    </table>
+    <table class="tabla-datos" style="margin-top:4px;">
+      <tr>
+        <td class="label" style="width:30%;">COMANDANTE DE INCIDENTE:</td>
+        <td>${_comandanteIncPdf || '_____________'}</td>
+      </tr>
+      <tr>
+        <td class="label">OBSERVACIONES DE MANDO:</td>
+        <td>${sn(r.observacionesMando)}</td>
+      </tr>
     </table>
   </div>
 
