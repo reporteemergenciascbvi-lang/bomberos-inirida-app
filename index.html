@@ -450,12 +450,19 @@
   }
 
   /* Personal / comandante / total */
-  .campo-comandante {
-    background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px;
-    padding: 12px; margin-bottom: 14px;
+  /* Estrella para marcar Comandante de Incidente */
+  .nombre-con-ci { display:flex; gap:6px; align-items:center; }
+  .nombre-con-ci input { flex:1 1 auto; min-width:0; }
+  .btn-ci {
+    flex:0 0 auto; width:38px; height:38px; border:1px solid var(--gris-borde);
+    background:#f3f4f6; border-radius:8px; cursor:pointer; font-size:16px;
+    filter: grayscale(1) opacity(0.5); transition: all .15s;
   }
-  .campo-comandante label { display:block; font-weight:700; color:#9a3412; margin-bottom:6px; font-size:14px; }
-  .campo-comandante input { width:100%; padding:10px; font-size:14px; }
+  .btn-ci.activo {
+    background:#fff7ed; border-color:#f59e0b; filter:none;
+    box-shadow:0 0 0 2px #fde68a;
+  }
+  .item-personal .btn-ci { width:34px; height:34px; }
   .resumen-personal {
     background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px;
     padding: 10px 12px; margin-top: 10px; font-size: 14px;
@@ -1056,14 +1063,8 @@
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🚒 Qué unidades y personal asistieron.</strong> Ponga arriba el Comandante de Incidente. Luego agregue cada vehículo con su Responsable/Maquinista y los tripulantes que fueron en ese vehículo. Todo con autocompletar. El total se suma solo.
-      </div>
-      <div class="campo-comandante">
-        <label>🎖️ Comandante de Incidente</label>
-        <input type="text" id="f_comandante_incidente" list="rosterBomberos"
-               placeholder="Nombre del encargado general (escriba inicial)"
-               oninput="app.recalcularPersonal()">
-        <div class="ayuda" style="margin-top:4px;">Encargado general de la emergencia. Uno por reporte.</div>
+        <strong>🚒 Qué unidades y personal asistieron.</strong> Agregue cada vehículo con su Responsable/Maquinista y los tripulantes (con autocompletar). El total se suma solo.<br>
+        🎖️ <strong>Comandante de Incidente:</strong> toque la <strong>⭐</strong> al lado de quien <strong>dirigió en el lugar</strong>. Es uno de los que asistieron. <em>(Es distinto del comandante que FIRMA el reporte, ítem 13.)</em>
       </div>
 
       <div class="tabla-dinamica" id="tablaRecursos"></div>
@@ -1071,7 +1072,7 @@
 
       <div class="resumen-personal">
         🔢 Total de personal (suma sola): <span class="total-num" id="totalPersonalAuto">0</span><br>
-        🎖️ <b>Comandante de Incidente:</b> <span id="comandanteIncidenteAuto">— (sin asignar)</span>
+        🎖️ <b>Comandante de Incidente (⭐):</b> <span id="comandanteIncidenteAuto">— (sin asignar) · marque con ⭐</span>
       </div>
 
       <div class="campo" style="margin-top:12px;">
@@ -1314,7 +1315,7 @@
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>✍️ Firma de cierre.</strong> Datos del comandante a cargo de la operación y su firma como respaldo oficial del reporte. Si usted es el comandante, sus datos ya vienen prellenados.
+        <strong>✍️ Firma de cierre (legal).</strong> Este es el comandante que <strong>firma y autoriza</strong> el reporte (con grado y cédula). <em>Puede ser distinto del Comandante de Incidente del ítem 5, que es quien dirigió en el lugar.</em> Si usted es quien firma, sus datos ya vienen prellenados.
       </div>
 
       <div class="campo">

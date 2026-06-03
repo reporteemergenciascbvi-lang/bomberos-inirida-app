@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.19';
+const APP_VERSION = '5.20';
 const APP_VERSION_NOTAS = [
+  'El Comandante de Incidente ahora se marca con la estrella ⭐ al lado del bombero en la lista (ya no se escribe aparte). Es quien dirigió en el lugar; distinto del comandante que FIRMA (ítem 13).',
   'NUEVO: en "Recursos Desplegados" cada vehículo lleva su Responsable/Maquinista y la lista de tripulantes que fueron en ese vehículo, todo con AUTOCOMPLETAR (escriba la inicial y elija el nombre de la base de bomberos).',
   'NUEVO: casilla de Comandante de Incidente (arriba de la sección) y Observaciones de mando (transferencia / continúa otro día).',
   'NUEVO: el Total de personal se suma SOLO (nombres distintos). Una misma persona cuenta 1 aunque vaya varios días.',
@@ -1457,7 +1458,10 @@ const app = {
       </div>
       <div class="campo">
         <label>Responsable / Maquinista</label>
-        <input type="text" data-campo="responsable" list="rosterBomberos" placeholder="Nombre del bombero a cargo (escriba inicial)" oninput="app.recalcularPersonal()">
+        <div class="nombre-con-ci">
+          <input type="text" data-campo="responsable" list="rosterBomberos" placeholder="Nombre del bombero a cargo (escriba inicial)" oninput="app.recalcularPersonal()">
+          <button type="button" class="btn-ci" title="Marcar como Comandante de Incidente (quien dirigió en el lugar)" onclick="app.marcarComandante(this)">⭐</button>
+        </div>
       </div>
       <div class="campo personal-bloque">
         <label>Otras unidades en este vehículo (tripulantes)</label>
@@ -1505,6 +1509,7 @@ const app = {
     item.className = 'item-personal';
     item.innerHTML = `
       <input type="text" list="rosterBomberos" placeholder="Nombre del tripulante (escriba inicial)" value="${nombre.replace(/"/g, '&quot;')}" oninput="app.recalcularPersonal()">
+      <button type="button" class="btn-ci" title="Marcar como Comandante de Incidente (quien dirigió en el lugar)" onclick="app.marcarComandante(this)">⭐</button>
       <button type="button" class="quitar-personal" onclick="this.parentElement.remove(); app.recalcularPersonal();">×</button>
     `;
     lista.appendChild(item);
@@ -1526,8 +1531,8 @@ const app = {
   // Cuenta personas distintas desde el FORMULARIO (comandante + responsables + tripulantes)
   resumenPersonalDeForm() {
     const nombres = [];
-    const ic = (document.getElementById('f_comandante_incidente') || {}).value || '';
-    if (ic.trim()) nombres.push(ic);
+    const ic = this._nombreComandanteMarcado();
+    if (ic) nombres.push(ic);
     document.querySelectorAll('#tablaRecursos .fila').forEach(fila => {
       const resp = fila.querySelector('[data-campo="responsable"]');
       if (resp && resp.value.trim()) nombres.push(resp.value);
@@ -1558,7 +1563,33 @@ const app = {
     const elTotal = document.getElementById('totalPersonalAuto');
     if (elTotal) elTotal.textContent = total;
     const elCmd = document.getElementById('comandanteIncidenteAuto');
-    if (elCmd) elCmd.textContent = comandante || '— (sin asignar)';
+    if (elCmd) elCmd.textContent = comandante || '— (sin asignar) · marque con ⭐';
+  },
+
+  // Marca/desmarca a una persona como Comandante de Incidente (solo uno)
+  marcarComandante(btn) {
+    const yaActivo = btn.classList.contains('activo');
+    document.querySelectorAll('#tablaRecursos .btn-ci.activo').forEach(b => b.classList.remove('activo'));
+    if (!yaActivo) btn.classList.add('activo');
+    this.recalcularPersonal();
+  },
+
+  // Nombre de la persona marcada con la estrella (Comandante de Incidente)
+  _nombreComandanteMarcado() {
+    const btn = document.querySelector('#tablaRecursos .btn-ci.activo');
+    if (!btn) return '';
+    const inp = btn.parentElement.querySelector('input');
+    return inp ? (inp.value || '').trim() : '';
+  },
+
+  // Al editar: marca la estrella de la persona cuyo nombre coincide con el CI guardado
+  _marcarComandantePorNombre(nombre) {
+    if (!nombre) return;
+    const norm = this._normNombre(nombre);
+    document.querySelectorAll('#tablaRecursos .btn-ci').forEach(b => {
+      const inp = b.parentElement.querySelector('input');
+      if (inp && this._normNombre(inp.value) === norm) b.classList.add('activo');
+    });
   },
 
   agregarVictima(datos) {
@@ -1650,7 +1681,7 @@ const app = {
     r.recursos = this.leerRecursos();
 
     // Comandante de incidente + observaciones de mando + total automatico
-    r.comandanteIncidente = (document.getElementById('f_comandante_incidente') || {}).value || '';
+    r.comandanteIncidente = this._nombreComandanteMarcado();
     r.observacionesMando = (document.getElementById('f_observaciones_mando') || {}).value || '';
     r.totalPersonal = this.resumenPersonalDeForm().total;
     r.victimas = this.leerTabla('tablaVictimas');
@@ -1799,8 +1830,7 @@ const app = {
     document.getElementById('tablaRecursos').innerHTML = '';
     (r.recursos || []).forEach(rec => this.agregarRecurso(rec));
     {
-      const _ic = document.getElementById('f_comandante_incidente');
-      if (_ic) _ic.value = r.comandanteIncidente || '';
+      this._marcarComandantePorNombre(r.comandanteIncidente);
       const _om = document.getElementById('f_observaciones_mando');
       if (_om) _om.value = r.observacionesMando || '';
       this.recalcularPersonal();
