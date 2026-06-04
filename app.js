@@ -2006,6 +2006,33 @@ const app = {
     }
   },
 
+  // Admin: recalcular Bonificaciones_Resumen y Estadísticas_Mensuales
+  async recalcularResumenes() {
+    if (!this.esAdmin()) { this.toast('Solo el administrador', 'error'); return; }
+    const ok = window.confirm('¿Recalcular Bonificaciones_Resumen y Estadísticas_Mensuales ahora?\n\nEsto puede tardar unos segundos.');
+    if (!ok) return;
+    try {
+      this.toast('Recalculando...', 'info');
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'recalcularResumenes',
+          adminEmail: this.usuario.email,
+          adminPassword: ADMIN_PASSWORD
+        })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        this.toast('Resúmenes actualizados correctamente', 'exito');
+      } else {
+        this.toast('Error: ' + (data.error || 'desconocido'), 'error');
+      }
+    } catch (e) {
+      this.toast('Error de red: ' + e.message, 'error');
+    }
+  },
+
   // Solo admin: renumerar reportes en el servidor
   async renumerarReportes() {
     if (!this.esAdmin()) {
