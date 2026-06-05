@@ -3284,9 +3284,13 @@ const app = {
 
   // Política de edición: admin SIEMPRE puede; bombero solo durante las
   // primeras 24h desde fechaCreacion. Devuelve { permitido, razon, horas }.
+  // Los borradores SIEMPRE son editables por su creador (la regla 24h solo aplica a enviados).
   puedeEditarReporte(r) {
     if (this.esAdmin()) return { permitido: true, razon: 'admin' };
-    if (!r || !r.fechaCreacion) return { permitido: true, razon: 'sin fecha' };
+    if (!r) return { permitido: true, razon: 'sin reporte' };
+    // Borrador: siempre editable (aún no enviado al servidor)
+    if (!r.estado || r.estado === 'borrador') return { permitido: true, razon: 'borrador' };
+    if (!r.fechaCreacion) return { permitido: true, razon: 'sin fecha' };
     const creado = new Date(r.fechaCreacion);
     if (isNaN(creado.getTime())) return { permitido: true, razon: 'fecha inválida' };
     const horas = (Date.now() - creado.getTime()) / 36e5;
