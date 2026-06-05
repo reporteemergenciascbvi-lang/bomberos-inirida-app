@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.20';
+const APP_VERSION = '5.21';
 const APP_VERSION_NOTAS = [
+  'v5.21: Cierre de mes corregido — el botón Aplicar ahora funciona correctamente.',
   'El Comandante de Incidente ahora se marca con la estrella ⭐ al lado del bombero en la lista (ya no se escribe aparte). Es quien dirigió en el lugar; distinto del comandante que FIRMA (ítem 13).',
   'NUEVO: en "Recursos Desplegados" cada vehículo lleva su Responsable/Maquinista y la lista de tripulantes que fueron en ese vehículo, todo con AUTOCOMPLETAR (escriba la inicial y elija el nombre de la base de bomberos).',
   'NUEVO: casilla de Comandante de Incidente (arriba de la sección) y Observaciones de mando (transferencia / continúa otro día).',
@@ -2224,13 +2225,13 @@ const app = {
     }
     const info = this._cierreMesPendiente;
 
+    // Cerrar el modal de cierre ANTES de confirmar (si no, el confirm queda tapado detrás z-index:9999)
+    this.cerrarModalCierreMes();
     const ok = await this.confirmar(
       '⚠️ ¿Confirmar cierre de mes?',
       `Se renumerarán ${info.cambiosRealizarian} reportes de ${info.nombreMes} ${info.anio}. Esta acción NO se puede deshacer. ¿Continuar?`
     );
-    if (!ok) return;
-
-    this.cerrarModalCierreMes();
+    if (!ok) { this._cierreMesPendiente = null; return; }
     this.toast('Aplicando cierre de mes... espere', 'exito');
 
     try {
