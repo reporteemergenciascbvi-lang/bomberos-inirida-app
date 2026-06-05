@@ -1652,8 +1652,8 @@ const app = {
     // En modo edición admin, reporteActual puede ser null.
     // Usar el reporte que se está editando como base, o crear uno nuevo.
     const r = this._modoEdicionAdmin
-      ? (this._reporteAdminEditando || this.reporteActual || this._nuevoReporte())
-      : (this.reporteActual || this._nuevoReporte());
+      ? (this._reporteAdminEditando || this.reporteActual || {})
+      : (this.reporteActual || {});
     r.fechaModificacion = new Date().toISOString();
     r.estacion = NOMBRE_ESTACION;
     r.fechaLlamada = document.getElementById('f_fecha_llamada').value;
