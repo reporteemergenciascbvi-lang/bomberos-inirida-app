@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.25';
+const APP_VERSION = '5.27';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -3562,7 +3562,7 @@ const app = {
   }
   .foto-grande {
     border: 1px solid #000;
-    background: #000;
+    background: #fff;
     width: 100%;
     height: 82mm;
     display: flex; flex-direction: column;
@@ -3576,7 +3576,7 @@ const app = {
     height: calc(82mm - 6mm);
     object-fit: contain;        /* foto completa, sin recortar */
     object-position: center;
-    background: #000;
+    background: #fff;
     display: block;
   }
   .foto-grande .foto-pie {
