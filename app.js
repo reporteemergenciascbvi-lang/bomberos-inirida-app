@@ -3430,9 +3430,7 @@ const app = {
               <div class="foto-pie">Fotografía ${i+1}</div>
             </div>
           `);
-        } else {
-          slotsFotos.push(`<div class="foto-grande vacia"></div>`);
-        }
+        // slot vacío omitido — no se muestra cuadro si no hay foto
       }
       return `
         <div class="pagina pagina-fotos">
@@ -3563,22 +3561,21 @@ const app = {
   }
   .foto-grande {
     border: 1px solid #000;
-    background: #ffffff;
+    background: #000;
     width: 100%;
-    height: 82mm;          /* 3 × 82mm + 2 × 4mm gap = 254mm — cabe en A4 */
+    height: 82mm;
     display: flex; flex-direction: column;
     overflow: hidden;
     page-break-inside: avoid;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .foto-grande.vacia { background: white; border: 1px dashed #888; }
   .foto-grande img {
     width: 100%;
-    height: calc(82mm - 6mm);   /* descuenta alto del pie */
-    object-fit: cover;          /* uniforma todas las fotos: recorta sin distorsionar */
+    height: calc(82mm - 6mm);
+    object-fit: contain;        /* foto completa, sin recortar */
     object-position: center;
-    background: white;
+    background: #000;
     display: block;
   }
   .foto-grande .foto-pie {
