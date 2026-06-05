@@ -3430,7 +3430,8 @@ const app = {
               <div class="foto-pie">Fotografía ${i+1}</div>
             </div>
           `);
-        // slot vacío omitido — no se muestra cuadro si no hay foto
+        }
+        // slot vacío: no se agrega cuadro si no hay foto
       }
       return `
         <div class="pagina pagina-fotos">
