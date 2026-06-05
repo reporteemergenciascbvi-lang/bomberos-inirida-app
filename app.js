@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.24';
+const APP_VERSION = '5.25';
 const APP_VERSION_NOTAS = [
+  'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
   'v5.23: Editor admin: firma comandante visible + guardar con diagnóstico de error en pantalla.',
   'v5.22: Los borradores ya no tienen restricción de 24 horas — solo aplica a reportes enviados.',
@@ -1648,7 +1649,11 @@ const app = {
 
   // ==================== LECTURA / ESCRITURA FORMULARIO ====================
   leerFormulario() {
-    const r = this.reporteActual;
+    // En modo edición admin, reporteActual puede ser null.
+    // Usar el reporte que se está editando como base, o crear uno nuevo.
+    const r = this._modoEdicionAdmin
+      ? (this._reporteAdminEditando || this.reporteActual || this._nuevoReporte())
+      : (this.reporteActual || this._nuevoReporte());
     r.fechaModificacion = new Date().toISOString();
     r.estacion = NOMBRE_ESTACION;
     r.fechaLlamada = document.getElementById('f_fecha_llamada').value;
