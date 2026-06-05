@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.21';
+const APP_VERSION = '5.22';
 const APP_VERSION_NOTAS = [
+  'v5.22: Los borradores ya no tienen restricción de 24 horas — solo aplica a reportes enviados.',
   'v5.21: Cierre de mes corregido — el botón Aplicar ahora funciona correctamente.',
   'El Comandante de Incidente ahora se marca con la estrella ⭐ al lado del bombero en la lista (ya no se escribe aparte). Es quien dirigió en el lugar; distinto del comandante que FIRMA (ítem 13).',
   'NUEVO: en "Recursos Desplegados" cada vehículo lleva su Responsable/Maquinista y la lista de tripulantes que fueron en ese vehículo, todo con AUTOCOMPLETAR (escriba la inicial y elija el nombre de la base de bomberos).',
@@ -3261,6 +3262,8 @@ const app = {
   puedeEditarReporte(r) {
     if (this.esAdmin()) return { permitido: true, razon: 'admin' };
     if (!r || !r.fechaCreacion) return { permitido: true, razon: 'sin fecha' };
+    // Los borradores siempre son editables (la restricción aplica solo a reportes enviados)
+    if (r.estado === 'borrador') return { permitido: true, razon: 'borrador' };
     const creado = new Date(r.fechaCreacion);
     if (isNaN(creado.getTime())) return { permitido: true, razon: 'fecha inválida' };
     const horas = (Date.now() - creado.getTime()) / 36e5;
