@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.23';
+const APP_VERSION = '5.24';
 const APP_VERSION_NOTAS = [
+  'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
   'v5.23: Editor admin: firma comandante visible + guardar con diagnóstico de error en pantalla.',
   'v5.22: Los borradores ya no tienen restricción de 24 horas — solo aplica a reportes enviados.',
   'v5.21: Cierre de mes corregido — el botón Aplicar ahora funciona correctamente.',
@@ -2856,11 +2857,20 @@ const app = {
   // Lee el formulario completo y envía editarReporte al backend con TODOS los campos
   // (incluye recursos, víctimas, organizaciones para regenerar hojas auxiliares)
   async guardarEdicionAdminCompleta() {
-    if (!this._modoEdicionAdmin) { this.toast('No está en modo edición admin', 'error'); return; }
+    // Toast en línea 1 para confirmar que el botón llega aquí
+    this.toast('⏳ Preparando datos...', 'info');
+    if (!this._modoEdicionAdmin) { this.toast('❌ No está en modo edición admin', 'error'); return; }
     const idOrig = this._reporteAdminOriginalId;
-    if (!idOrig) { this.toast('Falta ID del reporte', 'error'); return; }
+    if (!idOrig) { this.toast('❌ Falta ID del reporte', 'error'); return; }
 
-    const r = this.leerFormulario();
+    let r;
+    try {
+      r = this.leerFormulario();
+    } catch (formErr) {
+      this.toast('❌ Error al leer formulario: ' + formErr.message, 'error');
+      console.error('leerFormulario error:', formErr);
+      return;
+    }
 
     // Aviso: las fotos NO se actualizan desde el editor admin
     // (las fotos del Sheet/Drive se mantienen intactas; este editor edita

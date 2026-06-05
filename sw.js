@@ -1,4 +1,4 @@
-/* Service Worker v5.23 - CBVI Reportes
+/* Service Worker v5.24 - CBVI Reportes
    NETWORK-FIRST para los archivos del propio sitio: con internet SIEMPRE
    baja la última versión (se acabó el caché viejo pegado en el teléfono).
    El caché queda solo como respaldo cuando NO hay señal. */
