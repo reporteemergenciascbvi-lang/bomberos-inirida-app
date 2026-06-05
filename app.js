@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.22';
+const APP_VERSION = '5.23';
 const APP_VERSION_NOTAS = [
+  'v5.23: Editor admin: firma comandante visible + guardar con diagnóstico de error en pantalla.',
   'v5.22: Los borradores ya no tienen restricción de 24 horas — solo aplica a reportes enviados.',
   'v5.21: Cierre de mes corregido — el botón Aplicar ahora funciona correctamente.',
   'El Comandante de Incidente ahora se marca con la estrella ⭐ al lado del bombero en la lista (ya no se escribe aparte). Es quien dirigió en el lugar; distinto del comandante que FIRMA (ítem 13).',
@@ -2483,18 +2484,33 @@ const app = {
         }</div>`;
 
     const firmas = r.firmas || {};
+    // Si el servidor devolvió URLs de Drive (firmaAfectadoURL / firmaComandanteURL), las usamos
+    // cuando no hay base64 local (caso normal en admin: ve el reporte de otro bombero).
+    const _srcFirmaAf  = firmas.afectado  || r.firmaAfectadoURL  || '';
+    const _srcFirmaCmd = firmas.comandante || r.firmaComandanteURL || '';
     const renderFirma = (url, etiqueta) => {
       if (!url) return `<div style="color:#999;font-style:italic;">${etiqueta}: —</div>`;
-      return `
-        <div style="border:1px solid #ccc;border-radius:6px;padding:6px;background:#fafafa;">
-          <div style="font-size:11px;color:#666;margin-bottom:4px;">${etiqueta}</div>
-          <a href="${url}" target="_blank">
-            <img src="${url}" alt="${etiqueta}"
-                 style="max-width:100%;max-height:80px;background:white;border:1px solid #eee;"
-                 onerror="this.style.display='none';">
+      // URL de Drive → botón enlace (no se puede embeber img por CORS/auth)
+      if (url.startsWith('http') && !url.startsWith('data:')) {
+        return `<div style="border:1px solid #ccc;border-radius:6px;padding:8px;background:#fafafa;margin-bottom:4px;">
+          <div style="font-size:11px;color:#666;margin-bottom:6px;">${etiqueta}</div>
+          <a href="${url}" target="_blank"
+             style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;
+                    background:#7a1010;color:#fff;border-radius:6px;text-decoration:none;
+                    font-size:12px;font-weight:700;">
+            ✍️ Ver firma en Drive
           </a>
-        </div>
-      `;
+        </div>`;
+      }
+      // base64 local → imagen directa
+      return `<div style="border:1px solid #ccc;border-radius:6px;padding:6px;background:#fafafa;">
+        <div style="font-size:11px;color:#666;margin-bottom:4px;">${etiqueta}</div>
+        <a href="${url}" target="_blank">
+          <img src="${url}" alt="${etiqueta}"
+               style="max-width:100%;max-height:80px;background:white;border:1px solid #eee;"
+               onerror="this.style.display='none';">
+        </a>
+      </div>`;
     };
 
     const card = (titulo, contenidoHTML) => `
@@ -2595,8 +2611,8 @@ const app = {
 
       ${card('✍️ Firmas', `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          ${renderFirma(firmas.afectado, 'Firma del afectado')}
-          ${renderFirma(firmas.comandante, 'Firma del comandante')}
+          ${renderFirma(_srcFirmaAf, 'Firma del afectado')}
+          ${renderFirma(_srcFirmaCmd, 'Firma del comandante')}
         </div>
       `)}
 
@@ -2917,56 +2933,70 @@ const app = {
       comandanteEstacion: r.comandanteEstacion || ''
     };
 
+    this.toast('⏳ Guardando cambios...', 'info');
     try {
-      // 1) Cambios de campos planos + recursos/victimas/organizaciones
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          accion: 'editarReporte',
-          adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD,
-          idReporte: idOrig,
-          cambios: cambios,
-          recursos: r.recursos || [],
-          victimas: r.victimas || [],
-          organizaciones: r.organizaciones || []
-        })
-      });
-      const data = await resp.json();
-      if (!data.ok) {
-        this.toast('Error guardando: ' + (data.error || '?'), 'error');
-        return;
-      }
-
-      // 2) Si cambió consecutivo, llamar cambiarConsecutivo
-      const consecOrig = this._reporteAdminOriginalConsec || '';
-      if (consecForm && consecForm !== consecOrig) {
-        const respC = await fetch(URL_BACKEND, {
+      // 1) Campos planos + recursos/victimas/organizaciones
+      let respText = '';
+      try {
+        const resp = await fetch(URL_BACKEND, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
-            accion: 'cambiarConsecutivo',
+            accion: 'editarReporte',
             adminEmail: this.usuario.email,
             adminPassword: ADMIN_PASSWORD,
             idReporte: idOrig,
-            nuevoConsecutivo: consecForm
+            cambios: cambios,
+            recursos: r.recursos || [],
+            victimas: r.victimas || [],
+            organizaciones: r.organizaciones || []
           })
         });
-        const dataC = await respC.json();
-        if (!dataC.ok) {
-          this.toast('Datos guardados, pero el consecutivo no cambió: ' + (dataC.error || '?'), 'error');
-        }
+        respText = await resp.text();
+      } catch (fetchErr) {
+        this.toast('❌ Error de red: ' + fetchErr.message, 'error');
+        return;
+      }
+      let data;
+      try { data = JSON.parse(respText); }
+      catch (parseErr) {
+        this.toast('❌ Respuesta inesperada del servidor. Revise la consola.', 'error');
+        console.error('Respuesta cruda:', respText);
+        return;
+      }
+      if (!data.ok) {
+        this.toast('❌ Error: ' + (data.error || 'sin detalle'), 'error');
+        return;
       }
 
-      this.toast(`✅ Reporte actualizado (${data.actualizados || 0} campos)`, 'exito');
+      // 2) Si cambió consecutivo
+      const consecOrig = this._reporteAdminOriginalConsec || '';
+      if (consecForm && consecForm !== consecOrig) {
+        try {
+          const respC = await fetch(URL_BACKEND, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              accion: 'cambiarConsecutivo',
+              adminEmail: this.usuario.email,
+              adminPassword: ADMIN_PASSWORD,
+              idReporte: idOrig,
+              nuevoConsecutivo: consecForm
+            })
+          });
+          const dataC = await respC.json();
+          if (!dataC.ok) this.toast('Datos guardados, pero el consecutivo no cambió: ' + (dataC.error || '?'), 'error');
+        } catch (e) { /* no bloquear por esto */ }
+      }
+
+      this.toast('✅ Reporte actualizado correctamente', 'exito');
       this._modoEdicionAdmin = false;
       this._reporteAdminEditando = null;
       this._aplicarUIEdicionAdmin(false);
       this.irA('pantallaPanelAdmin');
-      await this.cargarReportesAdmin();
+      try { await this.cargarReportesAdmin(); } catch (e) { /* lista se actualiza en próxima carga */ }
     } catch (e) {
-      this.toast('Error de red al guardar: ' + e.message, 'error');
+      this.toast('❌ Error inesperado: ' + e.message, 'error');
     }
   },
 

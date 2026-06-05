@@ -1,8 +1,8 @@
-/* Service Worker v5.22 - CBVI Reportes
+/* Service Worker v5.23 - CBVI Reportes
    NETWORK-FIRST para los archivos del propio sitio: con internet SIEMPRE
    baja la última versión (se acabó el caché viejo pegado en el teléfono).
    El caché queda solo como respaldo cuando NO hay señal. */
-const CACHE = 'bomberos-inirida-v5-22';
+const CACHE = 'bomberos-inirida-v5-23';
 const ARCHIVOS = ['./', './index.html', './app.js', './logos.js', './manifest.json'];
 
 self.addEventListener('install', (e) => {
