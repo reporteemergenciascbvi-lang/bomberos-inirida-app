@@ -11,7 +11,7 @@ const ADMIN_EMAILS = [
   'reporteemergenciascbvi@gmail.com'
 ];
 const ADMIN_EMAIL = ADMIN_EMAILS[0]; // compatibilidad
-const ADMIN_PASSWORD = '12345Jj*'; // Contraseña para acceder al Panel Admin
+const ADMIN_PASSWORD = ''; // La contraseña NO está en el código — el admin la escribe al entrar al panel.
 const TELEFONO_ESTACION = '314 531 1605';
 const NOMBRE_ESTACION = 'CBVI';
 const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15oz-U1jpkR0-L56cxEwby8tMi2mVJi5A5D74XMi25WKdod6wn2QA/exec';
@@ -2160,7 +2160,7 @@ const app = {
       const data = await resp.json();
 
       if (!data.ok) {
-        cont.innerHTML = `<div style="background:#fee;padding:12px;border-radius:8px;color:#c00;">❌ ${data.error}</div>`;
+        { const _d=document.createElement("div"); _d.style.cssText="background:#fee;padding:12px;border-radius:8px;color:#c00;"; _d.textContent="❌ "+(data.error||"Error"); cont.innerHTML=""; cont.appendChild(_d); }
         return;
       }
 
@@ -2222,7 +2222,7 @@ const app = {
       document.getElementById('btn_aplicar_cierre').style.display = 'block';
     } catch (err) {
       console.error('Error previsualizando:', err);
-      cont.innerHTML = `<div style="background:#fee;padding:12px;border-radius:8px;color:#c00;">❌ Error de red: ${err.message}</div>`;
+      { const _d=document.createElement("div"); _d.style.cssText="background:#fee;padding:12px;border-radius:8px;color:#c00;"; _d.textContent="❌ Error de red: "+(err.message||""); cont.innerHTML=""; cont.appendChild(_d); }
     }
   },
 
@@ -2324,7 +2324,7 @@ const app = {
       }
       this.renderizarListaAdmin();
     } catch (e) {
-      cont.innerHTML = '<div style="padding:20px;color:#c00;">Error de red: ' + e.message + '<br><br><small>Verifica tu conexión a internet.</small></div>';
+      { const _d=document.createElement("div"); _d.style.cssText="padding:20px;color:#c00;"; _d.textContent="Error de red: "+(e.message||"")+". Verifica tu conexión."; cont.innerHTML=""; cont.appendChild(_d); }
     }
   },
 
@@ -2670,7 +2670,7 @@ const app = {
         return;
       }
       if (!data.ok) {
-        cont.innerHTML = '<span style="color:#c00;font-size:12px;">' + (data.error || 'Error') + '</span>';
+        { const _sp=document.createElement("span"); _sp.style.cssText="color:#c00;font-size:12px;"; _sp.textContent=data.error||"Error"; cont.innerHTML=""; cont.appendChild(_sp); }
         return;
       }
       const bomberos = data.bomberos || [];
@@ -2692,7 +2692,7 @@ const app = {
       }).join('') +
       `<span style="width:100%;font-size:11px;color:#666;margin-top:4px;">Total: ${bomberos.length} bombero(s)</span>`;
     } catch (e) {
-      cont.innerHTML = '<span style="color:#c00;font-size:12px;">Error de red: ' + e.message + '</span>';
+      { const _sp=document.createElement("span"); _sp.style.cssText="color:#c00;font-size:12px;"; _sp.textContent="Error de red: "+(e.message||""); cont.innerHTML=""; cont.appendChild(_sp); }
     }
   },
 
