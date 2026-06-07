@@ -2280,13 +2280,10 @@ const app = {
       this.toast('Solo el administrador', 'error');
       return;
     }
-    // Pedir contraseña
+    // Pedir contraseña — el backend valida, no el frontend
     const pw = window.prompt('🔐 Contraseña de administrador:');
-    if (pw === null) return; // canceló
-    if (pw !== ADMIN_PASSWORD) {
-      this.toast('Contraseña incorrecta', 'error');
-      return;
-    }
+    if (pw === null || pw.trim() === '') return;
+    this._adminPwdSession = pw.trim();
     this._adminAutorizado = true;
     this.irA('pantallaPanelAdmin');
     await this.cargarReportesAdmin();
@@ -2303,7 +2300,7 @@ const app = {
         body: JSON.stringify({
           accion: 'listarTodosReportes',
           adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD
+          adminPassword: this._adminPwdSession || ''
         })
       });
       const text = await resp.text();
@@ -2395,7 +2392,7 @@ const app = {
         body: JSON.stringify({
           accion: 'eliminarReporte',
           adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD,
+          adminPassword: this._adminPwdSession || '',
           idReporte: id
         })
       });
@@ -2658,7 +2655,7 @@ const app = {
         body: JSON.stringify({
           accion: 'listarBomberosBonificacion',
           adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD,
+          adminPassword: this._adminPwdSession || '',
           idReporte: idReporte
         })
       });
@@ -2710,7 +2707,7 @@ const app = {
         body: JSON.stringify({
           accion: 'agregarBomberoBonificacion',
           adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD,
+          adminPassword: this._adminPwdSession || '',
           idReporte: idReporte,
           nombre: nombre
         })
@@ -2750,7 +2747,7 @@ const app = {
         body: JSON.stringify({
           accion: 'quitarBomberoBonificacion',
           adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD,
+          adminPassword: this._adminPwdSession || '',
           idReporte: idReporte,
           nombre: nombre
         })
@@ -2959,7 +2956,7 @@ const app = {
           body: JSON.stringify({
             accion: 'editarReporte',
             adminEmail: this.usuario.email,
-            adminPassword: ADMIN_PASSWORD,
+            adminPassword: this._adminPwdSession || '',
             idReporte: idOrig,
             cambios: cambios,
             recursos: r.recursos || [],
@@ -2994,7 +2991,7 @@ const app = {
             body: JSON.stringify({
               accion: 'cambiarConsecutivo',
               adminEmail: this.usuario.email,
-              adminPassword: ADMIN_PASSWORD,
+              adminPassword: this._adminPwdSession || '',
               idReporte: idOrig,
               nuevoConsecutivo: consecForm
             })
@@ -3044,7 +3041,7 @@ const app = {
           body: JSON.stringify({
             accion: 'cambiarConsecutivo',
             adminEmail: this.usuario.email,
-            adminPassword: ADMIN_PASSWORD,
+            adminPassword: this._adminPwdSession || '',
             idReporte: r.id,
             nuevoConsecutivo: nuevoCons
           })
@@ -3063,7 +3060,7 @@ const app = {
         body: JSON.stringify({
           accion: 'editarReporte',
           adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD,
+          adminPassword: this._adminPwdSession || '',
           idReporte: r.id,
           cambios: cambios
         })
@@ -3136,7 +3133,7 @@ const app = {
         body: JSON.stringify({
           accion: 'obtenerReporteCompleto',
           adminEmail: this.usuario.email,
-          adminPassword: ADMIN_PASSWORD,
+          adminPassword: this._adminPwdSession || '',
           idReporte: idReporte
         })
       });
