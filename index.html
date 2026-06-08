@@ -700,6 +700,20 @@
     </div>
   </div>
 
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 0 0;">
+    <button onclick="app.iniciarNuevaActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:16px 8px;cursor:pointer;text-align:center;font-weight:700;">
+      <div style="font-size:26px;">🎯</div><div style="font-size:12px;margin-top:4px;">NUEVA ACTIVIDAD</div>
+    </button>
+    <button onclick="app.irA('pantallaListaActividades')" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:16px 8px;cursor:pointer;text-align:center;font-weight:700;">
+      <div style="font-size:26px;">📋</div><div style="font-size:12px;margin-top:4px;">MIS ACTIVIDADES</div>
+    </button>
+    <button onclick="app.irA('pantallaAsistencia')" style="background:#1e8449;color:#fff;border:none;border-radius:12px;padding:16px 8px;cursor:pointer;text-align:center;font-weight:700;">
+      <div style="font-size:26px;">📅</div><div style="font-size:12px;margin-top:4px;">ASISTENCIA</div>
+    </button>
+    <button onclick="app.irA('pantallaOperatividad')" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:16px 8px;cursor:pointer;text-align:center;font-weight:700;">
+      <div style="font-size:26px;">📊</div><div style="font-size:12px;margin-top:4px;">OPERATIVIDAD</div>
+    </button>
+  </div>
   <div class="lema-pie">"ABNEGACIÓN Y DISCIPLINA"</div>
   <div class="credito-pie">
     App desarrollada por <strong>Bombero Jeferson Jeancarlos Rangel Gil</strong><br>
@@ -1536,5 +1550,136 @@
 
 <script src="logos.js"></script>
 <script src="app.js"></script>
+
+<!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
+<div class="pantalla" id="pantallaActividades">
+  <div style="padding:0 4px;">
+    <h2 style="color:#1a5276;margin:10px 0;">🎯 Nueva Actividad</h2>
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <label style="font-weight:700;display:block;margin-bottom:6px;">Tipo *</label>
+      <select id="actTipo" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
+        <option value="">Seleccionar...</option>
+        <option>Acompañamiento</option><option>Capacitación</option><option>Entrenamiento</option>
+        <option>Simulacro</option><option>Inspección</option><option>Jornada comunitaria</option><option>Otra</option>
+      </select>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <label style="font-weight:700;display:block;margin-bottom:6px;">Descripción *</label>
+      <textarea id="actDescripcion" rows="2" placeholder="Ej: Mercado campesino en plaza principal" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;resize:none;"></textarea>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><label style="font-weight:700;display:block;margin-bottom:4px;">Fecha *</label>
+        <input type="date" id="actFecha" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;"></div>
+      <div><label style="font-weight:700;display:block;margin-bottom:4px;">Lugar</label>
+        <input type="text" id="actLugar" placeholder="Plaza, parque..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;"></div>
+      <div><label style="font-weight:700;display:block;margin-bottom:4px;">Hora inicio *</label>
+        <input type="time" id="actHoraInicio" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;"></div>
+      <div><label style="font-weight:700;display:block;margin-bottom:4px;">Hora fin</label>
+        <input type="time" id="actHoraFin" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;"></div>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <label style="font-weight:700;display:block;margin-bottom:6px;">Novedades</label>
+      <textarea id="actNovedades" rows="2" placeholder="Anotar cualquier novedad" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;resize:none;"></textarea>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:10px;">👥 Personal asistente</div>
+      <div style="position:relative;margin-bottom:8px;">
+        <input type="text" id="actBuscarPersonal" placeholder="Escribir nombre para buscar..." autocomplete="off"
+          style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;"
+          oninput="app.buscarPersonalActividad(this.value)">
+        <div id="actSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:200px;overflow-y:auto;"></div>
+      </div>
+      <div id="actPersonalLista"></div>
+      <div id="actFormNuevo" style="display:none;background:#fff8e1;border-radius:10px;padding:12px;margin-top:10px;border:1px solid #ffe082;">
+        <div style="font-weight:700;color:#e65100;margin-bottom:8px;">Nueva persona — llenar datos</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <input type="text" id="actNuevoNombre" placeholder="Nombre completo *" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <input type="text" id="actNuevoCedula" placeholder="Cédula *" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <input type="text" id="actNuevoTel" placeholder="Teléfono" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <select id="actNuevoRango" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+            <option value="BOMBERO">Bombero</option><option value="SARGENTO">Sargento</option>
+            <option value="TENIENTE">Teniente</option><option value="CAPITAN">Capitán</option><option value="ASPIRANTE">Aspirante</option>
+          </select>
+        </div>
+        <button onclick="app.agregarPersonalNuevoActividad()" style="background:#e65100;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;width:100%;">✅ Agregar y registrar en base de datos</button>
+      </div>
+      <button onclick="document.getElementById('actFormNuevo').style.display=document.getElementById('actFormNuevo').style.display==='none'?'block':'none'"
+        style="background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:8px;padding:10px;cursor:pointer;width:100%;margin-top:8px;font-size:13px;">➕ Persona nueva (no está en la lista)</button>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:10px;">📸 Fotos (opcionales)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Inicio</div>
+          <div id="prevFotoInicio" onclick="document.getElementById('inputFotoInicio').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <input type="file" id="inputFotoInicio" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('inicio',this)"></div>
+        <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Intermedio</div>
+          <div id="prevFotoMedio" onclick="document.getElementById('inputFotoMedio').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <input type="file" id="inputFotoMedio" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('medio',this)"></div>
+        <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Final</div>
+          <div id="prevFotoFin" onclick="document.getElementById('inputFotoFin').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <input type="file" id="inputFotoFin" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('fin',this)"></div>
+      </div>
+    </div>
+    <button onclick="app.guardarActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Registrar Actividad</button>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
+  </div>
+</div>
+
+<!-- ══════════ PANTALLA: LISTA ACTIVIDADES ══════════ -->
+<div class="pantalla" id="pantallaListaActividades">
+  <div style="padding:0 4px;">
+    <h2 style="color:#1a5276;margin:10px 0;">📋 Actividades Registradas</h2>
+    <div id="listaActividadesContenido" style="margin-bottom:12px;"><div style="text-align:center;padding:40px;color:#999;">Cargando...</div></div>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
+  </div>
+</div>
+
+<!-- ══════════ PANTALLA: DETALLE ACTIVIDAD ══════════ -->
+<div class="pantalla" id="pantallaDetalleActividad">
+  <div style="padding:0 4px;">
+    <h2 style="color:#1a5276;margin:10px 0;">🎯 Detalle Actividad</h2>
+    <div id="detalleActividadContenido"></div>
+    <button onclick="app.imprimirActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir PDF</button>
+    <button onclick="app.irA('pantallaListaActividades')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
+  </div>
+</div>
+
+<!-- ══════════ PANTALLA: ASISTENCIA ══════════ -->
+<div class="pantalla" id="pantallaAsistencia">
+  <div style="padding:0 4px;">
+    <h2 style="color:#1e8449;margin:10px 0;">📅 Asistencia Domingos</h2>
+    <div id="asistenciaAdminPanel" style="display:none;">
+      <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+        <label style="font-weight:700;display:block;margin-bottom:6px;">Fecha del domingo *</label>
+        <input type="date" id="asistFecha" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;" onchange="app.cargarListaAsistencia()">
+      </div>
+      <div id="asistListaPersonal" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;min-height:60px;">
+        <div style="color:#999;text-align:center;padding:20px;">Selecciona una fecha para cargar el personal</div>
+      </div>
+      <button onclick="app.guardarAsistencia()" id="btnGuardarAsistencia" style="display:none;background:#1e8449;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Guardar Asistencia</button>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:10px;">📜 Historial de domingos</div>
+      <div id="asistHistorial" style="max-height:300px;overflow-y:auto;"></div>
+    </div>
+    <div id="asistSancionesPanel" style="display:none;background:#fff8e1;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-weight:700;color:#e65100;margin-bottom:10px;">⚠️ Sanciones pendientes</div>
+      <div id="asistSanciones"></div>
+    </div>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
+  </div>
+</div>
+
+<!-- ══════════ PANTALLA: OPERATIVIDAD ══════════ -->
+<div class="pantalla" id="pantallaOperatividad">
+  <div style="padding:0 4px;">
+    <h2 style="color:#6e2fa0;margin:10px 0;">📊 Operatividad del Personal</h2>
+    <div style="background:#fff3e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#e65100;">
+      🏆 Ranking: emergencias + horas de actividades + asistencia domingos
+    </div>
+    <div id="operatividadContenido"><div style="text-align:center;padding:40px;color:#999;">Cargando...</div></div>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
+  </div>
+</div>
 </body>
 </html>

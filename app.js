@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.27';
+const APP_VERSION = '5.30';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -775,6 +775,9 @@ const app = {
     header.style.display = 'flex';
 
     // Llenar configuración con datos del usuario actual
+    if (pantallaId === 'pantallaListaActividades') { this.cargarListaActividades(); }
+    if (pantallaId === 'pantallaAsistencia') { this.cargarPantallaAsistencia(); }
+    if (pantallaId === 'pantallaOperatividad') { this.cargarOperatividad(); }
     if (pantallaId === 'pantallaConfig' && this.usuario) {
       document.getElementById('cfg_perfil_nombre').value = this.usuario.nombreCompleto || this.usuario.nombre || '';
       document.getElementById('cfg_perfil_grado').value = this.usuario.grado || '';
@@ -795,7 +798,12 @@ const app = {
       const titulos = {
         pantallaForm: 'Reporte de Emergencia',
         pantallaDetalle: 'Detalle del Reporte',
-        pantallaConfig: 'Configuración'
+        pantallaConfig: 'Configuración',
+        pantallaActividades: '🎯 Nueva Actividad',
+        pantallaListaActividades: '📋 Actividades',
+        pantallaDetalleActividad: '🎯 Detalle Actividad',
+        pantallaAsistencia: '📅 Asistencia',
+        pantallaOperatividad: '📊 Operatividad'
       };
       document.getElementById('headerTitulo').textContent = titulos[pantallaId] || 'CBVI Reportes';
     }
@@ -3912,6 +3920,474 @@ ${paginaFotos}
     const local = new Date(fecha.getTime() - offset * 60000);
     return local.toISOString().slice(0, 16);
   }
+,
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MÓDULO ACTIVIDADES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  iniciarNuevaActividad() {
+    this._actPersonal = [];
+    this._actFotos = { inicio: null, medio: null, fin: null };
+    this.irA('pantallaActividades');
+    // reset form fields
+    setTimeout(() => {
+      ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades'].forEach(id => {
+        const el = document.getElementById(id); if(el) el.value='';
+      });
+      this._renderPersonalActividad();
+      ['prevFotoInicio','prevFotoMedio','prevFotoFin'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.innerHTML = '<span style="font-size:20px;">📷</span>';
+      });
+    }, 50);
+  },
+
+  _actFotos: { inicio: null, medio: null, fin: null },
+  _actPersonal: [],
+
+  cargarFotoActividad(tipo, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this._actFotos[tipo] = e.target.result;
+      const prev = document.getElementById('prevFoto' + tipo.charAt(0).toUpperCase() + tipo.slice(1));
+      if (prev) prev.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  async buscarPersonalActividad(q) {
+    const sug = document.getElementById('actSugerencias');
+    if (!q || q.trim().length < 2) { sug.style.display = 'none'; return; }
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'buscarPersonalCBVI', q: q.trim() })
+      });
+      const data = await resp.json();
+      if (!data.ok || !data.resultados.length) { sug.style.display = 'none'; return; }
+      sug.innerHTML = data.resultados.map(p =>
+        `<div onclick="app.seleccionarPersonalActividad(${JSON.stringify(p).replace(/"/g,'&quot;')})"
+          style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">
+          <strong>${p.nombre}</strong><br>
+          <span style="color:#666;font-size:12px;">CC: ${p.cedula} | ${p.rango}</span>
+        </div>`
+      ).join('');
+      sug.style.display = 'block';
+    } catch(e) { sug.style.display = 'none'; }
+  },
+
+  seleccionarPersonalActividad(p) {
+    document.getElementById('actSugerencias').style.display = 'none';
+    document.getElementById('actBuscarPersonal').value = '';
+    if (this._actPersonal.find(x => x.cedula === p.cedula)) {
+      this.toast('Ya está en la lista', 'error'); return;
+    }
+    this._actPersonal.push(p);
+    this._renderPersonalActividad();
+  },
+
+  agregarPersonalNuevoActividad() {
+    const nombre = (document.getElementById('actNuevoNombre').value||'').toUpperCase().trim();
+    const cedula = (document.getElementById('actNuevoCedula').value||'').trim();
+    const tel = document.getElementById('actNuevoTel').value||'';
+    const rango = document.getElementById('actNuevoRango').value||'BOMBERO';
+    if (!nombre || !cedula) { this.toast('Nombre y cédula son obligatorios', 'error'); return; }
+    if (this._actPersonal.find(x => x.cedula === cedula)) { this.toast('Ya está en la lista', 'error'); return; }
+    this._actPersonal.push({ nombre, cedula, rango, telefono: tel, email: '', esNuevo: true });
+    this._renderPersonalActividad();
+    document.getElementById('actNuevoNombre').value = '';
+    document.getElementById('actNuevoCedula').value = '';
+    document.getElementById('actNuevoTel').value = '';
+    document.getElementById('actFormNuevo').style.display = 'none';
+    this.toast('✅ ' + nombre + ' agregado', 'ok');
+  },
+
+  _renderPersonalActividad() {
+    const cont = document.getElementById('actPersonalLista');
+    if (!this._actPersonal.length) { cont.innerHTML = '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal aún</div>'; return; }
+    cont.innerHTML = this._actPersonal.map((p,i) =>
+      `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8f8f8;border-radius:8px;margin-bottom:6px;">
+        <div>
+          <strong style="font-size:14px;">${p.nombre}</strong>${p.esNuevo ? ' <span style="font-size:11px;background:#ff9800;color:#fff;padding:1px 5px;border-radius:4px;">NUEVO</span>' : ''}
+          <div style="font-size:12px;color:#666;">CC: ${p.cedula} | ${p.rango}</div>
+        </div>
+        <button onclick="app._quitarPersonalActividad(${i})" style="background:none;border:none;color:#c00;font-size:18px;cursor:pointer;padding:4px;">✕</button>
+      </div>`
+    ).join('');
+  },
+
+  _quitarPersonalActividad(idx) {
+    this._actPersonal.splice(idx, 1);
+    this._renderPersonalActividad();
+  },
+
+  async guardarActividad() {
+    const tipo = document.getElementById('actTipo').value;
+    const desc = document.getElementById('actDescripcion').value.trim();
+    const fecha = document.getElementById('actFecha').value;
+    const hi = document.getElementById('actHoraInicio').value;
+    if (!tipo || !desc || !fecha || !hi) { this.toast('Tipo, descripción, fecha y hora inicio son obligatorios', 'error'); return; }
+    if (!this._actPersonal.length) { this.toast('Agrega al menos una persona', 'error'); return; }
+    this.toast('⏳ Guardando actividad...', 'info');
+    try {
+      const payload = {
+        accion: 'crearActividad',
+        tipo, descripcion: desc, fecha,
+        horaInicio: hi,
+        horaFin: document.getElementById('actHoraFin').value,
+        lugar: document.getElementById('actLugar').value,
+        novedades: document.getElementById('actNovedades').value,
+        personal: this._actPersonal,
+        registradoPor: this.usuario.nombre,
+        emailRegistrador: this.usuario.email,
+        comandante: this.usuario.nombre,
+        fotoInicio: this._actFotos.inicio,
+        fotoMedio: this._actFotos.medio,
+        fotoFin: this._actFotos.fin
+      };
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error || 'Error al guardar');
+      this.toast('✅ Actividad registrada', 'ok');
+      // Reset form
+      this._actPersonal = [];
+      this._actFotos = { inicio: null, medio: null, fin: null };
+      ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades'].forEach(id => {
+        const el = document.getElementById(id); if(el) el.value = '';
+      });
+      this._renderPersonalActividad();
+      setTimeout(() => this.irA('pantallaListaActividades'), 1000);
+    } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+  },
+
+  async cargarListaActividades() {
+    const cont = document.getElementById('listaActividadesContenido');
+    if (!cont) return;
+    cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Cargando...</div>';
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarActividades' })
+      });
+      const data = await resp.json();
+      if (!data.ok || !data.actividades.length) {
+        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">No hay actividades registradas</div>'; return;
+      }
+      cont.innerHTML = data.actividades.map(a =>
+        `<div onclick="app.verDetalleActividad('${a.id}')"
+          style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;border-left:4px solid #1a5276;">
+          <div style="font-weight:700;color:#1a5276;">${a.tipo} — ${a.descripcion.substring(0,50)}</div>
+          <div style="font-size:13px;color:#666;margin-top:4px;">📅 ${a.fecha} | ⏱️ ${a.duracion}h | 👥 ${a.numUnidades} personas</div>
+          <div style="font-size:12px;color:#999;margin-top:2px;">Por: ${a.registradoPor}</div>
+        </div>`
+      ).join('');
+    } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error cargando actividades</div>'; }
+  },
+
+  async verDetalleActividad(id) {
+    this._actividadActual = id;
+    this.irA('pantallaDetalleActividad');
+    const cont = document.getElementById('detalleActividadContenido');
+    cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Cargando...</div>';
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'obtenerActividad', id })
+      });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error);
+      const a = data.actividad;
+      this._detalleActividadData = a;
+      cont.innerHTML = `
+        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+          <div style="font-size:18px;font-weight:700;color:#1a5276;margin-bottom:8px;">${a.tipo}</div>
+          <div style="color:#333;margin-bottom:6px;">${a.descripcion}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;color:#555;">
+            <div>📅 ${a.fecha}</div><div>📍 ${a.lugar||'-'}</div>
+            <div>🕐 ${a.horaInicio||'-'} → ${a.horaFin||'-'}</div><div>⏱️ ${a.duracion}h</div>
+          </div>
+          ${a.novedades ? `<div style="margin-top:8px;padding:8px;background:#f5f5f5;border-radius:6px;font-size:13px;">${a.novedades}</div>` : ''}
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+          <div style="font-weight:700;margin-bottom:8px;">👥 Personal (${a.personal.length})</div>
+          ${a.personal.map(p => `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px;">
+            <strong>${p.nombre}</strong> — ${p.rango}<div style="font-size:12px;color:#666;">CC: ${p.cedula}</div>
+          </div>`).join('')}
+        </div>
+        ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `
+        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+          <div style="font-weight:700;margin-bottom:8px;">📸 Fotos</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+            ${a.fotoInicio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Inicio</div><img src="${a.fotoInicio}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${a.fotoMedio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Intermedio</div><img src="${a.fotoMedio}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${a.fotoFin ? `<div><div style="font-size:11px;color:#666;text-align:center;">Final</div><img src="${a.fotoFin}" style="width:100%;border-radius:6px;"></div>` : ''}
+          </div>
+        </div>` : ''}`;
+    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
+  },
+
+  imprimirActividad() {
+    const a = this._detalleActividadData;
+    if (!a) return;
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Actividad ${a.id}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12pt;margin:20mm;}
+        h1{color:#1a5276;font-size:16pt;}
+        table{width:100%;border-collapse:collapse;margin:10px 0;}
+        th,td{border:1px solid #000;padding:6px 8px;font-size:11pt;}
+        th{background:#1a5276;color:#fff;}
+        .fotos{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0;}
+        .fotos img{width:100%;max-height:80mm;object-fit:contain;}
+        @media print{body{margin:10mm;}}
+      </style></head><body>
+      <h1>🎯 ${a.tipo} — Actividad Oficial CBVI</h1>
+      <p><strong>Descripción:</strong> ${a.descripcion}</p>
+      <table><tr><th>Fecha</th><th>Lugar</th><th>Hora inicio</th><th>Hora fin</th><th>Duración</th></tr>
+      <tr><td>${a.fecha}</td><td>${a.lugar||'-'}</td><td>${a.horaInicio||'-'}</td><td>${a.horaFin||'-'}</td><td>${a.duracion}h</td></tr></table>
+      ${a.novedades ? `<p><strong>Novedades:</strong> ${a.novedades}</p>` : ''}
+      <h2>Personal asistente (${a.personal.length})</h2>
+      <table><tr><th>#</th><th>Nombre</th><th>Cédula</th><th>Rango</th><th>Horas acreditadas</th></tr>
+      ${a.personal.map((p,i) => `<tr><td>${i+1}</td><td>${p.nombre}</td><td>${p.cedula}</td><td>${p.rango}</td><td>${p.horas}h</td></tr>`).join('')}
+      </table>
+      ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `<h2>Registro fotográfico</h2><div class="fotos">
+        ${a.fotoInicio ? `<div><p style="text-align:center;font-weight:700;">Inicio</p><img src="${a.fotoInicio}"></div>` : ''}
+        ${a.fotoMedio ? `<div><p style="text-align:center;font-weight:700;">Intermedio</p><img src="${a.fotoMedio}"></div>` : ''}
+        ${a.fotoFin ? `<div><p style="text-align:center;font-weight:700;">Final</p><img src="${a.fotoFin}"></div>` : ''}
+      </div>` : ''}
+      <p style="margin-top:20px;font-size:10pt;color:#666;">CUERPO DE BOMBEROS VOLUNTARIOS DE INÍRIDA — ABNEGACIÓN Y DISCIPLINA</p>
+      </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 800);
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MÓDULO ASISTENCIA
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  _asistRegistros: {},
+
+  async cargarPantallaAsistencia() {
+    const esAdmin = this.esAdmin();
+    const adminPanel = document.getElementById('asistenciaAdminPanel');
+    if (adminPanel) adminPanel.style.display = esAdmin ? 'block' : 'none';
+    const sanPanel = document.getElementById('asistSancionesPanel');
+
+    // Cargar historial de domingos
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarDomingos' })
+      });
+      const data = await resp.json();
+      const hist = document.getElementById('asistHistorial');
+      if (!data.ok || !data.domingos.length) {
+        hist.innerHTML = '<div style="color:#999;text-align:center;padding:10px;">Sin registros aún</div>'; return;
+      }
+      hist.innerHTML = data.domingos.slice(0,10).map(f =>
+        `<div onclick="app.verAsistenciaDomingo('${f}')"
+          style="padding:10px;border-bottom:1px solid #f0f0f0;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;">📅 ${f}</span>
+          <span style="color:#1a5276;font-size:13px;">Ver →</span>
+        </div>`
+      ).join('');
+    } catch(e) {}
+
+    // Sanciones (solo admin)
+    if (esAdmin) {
+      try {
+        const resp2 = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'listarSanciones', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        });
+        const d2 = await resp2.json();
+        if (d2.ok && d2.sanciones.length) {
+          sanPanel.style.display = 'block';
+          document.getElementById('asistSanciones').innerHTML = d2.sanciones.map(s =>
+            `<div style="padding:8px;background:#fff;border-radius:8px;margin-bottom:6px;border-left:3px solid ${s.tipoAlerta==='RETIRO'?'#c00':s.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':'#ff9800'};">
+              <strong>${s.nombre}</strong> — <span style="color:#c00;">${s.horasPendientes}h pendientes</span>
+              ${s.tipoAlerta ? `<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:4px;">${s.tipoAlerta.replace('_',' ')}</span>` : ''}
+              <div style="margin-top:6px;">
+                <input type="number" min="1" max="${s.horasPendientes}" placeholder="Horas a descontar"
+                  id="sanHoras_${s.cedula}" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;width:120px;font-size:13px;">
+                <button onclick="app.cumplirSancion('${s.cedula}','${s.nombre}')"
+                  style="background:#1e8449;color:#fff;border:none;border-radius:4px;padding:5px 10px;cursor:pointer;margin-left:6px;font-size:13px;">✅ Cumplidas</button>
+              </div>
+            </div>`
+          ).join('');
+        }
+      } catch(e) {}
+    }
+  },
+
+  async cargarListaAsistencia() {
+    const fecha = document.getElementById('asistFecha').value;
+    if (!fecha) return;
+    const cont = document.getElementById('asistListaPersonal');
+    cont.innerHTML = '<div style="color:#999;text-align:center;padding:10px;">Cargando personal...</div>';
+    try {
+      // Cargar personal CBVI activo
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'buscarPersonalCBVI', q: ' ' })
+      });
+      const data = await resp.json();
+      // Cargar asistencia previa si existe
+      const resp2 = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarAsistenciaDomingo', fecha })
+      });
+      const prev = await resp2.json();
+      const prevMap = {};
+      if (prev.ok) prev.registros.forEach(r => { prevMap[r.cedula] = r.estado; });
+
+      this._asistRegistros = {};
+      // Cargar personal completo desde Personal_CBVI buscando con query vacío
+      const todo = data.resultados || [];
+      document.getElementById('btnGuardarAsistencia').style.display = 'block';
+      cont.innerHTML = `<div style="font-size:12px;color:#666;margin-bottom:8px;">Marcá el estado de cada bombero para el ${fecha}</div>` +
+        todo.map(p => {
+          const estadoPrev = prevMap[p.cedula] || 'PRESENTE';
+          this._asistRegistros[p.cedula] = { nombre: p.nombre, cedula: p.cedula, estado: estadoPrev };
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0;">
+            <div style="flex:1;font-size:14px;font-weight:600;">${p.nombre}<div style="font-size:11px;color:#999;">${p.rango}</div></div>
+            <select onchange="app._setAsistencia('${p.cedula}','${p.nombre}',this.value)"
+              style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:${estadoPrev==='PRESENTE'?'#e8f5e9':estadoPrev==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee'}">
+              <option value="PRESENTE" ${estadoPrev==='PRESENTE'?'selected':''}>✅ Presente</option>
+              <option value="AUSENTE_EXCUSA" ${estadoPrev==='AUSENTE_EXCUSA'?'selected':''}>🟡 Ausente c/excusa</option>
+              <option value="AUSENTE_SIN_EXCUSA" ${estadoPrev==='AUSENTE_SIN_EXCUSA'?'selected':''}>🔴 Ausente sin excusa</option>
+            </select>
+          </div>`;
+        }).join('');
+    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:10px;">Error: ${e.message}</div>`; }
+  },
+
+  _setAsistencia(cedula, nombre, estado) {
+    this._asistRegistros[cedula] = { nombre, cedula, estado };
+    // cambiar color del select
+    const selects = document.querySelectorAll('#asistListaPersonal select');
+    selects.forEach(sel => {
+      if (sel.getAttribute('onchange') && sel.getAttribute('onchange').includes(cedula)) {
+        sel.style.background = estado==='PRESENTE'?'#e8f5e9':estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee';
+      }
+    });
+  },
+
+  async guardarAsistencia() {
+    const fecha = document.getElementById('asistFecha').value;
+    if (!fecha) { this.toast('Selecciona la fecha', 'error'); return; }
+    const registros = Object.values(this._asistRegistros);
+    if (!registros.length) { this.toast('No hay personal cargado', 'error'); return; }
+    this.toast('⏳ Guardando asistencia...', 'info');
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'registrarAsistencia', fecha, registros,
+          adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || ''
+        })
+      });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error);
+      const ausentes = registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
+      this.toast(`✅ Asistencia guardada — ${ausentes} ausentes sin excusa`, 'ok');
+      setTimeout(() => this.cargarPantallaAsistencia(), 1000);
+    } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+  },
+
+  async verAsistenciaDomingo(fecha) {
+    const hist = document.getElementById('asistHistorial');
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarAsistenciaDomingo', fecha })
+      });
+      const data = await resp.json();
+      if (!data.ok) return;
+      const presentes = data.registros.filter(r => r.estado === 'PRESENTE').length;
+      const ausExcusa = data.registros.filter(r => r.estado === 'AUSENTE_EXCUSA').length;
+      const ausSin = data.registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
+      hist.innerHTML = `<div style="font-weight:700;margin-bottom:8px;">📅 ${fecha}</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;font-size:13px;">
+          <span style="background:#e8f5e9;padding:3px 8px;border-radius:4px;">✅ ${presentes}</span>
+          <span style="background:#fff8e1;padding:3px 8px;border-radius:4px;">🟡 ${ausExcusa}</span>
+          <span style="background:#ffebee;padding:3px 8px;border-radius:4px;">🔴 ${ausSin}</span>
+        </div>` +
+        data.registros.map(r =>
+          `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px;display:flex;justify-content:space-between;">
+            <span>${r.nombre}</span>
+            <span style="color:${r.estado==='PRESENTE'?'#1e8449':r.estado==='AUSENTE_EXCUSA'?'#e65100':'#c00'}">
+              ${r.estado==='PRESENTE'?'✅ Presente':r.estado==='AUSENTE_EXCUSA'?'🟡 C/excusa':'🔴 Sin excusa'}
+            </span>
+          </div>`
+        ).join('') +
+        `<button onclick="app.cargarPantallaAsistencia()" style="margin-top:8px;background:#f5f5f5;color:#333;border:none;border-radius:6px;padding:8px;cursor:pointer;width:100%;font-size:13px;">← Ver todos los domingos</button>`;
+    } catch(e) {}
+  },
+
+  async cumplirSancion(cedula, nombre) {
+    const input = document.getElementById('sanHoras_' + cedula);
+    const horas = Number(input ? input.value : 0);
+    if (!horas || horas <= 0) { this.toast('Ingresa las horas cumplidas', 'error'); return; }
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'cumplirSancion', cedula, horas,
+          adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error);
+      this.toast('✅ ' + data.mensaje, 'ok');
+      setTimeout(() => this.cargarPantallaAsistencia(), 1000);
+    } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MÓDULO OPERATIVIDAD
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async cargarOperatividad() {
+    const cont = document.getElementById('operatividadContenido');
+    if (!cont) return;
+    cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Calculando ranking...</div>';
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarOperatividad' })
+      });
+      const data = await resp.json();
+      if (!data.ok || !data.operatividad.length) {
+        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Sin datos aún</div>'; return;
+      }
+      const medallas = ['🥇','🥈','🥉'];
+      cont.innerHTML = data.operatividad.map((p,i) => {
+        const pts = p.emergencias * 2 + p.horasActividades + p.domingosPresente;
+        const alerta = p.horasSancion > 0 ? `<span style="background:#ffebee;color:#c00;padding:2px 6px;border-radius:4px;font-size:11px;">⚠️ ${p.horasSancion}h sanción</span>` : '';
+        return `<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:8px;border-left:4px solid ${i===0?'#f1c40f':i===1?'#bdc3c7':i===2?'#cd6133':'#1a5276'};">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <span style="font-size:18px;">${medallas[i]||'#'+(i+1)}</span>
+              <strong style="font-size:15px;margin-left:6px;">${p.nombre}</strong>
+              ${alerta}
+            </div>
+            <div style="font-weight:700;color:#1a5276;font-size:16px;">${pts}pts</div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;font-size:12px;color:#666;">
+            <span>🚨 ${p.emergencias} emergencias</span>
+            <span>🎯 ${p.horasActividades}h actividades</span>
+            <span>📅 ${p.domingosPresente} domingos</span>
+          </div>
+        </div>`;
+      }).join('');
+    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
+  }
+
 };
 
 // Cerrar menú usuario al tocar afuera
