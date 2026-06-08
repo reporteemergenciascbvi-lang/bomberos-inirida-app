@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.32';
+const APP_VERSION = '5.33';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -3961,7 +3961,7 @@ ${paginaFotos}
   buscarPersonalActividad(q) {
     clearTimeout(this._buscarTimer);
     const sug = document.getElementById('actSugerencias');
-    if (!q || q.trim().length < 2) { sug.style.display = 'none'; return; }
+    if (!q || q.trim().length < 1) { sug.style.display = 'none'; return; }
     sug.innerHTML = '<div style="padding:10px;color:#999;font-size:13px;">Buscando...</div>';
     sug.style.display = 'block';
     this._buscarTimer = setTimeout(() => this._ejecutarBusqueda(q.trim()), 400);
@@ -4314,7 +4314,8 @@ ${paginaFotos}
   buscarPersonalAsistencia(q) {
     clearTimeout(this._buscarAsistTimer);
     const sug = document.getElementById('asistSugerencias');
-    if (!q || q.trim().length < 2) { sug.style.display = 'none'; return; }
+    if (!q || q.trim().length < 1) { sug.style.display = 'none'; return; }
+    sug.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:13px;">Buscando...</div>'; sug.style.display = 'block';
     this._buscarAsistTimer = setTimeout(async () => {
       try {
         const resp = await fetch(URL_BACKEND, {
@@ -4439,7 +4440,7 @@ ${paginaFotos}
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'listarOperatividad' })
+        body: JSON.stringify({ accion: 'listarOperatividad', mes: this._operMes, anio: this._operAnio })
       });
       const data = await resp.json();
       if (!data.ok || !data.operatividad.length) {
@@ -4479,13 +4480,13 @@ ${paginaFotos}
             color:${this._operVista==='unidad'?'#fff':'#333'};">👤 Por Unidad</button>
         </div>
         <div style="display:flex;gap:8px;">
-          <select onchange="app._operMes=this.value;app._renderOperatividad()"
+          <select onchange="app._operMes=this.value;app.cargarOperatividad()"
             style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
             ${['01','02','03','04','05','06','07','08','09','10','11','12'].map(m =>
               `<option value="${m}" ${this._operMes===m?'selected':''}>${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(m)-1]}</option>`
             ).join('')}
           </select>
-          <select onchange="app._operAnio=this.value;app._renderOperatividad()"
+          <select onchange="app._operAnio=this.value;app.cargarOperatividad()"
             style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
             ${[anioActual, String(parseInt(anioActual)-1)].map(a =>
               `<option value="${a}" ${this._operAnio===a?'selected':''}>${a}</option>`
