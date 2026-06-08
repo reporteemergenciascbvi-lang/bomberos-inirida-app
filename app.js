@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.30';
+const APP_VERSION = '5.32';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -3957,35 +3957,53 @@ ${paginaFotos}
     reader.readAsDataURL(file);
   },
 
-  async buscarPersonalActividad(q) {
+  _buscarTimer: null,
+  buscarPersonalActividad(q) {
+    clearTimeout(this._buscarTimer);
     const sug = document.getElementById('actSugerencias');
     if (!q || q.trim().length < 2) { sug.style.display = 'none'; return; }
+    sug.innerHTML = '<div style="padding:10px;color:#999;font-size:13px;">Buscando...</div>';
+    sug.style.display = 'block';
+    this._buscarTimer = setTimeout(() => this._ejecutarBusqueda(q.trim()), 400);
+  },
+
+  async _ejecutarBusqueda(q) {
+    const sug = document.getElementById('actSugerencias');
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'buscarPersonalCBVI', q: q.trim() })
+        body: JSON.stringify({ accion: 'buscarPersonalCBVI', q })
       });
       const data = await resp.json();
-      if (!data.ok || !data.resultados.length) { sug.style.display = 'none'; return; }
-      sug.innerHTML = data.resultados.map(p =>
-        `<div onclick="app.seleccionarPersonalActividad(${JSON.stringify(p).replace(/"/g,'&quot;')})"
+      if (!data.ok || !data.resultados.length) {
+        sug.innerHTML = '<div style="padding:10px;color:#999;font-size:13px;">Sin resultados — usa el botón de persona nueva</div>';
+        return;
+      }
+      sug.innerHTML = data.resultados.map(per => {
+        const j = JSON.stringify(per).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return `<div onclick='app.seleccionarPersonalActividad(${JSON.stringify(per).replace(/'/g, "&#39;")})'
           style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">
-          <strong>${p.nombre}</strong><br>
-          <span style="color:#666;font-size:12px;">CC: ${p.cedula} | ${p.rango}</span>
-        </div>`
-      ).join('');
+          <strong>${per.nombre}</strong><br>
+          <span style="color:#666;font-size:12px;">CC: ${per.cedula} | ${per.rango}</span>
+        </div>`;
+      }).join('');
       sug.style.display = 'block';
-    } catch(e) { sug.style.display = 'none'; }
+    } catch(e) {
+      sug.innerHTML = '<div style="padding:10px;color:#c00;font-size:13px;">Error de conexión</div>';
+    }
   },
 
   seleccionarPersonalActividad(p) {
     document.getElementById('actSugerencias').style.display = 'none';
     document.getElementById('actBuscarPersonal').value = '';
-    if (this._actPersonal.find(x => x.cedula === p.cedula)) {
-      this.toast('Ya está en la lista', 'error'); return;
-    }
+    // Comparar por cédula si existe, sino por nombre
+    const yaExiste = p.cedula
+      ? this._actPersonal.find(x => x.cedula && x.cedula === p.cedula)
+      : this._actPersonal.find(x => x.nombre.toUpperCase() === (p.nombre||'').toUpperCase());
+    if (yaExiste) { this.toast(p.nombre + ' ya está en la lista', 'error'); return; }
     this._actPersonal.push(p);
     this._renderPersonalActividad();
+    this.toast('✅ ' + p.nombre + ' agregado', 'ok');
   },
 
   agregarPersonalNuevoActividad() {
@@ -4070,9 +4088,13 @@ ${paginaFotos}
     if (!cont) return;
     cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Cargando...</div>';
     try {
+      const esAdm = this.esAdmin();
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'listarActividades' })
+        body: JSON.stringify({
+          accion: 'listarActividades',
+          emailFiltro: esAdm ? null : (this.usuario ? this.usuario.email : '')
+        })
       });
       const data = await resp.json();
       if (!data.ok || !data.actividades.length) {
@@ -4230,42 +4252,96 @@ ${paginaFotos}
     const fecha = document.getElementById('asistFecha').value;
     if (!fecha) return;
     const cont = document.getElementById('asistListaPersonal');
-    cont.innerHTML = '<div style="color:#999;text-align:center;padding:10px;">Cargando personal...</div>';
+    document.getElementById('btnGuardarAsistencia').style.display = 'block';
+    // Cargar asistencia previa si existe
     try {
-      // Cargar personal CBVI activo
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'buscarPersonalCBVI', q: ' ' })
-      });
-      const data = await resp.json();
-      // Cargar asistencia previa si existe
       const resp2 = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ accion: 'listarAsistenciaDomingo', fecha })
       });
       const prev = await resp2.json();
-      const prevMap = {};
-      if (prev.ok) prev.registros.forEach(r => { prevMap[r.cedula] = r.estado; });
+      if (prev.ok && prev.registros.length) {
+        prev.registros.forEach(r => {
+          this._asistRegistros[r.cedula || r.nombre] = { nombre: r.nombre, cedula: r.cedula, estado: r.estado };
+        });
+      }
+    } catch(e) {}
+    this._renderAsistencia(fecha);
+  },
 
-      this._asistRegistros = {};
-      // Cargar personal completo desde Personal_CBVI buscando con query vacío
-      const todo = data.resultados || [];
-      document.getElementById('btnGuardarAsistencia').style.display = 'block';
-      cont.innerHTML = `<div style="font-size:12px;color:#666;margin-bottom:8px;">Marcá el estado de cada bombero para el ${fecha}</div>` +
-        todo.map(p => {
-          const estadoPrev = prevMap[p.cedula] || 'PRESENTE';
-          this._asistRegistros[p.cedula] = { nombre: p.nombre, cedula: p.cedula, estado: estadoPrev };
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0;">
-            <div style="flex:1;font-size:14px;font-weight:600;">${p.nombre}<div style="font-size:11px;color:#999;">${p.rango}</div></div>
-            <select onchange="app._setAsistencia('${p.cedula}','${p.nombre}',this.value)"
-              style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:${estadoPrev==='PRESENTE'?'#e8f5e9':estadoPrev==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee'}">
-              <option value="PRESENTE" ${estadoPrev==='PRESENTE'?'selected':''}>✅ Presente</option>
-              <option value="AUSENTE_EXCUSA" ${estadoPrev==='AUSENTE_EXCUSA'?'selected':''}>🟡 Ausente c/excusa</option>
-              <option value="AUSENTE_SIN_EXCUSA" ${estadoPrev==='AUSENTE_SIN_EXCUSA'?'selected':''}>🔴 Ausente sin excusa</option>
-            </select>
-          </div>`;
-        }).join('');
-    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:10px;">Error: ${e.message}</div>`; }
+  _renderAsistencia(fecha) {
+    const cont = document.getElementById('asistListaPersonal');
+    const lista = Object.values(this._asistRegistros);
+    cont.innerHTML = `
+      <div style="font-size:12px;color:#555;margin-bottom:10px;">📅 Registrando asistencia para el <strong>${fecha}</strong></div>
+      ${lista.length === 0 ? '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Agrega el personal con el buscador de abajo</div>' :
+        lista.map((p, i) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;">${p.nombre}</div>
+            <div style="font-size:11px;color:#999;">CC: ${p.cedula||'-'}</div>
+          </div>
+          <select onchange="app._setAsistencia('${p.cedula||p.nombre}','${p.nombre}',this.value)"
+            style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:${p.estado==='PRESENTE'?'#e8f5e9':p.estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee'}">
+            <option value="PRESENTE" ${p.estado==='PRESENTE'?'selected':''}>✅ Presente</option>
+            <option value="AUSENTE_EXCUSA" ${p.estado==='AUSENTE_EXCUSA'?'selected':''}>🟡 C/excusa</option>
+            <option value="AUSENTE_SIN_EXCUSA" ${p.estado==='AUSENTE_SIN_EXCUSA'?'selected':''}>🔴 Sin excusa</option>
+          </select>
+          <button onclick="app._quitarAsistencia('${p.cedula||p.nombre}')" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;padding:4px;margin-left:4px;">✕</button>
+        </div>`).join('')}
+      <div style="position:relative;margin-top:10px;">
+        <input type="text" id="asistBuscar" placeholder="Buscar y agregar bombero..." autocomplete="off"
+          style="width:100%;padding:10px;border:1px solid #1e8449;border-radius:8px;font-size:14px;box-sizing:border-box;"
+          oninput="app.buscarPersonalAsistencia(this.value)">
+        <div id="asistSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;"></div>
+      </div>`;
+  },
+
+  _setAsistencia(key, nombre, estado) {
+    if (this._asistRegistros[key]) this._asistRegistros[key].estado = estado;
+    // actualizar color del select sin re-render completo
+    const sel = event ? event.target : null;
+    if (sel) sel.style.background = estado==='PRESENTE'?'#e8f5e9':estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee';
+  },
+
+  _quitarAsistencia(key) {
+    delete this._asistRegistros[key];
+    const fecha = document.getElementById('asistFecha').value;
+    this._renderAsistencia(fecha);
+  },
+
+  _buscarAsistTimer: null,
+  buscarPersonalAsistencia(q) {
+    clearTimeout(this._buscarAsistTimer);
+    const sug = document.getElementById('asistSugerencias');
+    if (!q || q.trim().length < 2) { sug.style.display = 'none'; return; }
+    this._buscarAsistTimer = setTimeout(async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'buscarPersonalCBVI', q: q.trim() })
+        });
+        const data = await resp.json();
+        if (!data.ok || !data.resultados.length) { sug.style.display = 'none'; return; }
+        sug.innerHTML = data.resultados.map(per =>
+          `<div onclick='app.agregarAsistente(${JSON.stringify(per).replace(/'/g,"&#39;")})'
+            style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;">
+            <strong>${per.nombre}</strong> <span style="color:#666;font-size:12px;">CC: ${per.cedula}</span>
+          </div>`
+        ).join('');
+        sug.style.display = 'block';
+      } catch(e) { sug.style.display = 'none'; }
+    }, 400);
+  },
+
+  agregarAsistente(p) {
+    document.getElementById('asistSugerencias').style.display = 'none';
+    document.getElementById('asistBuscar').value = '';
+    const key = p.cedula || p.nombre;
+    if (this._asistRegistros[key]) { this.toast(p.nombre + ' ya está', 'error'); return; }
+    this._asistRegistros[key] = { nombre: p.nombre, cedula: p.cedula, estado: 'PRESENTE' };
+    const fecha = document.getElementById('asistFecha').value;
+    this._renderAsistencia(fecha);
   },
 
   _setAsistencia(cedula, nombre, estado) {
@@ -4283,13 +4359,13 @@ ${paginaFotos}
     const fecha = document.getElementById('asistFecha').value;
     if (!fecha) { this.toast('Selecciona la fecha', 'error'); return; }
     const registros = Object.values(this._asistRegistros);
-    if (!registros.length) { this.toast('No hay personal cargado', 'error'); return; }
+    if (!registros.length) { this.toast('Agrega personal primero', 'error'); return; }
     this.toast('⏳ Guardando asistencia...', 'info');
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          accion: 'registrarAsistencia', fecha, registros,
+          accion: 'registrarAsistencia', fecha, registros, replaceAll: true,
           adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || ''
         })
       });
@@ -4355,6 +4431,10 @@ ${paginaFotos}
   async cargarOperatividad() {
     const cont = document.getElementById('operatividadContenido');
     if (!cont) return;
+    if (!this.esAdmin()) {
+      cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;">🔒</div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver la operatividad</div></div>';
+      return;
+    }
     cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Calculando ranking...</div>';
     try {
       const resp = await fetch(URL_BACKEND, {
@@ -4365,27 +4445,283 @@ ${paginaFotos}
       if (!data.ok || !data.operatividad.length) {
         cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Sin datos aún</div>'; return;
       }
-      const medallas = ['🥇','🥈','🥉'];
-      cont.innerHTML = data.operatividad.map((p,i) => {
-        const pts = p.emergencias * 2 + p.horasActividades + p.domingosPresente;
-        const alerta = p.horasSancion > 0 ? `<span style="background:#ffebee;color:#c00;padding:2px 6px;border-radius:4px;font-size:11px;">⚠️ ${p.horasSancion}h sanción</span>` : '';
-        return `<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:8px;border-left:4px solid ${i===0?'#f1c40f':i===1?'#bdc3c7':i===2?'#cd6133':'#1a5276'};">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div>
-              <span style="font-size:18px;">${medallas[i]||'#'+(i+1)}</span>
-              <strong style="font-size:15px;margin-left:6px;">${p.nombre}</strong>
-              ${alerta}
+      this._operData = data.operatividad;
+      this._renderOperatividad();
+    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
+  }
+
+,
+  _operData: [],
+  _operVista: 'general', // 'general' | 'unidad'
+  _operMes: '',
+  _operAnio: '',
+
+  _renderOperatividad() {
+    const cont = document.getElementById('operatividadContenido');
+    if (!cont || !this._operData) return;
+    const ahora = new Date();
+    const mesActual = String(ahora.getMonth()+1).padStart(2,'0');
+    const anioActual = String(ahora.getFullYear());
+    if (!this._operMes) this._operMes = mesActual;
+    if (!this._operAnio) this._operAnio = anioActual;
+
+    // Cabecera con filtros y tabs
+    cont.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button onclick="app._operVista='general';app._renderOperatividad()"
+            style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;
+            background:${this._operVista==='general'?'#6e2fa0':'#f0f0f0'};
+            color:${this._operVista==='general'?'#fff':'#333'};">📊 General</button>
+          <button onclick="app._operVista='unidad';app._renderOperatividad()"
+            style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;
+            background:${this._operVista==='unidad'?'#6e2fa0':'#f0f0f0'};
+            color:${this._operVista==='unidad'?'#fff':'#333'};">👤 Por Unidad</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <select onchange="app._operMes=this.value;app._renderOperatividad()"
+            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            ${['01','02','03','04','05','06','07','08','09','10','11','12'].map(m =>
+              `<option value="${m}" ${this._operMes===m?'selected':''}>${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(m)-1]}</option>`
+            ).join('')}
+          </select>
+          <select onchange="app._operAnio=this.value;app._renderOperatividad()"
+            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            ${[anioActual, String(parseInt(anioActual)-1)].map(a =>
+              `<option value="${a}" ${this._operAnio===a?'selected':''}>${a}</option>`
+            ).join('')}
+          </select>
+        </div>
+      </div>
+      <div id="operContenidoFiltrado"></div>`;
+
+    if (this._operVista === 'general') this._renderGeneral();
+    else this._renderPorUnidad();
+  },
+
+  _filtrarPorMes(lista, campoFecha) {
+    const prefijo = this._operAnio + '-' + this._operMes;
+    return lista.filter(item => String(item[campoFecha]||'').startsWith(prefijo));
+  },
+
+  _renderGeneral() {
+    const cont = document.getElementById('operContenidoFiltrado');
+    if (!cont) return;
+    const d = this._operData;
+    const totalPersonas = d.length;
+    const totalEmerg = d.reduce((s,p) => s + (p.emergencias||0), 0);
+    const totalHoras = d.reduce((s,p) => s + (p.horasActividades||0), 0);
+    const totalDomingos = d.reduce((s,p) => s + (p.domingosPresente||0), 0);
+    const totalSancion = d.filter(p => p.horasSancion > 0).length;
+    const top = [...d].sort((a,b) => {
+      const pa = a.emergencias*2 + a.horasActividades + a.domingosPresente;
+      const pb = b.emergencias*2 + b.horasActividades + b.domingosPresente;
+      return pb - pa;
+    });
+    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+
+    cont.innerHTML = `
+      <div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
+        <div style="font-size:13px;opacity:.8;">Período</div>
+        <div style="font-size:18px;font-weight:700;">${mesNombre} ${this._operAnio}</div>
+        <div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:28px;font-weight:700;color:#1a5276;">${totalPersonas}</div>
+          <div style="font-size:12px;color:#666;">Unidades activas</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:28px;font-weight:700;color:#c0392b;">${totalEmerg}</div>
+          <div style="font-size:12px;color:#666;">Emergencias atendidas</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:28px;font-weight:700;color:#1e8449;">${totalHoras}h</div>
+          <div style="font-size:12px;color:#666;">Horas en actividades</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:28px;font-weight:700;color:#e67e22;">${totalDomingos}</div>
+          <div style="font-size:12px;color:#666;">Asistencias domingo</div>
+        </div>
+      </div>
+
+      ${totalSancion > 0 ? `<div style="background:#ffebee;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #c00;">
+        <div style="font-weight:700;color:#c00;">⚠️ ${totalSancion} unidad(es) con sanciones pendientes</div>
+      </div>` : ''}
+
+      <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="font-weight:700;color:#333;margin-bottom:10px;">🏆 Ranking general</div>
+        ${top.slice(0,5).map((p,i) => {
+          const pts = p.emergencias*2 + p.horasActividades + p.domingosPresente;
+          const medallas = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;">
+            <div><span style="font-size:16px;">${medallas[i]}</span>
+              <strong style="margin-left:6px;font-size:14px;">${p.nombre}</strong>
+              ${p.horasSancion>0?'<span style="font-size:10px;background:#ffebee;color:#c00;padding:1px 5px;border-radius:3px;margin-left:4px;">⚠️ sanción</span>':''}
             </div>
-            <div style="font-weight:700;color:#1a5276;font-size:16px;">${pts}pts</div>
+            <span style="font-weight:700;color:#6e2fa0;">${pts} pts</span>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <button onclick="app._imprimirReporteGeneral()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
+  },
+
+  _renderPorUnidad() {
+    const cont = document.getElementById('operContenidoFiltrado');
+    if (!cont) return;
+    const d = [...this._operData].sort((a,b) => a.nombre.localeCompare(b.nombre));
+    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+
+    cont.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">
+        <input type="text" placeholder="Buscar bombero..." oninput="app._filtrarUnidades(this.value)"
+          style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+      </div>
+      <div id="listaUnidades">
+        ${d.map(p => this._cardUnidad(p, mesNombre)).join('')}
+      </div>
+      <button onclick="app._imprimirReportePorUnidad()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:8px;">🖨️ Imprimir Informe por Unidad</button>`;
+  },
+
+  _filtrarUnidades(q) {
+    const lista = document.getElementById('listaUnidades');
+    if (!lista) return;
+    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+    const filtrado = this._operData.filter(p => p.nombre.toUpperCase().includes(q.toUpperCase()));
+    lista.innerHTML = filtrado.map(p => this._cardUnidad(p, mesNombre)).join('');
+  },
+
+  _cardUnidad(p, mesNombre) {
+    const pts = p.emergencias*2 + p.horasActividades + p.domingosPresente;
+    const pctDom = p.domingosPresente + p.domingosAusente > 0
+      ? Math.round(p.domingosPresente / (p.domingosPresente + p.domingosAusente) * 100) : 0;
+    const colorAlerta = p.tipoAlerta === 'RETIRO' ? '#c00' : p.tipoAlerta === 'LLAMADO_ESCRITO' ? '#e65100' : p.tipoAlerta === 'LLAMADO_VERBAL' ? '#ff9800' : null;
+    return `<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <div style="font-weight:700;font-size:15px;">${p.nombre}</div>
+          <div style="font-size:12px;color:#666;">CC: ${p.cedula||'-'}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:700;color:#6e2fa0;font-size:16px;">${pts} pts</div>
+          ${colorAlerta ? `<div style="font-size:11px;background:${colorAlerta};color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">${(p.tipoAlerta||'').replace('_',' ')}</div>` : ''}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+        <div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:#c0392b;">${p.emergencias}</div>
+          <div style="font-size:10px;color:#666;">Emergencias</div>
+        </div>
+        <div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:#1e8449;">${p.horasActividades}h</div>
+          <div style="font-size:10px;color:#666;">Actividades</div>
+        </div>
+        <div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:#e67e22;">${p.domingosPresente}</div>
+          <div style="font-size:10px;color:#666;">Domingos</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">
+        <span>Asistencia domingos: <strong>${pctDom}%</strong></span>
+        ${p.horasSancion > 0 ? `<span style="color:#c00;font-weight:700;">⚠️ ${p.horasSancion}h sanción</span>` : '<span style="color:#1e8449;">✅ Sin sanciones</span>'}
+      </div>
+    </div>`;
+  },
+
+  _imprimirReporteGeneral() {
+    const d = this._operData;
+    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+    const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades+b.domingosPresente)-(a.emergencias*2+a.horasActividades+a.domingosPresente));
+    const w = window.open('','_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Informe General Operatividad — ${mesNombre} ${this._operAnio}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
+        h1{color:#6e2fa0;font-size:15pt;margin-bottom:4px;}
+        h2{color:#333;font-size:12pt;border-bottom:2px solid #6e2fa0;padding-bottom:4px;margin-top:16px;}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0;}
+        .stat{border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center;}
+        .stat .num{font-size:22pt;font-weight:700;color:#6e2fa0;}
+        .stat .lbl{font-size:9pt;color:#666;}
+        table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt;}
+        th{background:#6e2fa0;color:#fff;padding:7px 8px;text-align:left;}
+        td{padding:6px 8px;border-bottom:1px solid #eee;}
+        tr:nth-child(even){background:#f9f9f9;}
+        .alerta{background:#ffebee;color:#c00;padding:2px 6px;border-radius:4px;font-size:9pt;}
+        footer{margin-top:20px;font-size:9pt;color:#999;text-align:center;}
+        @media print{body{margin:8mm;}}
+      </style></head><body>
+      <h1>📊 Informe de Operatividad Institucional</h1>
+      <p style="color:#666;margin:0 0 12px;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | Cuerpo de Bomberos Voluntarios de Inírida</p>
+      <div class="stats">
+        <div class="stat"><div class="num">${d.length}</div><div class="lbl">Unidades activas</div></div>
+        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.emergencias,0)}</div><div class="lbl">Emergencias atendidas</div></div>
+        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.horasActividades,0)}h</div><div class="lbl">Horas en actividades</div></div>
+        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.domingosPresente,0)}</div><div class="lbl">Asistencias domingo</div></div>
+      </div>
+      <h2>🏆 Ranking General</h2>
+      <table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th><th>Sanciones</th></tr>
+      ${top.map((p,i)=>{
+        const pts=p.emergencias*2+p.horasActividades+p.domingosPresente;
+        return `<tr><td>${i+1}</td><td><strong>${p.nombre}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${p.horasActividades}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
+      }).join('')}
+      </table>
+      <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
+      </body></html>`);
+    w.document.close();
+    setTimeout(()=>w.print(),800);
+  },
+
+  _imprimirReportePorUnidad() {
+    const d = [...this._operData].sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+    const w = window.open('','_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
+        h1{color:#6e2fa0;font-size:14pt;}
+        .ficha{border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px;page-break-inside:avoid;}
+        .ficha-header{display:flex;justify-content:space-between;border-bottom:2px solid #6e2fa0;padding-bottom:8px;margin-bottom:10px;}
+        .nombre{font-size:13pt;font-weight:700;}
+        .pts{font-size:18pt;font-weight:700;color:#6e2fa0;}
+        .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0;}
+        .item{border:1px solid #eee;border-radius:6px;padding:8px;text-align:center;}
+        .item .num{font-size:16pt;font-weight:700;}
+        .item .lbl{font-size:9pt;color:#666;}
+        .alerta{background:#ffebee;color:#c00;padding:3px 8px;border-radius:4px;font-size:10pt;font-weight:700;}
+        footer{margin-top:20px;font-size:9pt;color:#999;text-align:center;}
+        @media print{body{margin:8mm;}.ficha{page-break-inside:avoid;}}
+      </style></head><body>
+      <h1>👤 Informe de Operatividad por Unidad</h1>
+      <p style="color:#666;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | CBVI — Inírida</p>
+      ${d.map(p=>{
+        const pts=p.emergencias*2+p.horasActividades+p.domingosPresente;
+        const pct=p.domingosPresente+p.domingosAusente>0?Math.round(p.domingosPresente/(p.domingosPresente+p.domingosAusente)*100):0;
+        const colorAlerta=p.tipoAlerta==='RETIRO'?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#e67e22':null;
+        return `<div class="ficha">
+          <div class="ficha-header">
+            <div><div class="nombre">${p.nombre}</div><div style="font-size:10pt;color:#666;">CC: ${p.cedula||'-'} ${p.rango?'| '+p.rango:''}</div></div>
+            <div style="text-align:right;"><div class="pts">${pts} pts</div>${colorAlerta?`<div class="alerta" style="background:${colorAlerta};color:#fff;">${(p.tipoAlerta||'').replace('_',' ')}</div>`:''}</div>
           </div>
-          <div style="display:flex;gap:8px;margin-top:8px;font-size:12px;color:#666;">
-            <span>🚨 ${p.emergencias} emergencias</span>
-            <span>🎯 ${p.horasActividades}h actividades</span>
-            <span>📅 ${p.domingosPresente} domingos</span>
+          <div class="grid">
+            <div class="item"><div class="num" style="color:#c0392b;">${p.emergencias}</div><div class="lbl">Emergencias</div></div>
+            <div class="item"><div class="num" style="color:#1e8449;">${p.horasActividades}h</div><div class="lbl">En actividades</div></div>
+            <div class="item"><div class="num" style="color:#e67e22;">${p.domingosPresente}</div><div class="lbl">Domingos pres.</div></div>
+          </div>
+          <div style="font-size:10pt;color:#555;">
+            Asistencia domingos: <strong>${pct}%</strong> (${p.domingosPresente} de ${p.domingosPresente+p.domingosAusente}) |
+            Ausencias sin excusa: <strong>${p.domingosAusente}</strong> |
+            Sanciones: <strong style="color:${p.horasSancion>0?'#c00':'#1e8449'}">${p.horasSancion>0?p.horasSancion+'h pendientes':'Sin sanciones'}</strong>
           </div>
         </div>`;
-      }).join('');
-    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
+      }).join('')}
+      <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
+      </body></html>`);
+    w.document.close();
+    setTimeout(()=>w.print(),800);
   }
 
 };
