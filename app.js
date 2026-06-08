@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.33';
+const APP_VERSION = '5.34';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4212,13 +4212,19 @@ ${paginaFotos}
       if (!data.ok || !data.domingos.length) {
         hist.innerHTML = '<div style="color:#999;text-align:center;padding:10px;">Sin registros aún</div>'; return;
       }
-      hist.innerHTML = data.domingos.slice(0,10).map(f =>
-        `<div onclick="app.verAsistenciaDomingo('${f}')"
-          style="padding:10px;border-bottom:1px solid #f0f0f0;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-weight:600;">📅 ${f}</span>
-          <span style="color:#1a5276;font-size:13px;">Ver →</span>
-        </div>`
-      ).join('');
+      hist.innerHTML = data.domingos.slice(0,10).map(d => {
+        const f = typeof d === 'string' ? d : d.fecha;
+        const tipo = typeof d === 'object' ? (d.tipo||'') : '';
+        const tema = typeof d === 'object' ? (d.tema||'') : '';
+        return `<div onclick="app.verAsistenciaDomingo('${f}')"
+          style="padding:10px;border-bottom:1px solid #f0f0f0;cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:600;">📅 ${f}${tipo?' — '+tipo:''}</span>
+            <span style="color:#1a5276;font-size:13px;">Ver →</span>
+          </div>
+          ${tema ? `<div style="font-size:12px;color:#666;margin-top:2px;">${tema}</div>` : ''}
+        </div>`;
+      }).join('');
     } catch(e) {}
 
     // Sanciones (solo admin)
@@ -4361,19 +4367,35 @@ ${paginaFotos}
     if (!fecha) { this.toast('Selecciona la fecha', 'error'); return; }
     const registros = Object.values(this._asistRegistros);
     if (!registros.length) { this.toast('Agrega personal primero', 'error'); return; }
+    // Verificar sesión admin — pedir contraseña si no hay
+    if (!this._adminPwdSession) {
+      const pwd = window.prompt('🔐 Contraseña de administrador para guardar asistencia:');
+      if (!pwd || !pwd.trim()) return;
+      this._adminPwdSession = pwd.trim();
+    }
+    const tipoReunion = document.getElementById('asistTipoReunion') ? document.getElementById('asistTipoReunion').value : '';
+    const tema = document.getElementById('asistTema') ? document.getElementById('asistTema').value : '';
+    const lugarReunion = document.getElementById('asistLugar') ? document.getElementById('asistLugar').value : '';
     this.toast('⏳ Guardando asistencia...', 'info');
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           accion: 'registrarAsistencia', fecha, registros, replaceAll: true,
+          tipoReunion, tema, lugarReunion,
           adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || ''
         })
       });
       const data = await resp.json();
-      if (!data.ok) throw new Error(data.error);
+      if (!data.ok) {
+        if (data.error === 'No autorizado') {
+          this._adminPwdSession = null; // limpiar para reintentar
+          throw new Error('Contraseña incorrecta. Intenta de nuevo.');
+        }
+        throw new Error(data.error);
+      }
       const ausentes = registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
-      this.toast(`✅ Asistencia guardada — ${ausentes} ausentes sin excusa`, 'ok');
+      this.toast('✅ Asistencia guardada — ' + ausentes + ' ausentes sin excusa', 'ok');
       setTimeout(() => this.cargarPantallaAsistencia(), 1000);
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
   },
@@ -4447,6 +4469,7 @@ ${paginaFotos}
         cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Sin datos aún</div>'; return;
       }
       this._operData = data.operatividad;
+      this._operStats = data.stats || null;
       this._renderOperatividad();
     } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
   }
@@ -4521,6 +4544,15 @@ ${paginaFotos}
     });
     const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
 
+    const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias);
+    const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades);
+    const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente);
+    const medallas = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+    const rankRow = (p,i,val,lbl) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">
+      <div><span style="font-size:15px;">${medallas[i]||'#'+(i+1)}</span>
+        <strong style="margin-left:6px;font-size:13px;">${p.nombre}</strong></div>
+      <span style="font-weight:700;color:#6e2fa0;">${val} ${lbl}</span></div>`;
+
     cont.innerHTML = `
       <div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
         <div style="font-size:13px;opacity:.8;">Período</div>
@@ -4534,8 +4566,8 @@ ${paginaFotos}
           <div style="font-size:12px;color:#666;">Unidades activas</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
-          <div style="font-size:28px;font-weight:700;color:#c0392b;">${totalEmerg}</div>
-          <div style="font-size:12px;color:#666;">Emergencias atendidas</div>
+          <div style="font-size:28px;font-weight:700;color:#c0392b;">${this._operStats ? this._operStats.totalEmergenciasUnicas : totalEmerg}</div>
+          <div style="font-size:12px;color:#666;">Emergencias únicas</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div style="font-size:28px;font-weight:700;color:#1e8449;">${totalHoras}h</div>
@@ -4543,27 +4575,25 @@ ${paginaFotos}
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div style="font-size:28px;font-weight:700;color:#e67e22;">${totalDomingos}</div>
-          <div style="font-size:12px;color:#666;">Asistencias domingo</div>
+          <div style="font-size:12px;color:#666;">Asist. domingos total</div>
         </div>
       </div>
 
-      ${totalSancion > 0 ? `<div style="background:#ffebee;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #c00;">
-        <div style="font-weight:700;color:#c00;">⚠️ ${totalSancion} unidad(es) con sanciones pendientes</div>
-      </div>` : ''}
+      ${totalSancion > 0 ? '<div style="background:#ffebee;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #c00;"><div style="font-weight:700;color:#c00;">⚠️ '+totalSancion+' unidad(es) con sanciones pendientes</div></div>' : ''}
 
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
-        <div style="font-weight:700;color:#333;margin-bottom:10px;">🏆 Ranking general</div>
-        ${top.slice(0,5).map((p,i) => {
-          const pts = p.emergencias*2 + p.horasActividades + p.domingosPresente;
-          const medallas = ['🥇','🥈','🥉','4️⃣','5️⃣'];
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;">
-            <div><span style="font-size:16px;">${medallas[i]}</span>
-              <strong style="margin-left:6px;font-size:14px;">${p.nombre}</strong>
-              ${p.horasSancion>0?'<span style="font-size:10px;background:#ffebee;color:#c00;padding:1px 5px;border-radius:3px;margin-left:4px;">⚠️ sanción</span>':''}
-            </div>
-            <span style="font-weight:700;color:#6e2fa0;">${pts} pts</span>
-          </div>`;
-        }).join('')}
+        <div style="font-weight:700;color:#c0392b;margin-bottom:8px;">🚨 Ranking Emergencias</div>
+        ${topEmerg.filter(p=>p.emergencias>0).slice(0,5).map((p,i)=>rankRow(p,i,p.emergencias,'emerg.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin emergencias en este período</div>'}
+      </div>
+
+      <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="font-weight:700;color:#1e8449;margin-bottom:8px;">🎯 Ranking Actividades</div>
+        ${topActiv.filter(p=>p.horasActividades>0).slice(0,5).map((p,i)=>rankRow(p,i,p.horasActividades+'h','activ.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin actividades en este período</div>'}
+      </div>
+
+      <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
+        ${topDomin.filter(p=>p.domingosPresente>0).slice(0,5).map((p,i)=>rankRow(p,i,p.domingosPresente,'dom.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin asistencia registrada en este período</div>'}
       </div>
 
       <button onclick="app._imprimirReporteGeneral()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
