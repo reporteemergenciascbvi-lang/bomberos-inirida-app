@@ -1,4 +1,4 @@
-/* Service Worker v5.18 - CBVI Reportes (network-first: logo y archivos siempre frescos) */
+/* Service Worker v5.18 - CBVI Reportes (network-first) */
 const CACHE = 'bomberos-inirida-v5-18';
 const ARCHIVOS = [
   './',
@@ -24,8 +24,8 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // No interceptar peticiones a Google (login) ni al backend
   const url = e.request.url;
+  // No interceptar Google ni backend
   if (url.includes('accounts.google.com') ||
       url.includes('googleapis.com') ||
       url.includes('script.google.com') ||
@@ -34,7 +34,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Network-first: siempre intenta la red primero, fallback al caché
+  // NETWORK-FIRST: intenta red primero, caché solo si falla
   e.respondWith(
     fetch(e.request).then(r => {
       if (r && r.status === 200 && e.request.method === 'GET') {
@@ -42,6 +42,10 @@ self.addEventListener('fetch', (e) => {
         caches.open(CACHE).then(c => c.put(e.request, clon)).catch(() => {});
       }
       return r;
-    }).catch(() => caches.match(e.request).then(cached => cached || caches.match('./index.html')))
+    }).catch(() => {
+      return caches.match(e.request).then(cached =>
+        cached || caches.match('./index.html')
+      );
+    })
   );
 });
