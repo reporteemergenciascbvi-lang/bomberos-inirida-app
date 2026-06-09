@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.35';
+const APP_VERSION = '5.36';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -2292,6 +2292,7 @@ const app = {
     const pw = window.prompt('🔐 Contraseña de administrador:');
     if (pw === null || pw.trim() === '') return;
     this._adminPwdSession = pw.trim();
+    try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e2) {}
     this._adminAutorizado = true;
     this.irA('pantallaPanelAdmin');
     await this.cargarReportesAdmin();
@@ -4369,9 +4370,13 @@ ${paginaFotos}
     if (!registros.length) { this.toast('Agrega personal primero', 'error'); return; }
     // Verificar sesión admin — pedir contraseña si no hay
     if (!this._adminPwdSession) {
-      const pwd = window.prompt('🔐 Contraseña de administrador para guardar asistencia:');
+      this._adminPwdSession = (()=>{ try { return sessionStorage.getItem('cbvi_admin_pwd'); } catch(e){return null;} })();
+    }
+    if (!this._adminPwdSession) {
+      const pwd = window.prompt('🔐 Contraseña de administrador:');
       if (!pwd || !pwd.trim()) return;
       this._adminPwdSession = pwd.trim();
+      try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e2) {}
     }
     const tipoReunion = document.getElementById('asistTipoReunion') ? document.getElementById('asistTipoReunion').value : '';
     const tema = document.getElementById('asistTema') ? document.getElementById('asistTema').value : '';
@@ -4626,33 +4631,103 @@ ${paginaFotos}
     lista.innerHTML = filtrado.map(p => this._cardUnidad(p, mesNombre)).join('');
   },
 
+  _cardUnidad(p, mesNombre) {
+    const pts = p.emergencias*2 + p.horasActividades + p.domingosPresente;
+    const pctDom = p.domingosPresente + p.domingosAusente > 0
+      ? Math.round(p.domingosPresente / (p.domingosPresente + p.domingosAusente) * 100) : 0;
+    const colorAlerta = p.tipoAlerta === 'RETIRO' ? '#c00' : p.tipoAlerta === 'LLAMADO_ESCRITO' ? '#e65100' : p.tipoAlerta === 'LLAMADO_VERBAL' ? '#ff9800' : null;
+    const uid = 'u_' + p.nombre.replace(/[^a-zA-Z]/g,'').substring(0,12);
+    return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+      + '<div><div style="font-weight:700;font-size:15px;">' + p.nombre + '</div>'
+      + '<div style="font-size:12px;color:#666;">CC: ' + (p.cedula||'-') + '</div></div>'
+      + '<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">' + pts + ' pts</div>'
+      + (colorAlerta ? '<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>' : '')
+      + '</div></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
+      + '<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;">'
+      + '<div style="font-size:18px;font-weight:700;color:#c0392b;">' + p.emergencias + '</div>'
+      + '<div style="font-size:10px;color:#666;">Emergencias</div></div>'
+      + '<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" onclick="app._verActividadesPersona(this.dataset.nom,this.dataset.uid)" data-nom="' + p.nombre.replace(/"/g,'&quot;') + '" data-uid="' + uid + '">'
+      + '<div style="font-size:18px;font-weight:700;color:#1e8449;">' + p.horasActividades + 'h</div>'
+      + '<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver actividades</div></div>'
+      + '<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;">'
+      + '<div style="font-size:18px;font-weight:700;color:#e67e22;">' + p.domingosPresente + '</div>'
+      + '<div style="font-size:10px;color:#666;">Domingos</div></div></div>'
+      + '<div id="' + uid + '_acts" style="display:none;margin-bottom:8px;"></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">'
+      + '<span>Asistencia domingos: <strong>' + pctDom + '%</strong></span>'
+      + (p.horasSancion > 0 ? '<span style="color:#c00;font-weight:700;">⚠️ ' + p.horasSancion + 'h sanción</span>' : '<span style="color:#1e8449;">✅ Sin sanciones</span>')
+      + '</div></div>';
+  },
+
+  async _verActividadesPersona(nombre, uid) {
+    const cont = document.getElementById(uid + '_acts');
+    if (!cont) return;
+    if (cont.style.display !== 'none') { cont.style.display = 'none'; return; }
+    cont.style.display = 'block';
+    cont.innerHTML = '<div style="font-size:12px;color:#999;padding:4px;">Cargando actividades...</div>';
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'obtenerActividadesPersona', nombre, mes: this._operMes, anio: this._operAnio })
+      });
+      const data = await resp.json();
+      if (!data.ok || !data.actividades.length) {
+        cont.innerHTML = '<div style="font-size:12px;color:#999;padding:4px 0;">Sin actividades en este período</div>';
+        return;
+      }
+      cont.innerHTML = '<div style="background:#f9fff9;border-radius:8px;padding:8px;">'
+        + data.actividades.map(a =>
+          '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #eee;">'
+          + '<strong>' + (a.tipo||'Actividad') + '</strong> — ' + (a.descripcion||'').substring(0,45)
+          + '<span style="float:right;color:#1e8449;font-weight:700;">' + a.horas + 'h</span>'
+          + '<div style="color:#999;font-size:11px;margin-top:1px;">📅 ' + a.fecha + '</div></div>'
+        ).join('') + '</div>';
+    } catch(e) { cont.innerHTML = '<div style="font-size:12px;color:#c00;">Error cargando</div>'; }
+  },
+
+
   _imprimirReporteGeneral() {
     const d = this._operData;
     const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
     const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades+b.domingosPresente)-(a.emergencias*2+a.horasActividades+a.domingosPresente));
     const w = window.open('','_blank');
-    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Informe General — '+mesNombre+' '+this._operAnio+'</title>'
-      +'<style>body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}h1{color:#6e2fa0;}h2{color:#333;border-bottom:2px solid #6e2fa0;padding-bottom:4px;margin-top:16px;}'
-      +'.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0;}.stat{border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center;}'
-      +'.stat .num{font-size:20pt;font-weight:700;color:#6e2fa0;}.stat .lbl{font-size:9pt;color:#666;}'
-      +'table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt;}th{background:#6e2fa0;color:#fff;padding:7px 8px;text-align:left;}td{padding:6px 8px;border-bottom:1px solid #eee;}'
-      +'footer{margin-top:20px;font-size:9pt;color:#999;text-align:center;}@media print{body{margin:8mm;}}</style></head><body>'
-      +'<h1>📊 Informe de Operatividad Institucional</h1>'
-      +'<p style="color:#666;margin:0 0 12px;">Período: <strong>'+mesNombre+' '+this._operAnio+'</strong> | Cuerpo de Bomberos Voluntarios de Inírida</p>'
-      +'<div class="stats">'
-      +'<div class="stat"><div class="num">'+d.length+'</div><div class="lbl">Unidades activas</div></div>'
-      +'<div class="stat"><div class="num">'+(this._operStats?this._operStats.totalEmergenciasUnicas:'-')+'</div><div class="lbl">Emergencias únicas</div></div>'
-      +'<div class="stat"><div class="num">'+d.reduce((s,p)=>s+p.horasActividades,0)+'h</div><div class="lbl">Horas actividades</div></div>'
-      +'<div class="stat"><div class="num">'+d.reduce((s,p)=>s+p.domingosPresente,0)+'</div><div class="lbl">Asist. domingos</div></div>'
-      +'</div>'
-      +'<h2>🏆 Ranking General</h2>'
-      +'<table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th></tr>'
-      +top.map((p,i)=>{ const pts=p.emergencias*2+p.horasActividades+p.domingosPresente;
-        return '<tr><td>'+(i+1)+'</td><td><strong>'+p.nombre+'</strong></td><td style="text-align:center;">'+p.emergencias+'</td><td style="text-align:center;">'+p.horasActividades+'h</td><td style="text-align:center;">'+p.domingosPresente+'</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">'+pts+'</td></tr>';
-      }).join('')
-      +'</table>'
-      +'<footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: '+new Date().toLocaleDateString('es-CO')+'</footer>'
-      +'</body></html>');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Informe General Operatividad — ${mesNombre} ${this._operAnio}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
+        h1{color:#6e2fa0;font-size:15pt;margin-bottom:4px;}
+        h2{color:#333;font-size:12pt;border-bottom:2px solid #6e2fa0;padding-bottom:4px;margin-top:16px;}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0;}
+        .stat{border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center;}
+        .stat .num{font-size:22pt;font-weight:700;color:#6e2fa0;}
+        .stat .lbl{font-size:9pt;color:#666;}
+        table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt;}
+        th{background:#6e2fa0;color:#fff;padding:7px 8px;text-align:left;}
+        td{padding:6px 8px;border-bottom:1px solid #eee;}
+        tr:nth-child(even){background:#f9f9f9;}
+        .alerta{background:#ffebee;color:#c00;padding:2px 6px;border-radius:4px;font-size:9pt;}
+        footer{margin-top:20px;font-size:9pt;color:#999;text-align:center;}
+        @media print{body{margin:8mm;}}
+      </style></head><body>
+      <h1>📊 Informe de Operatividad Institucional</h1>
+      <p style="color:#666;margin:0 0 12px;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | Cuerpo de Bomberos Voluntarios de Inírida</p>
+      <div class="stats">
+        <div class="stat"><div class="num">${d.length}</div><div class="lbl">Unidades activas</div></div>
+        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.emergencias,0)}</div><div class="lbl">Emergencias atendidas</div></div>
+        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.horasActividades,0)}h</div><div class="lbl">Horas en actividades</div></div>
+        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.domingosPresente,0)}</div><div class="lbl">Asistencias domingo</div></div>
+      </div>
+      <h2>🏆 Ranking General</h2>
+      <table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th><th>Sanciones</th></tr>
+      ${top.map((p,i)=>{
+        const pts=p.emergencias*2+p.horasActividades+p.domingosPresente;
+        return `<tr><td>${i+1}</td><td><strong>${p.nombre}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${p.horasActividades}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
+      }).join('')}
+      </table>
+      <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
+      </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),800);
   },
@@ -4661,33 +4736,70 @@ ${paginaFotos}
     const d = [...this._operData].sort((a,b)=>a.nombre.localeCompare(b.nombre));
     const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
     const w = window.open('','_blank');
-    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Informe por Unidad — '+mesNombre+' '+this._operAnio+'</title>'
-      +'<style>body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}h1{color:#6e2fa0;font-size:14pt;}'
-      +'.ficha{border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px;page-break-inside:avoid;}'
-      +'.ficha-header{display:flex;justify-content:space-between;border-bottom:2px solid #6e2fa0;padding-bottom:8px;margin-bottom:10px;}'
-      +'.nombre{font-size:13pt;font-weight:700;}.pts{font-size:18pt;font-weight:700;color:#6e2fa0;}'
-      +'.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0;}'
-      +'.item{border:1px solid #eee;border-radius:6px;padding:8px;text-align:center;}.item .num{font-size:16pt;font-weight:700;}.item .lbl{font-size:9pt;color:#666;}'
-      +'footer{margin-top:20px;font-size:9pt;color:#999;text-align:center;}@media print{body{margin:8mm;}.ficha{page-break-inside:avoid;}}</style></head><body>'
-      +'<h1>👤 Informe de Operatividad por Unidad</h1>'
-      +'<p style="color:#666;">Período: <strong>'+mesNombre+' '+this._operAnio+'</strong> | CBVI — Inírida</p>'
-      +d.map(p=>{ const pts=p.emergencias*2+p.horasActividades+p.domingosPresente;
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
+        h1{color:#6e2fa0;font-size:14pt;}
+        .ficha{border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px;page-break-inside:avoid;}
+        .ficha-header{display:flex;justify-content:space-between;border-bottom:2px solid #6e2fa0;padding-bottom:8px;margin-bottom:10px;}
+        .nombre{font-size:13pt;font-weight:700;}
+        .pts{font-size:18pt;font-weight:700;color:#6e2fa0;}
+        .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0;}
+        .item{border:1px solid #eee;border-radius:6px;padding:8px;text-align:center;}
+        .item .num{font-size:16pt;font-weight:700;}
+        .item .lbl{font-size:9pt;color:#666;}
+        .alerta{background:#ffebee;color:#c00;padding:3px 8px;border-radius:4px;font-size:10pt;font-weight:700;}
+        footer{margin-top:20px;font-size:9pt;color:#999;text-align:center;}
+        @media print{body{margin:8mm;}.ficha{page-break-inside:avoid;}}
+      </style></head><body>
+      <h1>👤 Informe de Operatividad por Unidad</h1>
+      <p style="color:#666;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | CBVI — Inírida</p>
+      ${d.map(p=>{
+        const pts=p.emergencias*2+p.horasActividades+p.domingosPresente;
         const pct=p.domingosPresente+p.domingosAusente>0?Math.round(p.domingosPresente/(p.domingosPresente+p.domingosAusente)*100):0;
-        return '<div class="ficha">'
-          +'<div class="ficha-header"><div><div class="nombre">'+p.nombre+'</div><div style="font-size:10pt;color:#666;">CC: '+(p.cedula||'-')+'</div></div>'
-          +'<div class="pts">'+pts+' pts</div></div>'
-          +'<div class="grid">'
-          +'<div class="item"><div class="num" style="color:#c0392b;">'+p.emergencias+'</div><div class="lbl">Emergencias</div></div>'
-          +'<div class="item"><div class="num" style="color:#1e8449;">'+p.horasActividades+'h</div><div class="lbl">Actividades</div></div>'
-          +'<div class="item"><div class="num" style="color:#e67e22;">'+p.domingosPresente+'</div><div class="lbl">Domingos</div></div>'
-          +'</div>'
-          +'<div style="font-size:10pt;color:#555;">Asistencia domingos: <strong>'+pct+'%</strong> | Sanciones: <strong style="color:'+(p.horasSancion>0?'#c00':'#1e8449')+';">'+(p.horasSancion>0?p.horasSancion+'h pendientes':'Sin sanciones')+'</strong></div>'
-          +'</div>';
-      }).join('')
-      +'<footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: '+new Date().toLocaleDateString('es-CO')+'</footer>'
-      +'</body></html>');
+        const colorAlerta=p.tipoAlerta==='RETIRO'?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#e67e22':null;
+        return `<div class="ficha">
+          <div class="ficha-header">
+            <div><div class="nombre">${p.nombre}</div><div style="font-size:10pt;color:#666;">CC: ${p.cedula||'-'} ${p.rango?'| '+p.rango:''}</div></div>
+            <div style="text-align:right;"><div class="pts">${pts} pts</div>${colorAlerta?`<div class="alerta" style="background:${colorAlerta};color:#fff;">${(p.tipoAlerta||'').replace('_',' ')}</div>`:''}</div>
+          </div>
+          <div class="grid">
+            <div class="item"><div class="num" style="color:#c0392b;">${p.emergencias}</div><div class="lbl">Emergencias</div></div>
+            <div class="item"><div class="num" style="color:#1e8449;">${p.horasActividades}h</div><div class="lbl">En actividades</div></div>
+            <div class="item"><div class="num" style="color:#e67e22;">${p.domingosPresente}</div><div class="lbl">Domingos pres.</div></div>
+          </div>
+          <div style="font-size:10pt;color:#555;">
+            Asistencia domingos: <strong>${pct}%</strong> (${p.domingosPresente} de ${p.domingosPresente+p.domingosAusente}) |
+            Ausencias sin excusa: <strong>${p.domingosAusente}</strong> |
+            Sanciones: <strong style="color:${p.horasSancion>0?'#c00':'#1e8449'}">${p.horasSancion>0?p.horasSancion+'h pendientes':'Sin sanciones'}</strong>
+          </div>
+        </div>`;
+      }).join('')}
+      <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
+      </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),800);
   }
 
 };
+
+// Cerrar menú usuario al tocar afuera
+document.addEventListener('click', (e) => {
+  const userMenu = document.getElementById('userMenu');
+  const userAvatar = document.getElementById('userAvatar');
+  if (userMenu && userMenu.classList.contains('visible')) {
+    if (!userMenu.contains(e.target) && !userAvatar.contains(e.target)) {
+      userMenu.classList.remove('visible');
+    }
+  }
+});
+
+window.addEventListener('DOMContentLoaded', () => app.init());
+
+document.addEventListener('input', (e) => {
+  if (e.target.closest('#pantallaForm')) app.actualizarProgreso();
+});
+document.addEventListener('change', (e) => {
+  if (e.target.closest('#pantallaForm')) app.actualizarProgreso();
+});
