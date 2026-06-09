@@ -4691,12 +4691,3 @@ ${paginaFotos}
   }
 
 };
-
-window.addEventListener('DOMContentLoaded', () => app.init());
-
-document.addEventListener('input', (e) => {
-  if (e.target.closest('#pantallaForm')) app.actualizarProgreso();
-});
-document.addEventListener('change', (e) => {
-  if (e.target.closest('#pantallaForm')) app.actualizarProgreso();
-});
