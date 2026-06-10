@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.42';
+const APP_VERSION = '5.44';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4114,12 +4114,12 @@ ${paginaFotos}
       cont.innerHTML=data.actividades.map((a,i)=>{
         return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1a5276;">'
           +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
-          +'<div style="flex:1;cursor:pointer;" data-i="'+i+'" onclick="app.verDetalleActividad(app._listaActividades[+this.dataset.i].id)">'
+          +'<div style="flex:1;cursor:pointer;" data-actid="'+a.id+'" onclick="app.verDetalleActividad(this.dataset.actid)">'
           +'<div style="font-weight:700;color:#1a5276;">'+a.tipo+' - '+a.descripcion.substring(0,50)+'</div>'
-          +'<div style="font-size:13px;color:#666;margin-top:4px;">'+a.fecha+' | '+a.duracion+'h</div>'
+          +'<div style="font-size:13px;color:#666;margin-top:4px;">'+(String(a.fecha||'').substring(0,10))+' | '+a.duracion+'h | 👥 '+a.numUnidades+'</div>'
           +'<div style="font-size:12px;color:#999;margin-top:2px;">Por: '+a.registradoPor+'</div>'
           +'</div>'
-          +(_ea?'<button data-i="'+i+'" onclick="event.stopPropagation();var _x=app._listaActividades[+this.dataset.i];app.eliminarActividad(_x.id,_x.tipo);" style="background:none;border:none;color:#c00;font-size:20px;cursor:pointer;padding:4px 8px;">&#128465;</button>':'')
+          +(_ea?'<button data-actid="'+a.id+'" data-acttipo="'+encodeURIComponent(a.tipo)+'" onclick="event.stopPropagation();app.eliminarActividad(this.dataset.actid,decodeURIComponent(this.dataset.acttipo));" style="background:none;border:none;color:#c00;font-size:22px;cursor:pointer;padding:4px 8px;" title="Eliminar">&#128465;</button>'+'<button data-actid="'+a.id+'" onclick="event.stopPropagation();app.editarActividad(this.dataset.actid);" style="background:none;border:none;color:#1a5276;font-size:20px;cursor:pointer;padding:4px 8px;" title="Editar">&#9998;</button>':'')
           +'</div></div>';
       }).join('');
     } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error cargando actividades</div>'; }
@@ -4428,7 +4428,7 @@ ${paginaFotos}
       const ausExcusa = data.registros.filter(r => r.estado === 'AUSENTE_EXCUSA').length;
       const ausSin = data.registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
       const _enc=data.registros[0]&&data.registros[0].encargado||''; const _grd=data.registros[0]&&data.registros[0].comandanteGuardia||'';
-      hist.innerHTML='<div style="font-weight:700;margin-bottom:8px;">Domingo: '+fecha+'</div>'+(_enc?'<div style="font-size:12px;color:#555;margin-bottom:4px;">Encargado: <strong>'+_enc+'</strong></div>':'')+(_grd?'<div style="font-size:12px;color:#555;">Guardia: <strong>'+_grd+'</strong></div>':'')+'<div style="display:flex;gap:8px;margin-bottom:8px;font-size:13px;"><span style="background:#e8f5e9;padding:3px 8px;border-radius:4px;">Presentes: '+presentes+'</span><span style="background:#fff8e1;padding:3px 8px;border-radius:4px;">C/excusa: '+ausExcusa+'</span><span style="background:#ffebee;padding:3px 8px;border-radius:4px;">Sin excusa: '+ausSin+'</span>'+(this.esAdmin()?'<button data-f="'+fecha+'" onclick="app.eliminarDomingo(this.dataset.f)" style="margin-left:auto;background:#c00;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;">Eliminar</button>':'')+'</div>'+
+      hist.innerHTML='<div style="font-weight:700;margin-bottom:8px;">Domingo: '+fecha+'</div>'+(_enc?'<div style="font-size:12px;color:#555;margin-bottom:4px;">Encargado: <strong>'+_enc+'</strong></div>':'')+(_grd?'<div style="font-size:12px;color:#555;">Guardia: <strong>'+_grd+'</strong></div>':'')+'<div style="display:flex;gap:8px;margin-bottom:8px;font-size:13px;"><span style="background:#e8f5e9;padding:3px 8px;border-radius:4px;">Presentes: '+presentes+'</span><span style="background:#fff8e1;padding:3px 8px;border-radius:4px;">C/excusa: '+ausExcusa+'</span><span style="background:#ffebee;padding:3px 8px;border-radius:4px;">Sin excusa: '+ausSin+'</span>'+(this.esAdmin()?'<button data-f="'+fecha+'" onclick="app.editarDomingo(this.dataset.f)" style="margin-left:auto;background:#1a5276;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;margin-right:4px;">✏️ Editar</button><button data-f="'+fecha+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;">🗑️ Eliminar</button>':'')+'</div>'+
         data.registros.map(r =>
           `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px;display:flex;justify-content:space-between;">
             <span>${r.nombre}</span>
@@ -4695,49 +4695,61 @@ ${paginaFotos}
     }catch(e){cont.innerHTML='<div style="font-size:12px;color:#c00;padding:4px;">Error de red</div>';}
   },
 
-  _filtrarUnidades(q) {
-    const lista = document.getElementById('listaUnidades');
-    if (!lista) return;
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
-    const filtrado = this._operData.filter(p => p.nombre.toUpperCase().includes(q.toUpperCase()));
-    lista.innerHTML = filtrado.map(p => this._cardUnidad(p, mesNombre)).join('');
+
+  _confirmarAccion(mensaje, onConfirmar) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+      + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:16px;text-align:center;">'+mensaje+'</div>'
+      + '<div style="display:flex;gap:10px;">'
+      + '<button id="_modCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
+      + '<button id="_modConfirm" style="flex:1;padding:12px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Eliminar</button>'
+      + '</div></div>';
+    document.body.appendChild(modal);
+    document.getElementById('_modCancel').onclick = () => document.body.removeChild(modal);
+    document.getElementById('_modConfirm').onclick = () => { document.body.removeChild(modal); onConfirmar(); };
   },
 
-  _cardUnidad(p, mesNombre) {
-    const pts = p.emergencias*2 + p.horasActividades + p.domingosPresente;
-    const pctDom = p.domingosPresente + p.domingosAusente > 0
-      ? Math.round(p.domingosPresente / (p.domingosPresente + p.domingosAusente) * 100) : 0;
-    const colorAlerta = p.tipoAlerta === 'RETIRO' ? '#c00' : p.tipoAlerta === 'LLAMADO_ESCRITO' ? '#e65100' : p.tipoAlerta === 'LLAMADO_VERBAL' ? '#ff9800' : null;
-    return `<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <div>
-          <div style="font-weight:700;font-size:15px;">${p.nombre}</div>
-          <div style="font-size:12px;color:#666;">CC: ${p.cedula||'-'}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-weight:700;color:#6e2fa0;font-size:16px;">${pts} pts</div>
-          ${colorAlerta ? `<div style="font-size:11px;background:${colorAlerta};color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">${(p.tipoAlerta||'').replace('_',' ')}</div>` : ''}
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
-        <div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:18px;font-weight:700;color:#c0392b;">${p.emergencias}</div>
-          <div style="font-size:10px;color:#666;">Emergencias</div>
-        </div>
-        <div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:18px;font-weight:700;color:#1e8449;">${p.horasActividades}h</div>
-          <div style="font-size:10px;color:#666;">Actividades</div>
-        </div>
-        <div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:18px;font-weight:700;color:#e67e22;">${p.domingosPresente}</div>
-          <div style="font-size:10px;color:#666;">Domingos</div>
-        </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">
-        <span>Asistencia domingos: <strong>${pctDom}%</strong></span>
-        ${p.horasSancion > 0 ? `<span style="color:#c00;font-weight:700;">⚠️ ${p.horasSancion}h sanción</span>` : '<span style="color:#1e8449;">✅ Sin sanciones</span>'}
-      </div>
-    </div>`;
+  async eliminarActividad(id, tipo) {
+    this._confirmarAccion('\u00BFEliminar actividad "'+tipo+'"?', async () => {
+      if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
+      if (!this._adminPwdSession) {
+        const pwd=window.prompt('Contrase\u00F1a de administrador:');
+        if(!pwd||!pwd.trim())return;
+        this._adminPwdSession=pwd.trim();
+        try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}
+      }
+      this.toast('Eliminando...','info');
+      try{
+        const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body:JSON.stringify({accion:'eliminarActividad',id,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+        const d=await r.json();
+        if(!d.ok)throw new Error(d.error);
+        this.toast('\u2705 Actividad eliminada','ok');
+        setTimeout(()=>this.cargarListaActividades(),800);
+      }catch(e){this.toast('Error: '+e.message,'error');}
+    });
+  },
+
+  async eliminarDomingo(fecha) {
+    this._confirmarAccion('\u00BFEliminar asistencia del '+fecha+'?', async () => {
+      if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
+      if (!this._adminPwdSession) {
+        const pwd=window.prompt('Contrase\u00F1a de administrador:');
+        if(!pwd||!pwd.trim())return;
+        this._adminPwdSession=pwd.trim();
+        try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}
+      }
+      this.toast('Eliminando...','info');
+      try{
+        const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body:JSON.stringify({accion:'eliminarDomingo',fecha,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+        const d=await r.json();
+        if(!d.ok)throw new Error(d.error);
+        this.toast('\u2705 Domingo eliminado','ok');
+        setTimeout(()=>this.cargarPantallaAsistencia(),800);
+      }catch(e){this.toast('Error: '+e.message,'error');}
+    });
   },
 
   _imprimirReporteGeneral() {
@@ -4832,6 +4844,142 @@ ${paginaFotos}
       </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),800);
+  },
+
+
+  // ── Autocomplete encargado/guardia en asistencia ─────────────────────────
+  _buscarAsistCampo(inputId, sugId, q) {
+    const sug = document.getElementById(sugId);
+    if (!q || q.trim().length < 1) { if(sug) sug.style.display='none'; return; }
+    clearTimeout(this['_t_'+sugId]);
+    this['_t_'+sugId] = setTimeout(async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'buscarPersonalCBVI', q:q.trim() }) });
+        const data = await resp.json();
+        if (!data.ok || !data.resultados.length) { sug.style.display='none'; return; }
+        sug.innerHTML = data.resultados.map(per =>
+          '<div data-n="'+per.nombre.replace(/"/g,'&quot;')+'" data-inp="'+inputId+'" data-sug="'+sugId+'" '
+          +'onclick="document.getElementById(this.dataset.inp).value=this.dataset.n;'
+          +'document.getElementById(this.dataset.sug).style.display=\'none\';" '
+          +'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">'+per.nombre
+          +'<span style="color:#999;font-size:11px;margin-left:6px;">CC:'+per.cedula+'</span></div>'
+        ).join('');
+        sug.style.display = 'block';
+      } catch(e) { if(sug) sug.style.display='none'; }
+    }, 350);
+  },
+
+  // ── Editar actividad (admin) ──────────────────────────────────────────────
+  async editarActividad(id) {
+    this.toast('Cargando actividad...','info');
+    try {
+      const resp = await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({accion:'obtenerActividad',id})});
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error||'Error al cargar');
+      const a = data.actividad;
+      const tipos = ['Acompañamiento','Capacitación','Entrenamiento','Simulacro','Jornada comunitaria','Mantenimiento','Otra'];
+      const modal = document.createElement('div');
+      modal.id = '_editActModal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;margin:auto;">' 
+        +'<div style="font-weight:700;font-size:16px;color:#1a5276;margin-bottom:14px;">✏️ Editar Actividad</div>'
+        +'<label style="font-size:12px;font-weight:700;">Tipo</label>'
+        +'<select id="_eaT" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'+tipos.map(t=>'<option value="'+t+'"'+(a.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select>'
+        +'<label style="font-size:12px;font-weight:700;">Descripción</label>'
+        +'<input type="text" id="_eaD" value="'+a.descripcion.replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<label style="font-size:12px;font-weight:700;">Fecha</label>'
+        +'<input type="date" id="_eaF" value="'+String(a.fecha||"").substring(0,10)+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
+        +'<div><label style="font-size:12px;font-weight:700;">Hora inicio</label><input type="time" id="_eaHI" value="'+( a.horaInicio||"")+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;"></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">Hora fin</label><input type="time" id="_eaHF" value="'+( a.horaFin||"")+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;"></div>'
+        +'</div>'
+        +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
+        +'<input type="text" id="_eaL" value="'+( a.lugar||"").replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<label style="font-size:12px;font-weight:700;">Novedades</label>'
+        +'<textarea id="_eaN" rows="3" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">'+( a.novedades||"")+'</textarea>'
+        +'<div style="display:flex;gap:10px;">'
+        +'<button id="_eaCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
+        +'<button id="_eaGuard" style="flex:1;padding:12px;background:#1a5276;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>'
+        +'</div></div>';
+      document.body.appendChild(modal);
+      modal.querySelector('#_eaCancel').onclick = () => document.body.removeChild(modal);
+      modal.querySelector('#_eaGuard').onclick = async () => {
+        if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
+        if (!this._adminPwdSession){const pwd=window.prompt('Contraseña admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
+        try {
+          const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body:JSON.stringify({accion:'actualizarActividad',id,
+              tipo:document.getElementById('_eaT').value,
+              descripcion:document.getElementById('_eaD').value,
+              fecha:document.getElementById('_eaF').value,
+              horaInicio:document.getElementById('_eaHI').value,
+              horaFin:document.getElementById('_eaHF').value,
+              lugar:document.getElementById('_eaL').value,
+              novedades:document.getElementById('_eaN').value,
+              adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+          const d=await r.json();
+          if(!d.ok)throw new Error(d.error);
+          document.body.removeChild(modal);
+          this.toast('✅ Actividad actualizada','ok');
+          setTimeout(()=>this.cargarListaActividades(),800);
+        }catch(e){this.toast('Error: '+e.message,'error');}
+      };
+    }catch(e){this.toast('Error: '+e.message,'error');}
+  },
+
+  // ── Editar domingo (admin) ────────────────────────────────────────────────
+  async editarDomingo(fecha) {
+    this.toast('Cargando...','info');
+    try {
+      const resp=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({accion:'listarAsistenciaDomingo',fecha})});
+      const data=await resp.json();
+      if(!data.ok)throw new Error(data.error||'Error');
+      const regs=data.registros; if(!regs.length){this.toast('Sin registros','error');return;}
+      const enc=regs[0].encargado||''; const grd=regs[0].comandanteGuardia||'';
+      const sts={'PRESENTE':'Presente','AUSENTE_EXCUSA':'C/excusa','AUSENTE_SIN_EXCUSA':'Sin excusa'};
+      const modal=document.createElement('div');
+      modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
+      const filas=regs.map((r,i)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
+        +'<div style="flex:1;font-size:13px;font-weight:600;">'+r.nombre+'<div style="font-size:11px;color:#999;">CC: '+(r.cedula||'-')+'</div></div>'
+        +'<select id="_edn_'+i+'" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:12px;">'
+        +Object.entries(sts).map(([v,l])=>'<option value="'+v+'"'+(r.estado===v?' selected':'')+'>'+l+'</option>').join('')
+        +'</select></div>').join('');
+      modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;margin:auto;">'
+        +'<div style="font-weight:700;font-size:16px;color:#1e8449;margin-bottom:14px;">✏️ Domingo '+fecha+'</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
+        +'<div><label style="font-size:12px;font-weight:700;">👤 Encargado</label><input type="text" id="_ednE" value="'+enc.replace(/"/g,'&quot;')+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">🛡️ Guardia</label><input type="text" id="_ednG" value="'+grd.replace(/"/g,'&quot;')+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
+        +'</div><div style="font-size:12px;font-weight:700;margin-bottom:8px;color:#555;">Estado individual:</div>'
+        +filas
+        +'<div style="display:flex;gap:10px;margin-top:14px;">'
+        +'<button id="_ednCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
+        +'<button id="_ednGuard" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>'
+        +'</div></div>';
+      document.body.appendChild(modal);
+      modal.querySelector('#_ednCancel').onclick=()=>document.body.removeChild(modal);
+      modal.querySelector('#_ednGuard').onclick=async()=>{
+        if(!this._adminPwdSession)this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
+        if(!this._adminPwdSession){const pwd=window.prompt('Contraseña admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
+        const newRegs=regs.map((r,i)=>{const sel=document.getElementById('_edn_'+i);return {...r,estado:sel?sel.value:r.estado};});
+        try{
+          const r2=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body:JSON.stringify({accion:'registrarAsistencia',fecha,registros:newRegs,replaceAll:true,
+              tipoReunion:regs[0].tipoReunion||'',tema:regs[0].tema||'',lugarReunion:regs[0].lugarReunion||'',
+              encargado:document.getElementById('_ednE').value,
+              comandanteGuardia:document.getElementById('_ednG').value,
+              adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+          const d2=await r2.json();
+          if(!d2.ok)throw new Error(d2.error);
+          document.body.removeChild(modal);
+          this.toast('✅ Domingo actualizado','ok');
+          setTimeout(()=>this.cargarPantallaAsistencia(),800);
+        }catch(e){this.toast('Error: '+e.message,'error');}
+      };
+    }catch(e){this.toast('Error: '+e.message,'error');}
   }
 
 };

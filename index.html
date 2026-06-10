@@ -724,18 +724,34 @@
 <!-- ========== PANTALLA: MANUAL DE USUARIO ========== -->
 <div class="pantalla" id="pantallaManual">
   <div style="padding:0 4px;">
-    <h2 style="color:#7a1010;margin:10px 0;">📖 Manual rápido</h2>
-    <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;">
-      <p><b>1. Crear un reporte</b><br>Toque <b>"Nueva Emergencia"</b>. Llene las 14 secciones del formulario. Los campos marcados con <span style="color:#c00;">*</span> son obligatorios.</p>
-      <p><b>2. Capturar GPS</b><br>En la sección 3 toque <b>"Usar GPS automático"</b>. La app captura coordenadas, altitud, velocidad y orientación. También puede escribir manualmente.</p>
-      <p><b>3. Tomar fotos</b><br>Hasta <b>6 fotografías</b> por reporte. Puede tomar con la cámara o elegir de la galería. Las fotos suben a Drive y al imprimir salen en <b>2 hojas anexas</b> (3 fotos por hoja).</p>
-      <p><b>4. Firmas</b><br>El afectado firma con el dedo en pantalla, y el comandante también. Si guarda como borrador, las firmas se mantienen al volver a abrir.</p>
-      <p><b>5. Recursos y personal</b><br>En la sección <b>"Recursos Desplegados"</b> agregue cada vehículo/unidad con su responsable y la lista de bomberos que asistieron. Esta lista se usa luego para reconocer las bonificaciones post-emergencia.</p>
-      <p><b>6. Enviar</b><br>Si tiene internet, el reporte se envía al servidor inmediatamente. Si no, queda <b>pendiente</b> y se envía solo cuando recupere conexión.</p>
-      <p><b>7. Editar / Eliminar (regla 24h)</b><br>Solo puede modificar o eliminar su propio reporte durante las <b>primeras 24 horas</b> desde que lo creó. Pasado ese plazo solo el administrador puede modificarlo, para evitar alteración tardía de la información oficial.</p>
-      <p><b>8. Imprimir / Descargar PDF</b><br>Desde el detalle de cada reporte toque <b>"Imprimir"</b>. Sale el formato oficial con logo, firmas, fotos y anexo fotográfico.</p>
-      <p><b>9. Sus datos quedan en la nube</b><br>Aunque cambie de teléfono o limpie caché, al iniciar sesión con su correo se restauran automáticamente sus reportes, su perfil y las fotos asociadas.</p>
-      <p><b>10. Sincronización entre dispositivos</b><br>Si entra con su mismo correo en otro dispositivo, al abrir la app se descargan todos sus reportes y se sincronizan las bonificaciones pendientes.</p>
+    <h2 style="color:#7a1010;margin:10px 0;">📖 Manual de uso</h2>
+    <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
+
+      <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
+        <b>CBVI Reportes v5.44</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>"ABNEGACIÓN Y DISCIPLINA"</b>
+      </div>
+
+      <p><b>🚨 1. Nueva Emergencia</b><br>Toque el botón rojo principal. Llene las 14 secciones: datos generales, clasificación, GPS, descripción, recursos desplegados, diagnóstico, víctimas, causas, organizaciones participantes, observaciones y firmas. Los campos con <span style="color:#c00;">*</span> son obligatorios. Si no hay internet, el reporte queda pendiente y se envía solo cuando recupere señal.</p>
+
+      <p><b>🎯 2. Nueva Actividad</b><br>Registre acompañamientos, capacitaciones, entrenamientos, simulacros y jornadas comunitarias. Incluya tipo, descripción, fecha, hora inicio/fin, lugar y novedades. Puede agregar el personal asistente con autocompletado — marque con ⭐ al encargado o comandante de incidente. También registre los vehículos/recursos usados con su maquinista (sin duplicar si ya está en personal). Puede adjuntar hasta 3 fotos (inicio, intermedio, fin).</p>
+
+      <p><b>📋 3. Mis Actividades</b><br>Lista de actividades registradas. El administrador puede <b>editar ✏️</b> o <b>eliminar 🗑️</b> cualquier actividad. Al editar, se abre un formulario con los datos actuales para modificarlos.</p>
+
+      <p><b>📅 4. Asistencia Domingos</b><br>Registre la asistencia a las reuniones dominicales. Al seleccionar la fecha, el sistema carga automáticamente <b>todos los 31 bomberos activos</b> con estado "Presente" por defecto. Cambie el estado de quienes no asistieron. Registre el <b>Encargado/Instructor</b> y el <b>Comandante de Guardia</b> con autocompletado. Si hay un bombero nuevo que no está en la base de datos, use el botón <b>"➕ Agregar bombero que no está en la lista"</b>. El administrador puede editar o eliminar domingos ya registrados desde el historial.</p>
+
+      <p><b>📊 5. Operatividad</b><br>Panel exclusivo de administrador. Muestra el desempeño del personal por período:<br>
+      — <b>General:</b> métricas globales + 3 rankings separados (Emergencias · Actividades · Domingos). Cada ranking muestra los 3 primeros y permite expandir con "Ver más".<br>
+      — <b>Por Unidad:</b> busque un bombero y vea su ficha con las emergencias a las que asistió (con consecutivo, tipo y fecha), las actividades (nombre, horas, fecha) y los domingos (fecha, tema, lugar). Use el filtro de mes o "📅 Todo el año".</p>
+
+      <p><b>🛡️ 6. Panel Admin</b><br>Accesible solo con contraseña. Permite ver, editar, imprimir y eliminar todos los reportes de emergencia. Al eliminar, se borra en cascada (fila principal + hojas relacionadas + carpeta Drive).</p>
+
+      <p><b>🖨️ 7. Imprimir</b><br>Desde el detalle de cualquier reporte o desde Operatividad, toque "Imprimir" para generar el informe oficial con logo, firmas y fotos.</p>
+
+      <p><b>📡 8. Funcionamiento sin internet</b><br>Los reportes de emergencia funcionan sin internet (se guardan localmente y se envían después). Las secciones de Actividades, Asistencia y Operatividad requieren conexión activa para consultar el servidor.</p>
+
+      <p><b>🔄 9. Sincronización</b><br>Al iniciar sesión en otro dispositivo con el mismo correo, todos los reportes se descargan automáticamente. Nada se pierde al limpiar caché o cambiar de teléfono.</p>
+
     </div>
     <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
   </div>
@@ -745,34 +761,40 @@
 <div class="pantalla" id="pantallaComoFunciona">
   <div style="padding:0 4px;">
     <h2 style="color:#7a1010;margin:10px 0;">⚙️ Cómo funciona la app</h2>
-    <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;">
-      <p><b>🔐 Inicio de sesión seguro</b><br>La app usa <b>Google OAuth</b>. Solo accede quien inicie sesión con su correo Gmail autorizado. La app NO guarda contraseñas.</p>
+    <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
-      <p><b>💾 Almacenamiento doble</b><br>
-      • <b>Local (IndexedDB):</b> los reportes se guardan en su teléfono para funcionar sin internet.<br>
-      • <b>Servidor (Google Sheets + Drive):</b> al tener internet, los reportes suben automáticamente.</p>
+      <p><b>🔐 Inicio de sesión seguro</b><br>La app usa <b>Google OAuth</b>. Solo accede quien inicie sesión con un correo Gmail autorizado por el administrador. La app NO guarda contraseñas. El administrador tiene una contraseña adicional para funciones sensibles.</p>
 
-      <p><b>🔄 Sincronización tipo Gmail (multi-dispositivo)</b><br>Cuando inicia sesión con su correo —o cada vez que abre la app— se preguntan al servidor sus reportes y se descargan los nuevos. Si cambia de teléfono o limpia caché, NO pierde nada. Lo mismo aplica si crea un reporte en el PC: aparece en el teléfono al refrescar.</p>
+      <p><b>💾 Arquitectura de almacenamiento</b><br>
+      • <b>Módulo Emergencias:</b> funciona sin internet. Los reportes se guardan localmente (IndexedDB) y suben al servidor cuando hay señal.<br>
+      • <b>Módulos Actividades, Asistencia y Operatividad:</b> requieren conexión activa — consultan y escriben directamente en el servidor (Google Sheets vía Apps Script).</p>
 
-      <p><b>📋 Estructura de la base de datos</b><br>
-      • Hoja <b>"Reportes"</b>: 1 fila por cada reporte con todos los campos del formulario.<br>
-      • Hoja <b>"Bomberos"</b>: perfiles (nombre, grado, cédula, teléfono).<br>
-      • Hoja <b>"Recursos"</b> y <b>"Personal_por_Recurso"</b>: vehículos y bomberos por emergencia.<br>
-      • Hoja <b>"Victimas"</b> y <b>"Organizaciones"</b>: detalle por reporte.<br>
-      • Hoja <b>"Bonificaciones"</b>: una fila por bombero × emergencia (lista única, sin duplicados por reporte).<br>
-      • Hoja <b>"Bonificaciones_Resumen"</b>: total emergencias por bombero, del año actual y del mes actual. Se recalcula sola en cada envío.<br>
-      • Hoja <b>"Estadisticas_Mensuales"</b>: por año-mes, total de emergencias, tipos más frecuentes, víctimas y daños materiales.<br>
-      • Carpeta Drive con subcarpetas por cada reporte (fotos + firmas).</p>
+      <p><b>📊 Hojas en Google Sheets</b><br>
+      • <b>Reportes:</b> emergencias con sus 14 secciones.<br>
+      • <b>Bonificaciones:</b> una fila por bombero × emergencia atendida.<br>
+      • <b>Personal_CBVI:</b> directorio de los 31 bomberos activos (base del autocomplete).<br>
+      • <b>Actividades + Personal_Actividad + Recursos_Actividad:</b> registro de acompañamientos, capacitaciones, etc.<br>
+      • <b>Asistencia_Domingos:</b> presencia, excusas y sanciones por cada reunión dominical.<br>
+      • <b>Sanciones:</b> horas acumuladas por inasistencia sin excusa.<br>
+      • Otras hojas de soporte: Recursos, Organizaciones, Usuarios, etc.</p>
 
-      <p><b>🆔 Consecutivo único</b><br>El servidor asigna el N° de reporte (ej. <code>RE-2026-0085</code>). Es imposible que dos bomberos generen el mismo número, incluso si reportan al mismo tiempo.</p>
+      <p><b>📅 Lógica de sanciones (domingos)</b><br>Cada ausencia sin excusa genera <b>2 horas de sanción</b>. Al acumular 3 domingos consecutivos sin excusa: llamado verbal. Al 4°: llamado escrito. Al 6°: causal de retiro. El sistema lleva el conteo automáticamente y lo refleja en el panel de Operatividad.</p>
 
-      <p><b>⏱️ Bloqueo de edición a 24 horas</b><br>El bombero que crea un reporte solo puede editarlo o eliminarlo durante las primeras 24 horas. Después, únicamente el administrador puede modificarlo desde el Panel Admin. Esto protege la información oficial y previene alteraciones tardías.</p>
+      <p><b>📊 Operatividad — cómo se calcula</b><br>Los puntos de cada bombero se calculan así: <b>Emergencias × 2 + Horas de actividades + Domingos presentes</b>. Los rankings son independientes para cada categoría — no se suman en un solo ranking para que cada área sea reconocida por separado.</p>
 
-      <p><b>🛡️ Panel de Administrador</b><br>Solo el correo administrador puede ver el Panel Admin (con contraseña). Desde ahí: ver, editar (formulario completo de las 14 secciones), imprimir, eliminar y registrar manualmente bomberos para bonificaciones. Al eliminar un reporte se borra <b>en cascada</b>: la fila principal + todas las hojas relacionadas + la subcarpeta de Drive (a la papelera, recuperable 30 días).</p>
+      <p><b>🆔 Consecutivo de emergencias</b><br>El servidor asigna automáticamente el número (ej. <code>RE-2026-0085</code>) con bloqueo por concurrencia — es imposible que dos bomberos generen el mismo número simultáneamente.</p>
 
-      <p><b>💰 Bonificaciones post-emergencia</b><br>Cada bombero que figure en el personal de cualquier recurso de una emergencia se registra automáticamente en la hoja de Bonificaciones (una sola vez por emergencia aunque aparezca en varios recursos). El tesorero consulta la hoja Resumen para el reconocimiento.</p>
+      <p><b>⏱️ Regla de integridad (24 horas)</b><br>El bombero que crea un reporte de emergencia puede editarlo o eliminarlo durante las primeras 24 horas. Después, solo el administrador puede modificarlo. Actividades y Asistencia pueden ser editadas/eliminadas solo por el administrador en cualquier momento.</p>
 
-      <p><b>🔐 Privacidad</b><br>Cada bombero solo ve sus propios reportes. El admin (único) puede ver y editar todos. Los datos NO son públicos en internet — requieren login.</p>
+      <p><b>🛡️ Poderes del Administrador</b><br>
+      • Reportes de emergencia: ver todos, editar, imprimir, eliminar (cascada: Sheets + Drive).<br>
+      • Actividades: editar datos (tipo, descripción, fecha, horas, lugar, novedades) y eliminar.<br>
+      • Asistencia domingos: editar estados individuales, encargado, comandante de guardia, y eliminar un domingo completo.<br>
+      • Operatividad: dashboard completo con todos los bomberos.<br>
+      • Agregar bomberos nuevos a la base de datos desde el módulo de Asistencia.</p>
+
+      <p><b>🔒 Privacidad</b><br>Cada bombero ve solo sus propios reportes. El admin ve todos. Los datos NO son públicos — requieren login con Gmail autorizado. La contraseña del admin nunca sale del dispositivo en texto plano.</p>
+
     </div>
     <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
   </div>
