@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.41';
+const APP_VERSION = '5.42';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4495,43 +4495,32 @@ ${paginaFotos}
     const cont = document.getElementById('operatividadContenido');
     if (!cont || !this._operData) return;
     const ahora = new Date();
-    const mesActual = String(ahora.getMonth()+1).padStart(2,'0');
     const anioActual = String(ahora.getFullYear());
-    if (!this._operMes) this._operMes = mesActual;
+    // NO resetear _operMes — '' significa "Todo el año"
     if (!this._operAnio) this._operAnio = anioActual;
+    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const filtros = '<div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
+      + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
+      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
+      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;">'
+      + '<select onchange="app._operMes=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
+      + '<option value=""'+(!this._operMes?' selected':'')+'>📅 Todo el año</option>'
+      + meses.map((m,i)=>{ const v=String(i+1).padStart(2,'0'); return '<option value="'+v+'"'+(this._operMes===v?' selected':'')+'>'+m+'</option>'; }).join('')
+      + '</select>'
+      + '<select onchange="app._operAnio=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
+      + [anioActual, String(parseInt(anioActual)-1)].map(a=>'<option value="'+a+'"'+(this._operAnio===a?' selected':'')+'>'+a+'</option>').join('')
+      + '</select>'
+      + '</div></div>';
 
-    // Cabecera con filtros y tabs
-    cont.innerHTML = `
-      <div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <button onclick="app._operVista='general';app._renderOperatividad()"
-            style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;
-            background:${this._operVista==='general'?'#6e2fa0':'#f0f0f0'};
-            color:${this._operVista==='general'?'#fff':'#333'};">📊 General</button>
-          <button onclick="app._operVista='unidad';app._renderOperatividad()"
-            style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;
-            background:${this._operVista==='unidad'?'#6e2fa0':'#f0f0f0'};
-            color:${this._operVista==='unidad'?'#fff':'#333'};">👤 Por Unidad</button>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <select onchange="app._operMes=this.value;app.cargarOperatividad()"
-            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
-            ${['01','02','03','04','05','06','07','08','09','10','11','12'].map(m =>
-              `<option value="${m}" ${this._operMes===m?'selected':''}>${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(m)-1]}</option>`
-            ).join('')}
-          </select>
-          <select onchange="app._operAnio=this.value;app.cargarOperatividad()"
-            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
-            ${[anioActual, String(parseInt(anioActual)-1)].map(a =>
-              `<option value="${a}" ${this._operAnio===a?'selected':''}>${a}</option>`
-            ).join('')}
-          </select>
-        </div>
-      </div>
-      <div id="operContenidoFiltrado"></div>`;
-
-    if (this._operVista === 'general') this._renderGeneral();
-    else this._renderPorUnidad();
+    if (!this._operData.length) {
+      cont.innerHTML = filtros + '<div style="text-align:center;padding:30px;color:#999;background:#fff;border-radius:12px;">Sin datos para este período</div>';
+      return;
+    }
+    cont.innerHTML = filtros + '<div id="operContenidoFiltrado"></div>';
+    if (this._operVista === 'unidad') this._renderPorUnidad();
+    else this._renderGeneral();
   },
 
   _filtrarPorMes(lista, campoFecha) {
@@ -4555,14 +4544,25 @@ ${paginaFotos}
     });
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
 
-    const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias);
-    const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades);
-    const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente);
-    const medallas = ['🥇','🥈','🥉','4️⃣','5️⃣'];
-    const rankRow = (p,i,val,lbl) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">
-      <div><span style="font-size:15px;">${medallas[i]||'#'+(i+1)}</span>
-        <strong style="margin-left:6px;font-size:13px;">${p.nombre}</strong></div>
-      <span style="font-weight:700;color:#6e2fa0;">${val} ${lbl}</span></div>`;
+    const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias).filter(p=>p.emergencias>0);
+    const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades).filter(p=>p.horasActividades>0);
+    const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente).filter(p=>p.domingosPresente>0);
+    const medallas = ['🥇','🥈','🥉'];
+    const rankRow = (p,i,val,lbl) => '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
+      + '<div><span style="font-size:15px;">'+(medallas[i]||('<span style="font-size:11px;color:#999;">#'+(i+1)+'</span>'))+'</span>'
+      + '<strong style="margin-left:6px;font-size:13px;">'+p.nombre+'</strong></div>'
+      + '<span style="font-weight:700;color:#6e2fa0;">'+val+' '+lbl+'</span></div>';
+    const rankList = (lista, getId, getVal, lbl, color) => {
+      if(!lista.length) return '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin datos en este período</div>';
+      const top3 = lista.slice(0,3).map((p,i)=>rankRow(p,i,getVal(p),lbl)).join('');
+      const resto = lista.slice(3);
+      if(!resto.length) return top3;
+      const masId = getId+'_mas';
+      return top3
+        + '<div id="'+masId+'" style="display:none;">'+resto.map((p,i)=>rankRow(p,i+3,getVal(p),lbl)).join('')+'</div>'
+        + '<button data-id="'+masId+'" onclick="var e=document.getElementById(this.dataset.id);var v=e.style.display!==\'none\';e.style.display=v?\'none\':\'block\';this.textContent=v?\'▼ Ver más ('+resto.length+')\':\'▲ Ver menos\';" '
+        + 'style="width:100%;padding:6px;margin-top:4px;background:#f5f5f5;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:'+color+';">▼ Ver más ('+resto.length+')</button>';
+    };
 
     cont.innerHTML = `
       <div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
@@ -4594,19 +4594,16 @@ ${paginaFotos}
 
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#c0392b;margin-bottom:8px;">🚨 Ranking Emergencias</div>
-        ${topEmerg.filter(p=>p.emergencias>0).slice(0,5).map((p,i)=>rankRow(p,i,p.emergencias,'emerg.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin emergencias en este período</div>'}
+        ${rankList(topEmerg,'rk_emerg',p=>p.emergencias,'emerg.','#c0392b')}
       </div>
-
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#1e8449;margin-bottom:8px;">🎯 Ranking Actividades</div>
-        ${topActiv.filter(p=>p.horasActividades>0).slice(0,5).map((p,i)=>rankRow(p,i,p.horasActividades+'h','activ.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin actividades en este período</div>'}
+        ${rankList(topActiv,'rk_activ',p=>p.horasActividades+'h','activ.','#1e8449')}
       </div>
-
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
-        ${topDomin.filter(p=>p.domingosPresente>0).slice(0,5).map((p,i)=>rankRow(p,i,p.domingosPresente,'dom.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin asistencia registrada en este período</div>'}
+        ${rankList(topDomin,'rk_domin',p=>p.domingosPresente,'dom.','#e67e22')}
       </div>
-
       <button onclick="app._imprimirReporteGeneral()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
   },
 
@@ -4624,7 +4621,78 @@ ${paginaFotos}
       <div id="listaUnidades">
         ${d.map(p => this._cardUnidad(p, mesNombre)).join('')}
       </div>
-      <button onclick="app._imprimirReportePorUnidad()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:8px;">🖨️ Imprimir Informe por Unidad</button>`;
+      <button onclick="app._imprimirReportePorUnidad()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:4px;">🖨️ Imprimir Informe por Unidad</button>
+      <button onclick="app._operVista='general';app.cargarOperatividad()" style="background:#f0f0f0;color:#333;border:none;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">← Ver Resumen General</button>`;
+  },
+
+  _filtrarUnidades(q) {
+    const lista = document.getElementById('listaUnidades');
+    if (!lista) return;
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
+    const filtrado = this._operData.filter(p => p.nombre.toUpperCase().includes(q.toUpperCase()));
+    lista.innerHTML = filtrado.map(p => this._cardUnidad(p, mesNombre)).join('');
+  },
+
+  _cardUnidad(p, mesNombre) {
+    const pts = p.emergencias*2 + p.horasActividades + p.domingosPresente;
+    const pctDom = p.domingosPresente + p.domingosAusente > 0
+      ? Math.round(p.domingosPresente/(p.domingosPresente+p.domingosAusente)*100) : 0;
+    const colorAlerta = p.tipoAlerta==='RETIRO'?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#ff9800':null;
+    const uid = 'u_'+p.nombre.replace(/[^a-zA-Z]/g,'').substring(0,12);
+    return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
+      +'<div><div style="font-weight:700;font-size:15px;">'+p.nombre+'</div>'
+      +'<div style="font-size:12px;color:#666;">CC: '+(p.cedula||'-')+'</div></div>'
+      +'<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">'+pts+' pts</div>'
+      +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
+      +'</div></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
+      +'<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
+      +'<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
+      +'<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="font-size:18px;font-weight:700;color:#1e8449;">'+p.horasActividades+'h</div>'
+      +'<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
+      +'<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
+      +'<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div></div>'
+      +'</div>'
+      +'<div id="'+uid+'_det" style="display:none;margin-bottom:8px;"></div>'
+      +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">'
+      +'<span>Asistencia domingos: <strong>'+pctDom+'%</strong></span>'
+      +(p.horasSancion>0?'<span style="color:#c00;font-weight:700;">⚠️ '+p.horasSancion+'h sanción</span>':'<span style="color:#1e8449;">✅ Sin sanciones</span>')
+      +'</div></div>';
+  },
+
+  async _expandirDetalle(tipo, uid, nombre) {
+    const cont = document.getElementById(uid+'_det');
+    if (!cont) return;
+    if (cont.style.display!=='none' && cont.dataset.tipo===tipo) { cont.style.display='none'; return; }
+    cont.style.display='block'; cont.dataset.tipo=tipo;
+    cont.innerHTML='<div style="font-size:12px;color:#999;padding:6px;">Cargando...</div>';
+    const accion = tipo==='emerg'?'obtenerEmergenciasPersona':tipo==='activ'?'obtenerActividadesPersona':'obtenerDomingosPersona';
+    try {
+      const resp=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({accion,nombre,mes:this._operMes,anio:this._operAnio})});
+      const data=await resp.json();
+      if(!data.ok){cont.innerHTML='<div style="font-size:12px;color:#c00;padding:4px;">Error: '+data.error+'</div>';return;}
+      const borderColor = tipo==='emerg'?'#c0392b':tipo==='activ'?'#1e8449':'#e67e22';
+      let html='<div style="background:#fafafa;border-radius:8px;padding:8px;border-top:2px solid '+borderColor+'">';
+      if(tipo==='emerg'){
+        const lista=data.emergencias||[];
+        if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin emergencias en este período</div>';}
+        else lista.forEach(e=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#c0392b;">'+e.consecutivo+'</strong><span style="float:right;font-size:11px;color:#666;">'+e.fecha+'</span><div style="color:#555;">'+e.tipo+'</div></div>';});
+      }else if(tipo==='activ'){
+        const lista=data.actividades||[];
+        if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin actividades en este período</div>';}
+        else lista.forEach(a=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#1e8449;">'+(a.tipo||'Actividad')+'</strong><span style="float:right;font-weight:700;color:#1e8449;">'+a.horas+'h</span><div style="color:#555;">'+(a.descripcion||'').substring(0,50)+'</div><div style="font-size:11px;color:#999;">📅 '+a.fecha+'</div></div>';});
+      }else{
+        const lista=data.domingos||[];
+        if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin domingos en este período</div>';}
+        else lista.forEach(d=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#e67e22;">📅 '+d.fecha+'</strong>'+(d.tipo?'<span style="float:right;font-size:11px;color:#666;">'+d.tipo+'</span>':'')+(d.tema?'<div style="color:#555;">'+d.tema+'</div>':'')+(d.lugar?'<div style="font-size:11px;color:#999;">📍 '+d.lugar+'</div>':'')+'</div>';});
+      }
+      html+='</div>'; cont.innerHTML=html;
+    }catch(e){cont.innerHTML='<div style="font-size:12px;color:#c00;padding:4px;">Error de red</div>';}
   },
 
   _filtrarUnidades(q) {
@@ -4764,84 +4832,6 @@ ${paginaFotos}
       </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),800);
-  }
-
-,
-  _listaActividades: [],
-  async eliminarActividad(id, tipo) {
-    if (!confirm('Eliminar actividad "'+tipo+'"?')) return;
-    if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
-    if (!this._adminPwdSession) {const pwd=window.prompt('Contrasena admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
-    this.toast('Eliminando...','info');
-    try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'eliminarActividad',id,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
-    const d=await r.json();if(!d.ok)throw new Error(d.error);
-    this.toast('Actividad eliminada','ok');setTimeout(()=>this.cargarListaActividades(),800);}catch(e){this.toast('Error: '+e.message,'error');}
-  },
-  async eliminarDomingo(fecha) {
-    if (!confirm('Eliminar domingo '+fecha+'?')) return;
-    if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
-    if (!this._adminPwdSession) {const pwd=window.prompt('Contrasena admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
-    this.toast('Eliminando...','info');
-    try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'eliminarDomingo',fecha,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
-    const d=await r.json();if(!d.ok)throw new Error(d.error);
-    this.toast('Domingo eliminado','ok');setTimeout(()=>this.cargarPantallaAsistencia(),800);}catch(e){this.toast('Error: '+e.message,'error');}
-  },
-  _recursoResponsableActual: null, _buscarRecursoTimer: null,
-  _buscarRecursoResponsable(q) {
-    clearTimeout(this._buscarRecursoTimer);
-    const sug=document.getElementById('actRecursoSug');
-    if(!q||!q.trim()){sug.style.display='none';return;}
-    this._buscarRecursoTimer=setTimeout(async()=>{
-      try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'buscarPersonalCBVI',q:q.trim()})});
-      const d=await r.json();if(!d.ok||!d.resultados.length){sug.style.display='none';return;}
-      sug.innerHTML=d.resultados.map(per=>'<div data-n="'+per.nombre.replace(/"/g,"&quot;")+'" data-c="'+(per.cedula||'')+'" data-r="'+(per.rango||'BOMBERO')+'" data-t="'+(per.telefono||'')+'" onclick="app._selRecursoResp({nombre:this.dataset.n,cedula:this.dataset.c,rango:this.dataset.r,telefono:this.dataset.t})" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;">'+per.nombre+'</div>').join('');
-      sug.style.display='block';}catch(e){sug.style.display='none';}
-    },400);
-  },
-  _selRecursoResp(p){const inp=document.getElementById('actRecursoResponsable');if(inp)inp.value=p.nombre;this._recursoResponsableActual=p;const s2=document.getElementById('actRecursoSug');if(s2)s2.style.display='none';},
-  agregarRecurso() {
-    const tipo=document.getElementById('actRecursoTipo').value;
-    const codigo=document.getElementById('actRecursoCodigo').value.trim();
-    const rn=(document.getElementById('actRecursoResponsable').value||'').trim().toUpperCase();
-    if(!tipo){this.toast('Selecciona tipo de vehiculo','error');return;}
-    if(!rn){this.toast('Ingresa el responsable','error');return;}
-    const p=this._recursoResponsableActual||{nombre:rn,cedula:'',rango:'BOMBERO',telefono:''};
-    this._actRecursos.push({tipo,codigo,responsable:p.nombre,responsableCedula:p.cedula||''});
-    const ya=p.cedula?this._actPersonal.find(x=>x.cedula===p.cedula):this._actPersonal.find(x=>x.nombre.toUpperCase()===p.nombre.toUpperCase());
-    if(!ya){this._actPersonal.push({nombre:p.nombre,cedula:p.cedula||'',rango:p.rango||'BOMBERO',telefono:p.telefono||'',esEncargado:false});this._renderPersonalActividad();}
-    document.getElementById('actRecursoTipo').value='';document.getElementById('actRecursoCodigo').value='';document.getElementById('actRecursoResponsable').value='';
-    this._recursoResponsableActual=null;this._renderRecursos();this.toast(tipo+' agregado','ok');
-  },
-  _renderRecursos() {
-    const cont=document.getElementById('actRecursosLista');if(!cont)return;
-    if(!this._actRecursos.length){cont.innerHTML='';return;}
-    cont.innerHTML=this._actRecursos.map((r,i)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#e3f2fd;border-radius:6px;margin-bottom:4px;font-size:13px;"><div>Vehiculo: <strong>'+r.tipo+'</strong>'+(r.codigo?' ('+r.codigo+')':'')+' - Maquinista: '+r.responsable+'</div><button data-i="'+i+'" onclick="app._actRecursos.splice(+this.dataset.i,1);app._renderRecursos();" style="background:none;border:none;color:#c00;cursor:pointer;font-size:16px;">&#x2715;</button></div>').join('');
-  },
-  _buscarAsistCampo(inputId,sugId,q){
-    const sug=document.getElementById(sugId);if(!q||!q.trim()){sug.style.display='none';return;}
-    clearTimeout(this['_t_'+sugId]);
-    this['_t_'+sugId]=setTimeout(async()=>{
-      try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'buscarPersonalCBVI',q:q.trim()})});
-      const d=await r.json();if(!d.ok||!d.resultados.length){sug.style.display='none';return;}
-      sug.innerHTML=d.resultados.map(per=>'<div data-n="'+per.nombre.replace(/"/g,"&quot;")+'" data-inp="'+inputId+'" data-sug="'+sugId+'" onclick="document.getElementById(this.dataset.inp).value=this.dataset.n;document.getElementById(this.dataset.sug).style.display=\'none\';" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;">'+per.nombre+'</div>').join('');
-      sug.style.display='block';}catch(e){sug.style.display='none';}
-    },400);
-  },
-  async agregarNuevoBomberoAsistencia(){
-    const nombre=(document.getElementById('asistNuevoNombre').value||'').toUpperCase().trim();
-    const cedula=(document.getElementById('asistNuevoCedula').value||'').trim();
-    const tel=document.getElementById('asistNuevoTel').value||'';
-    const correo=document.getElementById('asistNuevoCorreo').value||'';
-    const rango=document.getElementById('asistNuevoRango').value||'BOMBERO';
-    if(!nombre||!cedula){this.toast('Nombre y cedula obligatorios','error');return;}
-    this.toast('Registrando...','info');
-    try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'agregarPersonalCBVI',nombre,cedula,telefono:tel,email:correo,rango})});
-    const d=await r.json();if(!d.ok&&!d.yaExiste)throw new Error(d.error||'Error');
-    const key=cedula||nombre;this._asistRegistros[key]={nombre,cedula,estado:'PRESENTE'};
-    ['asistNuevoNombre','asistNuevoCedula','asistNuevoTel','asistNuevoCorreo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-    const fb=document.getElementById('asistFormNuevoBombero');if(fb)fb.style.display='none';
-    const fecha=document.getElementById('asistFecha').value;this._renderAsistencia(fecha);
-    this.toast(nombre+' agregado','ok');}catch(e){this.toast('Error: '+e.message,'error');}
   }
 
 };
