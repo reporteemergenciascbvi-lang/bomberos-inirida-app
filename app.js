@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.39';
+const APP_VERSION = '5.40';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -3928,6 +3928,7 @@ ${paginaFotos}
 
   iniciarNuevaActividad() {
     this._actPersonal = [];
+    this._actRecursos = [];
     this._actFotos = { inicio: null, medio: null, fin: null };
     this.irA('pantallaActividades');
     // reset form fields
@@ -3945,6 +3946,7 @@ ${paginaFotos}
 
   _actFotos: { inicio: null, medio: null, fin: null },
   _actPersonal: [],
+  _actRecursos: [],
 
   cargarFotoActividad(tipo, input) {
     const file = input.files[0];
@@ -4026,15 +4028,21 @@ ${paginaFotos}
   _renderPersonalActividad() {
     const cont = document.getElementById('actPersonalLista');
     if (!this._actPersonal.length) { cont.innerHTML = '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal aún</div>'; return; }
-    cont.innerHTML = this._actPersonal.map((p,i) =>
-      `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8f8f8;border-radius:8px;margin-bottom:6px;">
-        <div>
-          <strong style="font-size:14px;">${p.nombre}</strong>${p.esNuevo ? ' <span style="font-size:11px;background:#ff9800;color:#fff;padding:1px 5px;border-radius:4px;">NUEVO</span>' : ''}
-          <div style="font-size:12px;color:#666;">CC: ${p.cedula} | ${p.rango}</div>
-        </div>
-        <button onclick="app._quitarPersonalActividad(${i})" style="background:none;border:none;color:#c00;font-size:18px;cursor:pointer;padding:4px;">✕</button>
-      </div>`
-    ).join('');
+    cont.innerHTML=this._actPersonal.map((p,i)=>{
+      const enc=!!p.esEncargado;
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:'+(enc?'#fff8e1':'#f8f8f8')+';border-radius:8px;margin-bottom:6px;">'
+        +'<div><strong style="font-size:14px;">'+p.nombre+'</strong>'+(p.esNuevo?' (NUEVO)':'')+(enc?' (ENCARGADO)':'')
+        +'<div style="font-size:12px;color:#666;">CC: '+p.cedula+' | '+p.rango+'</div></div>'
+        +'<div style="display:flex;gap:4px;">'
+        +'<button data-i="'+i+'" onclick="app._toggleEncargado(+this.dataset.i)" style="background:none;border:none;font-size:18px;cursor:pointer;opacity:'+(enc?'1':'0.3')+';">star</button>'
+        +'<button data-i="'+i+'" onclick="app._quitarPersonalActividad(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:18px;cursor:pointer;">X</button>'
+        +'</div></div>';
+    }).join('');
+  },
+
+  _toggleEncargado(idx) {
+    this._actPersonal.forEach((p,i)=>p.esEncargado=(i===idx?!p.esEncargado:false));
+    this._renderPersonalActividad();
   },
 
   _quitarPersonalActividad(idx) {
@@ -4059,9 +4067,10 @@ ${paginaFotos}
         lugar: document.getElementById('actLugar').value,
         novedades: document.getElementById('actNovedades').value,
         personal: this._actPersonal,
+        recursos: this._actRecursos,
         registradoPor: this.usuario.nombre,
         emailRegistrador: this.usuario.email,
-        comandante: this.usuario.nombre,
+        comandante: (this._actPersonal.find(p=>p.esEncargado)||{}).nombre || this.usuario.nombre,
         fotoInicio: this._actFotos.inicio,
         fotoMedio: this._actFotos.medio,
         fotoFin: this._actFotos.fin
@@ -4101,14 +4110,18 @@ ${paginaFotos}
       if (!data.ok || !data.actividades.length) {
         cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">No hay actividades registradas</div>'; return;
       }
-      cont.innerHTML = data.actividades.map(a =>
-        `<div onclick="app.verDetalleActividad('${a.id}')"
-          style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;border-left:4px solid #1a5276;">
-          <div style="font-weight:700;color:#1a5276;">${a.tipo} — ${a.descripcion.substring(0,50)}</div>
-          <div style="font-size:13px;color:#666;margin-top:4px;">📅 ${a.fecha} | ⏱️ ${a.duracion}h | 👥 ${a.numUnidades} personas</div>
-          <div style="font-size:12px;color:#999;margin-top:2px;">Por: ${a.registradoPor}</div>
-        </div>`
-      ).join('');
+      const _ea=this.esAdmin(); this._listaActividades=data.actividades;
+      cont.innerHTML=data.actividades.map((a,i)=>{
+        return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1a5276;">'
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+          +'<div style="flex:1;cursor:pointer;" data-i="'+i+'" onclick="app.verDetalleActividad(app._listaActividades[+this.dataset.i].id)">'
+          +'<div style="font-weight:700;color:#1a5276;">'+a.tipo+' - '+a.descripcion.substring(0,50)+'</div>'
+          +'<div style="font-size:13px;color:#666;margin-top:4px;">'+a.fecha+' | '+a.duracion+'h</div>'
+          +'<div style="font-size:12px;color:#999;margin-top:2px;">Por: '+a.registradoPor+'</div>'
+          +'</div>'
+          +(_ea?'<button data-i="'+i+'" onclick="event.stopPropagation();var _x=app._listaActividades[+this.dataset.i];app.eliminarActividad(_x.id,_x.tipo);" style="background:none;border:none;color:#c00;font-size:20px;cursor:pointer;padding:4px 8px;">X</button>':'')
+          +'</div></div>';
+      }).join('');
     } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error cargando actividades</div>'; }
   },
 
@@ -4261,56 +4274,18 @@ ${paginaFotos}
     const cont = document.getElementById('asistListaPersonal');
     cont.innerHTML = '<div style="text-align:center;padding:16px;color:#999;">Cargando personal...</div>';
     document.getElementById('btnGuardarAsistencia').style.display = 'block';
+    const _nb=document.getElementById('btnMostrarNuevoBombero');if(_nb)_nb.style.display='block';
     this._asistRegistros = {};
     try {
-      // Cargar TODO el personal activo de la base de datos
-      const [respTodo, respPrev] = await Promise.all([
-        fetch(URL_BACKEND, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body: JSON.stringify({ accion:'listarTodoPersonal' }) }),
-        fetch(URL_BACKEND, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body: JSON.stringify({ accion:'listarAsistenciaDomingo', fecha }) })
+      const [r1,r2]=await Promise.all([
+        fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'listarTodoPersonal'})}),
+        fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'listarAsistenciaDomingo',fecha})})
       ]);
-      const [dataTodo, dataPrev] = await Promise.all([respTodo.json(), respPrev.json()]);
-      // Cargar registros previos si existen
-      const prevMap = {};
-      if (dataPrev.ok) dataPrev.registros.forEach(r => { prevMap[r.cedula||r.nombre] = r.estado; });
-      // Inicializar todos como PRESENTE por defecto
-      if (dataTodo.ok) {
-        dataTodo.personal.forEach(p => {
-          const key = p.cedula || p.nombre;
-          this._asistRegistros[key] = { nombre: p.nombre, cedula: p.cedula, estado: prevMap[key] || 'PRESENTE' };
-        });
-      }
-    } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:10px;">Error: '+e.message+'</div>'; return; }
+      const [d1,d2]=await Promise.all([r1.json(),r2.json()]);
+      const prev={}; if(d2.ok) d2.registros.forEach(r=>{prev[r.cedula||r.nombre]=r.estado;});
+      if(d1.ok) d1.personal.forEach(p=>{const k=p.cedula||p.nombre;this._asistRegistros[k]={nombre:p.nombre,cedula:p.cedula,estado:prev[k]||'PRESENTE'};});
+    }catch(e){cont.innerHTML='<div style="color:#c00;padding:10px;">Error: '+e.message+'</div>';return;}
     this._renderAsistencia(fecha);
-  },
-
-  _renderAsistencia(fecha) {
-    const cont = document.getElementById('asistListaPersonal');
-    const lista = Object.values(this._asistRegistros);
-    cont.innerHTML = `
-      <div style="font-size:12px;color:#555;margin-bottom:10px;">📅 Registrando asistencia para el <strong>${fecha}</strong></div>
-      ${lista.length === 0 ? '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Agrega el personal con el buscador de abajo</div>' :
-        lista.map((p, i) => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0;">
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;">${p.nombre}</div>
-            <div style="font-size:11px;color:#999;">CC: ${p.cedula||'-'}</div>
-          </div>
-          <select onchange="app._setAsistencia('${p.cedula||p.nombre}','${p.nombre}',this.value)"
-            style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:${p.estado==='PRESENTE'?'#e8f5e9':p.estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee'}">
-            <option value="PRESENTE" ${p.estado==='PRESENTE'?'selected':''}>✅ Presente</option>
-            <option value="AUSENTE_EXCUSA" ${p.estado==='AUSENTE_EXCUSA'?'selected':''}>🟡 C/excusa</option>
-            <option value="AUSENTE_SIN_EXCUSA" ${p.estado==='AUSENTE_SIN_EXCUSA'?'selected':''}>🔴 Sin excusa</option>
-          </select>
-          <button onclick="app._quitarAsistencia('${p.cedula||p.nombre}')" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;padding:4px;margin-left:4px;">✕</button>
-        </div>`).join('')}
-      <div style="position:relative;margin-top:10px;">
-        <input type="text" id="asistBuscar" placeholder="Buscar y agregar bombero..." autocomplete="off"
-          style="width:100%;padding:10px;border:1px solid #1e8449;border-radius:8px;font-size:14px;box-sizing:border-box;"
-          oninput="app.buscarPersonalAsistencia(this.value)">
-        <div id="asistSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;"></div>
-      </div>`;
   },
 
   _setAsistencia(key, nombre, estado) {
@@ -4379,13 +4354,9 @@ ${paginaFotos}
     if (!registros.length) { this.toast('Agrega personal primero', 'error'); return; }
     // Verificar sesión admin — pedir contraseña si no hay
     if (!this._adminPwdSession) {
-      this._adminPwdSession = (()=>{ try { return sessionStorage.getItem('cbvi_admin_pwd'); } catch(e){return null;} })();
-    }
-    if (!this._adminPwdSession) {
-      const pwd = window.prompt('🔐 Contraseña de administrador:');
+      const pwd = window.prompt('🔐 Contraseña de administrador para guardar asistencia:');
       if (!pwd || !pwd.trim()) return;
       this._adminPwdSession = pwd.trim();
-      try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e2) {}
     }
     const tipoReunion = document.getElementById('asistTipoReunion') ? document.getElementById('asistTipoReunion').value : '';
     const tema = document.getElementById('asistTema') ? document.getElementById('asistTema').value : '';
@@ -4397,14 +4368,15 @@ ${paginaFotos}
         body: JSON.stringify({
           accion: 'registrarAsistencia', fecha, registros, replaceAll: true,
           tipoReunion, tema, lugarReunion,
+          encargado: document.getElementById('asistEncargado') ? document.getElementById('asistEncargado').value : '',
+          comandanteGuardia: document.getElementById('asistComandanteGuardia') ? document.getElementById('asistComandanteGuardia').value : '',
           adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || ''
         })
       });
       const data = await resp.json();
       if (!data.ok) {
         if (data.error === 'No autorizado') {
-          this._adminPwdSession = null;
-          try { sessionStorage.removeItem('cbvi_admin_pwd'); } catch(e2) {}
+          this._adminPwdSession = null; // limpiar para reintentar
           throw new Error('Contraseña incorrecta. Intenta de nuevo.');
         }
         throw new Error(data.error);
@@ -4427,12 +4399,8 @@ ${paginaFotos}
       const presentes = data.registros.filter(r => r.estado === 'PRESENTE').length;
       const ausExcusa = data.registros.filter(r => r.estado === 'AUSENTE_EXCUSA').length;
       const ausSin = data.registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
-      hist.innerHTML = `<div style="font-weight:700;margin-bottom:8px;">📅 ${fecha}</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;font-size:13px;">
-          <span style="background:#e8f5e9;padding:3px 8px;border-radius:4px;">✅ ${presentes}</span>
-          <span style="background:#fff8e1;padding:3px 8px;border-radius:4px;">🟡 ${ausExcusa}</span>
-          <span style="background:#ffebee;padding:3px 8px;border-radius:4px;">🔴 ${ausSin}</span>
-        </div>` +
+      const _enc=data.registros[0]&&data.registros[0].encargado||''; const _grd=data.registros[0]&&data.registros[0].comandanteGuardia||'';
+      hist.innerHTML='<div style="font-weight:700;margin-bottom:8px;">Domingo: '+fecha+'</div>'+(_enc?'<div style="font-size:12px;color:#555;margin-bottom:4px;">Encargado: <strong>'+_enc+'</strong></div>':'')+(_grd?'<div style="font-size:12px;color:#555;">Guardia: <strong>'+_grd+'</strong></div>':'')+'<div style="display:flex;gap:8px;margin-bottom:8px;font-size:13px;"><span style="background:#e8f5e9;padding:3px 8px;border-radius:4px;">Presentes: '+presentes+'</span><span style="background:#fff8e1;padding:3px 8px;border-radius:4px;">C/excusa: '+ausExcusa+'</span><span style="background:#ffebee;padding:3px 8px;border-radius:4px;">Sin excusa: '+ausSin+'</span>'+(this.esAdmin()?'<button data-f="'+fecha+'" onclick="app.eliminarDomingo(this.dataset.f)" style="margin-left:auto;background:#c00;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;">Eliminar</button>':'')+'</div>'+
         data.registros.map(r =>
           `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px;display:flex;justify-content:space-between;">
             <span>${r.nombre}</span>
@@ -4481,9 +4449,7 @@ ${paginaFotos}
       });
       const data = await resp.json();
       if (!data.ok || !data.operatividad.length) {
-        cont.innerHTML = this._renderFiltrosOper() +
-          '<div style="text-align:center;padding:30px;color:#999;background:#fff;border-radius:12px;">Sin datos para este período</div>';
-        return;
+        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Sin datos aún</div>'; return;
       }
       this._operData = data.operatividad;
       this._operStats = data.stats || null;
@@ -4497,38 +4463,44 @@ ${paginaFotos}
   _operMes: '',
   _operAnio: '',
 
-  _renderFiltrosOper() {
-    const ahora = new Date();
-    const anioActual = String(ahora.getFullYear());
-    // _operMes puede ser '' (todo el año) — no resetear
-    if (!this._operAnio) this._operAnio = anioActual;
-    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    return '<div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
-      + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
-      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
-      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
-      + '</div>'
-      + '<div style="display:flex;gap:8px;">'
-      + '<select onchange="app._operMes=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
-      + '<option value=""'+(!this._operMes || this._operMes===''?' selected':'')+'>📅 Todo el año</option>'
-      + meses.map((m,i)=>{ const v=String(i+1).padStart(2,'0'); return '<option value="'+v+'"'+(this._operMes===v?' selected':'')+'>'+m+'</option>'; }).join('')
-      + '</select>'
-      + '<select onchange="app._operAnio=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
-      + [anioActual, String(parseInt(anioActual)-1)].map(a=>'<option value="'+a+'"'+(this._operAnio===a?' selected':'')+'>'+a+'</option>').join('')
-      + '</select>'
-      + '</div></div>';
-  },
-
   _renderOperatividad() {
     const cont = document.getElementById('operatividadContenido');
     if (!cont || !this._operData) return;
     const ahora = new Date();
     const mesActual = String(ahora.getMonth()+1).padStart(2,'0');
     const anioActual = String(ahora.getFullYear());
-    // _operMes puede ser '' (todo el año) — no resetear
+    if (!this._operMes) this._operMes = mesActual;
     if (!this._operAnio) this._operAnio = anioActual;
 
-    cont.innerHTML = this._renderFiltrosOper() + '<div id="operContenidoFiltrado"></div>';
+    // Cabecera con filtros y tabs
+    cont.innerHTML = `
+      <div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button onclick="app._operVista='general';app._renderOperatividad()"
+            style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;
+            background:${this._operVista==='general'?'#6e2fa0':'#f0f0f0'};
+            color:${this._operVista==='general'?'#fff':'#333'};">📊 General</button>
+          <button onclick="app._operVista='unidad';app._renderOperatividad()"
+            style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;
+            background:${this._operVista==='unidad'?'#6e2fa0':'#f0f0f0'};
+            color:${this._operVista==='unidad'?'#fff':'#333'};">👤 Por Unidad</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <select onchange="app._operMes=this.value;app.cargarOperatividad()"
+            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            ${['01','02','03','04','05','06','07','08','09','10','11','12'].map(m =>
+              `<option value="${m}" ${this._operMes===m?'selected':''}>${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(m)-1]}</option>`
+            ).join('')}
+          </select>
+          <select onchange="app._operAnio=this.value;app.cargarOperatividad()"
+            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+            ${[anioActual, String(parseInt(anioActual)-1)].map(a =>
+              `<option value="${a}" ${this._operAnio===a?'selected':''}>${a}</option>`
+            ).join('')}
+          </select>
+        </div>
+      </div>
+      <div id="operContenidoFiltrado"></div>`;
 
     if (this._operVista === 'general') this._renderGeneral();
     else this._renderPorUnidad();
@@ -4537,15 +4509,6 @@ ${paginaFotos}
   _filtrarPorMes(lista, campoFecha) {
     const prefijo = this._operMes ? (this._operAnio + '-' + this._operMes) : '';
     return lista.filter(item => String(item[campoFecha]||'').startsWith(prefijo));
-  },
-
-  _toggleRankVer(masId, btnId, n) {
-    const el = document.getElementById(masId);
-    const btn = document.getElementById(btnId);
-    if (!el || !btn) return;
-    const visible = el.style.display !== 'none';
-    el.style.display = visible ? 'none' : 'block';
-    btn.textContent = visible ? '▼ Ver más (' + n + ')' : '▲ Ver menos';
   },
 
   _renderGeneral() {
@@ -4562,33 +4525,21 @@ ${paginaFotos}
       const pb = b.emergencias*2 + b.horasActividades + b.domingosPresente;
       return pb - pa;
     });
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : '';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
 
-    const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias).filter(p=>p.emergencias>0);
-    const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades).filter(p=>p.horasActividades>0);
-    const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente).filter(p=>p.domingosPresente>0);
-    const medallas = ['🥇','🥈','🥉'];
-    const rankRow = (p,i,val,lbl) => '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
-      + '<div><span style="font-size:15px;">'+(medallas[i]||'<span style="font-size:12px;color:#999;">#'+(i+1)+'</span>')+'</span>'
-      + '<strong style="margin-left:6px;font-size:13px;">'+p.nombre+'</strong></div>'
-      + '<span style="font-weight:700;color:#6e2fa0;">'+val+' '+lbl+'</span></div>';
-    const rankList = (lista, getId, val, lbl, color) => {
-      const top3 = lista.slice(0,3).map((p,i)=>rankRow(p,i,val(p),lbl)).join('');
-      const resto = lista.slice(3);
-      if (!resto.length) return top3;
-      const masId = getId + '_mas';
-      const btnId = getId + '_btn';
-      const restHtml = '<div id="'+masId+'" style="display:none;">'
-        + resto.map((p,i)=>rankRow(p,i+3,val(p),lbl)).join('') + '</div>'
-        + '<button data-mas="'+masId+'" data-n="'+resto.length+'" onclick="var m=document.getElementById(this.dataset.mas);var v=m.style.display!==\'none\';m.style.display=v?\'none\':\'block\';this.textContent=v?\'\u25bc Ver m\u00e1s (\'+this.dataset.n+\')\':(\'\u25b2 Ver menos\');" '
-        + 'style="width:100%;padding:6px;margin-top:4px;background:#f5f5f5;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:'+color+';">\u25bc Ver m\u00e1s ('+resto.length+')</button>';
-      return top3 + restHtml;
-    };
+    const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias);
+    const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades);
+    const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente);
+    const medallas = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+    const rankRow = (p,i,val,lbl) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">
+      <div><span style="font-size:15px;">${medallas[i]||'#'+(i+1)}</span>
+        <strong style="margin-left:6px;font-size:13px;">${p.nombre}</strong></div>
+      <span style="font-weight:700;color:#6e2fa0;">${val} ${lbl}</span></div>`;
 
     cont.innerHTML = `
       <div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
         <div style="font-size:13px;opacity:.8;">Período</div>
-        <div style="font-size:18px;font-weight:700;">${mesNombre ? mesNombre + ' ' + this._operAnio : 'Año completo ' + this._operAnio}</div>
+        <div style="font-size:18px;font-weight:700;">${mesNombre} ${this._operAnio}</div>
         <div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div>
       </div>
 
@@ -4615,15 +4566,17 @@ ${paginaFotos}
 
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#c0392b;margin-bottom:8px;">🚨 Ranking Emergencias</div>
-        ${topEmerg.length ? rankList(topEmerg,'rk_emerg',p=>p.emergencias,'emerg.','#c0392b') : '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin emergencias en este período</div>'}
+        ${topEmerg.filter(p=>p.emergencias>0).slice(0,5).map((p,i)=>rankRow(p,i,p.emergencias,'emerg.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin emergencias en este período</div>'}
       </div>
+
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#1e8449;margin-bottom:8px;">🎯 Ranking Actividades</div>
-        ${topActiv.length ? rankList(topActiv,'rk_activ',p=>p.horasActividades+'h','activ.','#1e8449') : '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin actividades en este período</div>'}
+        ${topActiv.filter(p=>p.horasActividades>0).slice(0,5).map((p,i)=>rankRow(p,i,p.horasActividades+'h','activ.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin actividades en este período</div>'}
       </div>
+
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
-        ${topDomin.length ? rankList(topDomin,'rk_domin',p=>p.domingosPresente,'dom.','#e67e22') : '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin asistencia registrada en este período</div>'}
+        ${topDomin.filter(p=>p.domingosPresente>0).slice(0,5).map((p,i)=>rankRow(p,i,p.domingosPresente,'dom.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin asistencia registrada en este período</div>'}
       </div>
 
       <button onclick="app._imprimirReporteGeneral()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
@@ -4633,7 +4586,7 @@ ${paginaFotos}
     const cont = document.getElementById('operContenidoFiltrado');
     if (!cont) return;
     const d = [...this._operData].sort((a,b) => a.nombre.localeCompare(b.nombre));
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
 
     cont.innerHTML = `
       <div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">
@@ -4643,14 +4596,13 @@ ${paginaFotos}
       <div id="listaUnidades">
         ${d.map(p => this._cardUnidad(p, mesNombre)).join('')}
       </div>
-      <button onclick="app._imprimirReportePorUnidad()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:4px;">🖨️ Imprimir Informe por Unidad</button>
-      <button onclick="app._operVista='general';app._renderOperatividad()" style="background:#f0f0f0;color:#333;border:none;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">← Ver Resumen General</button>`;
+      <button onclick="app._imprimirReportePorUnidad()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:8px;">🖨️ Imprimir Informe por Unidad</button>`;
   },
 
   _filtrarUnidades(q) {
     const lista = document.getElementById('listaUnidades');
     if (!lista) return;
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
     const filtrado = this._operData.filter(p => p.nombre.toUpperCase().includes(q.toUpperCase()));
     lista.innerHTML = filtrado.map(p => this._cardUnidad(p, mesNombre)).join('');
   },
@@ -4660,118 +4612,41 @@ ${paginaFotos}
     const pctDom = p.domingosPresente + p.domingosAusente > 0
       ? Math.round(p.domingosPresente / (p.domingosPresente + p.domingosAusente) * 100) : 0;
     const colorAlerta = p.tipoAlerta === 'RETIRO' ? '#c00' : p.tipoAlerta === 'LLAMADO_ESCRITO' ? '#e65100' : p.tipoAlerta === 'LLAMADO_VERBAL' ? '#ff9800' : null;
-    const uid = 'u_' + p.nombre.replace(/[^a-zA-Z]/g,'').substring(0,12);
-    return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
-      + '<div><div style="font-weight:700;font-size:15px;">'+p.nombre+'</div>'
-      + '<div style="font-size:12px;color:#666;">CC: '+(p.cedula||'-')+'</div></div>'
-      + '<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">'+pts+' pts</div>'
-      + (colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
-      + '</div></div>'
-      // 3 botones expandibles
-      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
-      // Emergencias
-      + '<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
-      + '<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
-      + '<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
-      // Actividades
-      + '<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
-      + '<div style="font-size:18px;font-weight:700;color:#1e8449;">'+p.horasActividades+'h</div>'
-      + '<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
-      // Domingos
-      + '<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
-      + '<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
-      + '<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div></div>'
-      + '</div>'
-      // Contenedor expandible
-      + '<div id="'+uid+'_det" style="display:none;margin-bottom:8px;"></div>'
-      + '<div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">'
-      + '<span>Asistencia domingos: <strong>'+pctDom+'%</strong></span>'
-      + (p.horasSancion>0?'<span style="color:#c00;font-weight:700;">⚠️ '+p.horasSancion+'h sanción</span>':'<span style="color:#1e8449;">✅ Sin sanciones</span>')
-      + '</div></div>';
+    return `<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <div style="font-weight:700;font-size:15px;">${p.nombre}</div>
+          <div style="font-size:12px;color:#666;">CC: ${p.cedula||'-'}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:700;color:#6e2fa0;font-size:16px;">${pts} pts</div>
+          ${colorAlerta ? `<div style="font-size:11px;background:${colorAlerta};color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">${(p.tipoAlerta||'').replace('_',' ')}</div>` : ''}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+        <div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:#c0392b;">${p.emergencias}</div>
+          <div style="font-size:10px;color:#666;">Emergencias</div>
+        </div>
+        <div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:#1e8449;">${p.horasActividades}h</div>
+          <div style="font-size:10px;color:#666;">Actividades</div>
+        </div>
+        <div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:700;color:#e67e22;">${p.domingosPresente}</div>
+          <div style="font-size:10px;color:#666;">Domingos</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">
+        <span>Asistencia domingos: <strong>${pctDom}%</strong></span>
+        ${p.horasSancion > 0 ? `<span style="color:#c00;font-weight:700;">⚠️ ${p.horasSancion}h sanción</span>` : '<span style="color:#1e8449;">✅ Sin sanciones</span>'}
+      </div>
+    </div>`;
   },
-
-  async _expandirDetalle(tipo, uid, nombre) {
-    const cont = document.getElementById(uid + '_det');
-    if (!cont) return;
-    // Toggle si ya está abierto con el mismo tipo
-    if (cont.style.display !== 'none' && cont.dataset.tipo === tipo) {
-      cont.style.display = 'none'; return;
-    }
-    cont.style.display = 'block';
-    cont.dataset.tipo = tipo;
-    cont.innerHTML = '<div style="font-size:12px;color:#999;padding:6px;">Cargando...</div>';
-    const accion = tipo==='emerg' ? 'obtenerEmergenciasPersona' : tipo==='activ' ? 'obtenerActividadesPersona' : 'obtenerDomingosPersona';
-    try {
-      const resp = await fetch(URL_BACKEND, {
-        method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ accion, nombre, mes: this._operMes, anio: this._operAnio })
-      });
-      const data = await resp.json();
-      if (!data.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:4px;">Error: '+data.error+'</div>'; return; }
-
-      let html = '<div style="background:#fafafa;border-radius:8px;padding:8px;border-top:2px solid '+(tipo==='emerg'?'#c0392b':tipo==='activ'?'#1e8449':'#e67e22')+'">';
-      if (tipo === 'emerg') {
-        const lista = data.emergencias || [];
-        if (!lista.length) { html += '<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin emergencias en este período</div>'; }
-        else lista.forEach(e => { html += '<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;">'
-          + '<strong style="color:#c0392b;">'+e.consecutivo+'</strong>'
-          + '<span style="float:right;font-size:11px;color:#666;">'+e.fecha+'</span>'
-          + '<div style="color:#555;">'+e.tipo+'</div></div>'; });
-      } else if (tipo === 'activ') {
-        const lista = data.actividades || [];
-        if (!lista.length) { html += '<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin actividades en este período</div>'; }
-        else lista.forEach(a => { html += '<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;">'
-          + '<strong style="color:#1e8449;">'+(a.tipo||'Actividad')+'</strong>'
-          + '<span style="float:right;font-weight:700;color:#1e8449;">'+a.horas+'h</span>'
-          + '<div style="color:#555;">'+(a.descripcion||'').substring(0,50)+'</div>'
-          + '<div style="font-size:11px;color:#999;">📅 '+a.fecha+'</div></div>'; });
-      } else {
-        const lista = data.domingos || [];
-        if (!lista.length) { html += '<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin domingos registrados en este período</div>'; }
-        else lista.forEach(d => { html += '<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;">'
-          + '<strong style="color:#e67e22;">📅 '+d.fecha+'</strong>'
-          + (d.tipo ? '<span style="float:right;font-size:11px;color:#666;">'+d.tipo+'</span>' : '')
-          + (d.tema ? '<div style="color:#555;">📚 '+d.tema+'</div>' : '')
-          + (d.lugar ? '<div style="font-size:11px;color:#999;">📍 '+d.lugar+'</div>' : '')
-          + '</div>'; });
-      }
-      html += '</div>';
-      cont.innerHTML = html;
-    } catch(e) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:4px;">Error de red</div>'; }
-  },
-
-
-  async _verActividadesPersona(nombre, uid) {
-    const cont = document.getElementById(uid + '_acts');
-    if (!cont) return;
-    if (cont.style.display !== 'none') { cont.style.display = 'none'; return; }
-    cont.style.display = 'block';
-    cont.innerHTML = '<div style="font-size:12px;color:#999;padding:4px;">Cargando actividades...</div>';
-    try {
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'obtenerActividadesPersona', nombre, mes: this._operMes, anio: this._operAnio })
-      });
-      const data = await resp.json();
-      if (!data.ok || !data.actividades.length) {
-        cont.innerHTML = '<div style="font-size:12px;color:#999;padding:4px 0;">Sin actividades en este período</div>';
-        return;
-      }
-      cont.innerHTML = '<div style="background:#f9fff9;border-radius:8px;padding:8px;">'
-        + data.actividades.map(a =>
-          '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #eee;">'
-          + '<strong>' + (a.tipo||'Actividad') + '</strong> — ' + (a.descripcion||'').substring(0,45)
-          + '<span style="float:right;color:#1e8449;font-weight:700;">' + a.horas + 'h</span>'
-          + '<div style="color:#999;font-size:11px;margin-top:1px;">📅 ' + a.fecha + '</div></div>'
-        ).join('') + '</div>';
-    } catch(e) { cont.innerHTML = '<div style="font-size:12px;color:#c00;">Error cargando</div>'; }
-  },
-
 
   _imprimirReporteGeneral() {
     const d = this._operData;
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
     const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades+b.domingosPresente)-(a.emergencias*2+a.horasActividades+a.domingosPresente));
     const w = window.open('','_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -4815,7 +4690,7 @@ ${paginaFotos}
 
   _imprimirReportePorUnidad() {
     const d = [...this._operData].sort((a,b)=>a.nombre.localeCompare(b.nombre));
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
     const w = window.open('','_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
@@ -4861,6 +4736,84 @@ ${paginaFotos}
       </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),800);
+  }
+
+,
+  _listaActividades: [],
+  async eliminarActividad(id, tipo) {
+    if (!confirm('Eliminar actividad "'+tipo+'"?')) return;
+    if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
+    if (!this._adminPwdSession) {const pwd=window.prompt('Contrasena admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
+    this.toast('Eliminando...','info');
+    try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'eliminarActividad',id,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+    const d=await r.json();if(!d.ok)throw new Error(d.error);
+    this.toast('Actividad eliminada','ok');setTimeout(()=>this.cargarListaActividades(),800);}catch(e){this.toast('Error: '+e.message,'error');}
+  },
+  async eliminarDomingo(fecha) {
+    if (!confirm('Eliminar domingo '+fecha+'?')) return;
+    if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
+    if (!this._adminPwdSession) {const pwd=window.prompt('Contrasena admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
+    this.toast('Eliminando...','info');
+    try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'eliminarDomingo',fecha,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+    const d=await r.json();if(!d.ok)throw new Error(d.error);
+    this.toast('Domingo eliminado','ok');setTimeout(()=>this.cargarPantallaAsistencia(),800);}catch(e){this.toast('Error: '+e.message,'error');}
+  },
+  _recursoResponsableActual: null, _buscarRecursoTimer: null,
+  _buscarRecursoResponsable(q) {
+    clearTimeout(this._buscarRecursoTimer);
+    const sug=document.getElementById('actRecursoSug');
+    if(!q||!q.trim()){sug.style.display='none';return;}
+    this._buscarRecursoTimer=setTimeout(async()=>{
+      try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'buscarPersonalCBVI',q:q.trim()})});
+      const d=await r.json();if(!d.ok||!d.resultados.length){sug.style.display='none';return;}
+      sug.innerHTML=d.resultados.map(per=>'<div data-n="'+per.nombre.replace(/"/g,"&quot;")+'" data-c="'+(per.cedula||'')+'" data-r="'+(per.rango||'BOMBERO')+'" data-t="'+(per.telefono||'')+'" onclick="app._selRecursoResp({nombre:this.dataset.n,cedula:this.dataset.c,rango:this.dataset.r,telefono:this.dataset.t})" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;">'+per.nombre+'</div>').join('');
+      sug.style.display='block';}catch(e){sug.style.display='none';}
+    },400);
+  },
+  _selRecursoResp(p){const inp=document.getElementById('actRecursoResponsable');if(inp)inp.value=p.nombre;this._recursoResponsableActual=p;const s2=document.getElementById('actRecursoSug');if(s2)s2.style.display='none';},
+  agregarRecurso() {
+    const tipo=document.getElementById('actRecursoTipo').value;
+    const codigo=document.getElementById('actRecursoCodigo').value.trim();
+    const rn=(document.getElementById('actRecursoResponsable').value||'').trim().toUpperCase();
+    if(!tipo){this.toast('Selecciona tipo de vehiculo','error');return;}
+    if(!rn){this.toast('Ingresa el responsable','error');return;}
+    const p=this._recursoResponsableActual||{nombre:rn,cedula:'',rango:'BOMBERO',telefono:''};
+    this._actRecursos.push({tipo,codigo,responsable:p.nombre,responsableCedula:p.cedula||''});
+    const ya=p.cedula?this._actPersonal.find(x=>x.cedula===p.cedula):this._actPersonal.find(x=>x.nombre.toUpperCase()===p.nombre.toUpperCase());
+    if(!ya){this._actPersonal.push({nombre:p.nombre,cedula:p.cedula||'',rango:p.rango||'BOMBERO',telefono:p.telefono||'',esEncargado:false});this._renderPersonalActividad();}
+    document.getElementById('actRecursoTipo').value='';document.getElementById('actRecursoCodigo').value='';document.getElementById('actRecursoResponsable').value='';
+    this._recursoResponsableActual=null;this._renderRecursos();this.toast(tipo+' agregado','ok');
+  },
+  _renderRecursos() {
+    const cont=document.getElementById('actRecursosLista');if(!cont)return;
+    if(!this._actRecursos.length){cont.innerHTML='';return;}
+    cont.innerHTML=this._actRecursos.map((r,i)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#e3f2fd;border-radius:6px;margin-bottom:4px;font-size:13px;"><div>Vehiculo: <strong>'+r.tipo+'</strong>'+(r.codigo?' ('+r.codigo+')':'')+' - Maquinista: '+r.responsable+'</div><button data-i="'+i+'" onclick="app._actRecursos.splice(+this.dataset.i,1);app._renderRecursos();" style="background:none;border:none;color:#c00;cursor:pointer;font-size:16px;">X</button></div>').join('');
+  },
+  _buscarAsistCampo(inputId,sugId,q){
+    const sug=document.getElementById(sugId);if(!q||!q.trim()){sug.style.display='none';return;}
+    clearTimeout(this['_t_'+sugId]);
+    this['_t_'+sugId]=setTimeout(async()=>{
+      try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'buscarPersonalCBVI',q:q.trim()})});
+      const d=await r.json();if(!d.ok||!d.resultados.length){sug.style.display='none';return;}
+      sug.innerHTML=d.resultados.map(per=>'<div data-n="'+per.nombre.replace(/"/g,"&quot;")+'" data-inp="'+inputId+'" data-sug="'+sugId+'" onclick="document.getElementById(this.dataset.inp).value=this.dataset.n;document.getElementById(this.dataset.sug).style.display=\'none\';" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;">'+per.nombre+'</div>').join('');
+      sug.style.display='block';}catch(e){sug.style.display='none';}
+    },400);
+  },
+  async agregarNuevoBomberoAsistencia(){
+    const nombre=(document.getElementById('asistNuevoNombre').value||'').toUpperCase().trim();
+    const cedula=(document.getElementById('asistNuevoCedula').value||'').trim();
+    const tel=document.getElementById('asistNuevoTel').value||'';
+    const correo=document.getElementById('asistNuevoCorreo').value||'';
+    const rango=document.getElementById('asistNuevoRango').value||'BOMBERO';
+    if(!nombre||!cedula){this.toast('Nombre y cedula obligatorios','error');return;}
+    this.toast('Registrando...','info');
+    try{const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'agregarPersonalCBVI',nombre,cedula,telefono:tel,email:correo,rango})});
+    const d=await r.json();if(!d.ok&&!d.yaExiste)throw new Error(d.error||'Error');
+    const key=cedula||nombre;this._asistRegistros[key]={nombre,cedula,estado:'PRESENTE'};
+    ['asistNuevoNombre','asistNuevoCedula','asistNuevoTel','asistNuevoCorreo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    const fb=document.getElementById('asistFormNuevoBombero');if(fb)fb.style.display='none';
+    const fecha=document.getElementById('asistFecha').value;this._renderAsistencia(fecha);
+    this.toast(nombre+' agregado','ok');}catch(e){this.toast('Error: '+e.message,'error');}
   }
 
 };

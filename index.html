@@ -1620,6 +1620,29 @@
           <input type="file" id="inputFotoFin" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('fin',this)"></div>
       </div>
     </div>
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:10px;">🚒 Recursos / Vehículos (opcional)</div>
+      <div id="actRecursosLista" style="margin-bottom:8px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <select id="actRecursoTipo" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+          <option value="">Tipo de vehículo...</option>
+          <option value="Máquina extintora 1">Máquina extintora 1</option>
+          <option value="Máquina extintora 2">Máquina extintora 2</option>
+          <option value="Carro tanque">Carro tanque</option>
+          <option value="Intervención rápida">Intervención rápida (camioneta)</option>
+          <option value="Ambulancia">Ambulancia</option>
+          <option value="Otro">Otro</option>
+        </select>
+        <input type="text" id="actRecursoCodigo" placeholder="Código/Placa ej: M#3" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+      </div>
+      <div style="position:relative;margin-bottom:8px;">
+        <input type="text" id="actRecursoResponsable" placeholder="Maquinista / Responsable (autocomplete)..." autocomplete="off"
+          style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"
+          oninput="app._buscarRecursoResponsable(this.value)">
+        <div id="actRecursoSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>
+      </div>
+      <button onclick="app.agregarRecurso()" style="background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;cursor:pointer;width:100%;font-weight:700;font-size:14px;">➕ Agregar vehículo</button>
+    </div>
     <button onclick="app.guardarActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Registrar Actividad</button>
     <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
   </div>
@@ -1676,10 +1699,51 @@
         <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px;">Tema tratado</label>
         <input type="text" id="asistTema" placeholder="Ej: Incendios forestales, RCP básico, Protocolos..." style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
       </div>
+      <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px;">👤 Encargado / Instructor</label>
+            <div style="position:relative;">
+              <input type="text" id="asistEncargado" placeholder="Buscar nombre..." autocomplete="off"
+                style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"
+                oninput="app._buscarAsistCampo('asistEncargado','asistEncSug',this.value)">
+              <div id="asistEncSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>
+            </div>
+          </div>
+          <div>
+            <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px;">🛡️ Comandante de guardia</label>
+            <div style="position:relative;">
+              <input type="text" id="asistComandanteGuardia" placeholder="Buscar nombre..." autocomplete="off"
+                style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"
+                oninput="app._buscarAsistCampo('asistComandanteGuardia','asistGuarSug',this.value)">
+              <div id="asistGuarSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#888;margin-top:6px;">💡 Si el encargado o guardia ya está en la lista, no se duplica.</div>
+      </div>
       <div id="asistListaPersonal" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;min-height:60px;">
         <div style="color:#999;text-align:center;padding:20px;">Selecciona una fecha para cargar el personal</div>
       </div>
       <button onclick="app.guardarAsistencia()" id="btnGuardarAsistencia" style="display:none;background:#1e8449;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Guardar Asistencia</button>
+      <div id="asistFormNuevoBombero" style="display:none;background:#fff3e0;border-radius:12px;padding:14px;margin-bottom:8px;border:1px solid #ff9800;">
+        <div style="font-weight:700;color:#e65100;margin-bottom:8px;">➕ Agregar bombero nuevo a la base de datos</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <input type="text" id="asistNuevoNombre" placeholder="Nombre completo *" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <input type="text" id="asistNuevoCedula" placeholder="Cédula *" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <input type="text" id="asistNuevoTel" placeholder="Teléfono" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <input type="text" id="asistNuevoCorreo" placeholder="Correo" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <select id="asistNuevoRango" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+            <option value="BOMBERO">Bombero</option><option value="SARGENTO">Sargento</option>
+            <option value="TENIENTE">Teniente</option><option value="CAPITAN">Capitán</option><option value="ASPIRANTE">Aspirante</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="app.agregarNuevoBomberoAsistencia()" style="flex:1;background:#e65100;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">✅ Agregar y registrar</button>
+          <button onclick="document.getElementById('asistFormNuevoBombero').style.display='none'" style="background:#f5f5f5;color:#333;border:none;border-radius:8px;padding:10px;cursor:pointer;">✕</button>
+        </div>
+      </div>
+      <button onclick="document.getElementById('asistFormNuevoBombero').style.display=document.getElementById('asistFormNuevoBombero').style.display==='none'?'block':'none'" id="btnMostrarNuevoBombero" style="display:none;background:#fff3e0;color:#e65100;border:1px solid #ff9800;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">➕ Agregar bombero que no está en la lista</button>
     </div>
     <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
       <div style="font-weight:700;margin-bottom:10px;">📜 Historial de domingos</div>
