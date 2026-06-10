@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.37';
+const APP_VERSION = '5.38';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4510,6 +4510,7 @@ ${paginaFotos}
       + '</div>'
       + '<div style="display:flex;gap:8px;">'
       + '<select onchange="app._operMes=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
+      + '<option value=""'+(!this._operMes || this._operMes===''?' selected':'')+'>📅 Todo el año</option>'
       + meses.map((m,i)=>{ const v=String(i+1).padStart(2,'0'); return '<option value="'+v+'"'+(this._operMes===v?' selected':'')+'>'+m+'</option>'; }).join('')
       + '</select>'
       + '<select onchange="app._operAnio=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
@@ -4561,7 +4562,7 @@ ${paginaFotos}
       const pb = b.emergencias*2 + b.horasActividades + b.domingosPresente;
       return pb - pa;
     });
-    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : '';
 
     const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias).filter(p=>p.emergencias>0);
     const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades).filter(p=>p.horasActividades>0);
@@ -4581,12 +4582,13 @@ ${paginaFotos}
         + resto.map((p,i)=>rankRow(p,i+3,val(p),lbl)).join('') + '</div>'
         + '<button data-mas="'+masId+'" data-n="'+resto.length+'" onclick="var m=document.getElementById(this.dataset.mas);var v=m.style.display!==\'none\';m.style.display=v?\'none\':\'block\';this.textContent=v?\'\u25bc Ver m\u00e1s (\'+this.dataset.n+\')\':(\'\u25b2 Ver menos\');" '
         + 'style="width:100%;padding:6px;margin-top:4px;background:#f5f5f5;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:'+color+';">\u25bc Ver m\u00e1s ('+resto.length+')</button>';
+      return top3 + restHtml;
     };
 
     cont.innerHTML = `
       <div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
         <div style="font-size:13px;opacity:.8;">Período</div>
-        <div style="font-size:18px;font-weight:700;">${mesNombre} ${this._operAnio}</div>
+        <div style="font-size:18px;font-weight:700;">${mesNombre ? mesNombre + ' ' + this._operAnio : 'Año completo ' + this._operAnio}</div>
         <div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div>
       </div>
 
