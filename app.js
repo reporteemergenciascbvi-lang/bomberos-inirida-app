@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.36';
+const APP_VERSION = '5.37';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4259,20 +4259,29 @@ ${paginaFotos}
     const fecha = document.getElementById('asistFecha').value;
     if (!fecha) return;
     const cont = document.getElementById('asistListaPersonal');
+    cont.innerHTML = '<div style="text-align:center;padding:16px;color:#999;">Cargando personal...</div>';
     document.getElementById('btnGuardarAsistencia').style.display = 'block';
-    // Cargar asistencia previa si existe
+    this._asistRegistros = {};
     try {
-      const resp2 = await fetch(URL_BACKEND, {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'listarAsistenciaDomingo', fecha })
-      });
-      const prev = await resp2.json();
-      if (prev.ok && prev.registros.length) {
-        prev.registros.forEach(r => {
-          this._asistRegistros[r.cedula || r.nombre] = { nombre: r.nombre, cedula: r.cedula, estado: r.estado };
+      // Cargar TODO el personal activo de la base de datos
+      const [respTodo, respPrev] = await Promise.all([
+        fetch(URL_BACKEND, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'listarTodoPersonal' }) }),
+        fetch(URL_BACKEND, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'listarAsistenciaDomingo', fecha }) })
+      ]);
+      const [dataTodo, dataPrev] = await Promise.all([respTodo.json(), respPrev.json()]);
+      // Cargar registros previos si existen
+      const prevMap = {};
+      if (dataPrev.ok) dataPrev.registros.forEach(r => { prevMap[r.cedula||r.nombre] = r.estado; });
+      // Inicializar todos como PRESENTE por defecto
+      if (dataTodo.ok) {
+        dataTodo.personal.forEach(p => {
+          const key = p.cedula || p.nombre;
+          this._asistRegistros[key] = { nombre: p.nombre, cedula: p.cedula, estado: prevMap[key] || 'PRESENTE' };
         });
       }
-    } catch(e) {}
+    } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:10px;">Error: '+e.message+'</div>'; return; }
     this._renderAsistencia(fecha);
   },
 
@@ -4472,7 +4481,9 @@ ${paginaFotos}
       });
       const data = await resp.json();
       if (!data.ok || !data.operatividad.length) {
-        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Sin datos aún</div>'; return;
+        cont.innerHTML = this._renderFiltrosOper() +
+          '<div style="text-align:center;padding:30px;color:#999;background:#fff;border-radius:12px;">Sin datos para este período</div>';
+        return;
       }
       this._operData = data.operatividad;
       this._operStats = data.stats || null;
@@ -4486,6 +4497,27 @@ ${paginaFotos}
   _operMes: '',
   _operAnio: '',
 
+  _renderFiltrosOper() {
+    const ahora = new Date();
+    const anioActual = String(ahora.getFullYear());
+    if (!this._operMes) this._operMes = String(ahora.getMonth()+1).padStart(2,'0');
+    if (!this._operAnio) this._operAnio = anioActual;
+    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    return '<div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
+      + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
+      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
+      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;">'
+      + '<select onchange="app._operMes=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
+      + meses.map((m,i)=>{ const v=String(i+1).padStart(2,'0'); return '<option value="'+v+'"'+(this._operMes===v?' selected':'')+'>'+m+'</option>'; }).join('')
+      + '</select>'
+      + '<select onchange="app._operAnio=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
+      + [anioActual, String(parseInt(anioActual)-1)].map(a=>'<option value="'+a+'"'+(this._operAnio===a?' selected':'')+'>'+a+'</option>').join('')
+      + '</select>'
+      + '</div></div>';
+  },
+
   _renderOperatividad() {
     const cont = document.getElementById('operatividadContenido');
     if (!cont || !this._operData) return;
@@ -4495,35 +4527,7 @@ ${paginaFotos}
     if (!this._operMes) this._operMes = mesActual;
     if (!this._operAnio) this._operAnio = anioActual;
 
-    // Cabecera con filtros y tabs
-    cont.innerHTML = `
-      <div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <button onclick="app._operVista='general';app._renderOperatividad()"
-            style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;
-            background:${this._operVista==='general'?'#6e2fa0':'#f0f0f0'};
-            color:${this._operVista==='general'?'#fff':'#333'};">📊 General</button>
-          <button onclick="app._operVista='unidad';app._renderOperatividad()"
-            style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;
-            background:${this._operVista==='unidad'?'#6e2fa0':'#f0f0f0'};
-            color:${this._operVista==='unidad'?'#fff':'#333'};">👤 Por Unidad</button>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <select onchange="app._operMes=this.value;app.cargarOperatividad()"
-            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
-            ${['01','02','03','04','05','06','07','08','09','10','11','12'].map(m =>
-              `<option value="${m}" ${this._operMes===m?'selected':''}>${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(m)-1]}</option>`
-            ).join('')}
-          </select>
-          <select onchange="app._operAnio=this.value;app.cargarOperatividad()"
-            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
-            ${[anioActual, String(parseInt(anioActual)-1)].map(a =>
-              `<option value="${a}" ${this._operAnio===a?'selected':''}>${a}</option>`
-            ).join('')}
-          </select>
-        </div>
-      </div>
-      <div id="operContenidoFiltrado"></div>`;
+    cont.innerHTML = this._renderFiltrosOper() + '<div id="operContenidoFiltrado"></div>';
 
     if (this._operVista === 'general') this._renderGeneral();
     else this._renderPorUnidad();
@@ -4532,6 +4536,15 @@ ${paginaFotos}
   _filtrarPorMes(lista, campoFecha) {
     const prefijo = this._operAnio + '-' + this._operMes;
     return lista.filter(item => String(item[campoFecha]||'').startsWith(prefijo));
+  },
+
+  _toggleRankVer(masId, btnId, n) {
+    const el = document.getElementById(masId);
+    const btn = document.getElementById(btnId);
+    if (!el || !btn) return;
+    const visible = el.style.display !== 'none';
+    el.style.display = visible ? 'none' : 'block';
+    btn.textContent = visible ? '▼ Ver más (' + n + ')' : '▲ Ver menos';
   },
 
   _renderGeneral() {
@@ -4550,14 +4563,25 @@ ${paginaFotos}
     });
     const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
 
-    const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias);
-    const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades);
-    const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente);
-    const medallas = ['🥇','🥈','🥉','4️⃣','5️⃣'];
-    const rankRow = (p,i,val,lbl) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">
-      <div><span style="font-size:15px;">${medallas[i]||'#'+(i+1)}</span>
-        <strong style="margin-left:6px;font-size:13px;">${p.nombre}</strong></div>
-      <span style="font-weight:700;color:#6e2fa0;">${val} ${lbl}</span></div>`;
+    const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias).filter(p=>p.emergencias>0);
+    const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades).filter(p=>p.horasActividades>0);
+    const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente).filter(p=>p.domingosPresente>0);
+    const medallas = ['🥇','🥈','🥉'];
+    const rankRow = (p,i,val,lbl) => '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
+      + '<div><span style="font-size:15px;">'+(medallas[i]||'<span style="font-size:12px;color:#999;">#'+(i+1)+'</span>')+'</span>'
+      + '<strong style="margin-left:6px;font-size:13px;">'+p.nombre+'</strong></div>'
+      + '<span style="font-weight:700;color:#6e2fa0;">'+val+' '+lbl+'</span></div>';
+    const rankList = (lista, getId, val, lbl, color) => {
+      const top3 = lista.slice(0,3).map((p,i)=>rankRow(p,i,val(p),lbl)).join('');
+      const resto = lista.slice(3);
+      if (!resto.length) return top3;
+      const masId = getId + '_mas';
+      const btnId = getId + '_btn';
+      const restHtml = '<div id="'+masId+'" style="display:none;">'
+        + resto.map((p,i)=>rankRow(p,i+3,val(p),lbl)).join('') + '</div>'
+        + '<button data-mas="'+masId+'" data-n="'+resto.length+'" onclick="var m=document.getElementById(this.dataset.mas);var v=m.style.display!==\'none\';m.style.display=v?\'none\':\'block\';this.textContent=v?\'\u25bc Ver m\u00e1s (\'+this.dataset.n+\')\':(\'\u25b2 Ver menos\');" '
+        + 'style="width:100%;padding:6px;margin-top:4px;background:#f5f5f5;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:'+color+';">\u25bc Ver m\u00e1s ('+resto.length+')</button>';
+    };
 
     cont.innerHTML = `
       <div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
@@ -4589,17 +4613,15 @@ ${paginaFotos}
 
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#c0392b;margin-bottom:8px;">🚨 Ranking Emergencias</div>
-        ${topEmerg.filter(p=>p.emergencias>0).slice(0,5).map((p,i)=>rankRow(p,i,p.emergencias,'emerg.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin emergencias en este período</div>'}
+        ${topEmerg.length ? rankList(topEmerg,'rk_emerg',p=>p.emergencias,'emerg.','#c0392b') : '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin emergencias en este período</div>'}
       </div>
-
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#1e8449;margin-bottom:8px;">🎯 Ranking Actividades</div>
-        ${topActiv.filter(p=>p.horasActividades>0).slice(0,5).map((p,i)=>rankRow(p,i,p.horasActividades+'h','activ.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin actividades en este período</div>'}
+        ${topActiv.length ? rankList(topActiv,'rk_activ',p=>p.horasActividades+'h','activ.','#1e8449') : '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin actividades en este período</div>'}
       </div>
-
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
-        ${topDomin.filter(p=>p.domingosPresente>0).slice(0,5).map((p,i)=>rankRow(p,i,p.domingosPresente,'dom.')).join('') || '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin asistencia registrada en este período</div>'}
+        ${topDomin.length ? rankList(topDomin,'rk_domin',p=>p.domingosPresente,'dom.','#e67e22') : '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin asistencia registrada en este período</div>'}
       </div>
 
       <button onclick="app._imprimirReporteGeneral()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
@@ -4638,28 +4660,85 @@ ${paginaFotos}
     const colorAlerta = p.tipoAlerta === 'RETIRO' ? '#c00' : p.tipoAlerta === 'LLAMADO_ESCRITO' ? '#e65100' : p.tipoAlerta === 'LLAMADO_VERBAL' ? '#ff9800' : null;
     const uid = 'u_' + p.nombre.replace(/[^a-zA-Z]/g,'').substring(0,12);
     return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
-      + '<div><div style="font-weight:700;font-size:15px;">' + p.nombre + '</div>'
-      + '<div style="font-size:12px;color:#666;">CC: ' + (p.cedula||'-') + '</div></div>'
-      + '<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">' + pts + ' pts</div>'
-      + (colorAlerta ? '<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>' : '')
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
+      + '<div><div style="font-weight:700;font-size:15px;">'+p.nombre+'</div>'
+      + '<div style="font-size:12px;color:#666;">CC: '+(p.cedula||'-')+'</div></div>'
+      + '<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">'+pts+' pts</div>'
+      + (colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
       + '</div></div>'
+      // 3 botones expandibles
       + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
-      + '<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;">'
-      + '<div style="font-size:18px;font-weight:700;color:#c0392b;">' + p.emergencias + '</div>'
-      + '<div style="font-size:10px;color:#666;">Emergencias</div></div>'
-      + '<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" onclick="app._verActividadesPersona(this.dataset.nom,this.dataset.uid)" data-nom="' + p.nombre.replace(/"/g,'&quot;') + '" data-uid="' + uid + '">'
-      + '<div style="font-size:18px;font-weight:700;color:#1e8449;">' + p.horasActividades + 'h</div>'
-      + '<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver actividades</div></div>'
-      + '<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;">'
-      + '<div style="font-size:18px;font-weight:700;color:#e67e22;">' + p.domingosPresente + '</div>'
-      + '<div style="font-size:10px;color:#666;">Domingos</div></div></div>'
-      + '<div id="' + uid + '_acts" style="display:none;margin-bottom:8px;"></div>'
+      // Emergencias
+      + '<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      + '<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
+      + '<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
+      // Actividades
+      + '<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      + '<div style="font-size:18px;font-weight:700;color:#1e8449;">'+p.horasActividades+'h</div>'
+      + '<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
+      // Domingos
+      + '<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      + '<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
+      + '<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div></div>'
+      + '</div>'
+      // Contenedor expandible
+      + '<div id="'+uid+'_det" style="display:none;margin-bottom:8px;"></div>'
       + '<div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">'
-      + '<span>Asistencia domingos: <strong>' + pctDom + '%</strong></span>'
-      + (p.horasSancion > 0 ? '<span style="color:#c00;font-weight:700;">⚠️ ' + p.horasSancion + 'h sanción</span>' : '<span style="color:#1e8449;">✅ Sin sanciones</span>')
+      + '<span>Asistencia domingos: <strong>'+pctDom+'%</strong></span>'
+      + (p.horasSancion>0?'<span style="color:#c00;font-weight:700;">⚠️ '+p.horasSancion+'h sanción</span>':'<span style="color:#1e8449;">✅ Sin sanciones</span>')
       + '</div></div>';
   },
+
+  async _expandirDetalle(tipo, uid, nombre) {
+    const cont = document.getElementById(uid + '_det');
+    if (!cont) return;
+    // Toggle si ya está abierto con el mismo tipo
+    if (cont.style.display !== 'none' && cont.dataset.tipo === tipo) {
+      cont.style.display = 'none'; return;
+    }
+    cont.style.display = 'block';
+    cont.dataset.tipo = tipo;
+    cont.innerHTML = '<div style="font-size:12px;color:#999;padding:6px;">Cargando...</div>';
+    const accion = tipo==='emerg' ? 'obtenerEmergenciasPersona' : tipo==='activ' ? 'obtenerActividadesPersona' : 'obtenerDomingosPersona';
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ accion, nombre, mes: this._operMes, anio: this._operAnio })
+      });
+      const data = await resp.json();
+      if (!data.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:4px;">Error: '+data.error+'</div>'; return; }
+
+      let html = '<div style="background:#fafafa;border-radius:8px;padding:8px;border-top:2px solid '+(tipo==='emerg'?'#c0392b':tipo==='activ'?'#1e8449':'#e67e22')+'">';
+      if (tipo === 'emerg') {
+        const lista = data.emergencias || [];
+        if (!lista.length) { html += '<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin emergencias en este período</div>'; }
+        else lista.forEach(e => { html += '<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;">'
+          + '<strong style="color:#c0392b;">'+e.consecutivo+'</strong>'
+          + '<span style="float:right;font-size:11px;color:#666;">'+e.fecha+'</span>'
+          + '<div style="color:#555;">'+e.tipo+'</div></div>'; });
+      } else if (tipo === 'activ') {
+        const lista = data.actividades || [];
+        if (!lista.length) { html += '<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin actividades en este período</div>'; }
+        else lista.forEach(a => { html += '<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;">'
+          + '<strong style="color:#1e8449;">'+(a.tipo||'Actividad')+'</strong>'
+          + '<span style="float:right;font-weight:700;color:#1e8449;">'+a.horas+'h</span>'
+          + '<div style="color:#555;">'+(a.descripcion||'').substring(0,50)+'</div>'
+          + '<div style="font-size:11px;color:#999;">📅 '+a.fecha+'</div></div>'; });
+      } else {
+        const lista = data.domingos || [];
+        if (!lista.length) { html += '<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin domingos registrados en este período</div>'; }
+        else lista.forEach(d => { html += '<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;">'
+          + '<strong style="color:#e67e22;">📅 '+d.fecha+'</strong>'
+          + (d.tipo ? '<span style="float:right;font-size:11px;color:#666;">'+d.tipo+'</span>' : '')
+          + (d.tema ? '<div style="color:#555;">📚 '+d.tema+'</div>' : '')
+          + (d.lugar ? '<div style="font-size:11px;color:#999;">📍 '+d.lugar+'</div>' : '')
+          + '</div>'; });
+      }
+      html += '</div>';
+      cont.innerHTML = html;
+    } catch(e) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:4px;">Error de red</div>'; }
+  },
+
 
   async _verActividadesPersona(nombre, uid) {
     const cont = document.getElementById(uid + '_acts');
