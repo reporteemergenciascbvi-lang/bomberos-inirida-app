@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.38';
+const APP_VERSION = '5.39';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4500,7 +4500,7 @@ ${paginaFotos}
   _renderFiltrosOper() {
     const ahora = new Date();
     const anioActual = String(ahora.getFullYear());
-    if (!this._operMes) this._operMes = String(ahora.getMonth()+1).padStart(2,'0');
+    // _operMes puede ser '' (todo el año) — no resetear
     if (!this._operAnio) this._operAnio = anioActual;
     const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     return '<div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
@@ -4525,7 +4525,7 @@ ${paginaFotos}
     const ahora = new Date();
     const mesActual = String(ahora.getMonth()+1).padStart(2,'0');
     const anioActual = String(ahora.getFullYear());
-    if (!this._operMes) this._operMes = mesActual;
+    // _operMes puede ser '' (todo el año) — no resetear
     if (!this._operAnio) this._operAnio = anioActual;
 
     cont.innerHTML = this._renderFiltrosOper() + '<div id="operContenidoFiltrado"></div>';
@@ -4535,7 +4535,7 @@ ${paginaFotos}
   },
 
   _filtrarPorMes(lista, campoFecha) {
-    const prefijo = this._operAnio + '-' + this._operMes;
+    const prefijo = this._operMes ? (this._operAnio + '-' + this._operMes) : '';
     return lista.filter(item => String(item[campoFecha]||'').startsWith(prefijo));
   },
 
@@ -4633,7 +4633,7 @@ ${paginaFotos}
     const cont = document.getElementById('operContenidoFiltrado');
     if (!cont) return;
     const d = [...this._operData].sort((a,b) => a.nombre.localeCompare(b.nombre));
-    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
 
     cont.innerHTML = `
       <div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">
@@ -4650,7 +4650,7 @@ ${paginaFotos}
   _filtrarUnidades(q) {
     const lista = document.getElementById('listaUnidades');
     if (!lista) return;
-    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const filtrado = this._operData.filter(p => p.nombre.toUpperCase().includes(q.toUpperCase()));
     lista.innerHTML = filtrado.map(p => this._cardUnidad(p, mesNombre)).join('');
   },
@@ -4771,7 +4771,7 @@ ${paginaFotos}
 
   _imprimirReporteGeneral() {
     const d = this._operData;
-    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades+b.domingosPresente)-(a.emergencias*2+a.horasActividades+a.domingosPresente));
     const w = window.open('','_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -4815,7 +4815,7 @@ ${paginaFotos}
 
   _imprimirReportePorUnidad() {
     const d = [...this._operData].sort((a,b)=>a.nombre.localeCompare(b.nombre));
-    const mesNombre = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1];
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const w = window.open('','_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
