@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.40';
+const APP_VERSION = '5.41';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4034,8 +4034,8 @@ ${paginaFotos}
         +'<div><strong style="font-size:14px;">'+p.nombre+'</strong>'+(p.esNuevo?' (NUEVO)':'')+(enc?' (ENCARGADO)':'')
         +'<div style="font-size:12px;color:#666;">CC: '+p.cedula+' | '+p.rango+'</div></div>'
         +'<div style="display:flex;gap:4px;">'
-        +'<button data-i="'+i+'" onclick="app._toggleEncargado(+this.dataset.i)" style="background:none;border:none;font-size:18px;cursor:pointer;opacity:'+(enc?'1':'0.3')+';">star</button>'
-        +'<button data-i="'+i+'" onclick="app._quitarPersonalActividad(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:18px;cursor:pointer;">X</button>'
+        +'<button data-i="'+i+'" onclick="app._toggleEncargado(+this.dataset.i)" title="Encargado" style="background:none;border:none;font-size:20px;cursor:pointer;opacity:'+(enc?'1':'0.25')+';">&#11088;</button>'
+        +'<button data-i="'+i+'" onclick="app._quitarPersonalActividad(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:18px;cursor:pointer;">&#x2715;</button>'
         +'</div></div>';
     }).join('');
   },
@@ -4119,7 +4119,7 @@ ${paginaFotos}
           +'<div style="font-size:13px;color:#666;margin-top:4px;">'+a.fecha+' | '+a.duracion+'h</div>'
           +'<div style="font-size:12px;color:#999;margin-top:2px;">Por: '+a.registradoPor+'</div>'
           +'</div>'
-          +(_ea?'<button data-i="'+i+'" onclick="event.stopPropagation();var _x=app._listaActividades[+this.dataset.i];app.eliminarActividad(_x.id,_x.tipo);" style="background:none;border:none;color:#c00;font-size:20px;cursor:pointer;padding:4px 8px;">X</button>':'')
+          +(_ea?'<button data-i="'+i+'" onclick="event.stopPropagation();var _x=app._listaActividades[+this.dataset.i];app.eliminarActividad(_x.id,_x.tipo);" style="background:none;border:none;color:#c00;font-size:20px;cursor:pointer;padding:4px 8px;">&#128465;</button>':'')
           +'</div></div>';
       }).join('');
     } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error cargando actividades</div>'; }
@@ -4286,6 +4286,34 @@ ${paginaFotos}
       if(d1.ok) d1.personal.forEach(p=>{const k=p.cedula||p.nombre;this._asistRegistros[k]={nombre:p.nombre,cedula:p.cedula,estado:prev[k]||'PRESENTE'};});
     }catch(e){cont.innerHTML='<div style="color:#c00;padding:10px;">Error: '+e.message+'</div>';return;}
     this._renderAsistencia(fecha);
+  },
+
+  _renderAsistencia(fecha) {
+    const cont = document.getElementById('asistListaPersonal');
+    if (!cont) return;
+    const lista = Object.values(this._asistRegistros);
+    cont.innerHTML = '<div style="font-size:12px;color:#555;margin-bottom:10px;">Registrando asistencia para el <strong>'+fecha+'</strong></div>'
+      + (lista.length === 0
+        ? '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal cargado aun</div>'
+        : lista.map((p,i) =>
+          '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0;">'
+          + '<div style="flex:1;"><div style="font-size:14px;font-weight:600;">'+p.nombre+'</div>'
+          + '<div style="font-size:11px;color:#999;">CC: '+(p.cedula||'-')+'</div></div>'
+          + '<select data-k="'+(p.cedula||p.nombre)+'" data-n="'+p.nombre.replace(/"/g,"&quot;")+'" onchange="app._setAsistencia(this.dataset.k,this.dataset.n,this.value)" '
+          + 'style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:'+(p.estado==='PRESENTE'?'#e8f5e9':p.estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee')+'">'
+          + '<option value="PRESENTE" '+(p.estado==='PRESENTE'?'selected':'')+'>Presente</option>'
+          + '<option value="AUSENTE_EXCUSA" '+(p.estado==='AUSENTE_EXCUSA'?'selected':'')+'>C/excusa</option>'
+          + '<option value="AUSENTE_SIN_EXCUSA" '+(p.estado==='AUSENTE_SIN_EXCUSA'?'selected':'')+'>Sin excusa</option>'
+          + '</select>'
+          + '<button data-k="'+(p.cedula||p.nombre)+'" onclick="app._quitarAsistencia(this.dataset.k)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;padding:4px;margin-left:4px;">X</button>'
+          + '</div>'
+        ).join(''))
+      + '<div style="position:relative;margin-top:10px;">'
+      + '<input type="text" id="asistBuscar" placeholder="Buscar y agregar bombero..." autocomplete="off" '
+      + 'style="width:100%;padding:10px;border:1px solid #1e8449;border-radius:8px;font-size:14px;box-sizing:border-box;" '
+      + 'oninput="app.buscarPersonalAsistencia(this.value)">'
+      + '<div id="asistSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;"></div>'
+      + '</div>';
   },
 
   _setAsistencia(key, nombre, estado) {
@@ -4525,7 +4553,7 @@ ${paginaFotos}
       const pb = b.emergencias*2 + b.horasActividades + b.domingosPresente;
       return pb - pa;
     });
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
 
     const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias);
     const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades);
@@ -4586,7 +4614,7 @@ ${paginaFotos}
     const cont = document.getElementById('operContenidoFiltrado');
     if (!cont) return;
     const d = [...this._operData].sort((a,b) => a.nombre.localeCompare(b.nombre));
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
 
     cont.innerHTML = `
       <div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">
@@ -4602,7 +4630,7 @@ ${paginaFotos}
   _filtrarUnidades(q) {
     const lista = document.getElementById('listaUnidades');
     if (!lista) return;
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const filtrado = this._operData.filter(p => p.nombre.toUpperCase().includes(q.toUpperCase()));
     lista.innerHTML = filtrado.map(p => this._cardUnidad(p, mesNombre)).join('');
   },
@@ -4646,7 +4674,7 @@ ${paginaFotos}
 
   _imprimirReporteGeneral() {
     const d = this._operData;
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades+b.domingosPresente)-(a.emergencias*2+a.horasActividades+a.domingosPresente));
     const w = window.open('','_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -4690,7 +4718,7 @@ ${paginaFotos}
 
   _imprimirReportePorUnidad() {
     const d = [...this._operData].sort((a,b)=>a.nombre.localeCompare(b.nombre));
-    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el anyo';
+    const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const w = window.open('','_blank');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
@@ -4787,7 +4815,7 @@ ${paginaFotos}
   _renderRecursos() {
     const cont=document.getElementById('actRecursosLista');if(!cont)return;
     if(!this._actRecursos.length){cont.innerHTML='';return;}
-    cont.innerHTML=this._actRecursos.map((r,i)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#e3f2fd;border-radius:6px;margin-bottom:4px;font-size:13px;"><div>Vehiculo: <strong>'+r.tipo+'</strong>'+(r.codigo?' ('+r.codigo+')':'')+' - Maquinista: '+r.responsable+'</div><button data-i="'+i+'" onclick="app._actRecursos.splice(+this.dataset.i,1);app._renderRecursos();" style="background:none;border:none;color:#c00;cursor:pointer;font-size:16px;">X</button></div>').join('');
+    cont.innerHTML=this._actRecursos.map((r,i)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#e3f2fd;border-radius:6px;margin-bottom:4px;font-size:13px;"><div>Vehiculo: <strong>'+r.tipo+'</strong>'+(r.codigo?' ('+r.codigo+')':'')+' - Maquinista: '+r.responsable+'</div><button data-i="'+i+'" onclick="app._actRecursos.splice(+this.dataset.i,1);app._renderRecursos();" style="background:none;border:none;color:#c00;cursor:pointer;font-size:16px;">&#x2715;</button></div>').join('');
   },
   _buscarAsistCampo(inputId,sugId,q){
     const sug=document.getElementById(sugId);if(!q||!q.trim()){sug.style.display='none';return;}
