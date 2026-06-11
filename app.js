@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.45';
+const APP_VERSION = '5.46';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4478,10 +4478,12 @@ ${paginaFotos}
         body: JSON.stringify({ accion: 'listarOperatividad', mes: this._operMes, anio: this._operAnio })
       });
       const data = await resp.json();
-      if (!data.ok || !data.operatividad.length) {
-        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Sin datos aún</div>'; return;
+      if (!data.ok) {
+        cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + (data.error||'desconocido') + '</div>'; return;
       }
-      this._operData = data.operatividad;
+      // Si no hay datos, _operData queda vacío y _renderOperatividad
+      // muestra los filtros + métricas en 0 (sin loop)
+      this._operData = data.operatividad || [];
       this._operStats = data.stats || null;
       this._renderOperatividad();
     } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
