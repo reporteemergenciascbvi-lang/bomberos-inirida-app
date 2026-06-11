@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.44';
+const APP_VERSION = '5.45';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4398,6 +4398,7 @@ ${paginaFotos}
           tipoReunion, tema, lugarReunion,
           encargado: document.getElementById('asistEncargado') ? document.getElementById('asistEncargado').value : '',
           comandanteGuardia: document.getElementById('asistComandanteGuardia') ? document.getElementById('asistComandanteGuardia').value : '',
+          fotos: this._asistFotos || {},
           adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || ''
         })
       });
@@ -4410,6 +4411,7 @@ ${paginaFotos}
         throw new Error(data.error);
       }
       const ausentes = registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
+      this._asistFotos = { inicio:null, medio:null, fin:null };
       this.toast('✅ Asistencia guardada — ' + ausentes + ' ausentes sin excusa', 'ok');
       setTimeout(() => this.cargarPantallaAsistencia(), 1000);
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
@@ -4515,7 +4517,19 @@ ${paginaFotos}
       + '</div></div>';
 
     if (!this._operData.length) {
-      cont.innerHTML = filtros + '<div style="text-align:center;padding:30px;color:#999;background:#fff;border-radius:12px;">Sin datos para este período</div>';
+      const mesesN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const mesNom0 = this._operMes ? mesesN[parseInt(this._operMes)-1] : 'Todo el año';
+      const card0 = (n,lbl,col) => '<div style="background:#fff;border-radius:10px;padding:14px;text-align:center;"><div style="font-size:28px;font-weight:700;color:'+col+';">'+n+'</div><div style="font-size:12px;color:#666;">'+lbl+'</div></div>';
+      cont.innerHTML = filtros
+        + '<div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">'
+        + '<div style="font-size:13px;opacity:.8;">Período</div>'
+        + '<div style="font-size:18px;font-weight:700;">'+mesNom0+' '+this._operAnio+'</div>'
+        + '<div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
+        + card0(0,'Unidades activas','#1a5276') + card0(0,'Emergencias únicas','#c0392b')
+        + card0('0h','Horas en actividades','#1e8449') + card0(0,'Asist. domingos total','#e67e22')
+        + '</div>'
+        + '<div style="text-align:center;padding:20px;color:#999;background:#fff;border-radius:12px;">Sin registros en este período</div>';
       return;
     }
     cont.innerHTML = filtros + '<div id="operContenidoFiltrado"></div>';
@@ -4535,7 +4549,7 @@ ${paginaFotos}
     const totalPersonas = d.length;
     const totalEmerg = d.reduce((s,p) => s + (p.emergencias||0), 0);
     const totalHoras = d.reduce((s,p) => s + (p.horasActividades||0), 0);
-    const totalDomingos = d.reduce((s,p) => s + (p.domingosPresente||0), 0);
+    const totalDomingos = (this._operStats && this._operStats.totalDomingos !== undefined) ? this._operStats.totalDomingos : d.reduce((s,p) => s + (p.domingosPresente||0), 0);
     const totalSancion = d.filter(p => p.horasSancion > 0).length;
     const top = [...d].sort((a,b) => {
       const pa = a.emergencias*2 + a.horasActividades + a.domingosPresente;
@@ -4980,6 +4994,44 @@ ${paginaFotos}
         }catch(e){this.toast('Error: '+e.message,'error');}
       };
     }catch(e){this.toast('Error: '+e.message,'error');}
+  }
+
+,
+  // ── Asistencia solo admin ─────────────────────────────────────────────────
+  abrirAsistencia() {
+    if (!this.esAdmin()) {
+      this.toast('Solo los administradores pueden registrar asistencia','error');
+      return;
+    }
+    this._asistFotos = { inicio:null, medio:null, fin:null };
+    this.irA('pantallaAsistencia');
+  },
+
+  _asistFotos: { inicio:null, medio:null, fin:null },
+
+  _fotoAsistencia(tipo, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Redimensionar a max 1200px para no exceder límites
+        const canvas = document.createElement('canvas');
+        const maxW = 1200;
+        const scale = Math.min(1, maxW / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        this._asistFotos[tipo] = canvas.toDataURL('image/jpeg', 0.75);
+        const okId = 'asistFoto' + (tipo==='inicio'?'Inicio':tipo==='medio'?'Medio':'Fin') + 'Ok';
+        const ok = document.getElementById(okId);
+        if (ok) ok.style.display = 'block';
+        this.toast('Foto ' + tipo + ' cargada','ok');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   }
 
 };
