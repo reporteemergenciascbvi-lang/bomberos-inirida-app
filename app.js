@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.46';
+const APP_VERSION = '5.47';
 const APP_VERSION_NOTAS = [
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -4230,14 +4230,18 @@ ${paginaFotos}
         const f = typeof d === 'string' ? d : d.fecha;
         const tipo = typeof d === 'object' ? (d.tipo||'') : '';
         const tema = typeof d === 'object' ? (d.tema||'') : '';
-        return `<div onclick="app.verAsistenciaDomingo('${f}')"
-          style="padding:10px;border-bottom:1px solid #f0f0f0;cursor:pointer;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-weight:600;">📅 ${f}${tipo?' — '+tipo:''}</span>
-            <span style="color:#1a5276;font-size:13px;">Ver →</span>
-          </div>
-          ${tema ? `<div style="font-size:12px;color:#666;margin-top:2px;">${tema}</div>` : ''}
-        </div>`;
+        const esAdmH = this.esAdmin();
+        return '<div style="padding:10px;border-bottom:1px solid #f0f0f0;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
+          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;">📅 '+f+(tipo?' — '+tipo:'')+'</span>'
+          + (esAdmH
+            ? '<button data-f="'+f+'" onclick="app.editarDomingo(this.dataset.f)" style="background:#1a5276;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">✏️</button>'
+              + '<button data-f="'+f+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">🗑️</button>'
+            : '')
+          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="color:#1a5276;font-size:13px;cursor:pointer;">Ver →</span>'
+          + '</div>'
+          + (tema ? '<div style="font-size:12px;color:#666;margin-top:2px;">'+tema+'</div>' : '')
+          + '</div>';
       }).join('');
     } catch(e) {}
 
