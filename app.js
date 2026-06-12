@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.47';
+const APP_VERSION = '5.48';
 const APP_VERSION_NOTAS = [
+  'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
   'v5.23: Editor admin: firma comandante visible + guardar con diagnóstico de error en pantalla.',
@@ -182,6 +183,9 @@ const app = {
   modoUbicacion: 'auto',
 
   async init() {
+    // v5.48 SEGURIDAD: inyecta el idToken de Google en toda petición al backend.
+    this._instalarFetchToken();
+
     if (typeof LOGO_SMALL !== 'undefined') {
       document.getElementById('logoHeader').src = LOGO_SMALL;
       document.getElementById('logoLogin').src = LOGO_SMALL;
@@ -206,6 +210,10 @@ const app = {
     const sesion = await DB.obtenerConfig('sesion');
     if (sesion && sesion.email) {
       this.usuario = sesion;
+      // v5.48: recuperar el token de Google guardado (puede estar vencido si pasó
+      // mucho tiempo; en ese caso el backend pedirá volver a iniciar sesión).
+      this._googleIdToken = sesion.idToken || '';
+      this._googleTokenExp = sesion.tokenExp || 0;
       this.actualizarUIUsuario();
       // Si ya completó registro complementario, ir a Home
       if (sesion.registroCompleto) {
@@ -354,10 +362,74 @@ const app = {
     intentar();
   },
 
+  // ── v5.48 SEGURIDAD ────────────────────────────────────────────────────────
+  // Envuelve window.fetch UNA sola vez. Para cualquier POST al backend, agrega
+  // el idToken de Google si no viene ya. Es DEFENSIVO: si algo falla, deja la
+  // petición original intacta (nunca rompe el flujo existente).
+  _instalarFetchToken() {
+    if (window.__cbviFetchPatched) return;
+    window.__cbviFetchPatched = true;
+    const _orig = window.fetch.bind(window);
+    const self = this;
+    window.fetch = function (url, opts) {
+      try {
+        if (typeof url === 'string' && url.indexOf(URL_BACKEND) === 0 &&
+            opts && opts.method && String(opts.method).toUpperCase() === 'POST' &&
+            typeof opts.body === 'string') {
+          const tok = (self.usuario && self.usuario.idToken) || self._googleIdToken || '';
+          if (tok) {
+            const obj = JSON.parse(opts.body);
+            if (obj && typeof obj === 'object' && !obj.idToken) {
+              obj.idToken = tok;
+              opts = Object.assign({}, opts, { body: JSON.stringify(obj) });
+            }
+          }
+        }
+      } catch (e) { /* nunca romper la petición original */ }
+
+      const p = _orig(url, opts);
+      // Detectar "No autorizado" + token vencido → sugerir re-login (sin cortar nada).
+      try {
+        if (typeof url === 'string' && url.indexOf(URL_BACKEND) === 0) {
+          return p.then(function (resp) {
+            try {
+              if (resp && resp.ok) {
+                resp.clone().json().then(function (j) {
+                  if (j && j.ok === false && /no autorizado/i.test(j.error || '')) {
+                    self._avisarTokenSiExpirado();
+                  }
+                }).catch(function () {});
+              }
+            } catch (e2) {}
+            return resp;
+          });
+        }
+      } catch (e3) {}
+      return p;
+    };
+  },
+
+  _avisarTokenSiExpirado() {
+    const ahora = Date.now();
+    const vencido = !this._googleTokenExp || ahora >= this._googleTokenExp;
+    if (!vencido) return; // no era por token; el backend negó por otra razón
+    if (this._avisoTokenMostrado) return; // no spamear
+    this._avisoTokenMostrado = true;
+    try {
+      this.toast('Tu sesión de Google expiró. Cierra y vuelve a iniciar sesión para seguir como admin.', 'error');
+    } catch (e) {}
+    setTimeout(() => { this._avisoTokenMostrado = false; }, 30000);
+  },
+
   async manejarRespuestaGoogle(response) {
     try {
       // Decodificar el JWT (sin verificar firma — Google ya lo firmó)
       const payload = JSON.parse(atob(response.credential.split('.')[1]));
+
+      // v5.48 SEGURIDAD: guardamos el idToken firmado por Google. El backend lo
+      // verifica para confirmar la identidad real (anti-suplantación de admin).
+      this._googleIdToken = response.credential;
+      this._googleTokenExp = (payload.exp ? payload.exp * 1000 : 0); // ms epoch
 
       // 1. Buscar perfil LOCAL primero (más rápido)
       const claveBomberoPorCorreo = 'bombero:' + payload.email;
@@ -394,7 +466,9 @@ const app = {
         grado: perfilGuardado?.grado || '',
         cedula: perfilGuardado?.cedula || '',
         telefono: perfilGuardado?.telefono || '',
-        registroCompleto: !!(perfilGuardado && perfilGuardado.registroCompleto)
+        registroCompleto: !!(perfilGuardado && perfilGuardado.registroCompleto),
+        idToken: response.credential,            // v5.48: token verificable por el backend
+        tokenExp: this._googleTokenExp || 0
       };
 
       this.usuario = usuario;
