@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.48';
+const APP_VERSION = '5.49';
 const APP_VERSION_NOTAS = [
+  'v5.49: Sesión expira cada 8h por seguridad (re-login normal). Arreglado: la dirección GPS volvió a funcionar.',
   'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -209,6 +210,18 @@ const app = {
     // Verificar si hay sesión activa
     const sesion = await DB.obtenerConfig('sesion');
     if (sesion && sesion.email) {
+      // v5.49 SEGURIDAD: expirar sesión local cada 8 horas.
+      // Fuerza re-login con Google → token fresco verificable por el backend.
+      // Los reportes locales NO se borran, solo se vuelve a autenticar.
+      // Sesiones viejas sin sello (creadaEn) no expiran de golpe.
+      const SESION_MAX_MS = 8 * 60 * 60 * 1000; // 8 horas
+      if (sesion.creadaEn && (Date.now() - sesion.creadaEn) > SESION_MAX_MS) {
+        await DB.guardarConfig('sesion', null);
+        this.usuario = null;
+        this.toast('Sesión expirada. Por favor vuelve a iniciar sesión.', 'info');
+        this.iniciarGoogleSignIn();
+        return;
+      }
       this.usuario = sesion;
       // v5.48: recuperar el token de Google guardado (puede estar vencido si pasó
       // mucho tiempo; en ese caso el backend pedirá volver a iniciar sesión).
@@ -468,7 +481,8 @@ const app = {
         telefono: perfilGuardado?.telefono || '',
         registroCompleto: !!(perfilGuardado && perfilGuardado.registroCompleto),
         idToken: response.credential,            // v5.48: token verificable por el backend
-        tokenExp: this._googleTokenExp || 0
+        tokenExp: this._googleTokenExp || 0,
+        creadaEn: Date.now()                     // v5.49: para expirar sesión a las 8h
       };
 
       this.usuario = usuario;
