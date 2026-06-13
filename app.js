@@ -20,9 +20,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.49';
+const APP_VERSION = '5.50';
 const APP_VERSION_NOTAS = [
-  'v5.49: Sesión expira cada 8h por seguridad (re-login normal). Arreglado: la dirección GPS volvió a funcionar.',
+  'v5.50: Las fotos y firmas ahora SÍ se ven al imprimir, ver y editar reportes/actividades. Domingos de prueba eliminados ya no reaparecen.',
+  'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
   'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
   'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
@@ -1924,7 +1925,7 @@ const app = {
         const slotEl = document.querySelector(`.foto-slot[data-foto="${i}"]`);
         if (slotEl) {
           slotEl.innerHTML = `
-            <img src="${f}" alt="">
+            <img src="${this._imgDrive(f)}" alt="">
             <button class="quitar" onclick="event.stopPropagation(); app.quitarFoto(${i})">×</button>
           `;
           slotEl.classList.add('con-foto');
@@ -2569,7 +2570,7 @@ const app = {
     };
     const lista = (arr) => (arr && arr.length) ? arr.join(', ') : '—';
 
-    const fotos = r.fotos || [];
+    const fotos = (r.fotos || []).map(u => this._imgDrive(u));
     const fotosHTML = fotos.length === 0
       ? '<div style="color:#999;font-style:italic;padding:8px;">Sin fotografías</div>'
       : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">${
@@ -2590,25 +2591,16 @@ const app = {
     const _srcFirmaCmd = firmas.comandante || r.firmaComandanteURL || '';
     const renderFirma = (url, etiqueta) => {
       if (!url) return `<div style="color:#999;font-style:italic;">${etiqueta}: —</div>`;
-      // URL de Drive → botón enlace (no se puede embeber img por CORS/auth)
-      if (url.startsWith('http') && !url.startsWith('data:')) {
-        return `<div style="border:1px solid #ccc;border-radius:6px;padding:8px;background:#fafafa;margin-bottom:4px;">
-          <div style="font-size:11px;color:#666;margin-bottom:6px;">${etiqueta}</div>
-          <a href="${url}" target="_blank"
-             style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;
-                    background:#7a1010;color:#fff;border-radius:6px;text-decoration:none;
-                    font-size:12px;font-weight:700;">
-            ✍️ Ver firma en Drive
-          </a>
-        </div>`;
-      }
-      // base64 local → imagen directa
+      // v5.49: URL de Drive → convertir a imagen directa (thumbnail) y embeber.
+      // Si falla, deja enlace de respaldo a Drive.
+      const src = this._imgDrive(url);
+      const esDrive = url.startsWith('http') && !url.startsWith('data:');
       return `<div style="border:1px solid #ccc;border-radius:6px;padding:6px;background:#fafafa;">
         <div style="font-size:11px;color:#666;margin-bottom:4px;">${etiqueta}</div>
         <a href="${url}" target="_blank">
-          <img src="${url}" alt="${etiqueta}"
+          <img src="${src}" alt="${etiqueta}"
                style="max-width:100%;max-height:80px;background:white;border:1px solid #eee;"
-               onerror="this.style.display='none';">
+               onerror="this.style.display='none';this.parentNode.innerHTML='${esDrive ? '✍️ Ver firma en Drive' : '—'}';">
         </a>
       </div>`;
     };
@@ -3245,6 +3237,37 @@ const app = {
   },
 
   // Helper interno: abre ventana nueva con el HTML del reporte y lanza el diálogo de impresión
+  // ── v5.49 FIX IMPRESIÓN ──────────────────────────────────────────────────
+  // Las fotos/firmas guardadas en el servidor son URLs de PÁGINA de Drive
+  // (drive.google.com/file/d/ID/view). Eso no se puede pintar en <img>.
+  // Esta función las convierte a URL de imagen directa. Las fotos locales
+  // (base64 data:) pasan sin tocar. Repara también reportes viejos.
+  _imgDrive(url) {
+    if (!url || typeof url !== 'string') return '';
+    if (url.startsWith('data:')) return url;            // base64 local: intacta
+    let id = '';
+    let m = url.match(/drive\.google\.com\/file\/d\/([\w-]{10,})/);
+    if (m) id = m[1];
+    if (!id) { m = url.match(/[?&]id=([\w-]{10,})/); if (m) id = m[1]; }
+    if (!id) return url;                                 // otra URL: intacta
+    return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1600';
+  },
+
+  // Espera a que TODAS las imágenes de la ventana de impresión carguen
+  // (máximo 10 s, pensado para el internet de Inírida) antes de imprimir.
+  _imprimirCuandoCarguenImagenes(ventana, maxMs) {
+    const imgs = Array.from(ventana.document.images || []);
+    const esperas = imgs.map(img => new Promise(res => {
+      if (img.complete) return res();
+      img.onload = () => res();
+      img.onerror = () => res(); // no colgar si una foto falla
+    }));
+    const tope = new Promise(res => setTimeout(res, maxMs || 10000));
+    Promise.race([Promise.all(esperas), tope]).then(() => {
+      setTimeout(() => { try { ventana.focus(); ventana.print(); } catch (e) { console.warn(e); } }, 300);
+    });
+  },
+
   async _imprimirReporteEnVentanaNueva(r) {
     try {
       const html = this.generarHTMLImpresion(r);
@@ -3256,11 +3279,8 @@ const app = {
       ventana.document.open();
       ventana.document.write(html);
       ventana.document.close();
-      ventana.onload = () => {
-        setTimeout(() => {
-          try { ventana.print(); } catch (e) { console.warn(e); }
-        }, 800);
-      };
+      // v5.49: esperar a que carguen fotos/firmas (antes imprimía a los 800ms y salían en blanco)
+      this._imprimirCuandoCarguenImagenes(ventana, 10000);
     } catch (e) {
       this.toast('Error al generar PDF: ' + e.message, 'error');
       console.error(e);
@@ -3462,10 +3482,8 @@ const app = {
     }
     ventana.document.write(html);
     ventana.document.close();
-    setTimeout(() => {
-      ventana.focus();
-      ventana.print();
-    }, 500);
+    // v5.49: esperar a que carguen fotos/firmas antes de imprimir (antes: 500ms fijos)
+    this._imprimirCuandoCarguenImagenes(ventana, 10000);
   },
 
   generarHTMLImpresion(r) {
@@ -3510,7 +3528,7 @@ const app = {
     const filaVacia5 = '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>';
     const filaVacia3 = '<tr><td>&nbsp;</td><td></td><td></td></tr>';
 
-    const fotos = r.fotos || [];
+    const fotos = (r.fotos || []).map(u => this._imgDrive(u));
     const tieneFotos = fotos.length > 0;
 
     // Genera una hoja de anexo con 3 fotos (indiceInicio..indiceInicio+2)
@@ -3828,7 +3846,7 @@ const app = {
         <td>${sn(r.afectadoNombre)}</td>
         <td>${sn(r.afectadoCC)}</td>
         <td>${sn(r.afectadoCel)}</td>
-        <td>${r.firmas?.afectado ? `<img src="${r.firmas.afectado}" class="firma-img">` : '&nbsp;'}</td>
+        <td>${r.firmas?.afectado ? `<img src="${this._imgDrive(r.firmas.afectado)}" class="firma-img">` : '&nbsp;'}</td>
       </tr>
     </table>
     <div class="aviso">⚠ Aviso Ley 1581 de 2012 (Habeas Data): Los datos personales recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos Voluntarios de Inírida.</div>
@@ -3902,7 +3920,7 @@ const app = {
       <tr>
         <td class="label">FIRMA:</td>
         <td colspan="3" style="height: 60px;">
-          ${r.firmas?.comandante ? `<img src="${r.firmas.comandante}" class="firma-img" style="max-height: 55px;">` : '&nbsp;'}
+          ${r.firmas?.comandante ? `<img src="${this._imgDrive(r.firmas.comandante)}" class="firma-img" style="max-height: 55px;">` : '&nbsp;'}
         </td>
       </tr>
     </table>
@@ -4247,9 +4265,9 @@ ${paginaFotos}
         <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
           <div style="font-weight:700;margin-bottom:8px;">📸 Fotos</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
-            ${a.fotoInicio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Inicio</div><img src="${a.fotoInicio}" style="width:100%;border-radius:6px;"></div>` : ''}
-            ${a.fotoMedio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Intermedio</div><img src="${a.fotoMedio}" style="width:100%;border-radius:6px;"></div>` : ''}
-            ${a.fotoFin ? `<div><div style="font-size:11px;color:#666;text-align:center;">Final</div><img src="${a.fotoFin}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${a.fotoInicio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Inicio</div><img src="${this._imgDrive(a.fotoInicio)}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${a.fotoMedio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Intermedio</div><img src="${this._imgDrive(a.fotoMedio)}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${a.fotoFin ? `<div><div style="font-size:11px;color:#666;text-align:center;">Final</div><img src="${this._imgDrive(a.fotoFin)}" style="width:100%;border-radius:6px;"></div>` : ''}
           </div>
         </div>` : ''}`;
     } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
@@ -4281,14 +4299,14 @@ ${paginaFotos}
       ${a.personal.map((p,i) => `<tr><td>${i+1}</td><td>${p.nombre}</td><td>${p.cedula}</td><td>${p.rango}</td><td>${p.horas}h</td></tr>`).join('')}
       </table>
       ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `<h2>Registro fotográfico</h2><div class="fotos">
-        ${a.fotoInicio ? `<div><p style="text-align:center;font-weight:700;">Inicio</p><img src="${a.fotoInicio}"></div>` : ''}
-        ${a.fotoMedio ? `<div><p style="text-align:center;font-weight:700;">Intermedio</p><img src="${a.fotoMedio}"></div>` : ''}
-        ${a.fotoFin ? `<div><p style="text-align:center;font-weight:700;">Final</p><img src="${a.fotoFin}"></div>` : ''}
+        ${a.fotoInicio ? `<div><p style="text-align:center;font-weight:700;">Inicio</p><img src="${this._imgDrive(a.fotoInicio)}"></div>` : ''}
+        ${a.fotoMedio ? `<div><p style="text-align:center;font-weight:700;">Intermedio</p><img src="${this._imgDrive(a.fotoMedio)}"></div>` : ''}
+        ${a.fotoFin ? `<div><p style="text-align:center;font-weight:700;">Final</p><img src="${this._imgDrive(a.fotoFin)}"></div>` : ''}
       </div>` : ''}
       <p style="margin-top:20px;font-size:10pt;color:#666;">CUERPO DE BOMBEROS VOLUNTARIOS DE INÍRIDA — ABNEGACIÓN Y DISCIPLINA</p>
       </body></html>`);
     w.document.close();
-    setTimeout(() => w.print(), 800);
+    this._imprimirCuandoCarguenImagenes(w, 10000);
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -4689,7 +4707,7 @@ ${paginaFotos}
           <div style="font-size:12px;color:#666;">Emergencias únicas</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
-          <div style="font-size:28px;font-weight:700;color:#1e8449;">${totalHoras}h</div>
+          <div style="font-size:28px;font-weight:700;color:#1e8449;">${(this._operStats && this._operStats.totalHorasActividades !== undefined) ? this._operStats.totalHorasActividades : totalHoras}h</div>
           <div style="font-size:12px;color:#666;">Horas en actividades</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
