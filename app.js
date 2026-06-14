@@ -20,9 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.50';
+const APP_VERSION = '5.53';
 const APP_VERSION_NOTAS = [
-  'v5.50: Las fotos y firmas ahora SÍ se ven al imprimir, ver y editar reportes/actividades. Domingos de prueba eliminados ya no reaparecen.',
+  'v5.53: ARREGLADO: la app vuelve a funcionar SIN internet (no te saca a las 8h). Ahora se pueden subir 6 fotos por reporte.',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
   'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
@@ -211,23 +211,14 @@ const app = {
     // Verificar si hay sesión activa
     const sesion = await DB.obtenerConfig('sesion');
     if (sesion && sesion.email) {
-      // v5.49 SEGURIDAD: expirar sesión local cada 8 horas.
-      // Fuerza re-login con Google → token fresco verificable por el backend.
-      // Los reportes locales NO se borran, solo se vuelve a autenticar.
-      // Sesiones viejas sin sello (creadaEn) no expiran de golpe.
-      const SESION_MAX_MS = 8 * 60 * 60 * 1000; // 8 horas
-      if (sesion.creadaEn && (Date.now() - sesion.creadaEn) > SESION_MAX_MS) {
-        await DB.guardarConfig('sesion', null);
-        this.usuario = null;
-        this.toast('Sesión expirada. Por favor vuelve a iniciar sesión.', 'info');
-        this.iniciarGoogleSignIn();
-        return;
-      }
+      // v5.53: la sesión local NUNCA se borra sola → la app funciona OFFLINE
+      // siempre (su razón de ser). La seguridad de admin la controla el backend
+      // con el "pase" de 8h: si vence, las acciones admin piden re-login SOLO
+      // cuando hay internet. Un bombero normal trabaja sin conexión sin límite.
       this.usuario = sesion;
-      // v5.48: recuperar el token de Google guardado (puede estar vencido si pasó
-      // mucho tiempo; en ese caso el backend pedirá volver a iniciar sesión).
       this._googleIdToken = sesion.idToken || '';
       this._googleTokenExp = sesion.tokenExp || 0;
+      this._pase = sesion.pase || '';
       this.actualizarUIUsuario();
       // Si ya completó registro complementario, ir a Home
       if (sesion.registroCompleto) {
@@ -391,12 +382,14 @@ const app = {
             opts && opts.method && String(opts.method).toUpperCase() === 'POST' &&
             typeof opts.body === 'string') {
           const tok = (self.usuario && self.usuario.idToken) || self._googleIdToken || '';
-          if (tok) {
-            const obj = JSON.parse(opts.body);
-            if (obj && typeof obj === 'object' && !obj.idToken) {
-              obj.idToken = tok;
-              opts = Object.assign({}, opts, { body: JSON.stringify(obj) });
-            }
+          const obj = JSON.parse(opts.body);
+          if (obj && typeof obj === 'object') {
+            let cambio = false;
+            if (tok && !obj.idToken) { obj.idToken = tok; cambio = true; }
+            // v5.51: pase de 8h (no depende del token de 1h de Google)
+            const pase = (self.usuario && self.usuario.pase) || self._pase || '';
+            if (pase && !obj.pase) { obj.pase = pase; cambio = true; }
+            if (cambio) opts = Object.assign({}, opts, { body: JSON.stringify(obj) });
           }
         }
       } catch (e) { /* nunca romper la petición original */ }
@@ -488,6 +481,21 @@ const app = {
 
       this.usuario = usuario;
       await DB.guardarConfig('sesion', usuario);
+
+      // v5.51: pedir al backend un "pase" de 8h (no depende del token de 1h de Google).
+      // Si falla, no se rompe el login; el admin caería al modo token de 1h.
+      try {
+        const rPase = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'iniciarSesion', idToken: response.credential })
+        });
+        const dPase = await rPase.json();
+        if (dPase && dPase.ok && dPase.pase) {
+          this._pase = dPase.pase;
+          this.usuario.pase = dPase.pase;
+          await DB.guardarConfig('sesion', this.usuario);
+        }
+      } catch (ePase) { console.warn('No se pudo obtener pase de 8h:', ePase); }
 
       this.toast(`Bienvenido, ${usuario.nombrePila || usuario.email}`, 'exito');
 
@@ -4277,33 +4285,63 @@ ${paginaFotos}
     const a = this._detalleActividadData;
     if (!a) return;
     const w = window.open('', '_blank');
+    const logo = (typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '';
+    const tel = (typeof TELEFONO_ESTACION !== 'undefined') ? TELEFONO_ESTACION : '314 531 1605';
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Actividad ${a.id}</title>
       <style>
-        body{font-family:Arial,sans-serif;font-size:12pt;margin:20mm;}
-        h1{color:#1a5276;font-size:16pt;}
-        table{width:100%;border-collapse:collapse;margin:10px 0;}
-        th,td{border:1px solid #000;padding:6px 8px;font-size:11pt;}
-        th{background:#1a5276;color:#fff;}
+        body{font-family:Arial,sans-serif;font-size:12pt;margin:15mm;color:#000;}
+        .header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #7a1010;padding-bottom:10px;}
+        .header img{width:80px;height:80px;object-fit:contain;}
+        .header .info{flex:1;text-align:center;}
+        .header h2{margin:0;font-size:14pt;}
+        .header .info div{font-size:9pt;}
+        .titulo{text-align:center;font-size:15pt;font-weight:700;color:#7a1010;margin:10px 0 2px;}
+        .lema{text-align:center;font-style:italic;font-size:10pt;margin-bottom:12px;}
+        h2.sec{color:#7a1010;font-size:13pt;border-bottom:1px solid #ccc;margin-top:18px;}
+        table{width:100%;border-collapse:collapse;margin:8px 0;}
+        th,td{border:1px solid #000;padding:6px 8px;font-size:10pt;}
+        th{background:#7a1010;color:#fff;}
         .fotos{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0;}
-        .fotos img{width:100%;max-height:80mm;object-fit:contain;}
+        .fotos img{width:100%;max-height:80mm;object-fit:contain;border:1px solid #ccc;}
+        .pie{margin-top:24px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#666;text-align:center;}
         @media print{body{margin:10mm;}}
       </style></head><body>
-      <h1>🎯 ${a.tipo} — Actividad Oficial CBVI</h1>
+      <div class="header">
+        <img src="${logo}" alt="">
+        <div class="info">
+          <h2>CUERPO DE BOMBEROS VOLUNTARIOS</h2>
+          <div>INÍRIDA – GUAINÍA</div>
+          <div>Personería Jurídica N° 3561 del 5 de Agosto de 1976</div>
+          <div>NIT: 843000056-0 | Tel. ${tel} | Calle 15 N° 5-07 Zona Indígena</div>
+        </div>
+        <div style="width:80px;"></div>
+      </div>
+      <div class="titulo">REGISTRO OFICIAL DE ACTIVIDAD</div>
+      <div class="lema">"ABNEGACIÓN Y DISCIPLINA"</div>
+
+      <h2 class="sec">${a.tipo}</h2>
       <p><strong>Descripción:</strong> ${a.descripcion}</p>
       <table><tr><th>Fecha</th><th>Lugar</th><th>Hora inicio</th><th>Hora fin</th><th>Duración</th></tr>
-      <tr><td>${a.fecha}</td><td>${a.lugar||'-'}</td><td>${a.horaInicio||'-'}</td><td>${a.horaFin||'-'}</td><td>${a.duracion}h</td></tr></table>
+      <tr><td>${String(a.fecha||'').substring(0,10)}</td><td>${a.lugar||'-'}</td><td>${a.horaInicio||'-'}</td><td>${a.horaFin||'-'}</td><td>${a.duracion}h</td></tr></table>
       ${a.novedades ? `<p><strong>Novedades:</strong> ${a.novedades}</p>` : ''}
-      <h2>Personal asistente (${a.personal.length})</h2>
-      <table><tr><th>#</th><th>Nombre</th><th>Cédula</th><th>Rango</th><th>Horas acreditadas</th></tr>
+
+      <h2 class="sec">Personal asistente (${a.personal.length})</h2>
+      <table><tr><th>#</th><th>Nombre</th><th>Cédula</th><th>Rango</th><th>Horas</th></tr>
       ${a.personal.map((p,i) => `<tr><td>${i+1}</td><td>${p.nombre}</td><td>${p.cedula}</td><td>${p.rango}</td><td>${p.horas}h</td></tr>`).join('')}
       </table>
-      ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `<h2>Registro fotográfico</h2><div class="fotos">
-        ${a.fotoInicio ? `<div><p style="text-align:center;font-weight:700;">Inicio</p><img src="${this._imgDrive(a.fotoInicio)}"></div>` : ''}
-        ${a.fotoMedio ? `<div><p style="text-align:center;font-weight:700;">Intermedio</p><img src="${this._imgDrive(a.fotoMedio)}"></div>` : ''}
-        ${a.fotoFin ? `<div><p style="text-align:center;font-weight:700;">Final</p><img src="${this._imgDrive(a.fotoFin)}"></div>` : ''}
+
+      ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `<h2 class="sec">Registro fotográfico</h2><div class="fotos">
+        ${a.fotoInicio ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Inicio</p><img src="${this._imgDrive(a.fotoInicio)}"></div>` : ''}
+        ${a.fotoMedio ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Intermedio</p><img src="${this._imgDrive(a.fotoMedio)}"></div>` : ''}
+        ${a.fotoFin ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Final</p><img src="${this._imgDrive(a.fotoFin)}"></div>` : ''}
       </div>` : ''}
-      <p style="margin-top:20px;font-size:10pt;color:#666;">CUERPO DE BOMBEROS VOLUNTARIOS DE INÍRIDA — ABNEGACIÓN Y DISCIPLINA</p>
+
+      <div class="pie">
+        Registrado por: ${a.registradoPor||'-'}<br>
+        Documento bajo Ley 1575 de 2012 (Ley General de Bomberos de Colombia) | Ley 1581 de 2012 (Habeas Data)<br>
+        Cuerpo de Bomberos Voluntarios Inírida – Guainía | "ABNEGACIÓN Y DISCIPLINA"
+      </div>
       </body></html>`);
     w.document.close();
     this._imprimirCuandoCarguenImagenes(w, 10000);
