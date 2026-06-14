@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.56';
+const APP_VERSION = '5.57';
 const APP_VERSION_NOTAS = [
   'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
@@ -4641,29 +4641,67 @@ ${paginaFotos}
   },
 
   async verAsistenciaDomingo(fecha) {
-    const hist = document.getElementById('asistHistorial');
+    // v5.57: modal que funciona desde CUALQUIER pantalla (antes escribía en
+    // #asistHistorial, que solo existe en la pantalla de Asistencia → fallaba
+    // silenciosamente desde "Mis Actividades").
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ accion: 'listarAsistenciaDomingo', fecha })
       });
       const data = await resp.json();
-      if (!data.ok) return;
-      const presentes = data.registros.filter(r => r.estado === 'PRESENTE').length;
-      const ausExcusa = data.registros.filter(r => r.estado === 'AUSENTE_EXCUSA').length;
-      const ausSin = data.registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
-      const _enc=data.registros[0]&&data.registros[0].encargado||''; const _grd=data.registros[0]&&data.registros[0].comandanteGuardia||'';
-      hist.innerHTML='<div style="font-weight:700;margin-bottom:8px;">Domingo: '+fecha+'</div>'+(_enc?'<div style="font-size:12px;color:#555;margin-bottom:4px;">Encargado: <strong>'+_enc+'</strong></div>':'')+(_grd?'<div style="font-size:12px;color:#555;">Guardia: <strong>'+_grd+'</strong></div>':'')+'<div style="display:flex;gap:8px;margin-bottom:8px;font-size:13px;"><span style="background:#e8f5e9;padding:3px 8px;border-radius:4px;">Presentes: '+presentes+'</span><span style="background:#fff8e1;padding:3px 8px;border-radius:4px;">C/excusa: '+ausExcusa+'</span><span style="background:#ffebee;padding:3px 8px;border-radius:4px;">Sin excusa: '+ausSin+'</span>'+(this.esAdmin()?'<button data-f="'+fecha+'" onclick="app.editarDomingo(this.dataset.f)" style="margin-left:auto;background:#1a5276;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;margin-right:4px;">✏️ Editar</button><button data-f="'+fecha+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;">🗑️ Eliminar</button>':'')+'</div>'+
-        data.registros.map(r =>
-          `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px;display:flex;justify-content:space-between;">
-            <span>${r.nombre}</span>
-            <span style="color:${r.estado==='PRESENTE'?'#1e8449':r.estado==='AUSENTE_EXCUSA'?'#e65100':'#c00'}">
-              ${r.estado==='PRESENTE'?'✅ Presente':r.estado==='AUSENTE_EXCUSA'?'🟡 C/excusa':'🔴 Sin excusa'}
-            </span>
-          </div>`
-        ).join('') +
-        `<button onclick="app.cargarPantallaAsistencia()" style="margin-top:8px;background:#f5f5f5;color:#333;border:none;border-radius:6px;padding:8px;cursor:pointer;width:100%;font-size:13px;">← Ver todos los domingos</button>`;
-    } catch(e) {}
+      if (!data.ok) { this.toast('No se pudo cargar el domingo', 'error'); return; }
+      const regs = data.registros || [];
+      const fotos = data.fotos || [];
+      const pres = regs.filter(r => r.estado === 'PRESENTE');
+      const exc  = regs.filter(r => r.estado === 'AUSENTE_EXCUSA');
+      const sin  = regs.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA');
+      const _enc = regs[0] && regs[0].encargado || '';
+      const _grd = regs[0] && regs[0].comandanteGuardia || '';
+      const esAdm = this.esAdmin();
+
+      const grupo = (titulo, arr, color, bg) =>
+        '<div style="margin-top:10px;"><div style="font-weight:700;font-size:13px;color:'+color+';">'+titulo+' ('+arr.length+')</div>'
+        + (arr.length ? arr.map(r => '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:'+bg+';border-radius:6px;margin-top:4px;font-size:13px;"><span>'+r.nombre+'</span>'+(r.observacion?'<span style="color:#666;font-size:11px;">'+r.observacion+'</span>':'')+'</div>').join('')
+                      : '<div style="color:#999;font-size:12px;padding:4px;">Ninguno</div>')
+        + '</div>';
+
+      const fotosHTML = fotos.length
+        ? '<div style="margin-top:12px;"><div style="font-weight:700;font-size:13px;color:#1a5276;">📸 Fotos del domingo</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;">'
+          + fotos.map(f => '<img src="'+f+'" style="width:100%;border-radius:6px;border:1px solid #eee;">').join('') + '</div></div>'
+        : '';
+
+      const m = document.createElement('div');
+      m.id = '_domModal';
+      m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;overflow-y:auto;padding:14px;';
+      m.innerHTML =
+        '<div style="background:#fff;border-radius:16px;padding:18px;max-width:460px;margin:auto;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        +   '<div style="font-weight:700;font-size:16px;color:#1e8449;">📅 '+fecha+'</div>'
+        +   '<button onclick="document.getElementById(\'_domModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;">×</button>'
+        + '</div>'
+        + (regs[0] && regs[0].tipoReunion ? '<div style="font-size:13px;color:#555;">'+regs[0].tipoReunion+(regs[0].tema?' — '+regs[0].tema:'')+'</div>' : '')
+        + (_enc ? '<div style="font-size:12px;color:#555;margin-top:4px;">Encargado: <strong>'+_enc+'</strong></div>' : '')
+        + (_grd ? '<div style="font-size:12px;color:#555;">Guardia: <strong>'+_grd+'</strong></div>' : '')
+        + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
+        +   '<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">✅ Presentes: '+pres.length+'</span>'
+        +   '<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">📝 Con excusa: '+exc.length+'</span>'
+        +   '<span style="background:#ffebee;color:#c00;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">❌ Sin excusa: '+sin.length+'</span>'
+        + '</div>'
+        + grupo('🔴 SIN EXCUSA (acumulan sanción)', sin, '#c00', '#ffebee')
+        + grupo('🟡 CON EXCUSA', exc, '#e65100', '#fff8e1')
+        + grupo('✅ PRESENTES', pres, '#1e8449', '#e8f5e9')
+        + fotosHTML
+        + (esAdm
+            ? '<div style="display:flex;gap:8px;margin-top:14px;">'
+              + '<button data-f="'+fecha+'" onclick="document.getElementById(\'_domModal\').remove();app.editarDomingo(this.dataset.f)" style="flex:1;background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">✏️ Editar</button>'
+              + '<button data-f="'+fecha+'" onclick="app.eliminarDomingo(this.dataset.f)" style="flex:1;background:#c00;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">🗑️ Eliminar</button>'
+              + '</div>'
+            : '')
+        + '</div>';
+      document.body.appendChild(m);
+      m.onclick = (e) => { if (e.target === m) m.remove(); };
+    } catch(e) { this.toast('Error: ' + e.message, 'error'); }
   },
 
   async cumplirSancion(cedula, nombre) {
