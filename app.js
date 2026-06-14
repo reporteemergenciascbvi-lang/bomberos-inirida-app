@@ -20,9 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.54';
+const APP_VERSION = '5.55';
 const APP_VERSION_NOTAS = [
-  'v5.54: Arreglado el botón "Agregar y registrar" bombero nuevo. Ranking de horas ahora cuadra (usa la duración real de cada actividad).',
+  'v5.55: Ranking ya no repite a la misma persona (agrupa por cédula). La lista de asistentes del domingo vuelve a mostrarse. Se ven las fotos al editar una actividad.',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
   'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
@@ -5111,6 +5111,14 @@ ${paginaFotos}
         +'<input type="text" id="_eaL" value="'+( a.lugar||"").replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
         +'<label style="font-size:12px;font-weight:700;">Novedades</label>'
         +'<textarea id="_eaN" rows="3" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">'+( a.novedades||"")+'</textarea>'
+        +( (a.fotoInicio||a.fotoMedio||a.fotoFin)
+            ? '<label style="font-size:12px;font-weight:700;">Fotos actuales</label>'
+              +'<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">'
+              +(a.fotoInicio?'<div style="text-align:center;"><div style="font-size:10px;color:#666;">Inicio</div><img src="'+a.fotoInicio+'" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #ddd;"></div>':'')
+              +(a.fotoMedio?'<div style="text-align:center;"><div style="font-size:10px;color:#666;">Intermedio</div><img src="'+a.fotoMedio+'" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #ddd;"></div>':'')
+              +(a.fotoFin?'<div style="text-align:center;"><div style="font-size:10px;color:#666;">Final</div><img src="'+a.fotoFin+'" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #ddd;"></div>':'')
+              +'</div>'
+            : '')
         +'<div style="display:flex;gap:10px;">'
         +'<button id="_eaCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
         +'<button id="_eaGuard" style="flex:1;padding:12px;background:#1a5276;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>'
