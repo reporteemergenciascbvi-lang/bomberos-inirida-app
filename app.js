@@ -20,9 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.55';
+const APP_VERSION = '5.56';
 const APP_VERSION_NOTAS = [
-  'v5.55: Ranking ya no repite a la misma persona (agrupa por cédula). La lista de asistentes del domingo vuelve a mostrarse. Se ven las fotos al editar una actividad.',
+  'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
   'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
@@ -4211,32 +4211,60 @@ ${paginaFotos}
     const cont = document.getElementById('listaActividadesContenido');
     if (!cont) return;
     cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Cargando...</div>';
+    const esAdm = this.esAdmin();
+    let htmlAct = '', htmlDom = '';
+
+    // 1) Actividades
     try {
-      const esAdm = this.esAdmin();
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          accion: 'listarActividades',
-          emailFiltro: esAdm ? null : (this.usuario ? this.usuario.email : '')
-        })
+        body: JSON.stringify({ accion: 'listarActividades', emailFiltro: esAdm ? null : (this.usuario ? this.usuario.email : '') })
       });
       const data = await resp.json();
-      if (!data.ok || !data.actividades.length) {
-        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">No hay actividades registradas</div>'; return;
-      }
-      const _ea=this.esAdmin(); this._listaActividades=data.actividades;
-      cont.innerHTML=data.actividades.map((a,i)=>{
-        return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1a5276;">'
+      if (data.ok && data.actividades && data.actividades.length) {
+        this._listaActividades = data.actividades;
+        htmlAct = data.actividades.map((a) =>
+          '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1a5276;">'
           +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
           +'<div style="flex:1;cursor:pointer;" data-actid="'+a.id+'" onclick="app.verDetalleActividad(this.dataset.actid)">'
           +'<div style="font-weight:700;color:#1a5276;">'+a.tipo+' - '+a.descripcion.substring(0,50)+'</div>'
           +'<div style="font-size:13px;color:#666;margin-top:4px;">'+(String(a.fecha||'').substring(0,10))+' | '+a.duracion+'h | 👥 '+a.numUnidades+'</div>'
           +'<div style="font-size:12px;color:#999;margin-top:2px;">Por: '+a.registradoPor+'</div>'
           +'</div>'
-          +(_ea?'<button data-actid="'+a.id+'" data-acttipo="'+encodeURIComponent(a.tipo)+'" onclick="event.stopPropagation();app.eliminarActividad(this.dataset.actid,decodeURIComponent(this.dataset.acttipo));" style="background:none;border:none;color:#c00;font-size:22px;cursor:pointer;padding:4px 8px;" title="Eliminar">&#128465;</button>'+'<button data-actid="'+a.id+'" onclick="event.stopPropagation();app.editarActividad(this.dataset.actid);" style="background:none;border:none;color:#1a5276;font-size:20px;cursor:pointer;padding:4px 8px;" title="Editar">&#9998;</button>':'')
-          +'</div></div>';
-      }).join('');
-    } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error cargando actividades</div>'; }
+          +(esAdm?'<button data-actid="'+a.id+'" data-acttipo="'+encodeURIComponent(a.tipo)+'" onclick="event.stopPropagation();app.eliminarActividad(this.dataset.actid,decodeURIComponent(this.dataset.acttipo));" style="background:none;border:none;color:#c00;font-size:22px;cursor:pointer;padding:4px 8px;" title="Eliminar">&#128465;</button>'+'<button data-actid="'+a.id+'" onclick="event.stopPropagation();app.editarActividad(this.dataset.actid);" style="background:none;border:none;color:#1a5276;font-size:20px;cursor:pointer;padding:4px 8px;" title="Editar">&#9998;</button>':'')
+          +'</div></div>'
+        ).join('');
+      } else {
+        htmlAct = '<div style="text-align:center;padding:20px;color:#999;">No hay actividades registradas</div>';
+      }
+    } catch(e) { htmlAct = '<div style="color:#c00;padding:14px;">Error cargando actividades</div>'; }
+
+    // 2) Asistencia de domingos (con presentes / excusa / sin excusa)
+    try {
+      const rD = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarDomingos' })
+      });
+      const dD = await rD.json();
+      if (dD.ok && dD.domingos && dD.domingos.length) {
+        htmlDom = dD.domingos.map(d =>
+          '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1e8449;cursor:pointer;" data-f="'+d.fecha+'" onclick="app.verAsistenciaDomingo(this.dataset.f)">'
+          +'<div style="font-weight:700;color:#1e8449;">📅 '+d.fecha+(d.tipo?' — '+d.tipo:'')+'</div>'
+          +(d.tema?'<div style="font-size:12px;color:#666;margin:2px 0;">'+d.tema+'</div>':'')
+          +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
+          +'<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">✅ Presentes: '+(d.presentes||0)+'</span>'
+          +'<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">📝 Con excusa: '+(d.excusados||0)+'</span>'
+          +'<span style="background:#ffebee;color:#c00;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">❌ Sin excusa: '+(d.sinExcusa||0)+'</span>'
+          +'</div></div>'
+        ).join('');
+      } else {
+        htmlDom = '<div style="text-align:center;padding:20px;color:#999;">No hay domingos registrados</div>';
+      }
+    } catch(e) { htmlDom = '<div style="color:#c00;padding:14px;">Error cargando domingos</div>'; }
+
+    cont.innerHTML =
+      '<div style="font-size:13px;font-weight:700;color:#1a5276;margin:4px 0 8px;letter-spacing:.5px;">📋 ACTIVIDADES</div>' + htmlAct
+      + '<div style="font-size:13px;font-weight:700;color:#1e8449;margin:18px 0 8px;letter-spacing:.5px;">📅 ASISTENCIA DE DOMINGOS</div>' + htmlDom;
   },
 
   async verDetalleActividad(id) {
