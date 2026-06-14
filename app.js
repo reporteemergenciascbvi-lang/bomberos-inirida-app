@@ -20,9 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.53';
+const APP_VERSION = '5.54';
 const APP_VERSION_NOTAS = [
-  'v5.53: ARREGLADO: la app vuelve a funcionar SIN internet (no te saca a las 8h). Ahora se pueden subir 6 fotos por reporte.',
+  'v5.54: Arreglado el botón "Agregar y registrar" bombero nuevo. Ranking de horas ahora cuadra (usa la duración real de cada actividad).',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
   'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
   'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
@@ -4510,6 +4510,53 @@ ${paginaFotos}
     this._asistRegistros[key] = { nombre: p.nombre, cedula: p.cedula, estado: 'PRESENTE' };
     const fecha = document.getElementById('asistFecha').value;
     this._renderAsistencia(fecha);
+  },
+
+  // v5.54 FIX: faltaba esta función (el botón "Agregar y registrar" no hacía nada).
+  // Registra el bombero en la base de datos del personal Y lo suma a la lista del domingo.
+  async agregarNuevoBomberoAsistencia() {
+    const nombre = (document.getElementById('asistNuevoNombre').value || '').toUpperCase().trim();
+    const cedula = (document.getElementById('asistNuevoCedula').value || '').trim();
+    const tel    = (document.getElementById('asistNuevoTel').value || '').trim();
+    const correo = (document.getElementById('asistNuevoCorreo').value || '').trim();
+    const rango  = (document.getElementById('asistNuevoRango').value || 'BOMBERO');
+    if (!nombre || !cedula) { this.toast('Nombre y cédula son obligatorios', 'error'); return; }
+    const key = cedula || nombre;
+    if (this._asistRegistros[key]) { this.toast(nombre + ' ya está en la lista', 'error'); return; }
+
+    this.toast('Registrando en la base de datos...', 'info');
+    try {
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'agregarPersonalCBVI',
+          nombre, cedula, telefono: tel, email: correo, rango,
+          adminEmail: this.usuario?.email || ''
+        })
+      });
+      const d = await r.json();
+      if (!d.ok) { this.toast('Error: ' + (d.error || 'no se pudo registrar'), 'error'); return; }
+
+      // Sumarlo a la lista del domingo actual (Presente)
+      this._asistRegistros[key] = { nombre, cedula, estado: 'PRESENTE' };
+      // Disponible en autocompletar de inmediato
+      if (typeof ROSTER_BOMBEROS !== 'undefined' && !ROSTER_BOMBEROS.includes(nombre)) {
+        ROSTER_BOMBEROS.push(nombre); this.poblarRosterBomberos();
+      }
+      // Limpiar y ocultar el formulario
+      ['asistNuevoNombre','asistNuevoCedula','asistNuevoTel','asistNuevoCorreo'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+      });
+      const form = document.getElementById('asistFormNuevoBombero');
+      if (form) form.style.display = 'none';
+
+      const fecha = document.getElementById('asistFecha').value;
+      this._renderAsistencia(fecha);
+      this.toast('✅ ' + nombre + (d.yaExiste ? ' (ya existía)' : ' registrado'), 'exito');
+    } catch (e) {
+      this.toast('Sin conexión. Intenta de nuevo con internet.', 'error');
+      console.error(e);
+    }
   },
 
   _setAsistencia(cedula, nombre, estado) {
