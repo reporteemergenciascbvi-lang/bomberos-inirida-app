@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.57';
+const APP_VERSION = '5.58';
 const APP_VERSION_NOTAS = [
   'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
@@ -4671,6 +4671,28 @@ ${paginaFotos}
           + fotos.map(f => '<img src="'+f+'" style="width:100%;border-radius:6px;border:1px solid #eee;">').join('') + '</div></div>'
         : '';
 
+      // v5.58: notificación de sanciones de los inasistentes sin excusa
+      const sanc = data.sanciones || [];
+      const msgAlerta = (s) => {
+        if (s.alerta === 'RETIRO')          return '🚨 DESERCIÓN / propuesta de RETIRO';
+        if (s.alerta === 'LLAMADO_ESCRITO') return '📄 Llamado de atención ESCRITO';
+        if (s.alerta === 'LLAMADO_VERBAL')  return '🗣️ Llamado de atención VERBAL';
+        return '';
+      };
+      const sancHTML = sanc.length
+        ? '<div style="margin-top:14px;border-top:2px solid #ffcdd2;padding-top:10px;">'
+          + '<div style="font-weight:700;font-size:13px;color:#c00;">⚠️ Estado de sanciones (inasistencias sin excusa)</div>'
+          + sanc.map(s => {
+              const al = msgAlerta(s);
+              return '<div style="background:#fff5f5;border:1px solid #ffcdd2;border-radius:8px;padding:8px;margin-top:6px;font-size:13px;">'
+                + '<strong>'+s.nombre+'</strong>'
+                + '<div style="font-size:12px;color:#c00;margin-top:2px;">Debe <strong>'+s.horas+'h</strong> de sanción · '+s.inasist+' inasistencia(s)</div>'
+                + (al ? '<div style="font-size:12px;font-weight:700;color:#7a1010;margin-top:2px;">'+al+'</div>' : '')
+                + '</div>';
+            }).join('')
+          + '</div>'
+        : '';
+
       const m = document.createElement('div');
       m.id = '_domModal';
       m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;overflow-y:auto;padding:14px;';
@@ -4692,6 +4714,7 @@ ${paginaFotos}
         + grupo('🟡 CON EXCUSA', exc, '#e65100', '#fff8e1')
         + grupo('✅ PRESENTES', pres, '#1e8449', '#e8f5e9')
         + fotosHTML
+        + sancHTML
         + (esAdm
             ? '<div style="display:flex;gap:8px;margin-top:14px;">'
               + '<button data-f="'+fecha+'" onclick="document.getElementById(\'_domModal\').remove();app.editarDomingo(this.dataset.f)" style="flex:1;background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">✏️ Editar</button>'
