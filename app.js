@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.58';
+const APP_VERSION = '5.59';
 const APP_VERSION_NOTAS = [
+  'v5.59: ARREGLADO: las fotos de las actividades ahora SÍ se guardan y se ven (se comprimen antes de subir). Detalle del domingo con sanciones.',
   'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
   'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
@@ -4062,16 +4063,22 @@ ${paginaFotos}
   _actPersonal: [],
   _actRecursos: [],
 
-  cargarFotoActividad(tipo, input) {
+  async cargarFotoActividad(tipo, input) {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      this._actFotos[tipo] = e.target.result;
-      const prev = document.getElementById('prevFoto' + tipo.charAt(0).toUpperCase() + tipo.slice(1));
-      if (prev) prev.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
-    };
-    reader.readAsDataURL(file);
+    // v5.59 FIX: comprimir igual que los reportes (antes mandaba la foto CRUDA
+    // de 3-12 MB → con internet lento el envío fallaba y la foto nunca se
+    // guardaba en Drive → columna vacía → "foto fantasma"). Ahora ~200 KB.
+    const prev = document.getElementById('prevFoto' + tipo.charAt(0).toUpperCase() + tipo.slice(1));
+    if (prev) prev.innerHTML = '<span style="font-size:11px;color:#999;">Comprimiendo...</span>';
+    try {
+      const dataUrl = await this.comprimirImagen(file, 1280, 0.7);
+      this._actFotos[tipo] = dataUrl;
+      if (prev) prev.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;">`;
+    } catch (e) {
+      if (prev) prev.innerHTML = '<span style="font-size:11px;color:#c00;">Error</span>';
+      this.toast('No se pudo procesar la foto', 'error');
+    }
   },
 
   _buscarTimer: null,
