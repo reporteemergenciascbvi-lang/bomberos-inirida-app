@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.59';
+const APP_VERSION = '5.60';
 const APP_VERSION_NOTAS = [
   'v5.59: ARREGLADO: las fotos de las actividades ahora SÍ se guardan y se ven (se comprimen antes de subir). Detalle del domingo con sanciones.',
   'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
@@ -4202,6 +4202,16 @@ ${paginaFotos}
       });
       const data = await resp.json();
       if (!data.ok) throw new Error(data.error || 'Error al guardar');
+      // v5.60 DIAGNÓSTICO: mostrar qué pasó con las fotos (temporal, para cazar el bug)
+      if (data._diagFotos) {
+        const df = data._diagFotos;
+        const linea = (k) => 'Foto ' + k + ': recibida=' + (df.recibidas[k]?'SÍ':'NO')
+          + ' | tamaño=' + df.bytes[k] + ' chars | guardada en Drive=' + (df.subidas[k]?'SÍ ✅':'NO ❌');
+        alert('🔍 DIAGNÓSTICO DE FOTOS\n\n'
+          + linea('inicio') + '\n' + linea('medio') + '\n' + linea('fin')
+          + '\n\n(Mándale esta captura a soporte)');
+        console.log('DIAG FOTOS:', df);
+      }
       this.toast('✅ Actividad registrada', 'ok');
       // Reset form
       this._actPersonal = [];
