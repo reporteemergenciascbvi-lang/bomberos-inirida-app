@@ -20,7 +20,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.61';
+const APP_VERSION = '5.62';
 const APP_VERSION_NOTAS = [
   'v5.59: ARREGLADO: las fotos de las actividades ahora SÍ se guardan y se ven (se comprimen antes de subir). Detalle del domingo con sanciones.',
   'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
@@ -4202,16 +4202,17 @@ ${paginaFotos}
       });
       const data = await resp.json();
       if (!data.ok) throw new Error(data.error || 'Error al guardar');
-      // v5.60 DIAGNÓSTICO: mostrar qué pasó con las fotos (temporal, para cazar el bug)
+      // DIAGNÓSTICO: solo avisar si ALGUNA foto falló (ya no molesta si todo va bien)
       if (data._diagFotos) {
         const df = data._diagFotos;
-        const linea = (k) => 'Foto ' + k + ': recibida=' + (df.recibidas[k]?'SÍ':'NO')
-          + ' | tamaño=' + df.bytes[k] + ' chars | guardada en Drive=' + (df.subidas[k]?'SÍ ✅':'NO ❌')
-          + ((df.errores && df.errores[k]) ? ('\n   ⚠️ motivo: ' + df.errores[k]) : '');
-        alert('🔍 DIAGNÓSTICO DE FOTOS\n\n'
-          + linea('inicio') + '\n' + linea('medio') + '\n' + linea('fin')
-          + '\n\n(Mándale esta captura a soporte)');
         console.log('DIAG FOTOS:', df);
+        const fallo = ['inicio','medio','fin'].some(k => df.recibidas[k] && !df.subidas[k]);
+        if (fallo) {
+          const linea = (k) => 'Foto ' + k + ': recibida=' + (df.recibidas[k]?'SÍ':'NO')
+            + ' | guardada en Drive=' + (df.subidas[k]?'SÍ ✅':'NO ❌')
+            + ((df.errores && df.errores[k]) ? ('\n   ⚠️ motivo: ' + df.errores[k]) : '');
+          alert('⚠️ Una foto no se guardó\n\n' + linea('inicio') + '\n' + linea('medio') + '\n' + linea('fin'));
+        }
       }
       this.toast('✅ Actividad registrada', 'ok');
       // Reset form
@@ -5190,6 +5191,7 @@ ${paginaFotos}
   },
 
   // ── Editar actividad (admin) ──────────────────────────────────────────────
+  // ══ EDITAR ACTIVIDAD COMPLETA (admin): texto + personal + fotos + recursos ══
   async editarActividad(id) {
     this.toast('Cargando actividad...','info');
     try {
@@ -5198,63 +5200,202 @@ ${paginaFotos}
       const data = await resp.json();
       if (!data.ok) throw new Error(data.error||'Error al cargar');
       const a = data.actividad;
+      // Estado de edición (separado del flujo de "crear" para no romperlo)
+      this._eaId = id;
+      this._eaPersonal = (a.personal||[]).map(p => ({ nombre:p.nombre, cedula:p.cedula||'', rango:p.rango||'BOMBERO', telefono:p.telefono||'', esEncargado:!!p.esEncargado }));
+      this._eaRecursos = (a.recursos||[]).map(r => ({ tipo:r.tipo||'', codigo:r.codigo||'', responsable:r.responsable||'', responsableCedula:r.responsableCedula||'' }));
+      this._eaFotosNuevas = { inicio:null, medio:null, fin:null };  // null = no cambiada
+      this._eaFotosActuales = { inicio:a.fotoInicio||'', medio:a.fotoMedio||'', fin:a.fotoFin||'' };
       const tipos = ['Acompañamiento','Capacitación','Entrenamiento','Simulacro','Jornada comunitaria','Mantenimiento','Otra'];
+      const esc = (s) => String(s||'').replace(/"/g,'&quot;');
+      const fotoSlot = (k, lbl, src) =>
+        '<div style="text-align:center;">'
+        + '<div style="font-size:10px;color:#666;">'+lbl+'</div>'
+        + '<div id="_eaFotoPrev'+k+'" style="width:90px;height:90px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5 center/cover no-repeat;display:flex;align-items:center;justify-content:center;overflow:hidden;">'
+        + (src ? '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:22px;">📷</span>')
+        + '</div>'
+        + '<label style="display:block;margin-top:4px;font-size:11px;color:#1a5276;cursor:pointer;text-decoration:underline;">Cambiar'
+        +   '<input type="file" accept="image/*" style="display:none;" onchange="app._eaCargarFoto(\''+k+'\',this)"></label>'
+        + '</div>';
+
       const modal = document.createElement('div');
       modal.id = '_editActModal';
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
-      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;margin:auto;">' 
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:440px;margin:auto;">'
         +'<div style="font-weight:700;font-size:16px;color:#1a5276;margin-bottom:14px;">✏️ Editar Actividad</div>'
         +'<label style="font-size:12px;font-weight:700;">Tipo</label>'
         +'<select id="_eaT" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'+tipos.map(t=>'<option value="'+t+'"'+(a.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select>'
         +'<label style="font-size:12px;font-weight:700;">Descripción</label>'
-        +'<input type="text" id="_eaD" value="'+a.descripcion.replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<input type="text" id="_eaD" value="'+esc(a.descripcion)+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
         +'<label style="font-size:12px;font-weight:700;">Fecha</label>'
         +'<input type="date" id="_eaF" value="'+String(a.fecha||"").substring(0,10)+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-        +'<div><label style="font-size:12px;font-weight:700;">Hora inicio</label><input type="time" id="_eaHI" value="'+( a.horaInicio||"")+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;"></div>'
-        +'<div><label style="font-size:12px;font-weight:700;">Hora fin</label><input type="time" id="_eaHF" value="'+( a.horaFin||"")+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;"></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">Hora inicio</label><input type="time" id="_eaHI" value="'+(a.horaInicio||"")+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;"></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">Hora fin</label><input type="time" id="_eaHF" value="'+(a.horaFin||"")+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box;"></div>'
         +'</div>'
         +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
-        +'<input type="text" id="_eaL" value="'+( a.lugar||"").replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<input type="text" id="_eaL" value="'+esc(a.lugar)+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
         +'<label style="font-size:12px;font-weight:700;">Novedades</label>'
-        +'<textarea id="_eaN" rows="3" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">'+( a.novedades||"")+'</textarea>'
-        +( (a.fotoInicio||a.fotoMedio||a.fotoFin)
-            ? '<label style="font-size:12px;font-weight:700;">Fotos actuales</label>'
-              +'<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">'
-              +(a.fotoInicio?'<div style="text-align:center;"><div style="font-size:10px;color:#666;">Inicio</div><img src="'+a.fotoInicio+'" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #ddd;"></div>':'')
-              +(a.fotoMedio?'<div style="text-align:center;"><div style="font-size:10px;color:#666;">Intermedio</div><img src="'+a.fotoMedio+'" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #ddd;"></div>':'')
-              +(a.fotoFin?'<div style="text-align:center;"><div style="font-size:10px;color:#666;">Final</div><img src="'+a.fotoFin+'" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #ddd;"></div>':'')
-              +'</div>'
-            : '')
+        +'<textarea id="_eaN" rows="2" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">'+(a.novedades||"")+'</textarea>'
+        // ── PERSONAL ──
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">👥 Personal asistente</div>'
+        +'<div id="_eaPersonalLista" style="margin-bottom:6px;"></div>'
+        +'<div style="position:relative;margin-bottom:14px;">'
+        +'<input type="text" id="_eaBuscarPersonal" placeholder="Escribir nombre para agregar..." autocomplete="off" oninput="app._eaBuscarPersonal(this.value)" style="width:100%;padding:9px;border:1px solid #1e8449;border-radius:8px;font-size:14px;box-sizing:border-box;">'
+        +'<div id="_eaSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;"></div>'
+        +'</div>'
+        // ── FOTOS ──
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">📸 Fotos</div>'
+        +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:space-around;">'
+        + fotoSlot('inicio','Inicio',a.fotoInicio||'')
+        + fotoSlot('medio','Intermedio',a.fotoMedio||'')
+        + fotoSlot('fin','Final',a.fotoFin||'')
+        +'</div>'
+        // ── RECURSOS ──
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">🚒 Recursos / Vehículos</div>'
+        +'<div id="_eaRecursosLista" style="margin-bottom:6px;"></div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">'
+        +'<input type="text" id="_eaRecTipo" placeholder="Tipo de vehículo" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
+        +'<input type="text" id="_eaRecCodigo" placeholder="Código/Placa" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
+        +'</div>'
+        +'<input type="text" id="_eaRecResp" placeholder="Maquinista / Responsable" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;">'
+        +'<button onclick="app._eaAgregarRecurso()" style="width:100%;padding:9px;background:#eef5fb;color:#1a5276;border:1px dashed #1a5276;border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:14px;">+ Agregar vehículo</button>'
+        // ── BOTONES ──
         +'<div style="display:flex;gap:10px;">'
         +'<button id="_eaCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
         +'<button id="_eaGuard" style="flex:1;padding:12px;background:#1a5276;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>'
         +'</div></div>';
       document.body.appendChild(modal);
-      modal.querySelector('#_eaCancel').onclick = () => document.body.removeChild(modal);
+      this._eaRenderPersonal();
+      this._eaRenderRecursos();
+
+      modal.querySelector('#_eaCancel').onclick = () => { document.body.removeChild(modal); this._eaLimpiar(); };
       modal.querySelector('#_eaGuard').onclick = async () => {
         if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
         if (!this._adminPwdSession){const pwd=window.prompt('Contraseña admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
+        this.toast('⏳ Guardando cambios...','info');
         try {
-          const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-            body:JSON.stringify({accion:'actualizarActividad',id,
-              tipo:document.getElementById('_eaT').value,
-              descripcion:document.getElementById('_eaD').value,
-              fecha:document.getElementById('_eaF').value,
-              horaInicio:document.getElementById('_eaHI').value,
-              horaFin:document.getElementById('_eaHF').value,
-              lugar:document.getElementById('_eaL').value,
-              novedades:document.getElementById('_eaN').value,
-              adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+          const payload = { accion:'actualizarActividad', id,
+            tipo:document.getElementById('_eaT').value,
+            descripcion:document.getElementById('_eaD').value,
+            fecha:document.getElementById('_eaF').value,
+            horaInicio:document.getElementById('_eaHI').value,
+            horaFin:document.getElementById('_eaHF').value,
+            lugar:document.getElementById('_eaL').value,
+            novedades:document.getElementById('_eaN').value,
+            personal:this._eaPersonal,
+            recursos:this._eaRecursos,
+            adminEmail:this.usuario.email, adminPassword:this._adminPwdSession };
+          // solo enviar las fotos que cambiaron
+          if (this._eaFotosNuevas.inicio) payload.fotoInicioNueva = this._eaFotosNuevas.inicio;
+          if (this._eaFotosNuevas.medio)  payload.fotoMedioNueva  = this._eaFotosNuevas.medio;
+          if (this._eaFotosNuevas.fin)    payload.fotoFinNueva    = this._eaFotosNuevas.fin;
+          const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
           const d=await r.json();
           if(!d.ok)throw new Error(d.error);
           document.body.removeChild(modal);
+          this._eaLimpiar();
           this.toast('✅ Actividad actualizada','ok');
           setTimeout(()=>this.cargarListaActividades(),800);
         }catch(e){this.toast('Error: '+e.message,'error');}
       };
     }catch(e){this.toast('Error: '+e.message,'error');}
   },
+
+  _eaLimpiar() {
+    this._eaId=null; this._eaPersonal=null; this._eaRecursos=null;
+    this._eaFotosNuevas=null; this._eaFotosActuales=null;
+  },
+
+  async _eaCargarFoto(tipo, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const prev = document.getElementById('_eaFotoPrev'+tipo);
+    if (prev) prev.innerHTML = '<span style="font-size:11px;color:#999;">...</span>';
+    try {
+      const dataUrl = await this.comprimirImagen(file, 1280, 0.7);
+      this._eaFotosNuevas[tipo] = dataUrl;
+      if (prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;">';
+    } catch(e) {
+      if (prev) prev.innerHTML = '<span style="font-size:11px;color:#c00;">Error</span>';
+    }
+  },
+
+  _eaRenderPersonal() {
+    const cont = document.getElementById('_eaPersonalLista');
+    if (!cont) return;
+    if (!this._eaPersonal.length) { cont.innerHTML = '<div style="color:#999;font-size:12px;text-align:center;padding:6px;">Sin personal</div>'; return; }
+    cont.innerHTML = this._eaPersonal.map((p,i) => {
+      const enc = !!p.esEncargado;
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:'+(enc?'#fff8e1':'#f8f8f8')+';border-radius:8px;margin-bottom:4px;">'
+        +'<div><strong style="font-size:13px;">'+p.nombre+'</strong>'+(enc?' (ENCARGADO)':'')+'<div style="font-size:11px;color:#666;">CC: '+(p.cedula||'-')+' | '+p.rango+'</div></div>'
+        +'<div style="display:flex;gap:4px;">'
+        +'<button data-i="'+i+'" onclick="app._eaToggleEncargado(+this.dataset.i)" title="Encargado" style="background:none;border:none;font-size:18px;cursor:pointer;opacity:'+(enc?'1':'0.25')+';">&#11088;</button>'
+        +'<button data-i="'+i+'" onclick="app._eaQuitarPersonal(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;">&#x2715;</button>'
+        +'</div></div>';
+    }).join('');
+  },
+
+  _eaToggleEncargado(i) {
+    this._eaPersonal.forEach((p,k)=>p.esEncargado=(k===i?!p.esEncargado:false));
+    this._eaRenderPersonal();
+  },
+
+  _eaQuitarPersonal(i) { this._eaPersonal.splice(i,1); this._eaRenderPersonal(); },
+
+  _eaBuscarPersonal(q) {
+    clearTimeout(this._eaBuscarTimer);
+    const sug = document.getElementById('_eaSugerencias');
+    if (!sug) return;
+    if (!q || q.trim().length < 1) { sug.style.display='none'; return; }
+    sug.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:13px;">Buscando...</div>'; sug.style.display='block';
+    this._eaBuscarTimer = setTimeout(async () => {
+      try {
+        const resp = await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'buscarPersonalCBVI',q:q.trim()})});
+        const data = await resp.json();
+        if (!data.ok || !data.resultados.length) { sug.innerHTML='<div style="padding:8px 12px;color:#999;font-size:12px;">Sin resultados</div>'; return; }
+        sug.innerHTML = data.resultados.map(per =>
+          '<div onclick=\'app._eaAddPersonal('+JSON.stringify(per).replace(/'/g,"&#39;")+')\' style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>'+per.nombre+'</strong> <span style="color:#666;font-size:12px;">CC: '+per.cedula+'</span></div>'
+        ).join('');
+        sug.style.display='block';
+      } catch(e) { sug.style.display='none'; }
+    }, 400);
+  },
+
+  _eaAddPersonal(p) {
+    document.getElementById('_eaSugerencias').style.display='none';
+    document.getElementById('_eaBuscarPersonal').value='';
+    const ya = p.cedula ? this._eaPersonal.find(x=>x.cedula===p.cedula) : this._eaPersonal.find(x=>x.nombre.toUpperCase()===(p.nombre||'').toUpperCase());
+    if (ya) { this.toast(p.nombre+' ya está','error'); return; }
+    this._eaPersonal.push({ nombre:p.nombre, cedula:p.cedula||'', rango:p.rango||'BOMBERO', telefono:p.telefono||'', esEncargado:false });
+    this._eaRenderPersonal();
+  },
+
+  _eaRenderRecursos() {
+    const cont = document.getElementById('_eaRecursosLista');
+    if (!cont) return;
+    if (!this._eaRecursos.length) { cont.innerHTML = '<div style="color:#999;font-size:12px;text-align:center;padding:6px;">Sin vehículos</div>'; return; }
+    cont.innerHTML = this._eaRecursos.map((r,i) =>
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#f8f8f8;border-radius:8px;margin-bottom:4px;">'
+      +'<div style="font-size:13px;"><strong>'+(r.tipo||'-')+'</strong>'+(r.codigo?' ('+r.codigo+')':'')+(r.responsable?'<div style="font-size:11px;color:#666;">'+r.responsable+'</div>':'')+'</div>'
+      +'<button data-i="'+i+'" onclick="app._eaQuitarRecurso(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;">&#x2715;</button>'
+      +'</div>'
+    ).join('');
+  },
+
+  _eaAgregarRecurso() {
+    const tipo = (document.getElementById('_eaRecTipo').value||'').trim();
+    const codigo = (document.getElementById('_eaRecCodigo').value||'').trim();
+    const resp = (document.getElementById('_eaRecResp').value||'').trim();
+    if (!tipo) { this.toast('Escribe el tipo de vehículo','error'); return; }
+    this._eaRecursos.push({ tipo, codigo, responsable:resp, responsableCedula:'' });
+    document.getElementById('_eaRecTipo').value='';
+    document.getElementById('_eaRecCodigo').value='';
+    document.getElementById('_eaRecResp').value='';
+    this._eaRenderRecursos();
+  },
+
+  _eaQuitarRecurso(i) { this._eaRecursos.splice(i,1); this._eaRenderRecursos(); },
 
   // ── Editar domingo (admin) ────────────────────────────────────────────────
   async editarDomingo(fecha) {
