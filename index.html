@@ -542,6 +542,9 @@
     padding: 2px 6px; border-radius: 10px; font-weight: 700;
     margin-left: 6px;
   }
+/* v5.63 (BUG doble click): spinner universal de "Cargando" para botones */
+.spinner-cbvi{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;vertical-align:-2px;animation:girocbvi .7s linear infinite;}
+@keyframes girocbvi{to{transform:rotate(360deg);}}
 </style>
 </head>
 <body>
@@ -684,6 +687,9 @@
     </div>
   </div>
 
+  <!-- v5.63 (BUG 10): recordatorio de sanciones pendientes — solo admins -->
+  <div id="homeSanciones" style="display:none;"></div>
+
   <div class="seccion-titulo">Reportes recientes</div>
   <div id="listaReportes"></div>
 
@@ -739,13 +745,13 @@
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v5.44</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v5.63</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
       <p><b>🚨 1. Nueva Emergencia</b><br>Toque el botón rojo principal. Llene las 14 secciones: datos generales, clasificación, GPS, descripción, recursos desplegados, diagnóstico, víctimas, causas, organizaciones participantes, observaciones y firmas. Los campos con <span style="color:#c00;">*</span> son obligatorios. Si no hay internet, el reporte queda pendiente y se envía solo cuando recupere señal.</p>
 
-      <p><b>🎯 2. Nueva Actividad</b><br>Registre acompañamientos, capacitaciones, entrenamientos, simulacros y jornadas comunitarias. Incluya tipo, descripción, fecha, hora inicio/fin, lugar y novedades. Puede agregar el personal asistente con autocompletado — marque con ⭐ al encargado o comandante de incidente. También registre los vehículos/recursos usados con su maquinista (sin duplicar si ya está en personal). Puede adjuntar hasta 3 fotos (inicio, intermedio, fin).</p>
+      <p><b>🎯 2. Nueva Actividad</b><br>Registre acompañamientos, capacitaciones, entrenamientos, simulacros, jornadas comunitarias, <b>Bomberitos Junior</b> y <b>arreglos/reparaciones dentro de la institución</b>. Incluya tipo, descripción, fecha, hora inicio/fin, lugar y novedades. Puede agregar el personal asistente con autocompletado — marque con ⭐ al encargado o comandante de incidente. También registre los vehículos/recursos usados con su maquinista (sin duplicar si ya está en personal). Puede adjuntar hasta 3 fotos (inicio, intermedio, fin).</p>
 
       <p><b>📋 3. Mis Actividades</b><br>Lista de actividades registradas. El administrador puede <b>editar ✏️</b> o <b>eliminar 🗑️</b> cualquier actividad. Al editar, se abre un formulario con los datos actuales para modificarlos.</p>
 
@@ -762,6 +768,10 @@
       <p><b>📡 8. Funcionamiento sin internet</b><br>Los reportes de emergencia funcionan sin internet (se guardan localmente y se envían después). Las secciones de Actividades, Asistencia y Operatividad requieren conexión activa para consultar el servidor.</p>
 
       <p><b>🔄 9. Sincronización</b><br>Al iniciar sesión en otro dispositivo con el mismo correo, todos los reportes se descargan automáticamente. Nada se pierde al limpiar caché o cambiar de teléfono.</p>
+
+      <p><b>⚠️ 10. Recordatorio de sanciones (admins)</b><br>En la pantalla de inicio, los administradores ven una tarjeta roja con las unidades que deben horas de sanción, sus horas pendientes y el nivel de alerta (verbal, escrito o deserción). Tóquela para ir directo al módulo de Asistencia.</p>
+
+      <p><b>⏳ 11. Botones con "Cargando"</b><br>Al enviar un reporte, actividad o asistencia, el botón se bloquea y muestra una animación de carga. <b>Espere a que termine</b> — tocar varias veces ya no crea registros duplicados, la app lo impide automáticamente.</p>
 
     </div>
     <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
@@ -789,7 +799,10 @@
       • <b>Sanciones:</b> horas acumuladas por inasistencia sin excusa.<br>
       • Otras hojas de soporte: Recursos, Organizaciones, Usuarios, etc.</p>
 
-      <p><b>📅 Lógica de sanciones (domingos)</b><br>Cada ausencia sin excusa genera <b>2 horas de sanción</b>. Al acumular 3 domingos consecutivos sin excusa: llamado verbal. Al 4°: llamado escrito. Al 6°: causal de retiro. El sistema lleva el conteo automáticamente y lo refleja en el panel de Operatividad.</p>
+      <p><b>📅 Lógica de sanciones (domingos)</b><br>
+      • <b>Horas:</b> cada falta sin excusa genera <b>2 horas</b> de sanción. El plazo para cumplirlas es antes del siguiente domingo. Si llega el siguiente domingo sin cumplirlas, la deuda se <b>duplica</b>: 2h → 4h → 8h → 16h → 32h... (asistir no borra la deuda — solo cumplir las horas la salda).<br>
+      • <b>Alertas (faltas consecutivas):</b> 3 domingos consecutivos sin excusa → 🗣️ llamado de atención <b>verbal</b>. 4 consecutivos → 📄 llamado <b>escrito</b>. 5 consecutivos → 🚨 <b>alerta extrema de DESERCIÓN</b> (gestión de retiro de la institución). Si asiste un domingo, el conteo de consecutivas vuelve a cero.<br>
+      • <b>Horas cumplidas:</b> cuando el admin marca horas como cumplidas, quedan registradas de forma permanente y se descuentan de la deuda — no se pierden aunque se registren más domingos.</p>
 
       <p><b>📊 Operatividad — cómo se calcula</b><br>Los puntos de cada bombero se calculan así: <b>Emergencias × 2 + Horas de actividades + Domingos presentes</b>. Los rankings son independientes para cada categoría — no se suman en un solo ranking para que cada área sea reconocida por separado.</p>
 
@@ -1404,7 +1417,7 @@
 
   <div class="acciones-flotantes">
     <button class="btn btn-secundario" onclick="app.guardarBorrador()">💾 Borrador</button>
-    <button class="btn btn-primary" onclick="app.enviarReporte()">📤 Enviar</button>
+    <button class="btn btn-primary" onclick="app.enviarReporte(this)">📤 Enviar</button>
   </div>
 </div>
 
@@ -1593,7 +1606,8 @@
       <select id="actTipo" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
         <option value="">Seleccionar...</option>
         <option>Acompañamiento</option><option>Capacitación</option><option>Entrenamiento</option>
-        <option>Simulacro</option><option>Inspección</option><option>Jornada comunitaria</option><option>Otra</option>
+        <option>Simulacro</option><option>Inspección</option><option>Jornada comunitaria</option>
+        <option>Bomberitos Junior</option><option>Arreglos / Reparaciones (institución)</option><option>Otra</option>
       </select>
     </div>
     <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
@@ -1676,7 +1690,7 @@
       </div>
       <button onclick="app.agregarRecurso()" style="background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;cursor:pointer;width:100%;font-weight:700;font-size:14px;">➕ Agregar vehículo</button>
     </div>
-    <button onclick="app.guardarActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Registrar Actividad</button>
+    <button onclick="app.guardarActividad(this)" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Registrar Actividad</button>
     <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
   </div>
 </div>
@@ -1778,7 +1792,7 @@
           </div>
         </div>
       </div>
-      <button onclick="app.guardarAsistencia()" id="btnGuardarAsistencia" style="display:none;background:#1e8449;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Guardar Asistencia</button>
+      <button onclick="app.guardarAsistencia(this)" id="btnGuardarAsistencia" style="display:none;background:#1e8449;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Guardar Asistencia</button>
       <div id="asistFormNuevoBombero" style="display:none;background:#fff3e0;border-radius:12px;padding:14px;margin-bottom:8px;border:1px solid #ff9800;">
         <div style="font-weight:700;color:#e65100;margin-bottom:8px;">➕ Agregar bombero nuevo a la base de datos</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">

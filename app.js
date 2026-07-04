@@ -20,8 +20,18 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.62';
+const APP_VERSION = '5.63';
 const APP_VERSION_NOTAS = [
+  'v5.63: 🚫 Doble click corregido — los botones se bloquean y muestran "Cargando..." mientras envían (no más registros duplicados).',
+  'v5.63: 📊 Se acabaron los números feos tipo "28.09999h" — todo redondeado a 1 decimal.',
+  'v5.63: 👥 Autocompletado sin nombres duplicados (tildes y Ñ ya no crean personas dobles).',
+  'v5.63: ⚠️ NUEVO recordatorio de sanciones en la pantalla de inicio (solo admins): quién debe horas y su nivel de alerta.',
+  'v5.63: 📐 Nueva regla de sanciones: la deuda se duplica si no se cumple (2h→4h→8h→16h→32h). Alertas por faltas consecutivas: 3=verbal, 4=escrito, 5=DESERCIÓN.',
+  'v5.63: ✅ Las horas de sanción cumplidas ya quedan registradas para siempre (no se pierden al registrar más domingos).',
+  'v5.63: 🎯 Nuevos tipos de actividad: Bomberitos Junior y Arreglos/Reparaciones (institución).',
+  'v5.63: 🔐 La sesión de admin se renueva sola al abrir la app — adiós al "cierra y vuelve a iniciar sesión".',
+  'v5.63: 🛡️ Aviso al enviar emergencias con nombres que no están en la base (evita duplicados en Operatividad).',
+  'v5.63: 📖 Manual y "Cómo funciona" actualizados.',
   'v5.59: ARREGLADO: las fotos de las actividades ahora SÍ se guardan y se ven (se comprimen antes de subir). Detalle del domingo con sanciones.',
   'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
@@ -220,6 +230,9 @@ const app = {
       this._googleIdToken = sesion.idToken || '';
       this._googleTokenExp = sesion.tokenExp || 0;
       this._pase = sesion.pase || '';
+      // v5.63 (BUG 9): renovar el pase de 30 días en segundo plano cada vez
+      // que se abre la app → el admin ya no queda atado al token de 1h.
+      this._renovarPaseSesion().catch(() => {});
       this.actualizarUIUsuario();
       // Si ya completó registro complementario, ir a Home
       if (sesion.registroCompleto) {
@@ -971,6 +984,8 @@ const app = {
 
   // ==================== HOME ====================
   async actualizarHome() {
+    // v5.63 (BUG 10): widget de sanciones para admins (no bloquea el Home)
+    this._cargarWidgetSanciones().catch(() => {});
     let reportes = await DB.listarReportes();
     // FILTRO POR CORREO: cada bombero solo ve SUS propios reportes
     // Identificamos por operadorEmail (el correo con que se creó el reporte)
@@ -1016,6 +1031,77 @@ const app = {
 
   etiquetaEstado(estado) {
     return { borrador: 'Borrador', pendiente: 'Pendiente', enviado: 'Enviado' }[estado] || estado;
+  },
+
+  // ═══ v5.63 (BUG 10): widget "Sanciones pendientes" en el Home (solo admin) ═══
+  // Recuerda a los admins qué unidades deben horas SIN tener que entrar a
+  // Asistencia. Falla en silencio si no hay conexión (no molesta al bombero).
+  async _cargarWidgetSanciones() {
+    const cont = document.getElementById('homeSanciones');
+    if (!cont) return;
+    if (!this.esAdmin()) { cont.style.display = 'none'; return; }
+    if (!navigator.onLine) return;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarSanciones', adminEmail: this.usuario ? this.usuario.email : '' })
+      });
+      const data = await resp.json();
+      if (!data.ok) { cont.style.display = 'none'; return; }
+      const sanc = (data.sanciones || []).filter(s => Number(s.horasPendientes) > 0);
+      if (!sanc.length) { cont.style.display = 'none'; return; }
+      sanc.sort((a,b) => Number(b.horasPendientes) - Number(a.horasPendientes));
+      const badge = (s) => {
+        if (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO')
+          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>';
+        if (s.tipoAlerta === 'LLAMADO_ESCRITO')
+          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>';
+        if (s.tipoAlerta === 'LLAMADO_VERBAL')
+          return '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>';
+        return '';
+      };
+      const filas = sanc.slice(0, 5).map(s =>
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #ffe0e0;font-size:13px;">'
+        + '<span style="font-weight:600;">' + s.nombre + badge(s) + '</span>'
+        + '<span style="color:#c00;font-weight:700;white-space:nowrap;margin-left:8px;">' + s.horasPendientes + 'h</span>'
+        + '</div>').join('');
+      const resto = sanc.length > 5
+        ? '<div style="font-size:11px;color:#c00;margin-top:4px;">+ ' + (sanc.length - 5) + ' más — toca para ver todas</div>' : '';
+      cont.innerHTML =
+        '<div onclick="app.abrirAsistencia()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
+        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:6px;">⚠️ Sanciones pendientes (' + sanc.length + ')</div>'
+        + filas + resto
+        + '</div>';
+      cont.style.display = 'block';
+    } catch (e) { cont.style.display = 'none'; }
+  },
+
+  // ═══ v5.63 (BUG 9): renovación automática del pase de sesión ═══
+  // El pase de 30 días solo se pedía UNA vez al hacer login con Google. Si esa
+  // petición fallaba (mala señal) o el pase vencía, el admin quedaba con el
+  // token de Google de 1h → "cierra y vuelve a iniciar sesión" constante.
+  // Ahora, al abrir la app: se renueva el pase usando el pase vigente (el
+  // backend acepta pase válido) o el token de Google si aún sirve.
+  async _renovarPaseSesion() {
+    try {
+      if (!navigator.onLine || !this.usuario || !this.usuario.email) return;
+      const body = { accion: 'iniciarSesion' };
+      if (this._pase) body.pase = this._pase;
+      if (this._googleIdToken && this._googleTokenExp && Date.now() < this._googleTokenExp) {
+        body.idToken = this._googleIdToken;
+      }
+      if (!body.pase && !body.idToken) return; // nada con qué renovar
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(body)
+      });
+      const data = await resp.json();
+      if (data && data.ok && data.pase) {
+        this._pase = data.pase;
+        this.usuario.pase = data.pase;
+        await DB.guardarConfig('sesion', this.usuario);
+      }
+    } catch (e) { /* silencioso: sin conexión no pasa nada */ }
   },
 
   // ==================== NUEVO REPORTE ====================
@@ -1639,6 +1725,81 @@ const app = {
     return (s || '').trim().toUpperCase().replace(/\s+/g, ' ');
   },
 
+  // v5.63 (BUG decimales): redondea a 1 decimal — evita "28.099999999999994h"
+  _r1(n) {
+    return Math.round((Number(n) || 0) * 10) / 10;
+  },
+
+  // v5.63 (BUG duplicados): normalización FUERTE de nombres — mayúsculas,
+  // sin tildes y Ñ→N. Así "GERMÁN ROJAS" == "GERMAN ROJAS" y "MARIÑO" == "MARINO".
+  _normFuerte(s) {
+    return (s || '').toString().trim().toUpperCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+  },
+
+  // v5.63 (anti-fallas): confirmación async con modal propio (APK-safe)
+  _confirmarAsync(mensajeHTML, txtOk, txtCancel) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+        + '<div style="font-size:14px;color:#333;margin-bottom:16px;line-height:1.5;">'+mensajeHTML+'</div>'
+        + '<div style="display:flex;gap:10px;">'
+        + '<button id="_caCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">'+(txtCancel||'Cancelar')+'</button>'
+        + '<button id="_caOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">'+(txtOk||'Continuar')+'</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      const fin = (v) => { try { document.body.removeChild(modal); } catch(e){} resolve(v); };
+      modal.querySelector('#_caCancel').onclick = () => fin(false);
+      modal.querySelector('#_caOk').onclick = () => fin(true);
+    });
+  },
+
+  // v5.63 (BUG anti-tontos): revisa los nombres del personal del reporte contra
+  // la base de bomberos. Si hay nombres desconocidos (typo, tilde, apodo),
+  // avisa ANTES de enviar → menos duplicados en Operatividad.
+  _nombresDesconocidosEnForm() {
+    const conocidos = new Set((typeof ROSTER_BOMBEROS !== 'undefined' ? ROSTER_BOMBEROS : []).map(n => this._normFuerte(n)));
+    const desconocidos = [];
+    const revisar = (n) => {
+      const norm = this._normFuerte(n);
+      if (norm && !conocidos.has(norm) && desconocidos.indexOf(n.trim()) === -1) desconocidos.push(n.trim());
+    };
+    document.querySelectorAll('#tablaRecursos .fila').forEach(fila => {
+      const resp = fila.querySelector('[data-campo="responsable"]');
+      if (resp && resp.value.trim()) revisar(resp.value);
+      fila.querySelectorAll('[data-personal] input').forEach(i => { if (i.value.trim()) revisar(i.value); });
+    });
+    return desconocidos;
+  },
+
+  // ═══ v5.63 (BUG doble click): bloqueo universal de botones ═══
+  // Envuelve cualquier acción async: deshabilita el botón, muestra spinner
+  // "Cargando..." y lo restaura al terminar (éxito o error). Si el usuario
+  // vuelve a tocar mientras corre, se ignora → NO más registros duplicados.
+  async _conBloqueo(btn, textoCargando, fn) {
+    if (btn && btn.dataset && btn.dataset.ocupado === '1') return; // ya corriendo
+    let htmlOrig = '';
+    if (btn) {
+      btn.dataset.ocupado = '1';
+      htmlOrig = btn.innerHTML;
+      btn.disabled = true;
+      btn.style.opacity = '0.65';
+      btn.innerHTML = '<span class="spinner-cbvi"></span> ' + (textoCargando || 'Cargando...');
+    }
+    try {
+      await fn();
+    } finally {
+      if (btn) {
+        btn.dataset.ocupado = '';
+        btn.disabled = false;
+        btn.style.opacity = '';
+        btn.innerHTML = htmlOrig;
+      }
+    }
+  },
+
   // Cuenta personas distintas desde el FORMULARIO (comandante + responsables + tripulantes)
   resumenPersonalDeForm() {
     const nombres = [];
@@ -2042,12 +2203,37 @@ const app = {
     this.irA('pantallaHome');
   },
 
-  async enviarReporte() {
+  async enviarReporte(btn) {
+    // v5.63 (BUG doble click): si ya está enviando, ignorar toques extra
+    if (this._enviandoReporte) return;
     const r = this.leerFormulario();
     if (!r.narrativa || !r.direccion || !r.comandanteNombre || !r.fechaLlamada) {
       this.toast('Faltan: fecha llamada, narrativa, dirección y comandante', 'error');
       return;
     }
+    // v5.63 (BUG anti-tontos): nombres que no están en la base → confirmar
+    try {
+      const desconocidos = this._nombresDesconocidosEnForm();
+      if (desconocidos.length) {
+        const seguir = await this._confirmarAsync(
+          '⚠️ <b>Estos nombres NO están en la base de bomberos:</b><br><br>'
+          + desconocidos.map(n => '• ' + n).join('<br>')
+          + '<br><br>Revisa que estén bien escritos (usa el autocompletado). Nombres mal escritos duplican datos en Operatividad.',
+          'Enviar así', 'Corregir');
+        if (!seguir) return;
+      }
+    } catch(eV) { /* validación nunca debe romper el envío */ }
+    this._enviandoReporte = true;
+    if (btn) { btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="spinner-cbvi"></span> Enviando...'; }
+    try {
+      await this._enviarReporteInterno(r);
+    } finally {
+      this._enviandoReporte = false;
+      if (btn) { btn.disabled = false; btn.style.opacity=''; btn.innerHTML='📤 Enviar'; }
+    }
+  },
+
+  async _enviarReporteInterno(r) {
     r.estado = 'pendiente';
 
     // === EDICIÓN vs CREACIÓN ===
@@ -2387,10 +2573,9 @@ const app = {
       return;
     }
     // Pedir contraseña — el backend valida, no el frontend
-    const pw = window.prompt('🔐 Contraseña de administrador:');
-    if (pw === null || pw.trim() === '') return;
-    this._adminPwdSession = pw.trim();
-    try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e2) {}
+    // v5.63: modal propio (window.prompt está bloqueado en el APK)
+    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+    if (!pw) return;
     this._adminAutorizado = true;
     this.irA('pantallaPanelAdmin');
     await this.cargarReportesAdmin();
@@ -4103,6 +4288,15 @@ ${paginaFotos}
         sug.innerHTML = '<div style="padding:10px;color:#999;font-size:13px;">Sin resultados — usa el botón de persona nueva</div>';
         return;
       }
+      // v5.63 (BUG duplicados): red de seguridad — si el backend devuelve la
+      // misma persona 2 veces (con y sin cédula, tilde/Ñ), mostrar solo una:
+      // gana la que tiene cédula.
+      const _vistosNorm = {};
+      data.resultados.forEach(per => {
+        const k = this._normFuerte(per.nombre);
+        if (!_vistosNorm[k] || (per.cedula && !_vistosNorm[k].cedula)) _vistosNorm[k] = per;
+      });
+      data.resultados = Object.values(_vistosNorm);
       sug.innerHTML = data.resultados.map(per => {
         const j = JSON.stringify(per).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         return `<div onclick='app.seleccionarPersonalActividad(${JSON.stringify(per).replace(/'/g, "&#39;")})'
@@ -4171,17 +4365,26 @@ ${paginaFotos}
     this._renderPersonalActividad();
   },
 
-  async guardarActividad() {
+  async guardarActividad(btn) {
+    // v5.63 (BUG doble click): bloqueo total mientras se envía
+    if (this._guardandoActividad) return;
     const tipo = document.getElementById('actTipo').value;
     const desc = document.getElementById('actDescripcion').value.trim();
     const fecha = document.getElementById('actFecha').value;
     const hi = document.getElementById('actHoraInicio').value;
     if (!tipo || !desc || !fecha || !hi) { this.toast('Tipo, descripción, fecha y hora inicio son obligatorios', 'error'); return; }
     if (!this._actPersonal.length) { this.toast('Agrega al menos una persona', 'error'); return; }
+    this._guardandoActividad = true;
+    let htmlBtn = '';
+    if (btn) { htmlBtn = btn.innerHTML; btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="spinner-cbvi"></span> Guardando actividad...'; }
     this.toast('⏳ Guardando actividad...', 'info');
+    // v5.63: idCliente estable por intento — el backend lo usa para ignorar
+    // envíos repetidos del mismo formulario (anti-duplicado de red).
+    if (!this._actIdCliente) this._actIdCliente = this.uuid();
     try {
       const payload = {
         accion: 'crearActividad',
+        idCliente: this._actIdCliente,
         tipo, descripcion: desc, fecha,
         horaInicio: hi,
         horaFin: document.getElementById('actHoraFin').value,
@@ -4215,6 +4418,7 @@ ${paginaFotos}
         }
       }
       this.toast('✅ Actividad registrada', 'ok');
+      this._actIdCliente = null; // ← próximo registro tendrá su propio id
       // Reset form
       this._actPersonal = [];
       this._actFotos = { inicio: null, medio: null, fin: null };
@@ -4224,6 +4428,10 @@ ${paginaFotos}
       this._renderPersonalActividad();
       setTimeout(() => this.irA('pantallaListaActividades'), 1000);
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+    finally {
+      this._guardandoActividad = false;
+      if (btn) { btn.disabled = false; btn.style.opacity=''; btn.innerHTML = htmlBtn; }
+    }
   },
 
   async cargarListaActividades() {
@@ -4617,20 +4825,22 @@ ${paginaFotos}
     });
   },
 
-  async guardarAsistencia() {
+  async guardarAsistencia(btn) {
+    // v5.63 (BUG doble click): bloqueo mientras se guarda
+    if (this._guardandoAsistencia) return;
     const fecha = document.getElementById('asistFecha').value;
     if (!fecha) { this.toast('Selecciona la fecha', 'error'); return; }
     const registros = Object.values(this._asistRegistros);
     if (!registros.length) { this.toast('Agrega personal primero', 'error'); return; }
-    // Verificar sesión admin — pedir contraseña si no hay
-    if (!this._adminPwdSession) {
-      const pwd = window.prompt('🔐 Contraseña de administrador para guardar asistencia:');
-      if (!pwd || !pwd.trim()) return;
-      this._adminPwdSession = pwd.trim();
-    }
+    // Verificar sesión admin — pedir contraseña si no hay (modal APK-safe)
+    const _pwdOk = await this._obtenerPwdAdmin('🔐 Contraseña admin para guardar asistencia');
+    if (!_pwdOk) return;
     const tipoReunion = document.getElementById('asistTipoReunion') ? document.getElementById('asistTipoReunion').value : '';
     const tema = document.getElementById('asistTema') ? document.getElementById('asistTema').value : '';
     const lugarReunion = document.getElementById('asistLugar') ? document.getElementById('asistLugar').value : '';
+    this._guardandoAsistencia = true;
+    let _htmlBtnAsist = '';
+    if (btn) { _htmlBtnAsist = btn.innerHTML; btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="spinner-cbvi"></span> Guardando asistencia...'; }
     this.toast('⏳ Guardando asistencia...', 'info');
     try {
       const resp = await fetch(URL_BACKEND, {
@@ -4657,6 +4867,10 @@ ${paginaFotos}
       this.toast('✅ Asistencia guardada — ' + ausentes + ' ausentes sin excusa', 'ok');
       setTimeout(() => this.cargarPantallaAsistencia(), 1000);
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+    finally {
+      this._guardandoAsistencia = false;
+      if (btn) { btn.disabled = false; btn.style.opacity=''; btn.innerHTML = _htmlBtnAsist; }
+    }
   },
 
   async verAsistenciaDomingo(fecha) {
@@ -4693,7 +4907,7 @@ ${paginaFotos}
       // v5.58: notificación de sanciones de los inasistentes sin excusa
       const sanc = data.sanciones || [];
       const msgAlerta = (s) => {
-        if (s.alerta === 'RETIRO')          return '🚨 DESERCIÓN / propuesta de RETIRO';
+        if (s.alerta === 'DESERCION' || s.alerta === 'RETIRO') return '🚨 ALERTA EXTREMA: DESERCIÓN — gestionar retiro de la institución';
         if (s.alerta === 'LLAMADO_ESCRITO') return '📄 Llamado de atención ESCRITO';
         if (s.alerta === 'LLAMADO_VERBAL')  return '🗣️ Llamado de atención VERBAL';
         return '';
@@ -4900,7 +5114,7 @@ ${paginaFotos}
           <div style="font-size:12px;color:#666;">Emergencias únicas</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
-          <div style="font-size:28px;font-weight:700;color:#1e8449;">${(this._operStats && this._operStats.totalHorasActividades !== undefined) ? this._operStats.totalHorasActividades : totalHoras}h</div>
+          <div style="font-size:28px;font-weight:700;color:#1e8449;">${this._r1((this._operStats && this._operStats.totalHorasActividades !== undefined) ? this._operStats.totalHorasActividades : totalHoras)}h</div>
           <div style="font-size:12px;color:#666;">Horas en actividades</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
@@ -4917,7 +5131,7 @@ ${paginaFotos}
       </div>
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#1e8449;margin-bottom:8px;">🎯 Ranking Actividades</div>
-        ${rankList(topActiv,'rk_activ',p=>p.horasActividades+'h','activ.','#1e8449')}
+        ${rankList(topActiv,'rk_activ',p=>this._r1(p.horasActividades)+'h','activ.','#1e8449')}
       </div>
       <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
@@ -4953,10 +5167,10 @@ ${paginaFotos}
   },
 
   _cardUnidad(p, mesNombre) {
-    const pts = p.emergencias*2 + p.horasActividades + p.domingosPresente;
+    const pts = this._r1(p.emergencias*2 + p.horasActividades + p.domingosPresente);
     const pctDom = p.domingosPresente + p.domingosAusente > 0
       ? Math.round(p.domingosPresente/(p.domingosPresente+p.domingosAusente)*100) : 0;
-    const colorAlerta = p.tipoAlerta==='RETIRO'?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#ff9800':null;
+    const colorAlerta = (p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#ff9800':null;
     const uid = 'u_'+p.nombre.replace(/[^a-zA-Z]/g,'').substring(0,12);
     return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
@@ -4970,7 +5184,7 @@ ${paginaFotos}
       +'<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
       +'<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
       +'<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
-      +'<div style="font-size:18px;font-weight:700;color:#1e8449;">'+p.horasActividades+'h</div>'
+      +'<div style="font-size:18px;font-weight:700;color:#1e8449;">'+this._r1(p.horasActividades)+'h</div>'
       +'<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
       +'<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
       +'<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
@@ -5015,6 +5229,40 @@ ${paginaFotos}
   },
 
 
+  // v5.63 (anti-fallas APK): window.prompt() NO funciona en el APK Android.
+  // Modal propio para pedir la contraseña admin. Devuelve Promise<string|null>.
+  _pedirPwdAdmin(mensaje) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:12px;text-align:center;">'+(mensaje||'🔐 Contraseña de administrador')+'</div>'
+        + '<input id="_pwdAdmInput" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:14px;" placeholder="Contraseña">'
+        + '<div style="display:flex;gap:10px;">'
+        + '<button id="_pwdAdmCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
+        + '<button id="_pwdAdmOk" style="flex:1;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Entrar</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      const inp = modal.querySelector('#_pwdAdmInput');
+      setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
+      const fin = (val) => { try { document.body.removeChild(modal); } catch(e){} resolve(val); };
+      modal.querySelector('#_pwdAdmCancel').onclick = () => fin(null);
+      modal.querySelector('#_pwdAdmOk').onclick = () => fin(inp.value || '');
+      inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') fin(inp.value || ''); });
+    });
+  },
+
+  // v5.63: obtiene la contraseña admin de la sesión o la pide con modal (APK-safe)
+  async _obtenerPwdAdmin(mensaje) {
+    if (this._adminPwdSession) return this._adminPwdSession;
+    try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; return s; } } catch(e) {}
+    const pwd = await this._pedirPwdAdmin(mensaje);
+    if (!pwd || !pwd.trim()) return null;
+    this._adminPwdSession = pwd.trim();
+    try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e) {}
+    return this._adminPwdSession;
+  },
+
   _confirmarAccion(mensaje, onConfirmar) {
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
@@ -5031,13 +5279,8 @@ ${paginaFotos}
 
   async eliminarActividad(id, tipo) {
     this._confirmarAccion('\u00BFEliminar actividad "'+tipo+'"?', async () => {
-      if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
-      if (!this._adminPwdSession) {
-        const pwd=window.prompt('Contrase\u00F1a de administrador:');
-        if(!pwd||!pwd.trim())return;
-        this._adminPwdSession=pwd.trim();
-        try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}
-      }
+      const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+      if (!_pwd) return;
       this.toast('Eliminando...','info');
       try{
         const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -5052,13 +5295,8 @@ ${paginaFotos}
 
   async eliminarDomingo(fecha) {
     this._confirmarAccion('\u00BFEliminar asistencia del '+fecha+'?', async () => {
-      if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
-      if (!this._adminPwdSession) {
-        const pwd=window.prompt('Contrase\u00F1a de administrador:');
-        if(!pwd||!pwd.trim())return;
-        this._adminPwdSession=pwd.trim();
-        try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}
-      }
+      const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+      if (!_pwd) return;
       this.toast('Eliminando...','info');
       try{
         const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -5099,14 +5337,14 @@ ${paginaFotos}
       <div class="stats">
         <div class="stat"><div class="num">${d.length}</div><div class="lbl">Unidades activas</div></div>
         <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.emergencias,0)}</div><div class="lbl">Emergencias atendidas</div></div>
-        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.horasActividades,0)}h</div><div class="lbl">Horas en actividades</div></div>
+        <div class="stat"><div class="num">${this._r1(d.reduce((s,p)=>s+p.horasActividades,0))}h</div><div class="lbl">Horas en actividades</div></div>
         <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.domingosPresente,0)}</div><div class="lbl">Asistencias domingo</div></div>
       </div>
       <h2>🏆 Ranking General</h2>
       <table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th><th>Sanciones</th></tr>
       ${top.map((p,i)=>{
-        const pts=p.emergencias*2+p.horasActividades+p.domingosPresente;
-        return `<tr><td>${i+1}</td><td><strong>${p.nombre}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${p.horasActividades}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
+        const pts=this._r1(p.emergencias*2+p.horasActividades+p.domingosPresente);
+        return `<tr><td>${i+1}</td><td><strong>${p.nombre}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${this._r1(p.horasActividades)}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
       }).join('')}
       </table>
       <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
@@ -5139,9 +5377,9 @@ ${paginaFotos}
       <h1>👤 Informe de Operatividad por Unidad</h1>
       <p style="color:#666;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | CBVI — Inírida</p>
       ${d.map(p=>{
-        const pts=p.emergencias*2+p.horasActividades+p.domingosPresente;
+        const pts=this._r1(p.emergencias*2+p.horasActividades+p.domingosPresente);
         const pct=p.domingosPresente+p.domingosAusente>0?Math.round(p.domingosPresente/(p.domingosPresente+p.domingosAusente)*100):0;
-        const colorAlerta=p.tipoAlerta==='RETIRO'?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#e67e22':null;
+        const colorAlerta=(p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#e67e22':null;
         return `<div class="ficha">
           <div class="ficha-header">
             <div><div class="nombre">${p.nombre}</div><div style="font-size:10pt;color:#666;">CC: ${p.cedula||'-'} ${p.rango?'| '+p.rango:''}</div></div>
@@ -5149,7 +5387,7 @@ ${paginaFotos}
           </div>
           <div class="grid">
             <div class="item"><div class="num" style="color:#c0392b;">${p.emergencias}</div><div class="lbl">Emergencias</div></div>
-            <div class="item"><div class="num" style="color:#1e8449;">${p.horasActividades}h</div><div class="lbl">En actividades</div></div>
+            <div class="item"><div class="num" style="color:#1e8449;">${this._r1(p.horasActividades)}h</div><div class="lbl">En actividades</div></div>
             <div class="item"><div class="num" style="color:#e67e22;">${p.domingosPresente}</div><div class="lbl">Domingos pres.</div></div>
           </div>
           <div style="font-size:10pt;color:#555;">
@@ -5206,7 +5444,7 @@ ${paginaFotos}
       this._eaRecursos = (a.recursos||[]).map(r => ({ tipo:r.tipo||'', codigo:r.codigo||'', responsable:r.responsable||'', responsableCedula:r.responsableCedula||'' }));
       this._eaFotosNuevas = { inicio:null, medio:null, fin:null };  // null = no cambiada
       this._eaFotosActuales = { inicio:a.fotoInicio||'', medio:a.fotoMedio||'', fin:a.fotoFin||'' };
-      const tipos = ['Acompañamiento','Capacitación','Entrenamiento','Simulacro','Jornada comunitaria','Mantenimiento','Otra'];
+      const tipos = ['Acompañamiento','Capacitación','Entrenamiento','Simulacro','Inspección','Jornada comunitaria','Bomberitos Junior','Arreglos / Reparaciones (institución)','Mantenimiento','Otra'];
       const esc = (s) => String(s||'').replace(/"/g,'&quot;');
       const fotoSlot = (k, lbl, src) =>
         '<div style="text-align:center;">'
@@ -5271,8 +5509,8 @@ ${paginaFotos}
 
       modal.querySelector('#_eaCancel').onclick = () => { document.body.removeChild(modal); this._eaLimpiar(); };
       modal.querySelector('#_eaGuard').onclick = async () => {
-        if (!this._adminPwdSession) this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
-        if (!this._adminPwdSession){const pwd=window.prompt('Contraseña admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
+        const _pwdEA = await this._obtenerPwdAdmin('🔐 Contraseña admin');
+        if (!_pwdEA) return;
         this.toast('⏳ Guardando cambios...','info');
         try {
           const payload = { accion:'actualizarActividad', id,
@@ -5429,8 +5667,8 @@ ${paginaFotos}
       document.body.appendChild(modal);
       modal.querySelector('#_ednCancel').onclick=()=>document.body.removeChild(modal);
       modal.querySelector('#_ednGuard').onclick=async()=>{
-        if(!this._adminPwdSession)this._adminPwdSession=(()=>{try{return sessionStorage.getItem('cbvi_admin_pwd');}catch(e){return null;}})();
-        if(!this._adminPwdSession){const pwd=window.prompt('Contraseña admin:');if(!pwd)return;this._adminPwdSession=pwd.trim();try{sessionStorage.setItem('cbvi_admin_pwd',this._adminPwdSession);}catch(e){}}
+        const _pwdDN = await this._obtenerPwdAdmin('🔐 Contraseña admin');
+        if(!_pwdDN) return;
         const newRegs=regs.map((r,i)=>{const sel=document.getElementById('_edn_'+i);return {...r,estado:sel?sel.value:r.estado};});
         try{
           const r2=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
