@@ -20,8 +20,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.64';
+const APP_VERSION = '5.65';
 const APP_VERSION_NOTAS = [
+  'v5.65: 🗺️ Arreglado: el Mapa de Emergencias no cargaba (la política de seguridad del sitio bloqueaba la librería del mapa). Ya carga con internet normal.',
+  'v5.65: 🆕 Aviso de "nueva versión" corregido: ya no tapa el botón de cerrar (antes crecía con TODO el historial; ahora solo muestra lo nuevo de esta versión, y tiene scroll si hace falta).',
+  'v5.65: ⏳ Mensaje breve "Abriendo.../Cerrando..." al navegar entre pantallas, además de "Cargando.../Guardando..." que ya existían.',
+  'v5.65: 🔄 Si ves pantallas viejas en la PC (ej. deudores dentro de Asistencia), es caché del navegador — Ctrl+Shift+R para forzar la versión nueva.',
   'v5.64: ⚠️ NUEVA pantalla "Ver Deudores": toca un nombre y mira EXACTAMENTE qué domingos (fecha + tema) generaron la deuda.',
   'v5.64: 🗺️ NUEVO "Mapa de Emergencias" (solo admin): ubica en un mapa cada emergencia con GPS registrado.',
   'v5.64: 🚫 Doble click corregido en TODAS las acciones (antes solo 3): eliminar, editar, sanciones, cierre de mes, bonificaciones, etc.',
@@ -283,13 +287,19 @@ const app = {
     const versionAnterior = versionGuardada;
     try { localStorage.setItem('cbvi_app_version', APP_VERSION); } catch (e) {}
 
+    // v5.64 (BUG 5): solo las notas de ESTA versión — mostrar TODO el
+    // historial (v5.59, v5.63...) hacía crecer el banner cada release hasta
+    // tapar el botón de cerrar, sobre todo en pantallas chicas.
+    const prefijoVersion = 'v' + APP_VERSION + ':';
     const notasHTML = (APP_VERSION_NOTAS || [])
-      .map(n => `<li style="margin:2px 0;">${n}</li>`).join('');
+      .filter(n => n.startsWith(prefijoVersion))
+      .map(n => `<li style="margin:2px 0;">${n.slice(prefijoVersion.length).trim()}</li>`).join('');
 
     const banner = document.createElement('div');
     banner.id = 'bannerNuevaVersion';
     banner.style.cssText = [
       'position:fixed', 'top:0', 'left:0', 'right:0',
+      'max-height:85vh', 'overflow-y:auto',
       'background:#065f46', 'color:#fff',
       'padding:12px 16px', 'z-index:10000',
       'font-size:13px', 'line-height:1.5',
@@ -309,7 +319,7 @@ const app = {
         <ul style="margin:0;padding-left:18px;font-size:12px;opacity:0.95;">${notasHTML}</ul>
       </div>
       <button onclick="document.getElementById('bannerNuevaVersion').remove()"
-              style="flex-shrink:0;background:rgba(255,255,255,0.25);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;align-self:center;">
+              style="position:sticky;top:0;flex-shrink:0;background:rgba(255,255,255,0.25);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;align-self:flex-start;">
         ✕ Cerrar
       </button>
     `;
@@ -871,6 +881,11 @@ const app = {
 
   // ==================== NAVEGACIÓN ====================
   irA(pantallaId, sinHistorial = false) {
+    // v5.64 (BUG 3): pill "Abriendo.../Cerrando..." — atras() marca _yendoAtras
+    // antes de llamar aquí, así distinguimos ir hacia adelante de volver.
+    if (this._yendoAtras) { this._flashAccion('Cerrando...'); this._yendoAtras = false; }
+    else { this._flashAccion('Abriendo...'); }
+
     if (!sinHistorial && this.pantallaActual !== pantallaId) {
       // Solo guardamos en historial las pantallas principales
       if (['pantallaHome', 'pantallaForm', 'pantallaDetalle', 'pantallaConfig'].includes(this.pantallaActual)) {
@@ -941,8 +956,10 @@ const app = {
 
     if (this.pilaPantallas.length > 0) {
       const anterior = this.pilaPantallas.pop();
+      this._yendoAtras = true;
       this.irA(anterior, true);
     } else {
+      this._yendoAtras = true;
       this.irA('pantallaHome', true);
     }
   },
@@ -4173,6 +4190,18 @@ ${paginaFotos}
     t.textContent = mensaje;
     t.className = 'toast visible ' + tipo;
     setTimeout(() => t.classList.remove('visible'), 3000);
+  },
+
+  // v5.64 (BUG 3): pill breve arriba de la pantalla con el verbo de la acción
+  // (Abriendo/Cerrando...). No bloquea nada — es solo la señal visual de que
+  // el botón respondió al toque. No pisa el toast (que es para éxito/error).
+  _flashAccion(texto) {
+    const el = document.getElementById('navFeedback');
+    if (!el) return;
+    clearTimeout(this._navFeedbackTimer);
+    el.textContent = texto;
+    el.classList.add('visible');
+    this._navFeedbackTimer = setTimeout(() => el.classList.remove('visible'), 500);
   },
 
   confirmar(titulo, mensaje) {
