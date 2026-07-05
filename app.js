@@ -20,8 +20,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.65';
+const APP_VERSION = '5.66';
 const APP_VERSION_NOTAS = [
+  'v5.66: 📸 Fotos del domingo AHORA editables (Inicio/Intermedio/Final) — antes no aparecían al editar. También Tipo de reunión, Tema, Lugar y Observación por persona.',
+  'v5.66: 📍 Admin puede corregir las coordenadas GPS de un reporte si quedaron mal capturadas (aparece al editar en el Panel Admin).',
+  'v5.66: 🎨 Mapa de Emergencias: cada pin tiene el color según el tipo de emergencia (incendio, primeros auxilios, rescate...) + leyenda con la tabla de colores.',
   'v5.65: 🗺️ Arreglado: el Mapa de Emergencias no cargaba (la política de seguridad del sitio bloqueaba la librería del mapa). Ya carga con internet normal.',
   'v5.65: 🆕 Aviso de "nueva versión" corregido: ya no tapa el botón de cerrar (antes crecía con TODO el historial; ahora solo muestra lo nuevo de esta versión, y tiene scroll si hace falta).',
   'v5.65: ⏳ Mensaje breve "Abriendo.../Cerrando..." al navegar entre pantallas, además de "Cargando.../Guardando..." que ya existían.',
@@ -3144,6 +3147,12 @@ const app = {
           <div style="flex:1 1 100%;font-size:13px;font-weight:700;margin-bottom:4px;">
             🛡️ Editando como administrador — ${ (r && r.consecutivo) || '' }
           </div>
+          <div style="flex:1 1 100%;margin-bottom:6px;">
+            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;">📍 Coordenadas GPS (lat, lng) — corrige si están mal para el Mapa de Emergencias</label>
+            <input type="text" id="admin_gps" placeholder="Ej: 4.0028, -67.9086"
+                   value="${ (r && r.gps) ? r.gps.lat + ', ' + r.gps.lng : '' }"
+                   style="width:100%;padding:8px;border:none;border-radius:6px;font-size:13px;box-sizing:border-box;">
+          </div>
           <button onclick="app.cancelarEdicionAdminCompleta()"
                   style="flex:1;min-width:120px;padding:10px;background:#444;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">
             ← Cancelar
@@ -3256,6 +3265,18 @@ const app = {
       comandanteCC: r.comandanteCC || '',
       comandanteEstacion: r.comandanteEstacion || ''
     };
+
+    // v5.65 (BUG: admin no podía corregir GPS mal capturado) — valida "lat, lng"
+    // antes de mandarlo; si está vacío o mal escrito, NO se toca el valor guardado.
+    const gpsTxt = (document.getElementById('admin_gps')?.value || '').trim();
+    if (gpsTxt) {
+      const partesGps = gpsTxt.split(',').map(s => parseFloat(s.trim()));
+      if (partesGps.length === 2 && !isNaN(partesGps[0]) && !isNaN(partesGps[1])) {
+        cambios.gpsCoordenadas = partesGps[0] + ', ' + partesGps[1];
+      } else {
+        this.toast('⚠️ GPS con formato inválido (usa "lat, lng") — no se cambió', 'error');
+      }
+    }
 
     this.toast('⏳ Guardando cambios...', 'info');
     try {
@@ -5543,6 +5564,38 @@ ${paginaFotos}
 
   _leafletMapa: null,
 
+  // v5.65 (feature: banderas por color según tipo de emergencia).
+  // Un reporte puede tener varias clasificaciones marcadas — se usa la
+  // PRIMERA que coincida en este orden de prioridad para pintar el pin.
+  _MAPA_COLORES: [
+    { tipo: 'Incendio estructural',              color: '#f9a825', etiqueta: '🟡 Incendio' },
+    { tipo: 'Incendio forestal',                 color: '#f9a825', etiqueta: '🟡 Incendio' },
+    { tipo: 'Incendio vehicular',                color: '#f9a825', etiqueta: '🟡 Incendio' },
+    { tipo: 'Primeros auxilios',                 color: '#e53935', etiqueta: '🔴 Primeros auxilios / traslado' },
+    { tipo: 'Materiales peligrosos (MATPEL)',    color: '#f4511e', etiqueta: '🟠 MATPEL' },
+    { tipo: 'Rescate vehicular',                 color: '#1e88e5', etiqueta: '🔵 Rescate vehicular' },
+    { tipo: 'Rescate en altura',                 color: '#8e24aa', etiqueta: '🟣 Rescate en altura' },
+    { tipo: 'Rescate acuático',                  color: '#00acc1', etiqueta: '🔷 Rescate acuático' },
+    { tipo: 'Inundación / desastre natural',     color: '#00897b', etiqueta: '🟢 Inundación / desastre natural' },
+    { tipo: 'Colapso estructural',               color: '#546e7a', etiqueta: '⚫ Colapso estructural' },
+    { tipo: 'Rescate animal',                    color: '#6d4c41', etiqueta: '🟤 Rescate animal' },
+    { tipo: 'Otra',                              color: '#9e9e9e', etiqueta: '⚪ Otra' }
+  ],
+
+  _colorPorClasificacion(clasificacionArr) {
+    const arr = clasificacionArr || [];
+    for (const regla of this._MAPA_COLORES) { if (arr.includes(regla.tipo)) return regla.color; }
+    return '#9e9e9e'; // sin clasificar
+  },
+
+  _iconoColor(color) {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="36" viewBox="0 0 26 36">'
+      + '<path d="M13 0C5.8 0 0 5.8 0 13c0 9.7 13 23 13 23s13-13.3 13-23C26 5.8 20.2 0 13 0z" fill="'+color+'" stroke="#fff" stroke-width="1.5"/>'
+      + '<circle cx="13" cy="13" r="5" fill="#fff"/>'
+      + '</svg>';
+    return L.divIcon({ html: svg, className: '', iconSize: [26,36], iconAnchor: [13,36], popupAnchor: [0,-32] });
+  },
+
   async cargarPantallaMapa() {
     const estado = document.getElementById('mapaEstado');
     const cont = document.getElementById('leafletMapaContenedor');
@@ -5573,6 +5626,18 @@ ${paginaFotos}
       estado.style.display = 'none';
       cont.style.display = 'block';
 
+      // Leyenda / tabla de conversión color → tipo de emergencia
+      const leyenda = document.getElementById('mapaLeyenda');
+      if (leyenda) {
+        const tiposPresentes = new Set();
+        reportes.forEach(r => (r.clasificacion||[]).forEach(c => tiposPresentes.add(c)));
+        const filas = this._MAPA_COLORES.filter(r => tiposPresentes.has(r.tipo));
+        leyenda.innerHTML = (filas.length ? filas : this._MAPA_COLORES).map(r =>
+          '<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;border-radius:12px;padding:3px 9px;margin:2px;font-size:11px;border:1px solid #eee;">'
+          + '<span style="width:10px;height:10px;border-radius:50%;background:'+r.color+';display:inline-block;"></span>'+r.etiqueta+'</span>'
+        ).join('');
+      }
+
       // Cachear localmente para que "Ver reporte completo" funcione aunque el
       // admin no haya visitado antes la lista de reportes en esta sesión.
       if (!this._reportesAdmin) this._reportesAdmin = [];
@@ -5588,14 +5653,15 @@ ${paginaFotos}
       reportes.forEach(r => {
         bounds.push([r.lat, r.lng]);
         const clas = (r.clasificacion || []).join(', ') || 'Sin clasificar';
+        const color = this._colorPorClasificacion(r.clasificacion);
         const popupHtml = '<div style="font-size:13px;min-width:180px;">'
-          + '<div style="font-weight:700;color:#c0392b;">🚨 ' + (r.consecutivo || r.id) + '</div>'
+          + '<div style="font-weight:700;color:'+color+';">🚨 ' + (r.consecutivo || r.id) + '</div>'
           + '<div style="margin-top:4px;"><b>Fecha:</b> ' + (r.fecha || '-') + '</div>'
           + '<div><b>Dirección:</b> ' + (r.direccion || '-') + '</div>'
           + '<div><b>Clasificación:</b> ' + clas + '</div>'
           + '<button onclick="app._verReporteDesdeMapa(\'' + r.id + '\')" style="margin-top:8px;background:#6e2fa0;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
           + '</div>';
-        L.marker([r.lat, r.lng]).addTo(this._leafletMapa).bindPopup(popupHtml);
+        L.marker([r.lat, r.lng], { icon: this._iconoColor(color) }).addTo(this._leafletMapa).bindPopup(popupHtml);
       });
       if (bounds.length > 1) this._leafletMapa.fitBounds(bounds, { padding: [30, 30] });
     } catch(e) {
@@ -5857,20 +5923,56 @@ ${paginaFotos}
       if(!data.ok)throw new Error(data.error||'Error');
       const regs=data.registros; if(!regs.length){this.toast('Sin registros','error');return;}
       const enc=regs[0].encargado||''; const grd=regs[0].comandanteGuardia||'';
+      const tipoActual=regs[0].tipoReunion||''; const temaActual=regs[0].tema||''; const lugarActual=regs[0].lugarReunion||'';
       const sts={'PRESENTE':'Presente','AUSENTE_EXCUSA':'C/excusa','AUSENTE_SIN_EXCUSA':'Sin excusa'};
+      const tiposReunion=['Capacitación','Entrenamiento','Reunión ordinaria','Simulacro','Jornada comunitaria','Otra'];
+      const esc=(s)=>String(s||'').replace(/"/g,'&quot;');
+
+      // v5.65 (BUG: fotos de domingo no editables): mismo patrón que Actividades
+      this._ednFotosNuevas = { inicio:null, medio:null, fin:null };
+      const fl = data.fotosLabeled || {};
+      const fotoSlot = (k, lbl, src) =>
+        '<div style="text-align:center;">'
+        + '<div style="font-size:10px;color:#666;">'+lbl+'</div>'
+        + '<div id="_ednFotoPrev'+k+'" style="width:80px;height:80px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5 center/cover no-repeat;display:flex;align-items:center;justify-content:center;overflow:hidden;">'
+        + (src ? '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:20px;">📷</span>')
+        + '</div>'
+        + '<label style="display:block;margin-top:4px;font-size:11px;color:#1e8449;cursor:pointer;text-decoration:underline;">Cambiar'
+        +   '<input type="file" accept="image/*" style="display:none;" onchange="app._ednCargarFoto(\''+k+'\',this)"></label>'
+        + '</div>';
+
       const modal=document.createElement('div');
       modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
-      const filas=regs.map((r,i)=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
+      const filas=regs.map((r,i)=>'<div style="padding:7px 0;border-bottom:1px solid #f0f0f0;">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;">'
         +'<div style="flex:1;font-size:13px;font-weight:600;">'+r.nombre+'<div style="font-size:11px;color:#999;">CC: '+(r.cedula||'-')+'</div></div>'
         +'<select id="_edn_'+i+'" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:12px;">'
         +Object.entries(sts).map(([v,l])=>'<option value="'+v+'"'+(r.estado===v?' selected':'')+'>'+l+'</option>').join('')
-        +'</select></div>').join('');
+        +'</select></div>'
+        +'<input type="text" id="_edno_'+i+'" value="'+esc(r.observacion)+'" placeholder="Observación (opcional)" style="width:100%;margin-top:5px;padding:6px 8px;border:1px solid #eee;border-radius:6px;font-size:12px;box-sizing:border-box;">'
+        +'</div>').join('');
       modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;margin:auto;">'
         +'<div style="font-weight:700;font-size:16px;color:#1e8449;margin-bottom:14px;">✏️ Domingo '+fecha+'</div>'
+        +'<label style="font-size:12px;font-weight:700;">Tipo de reunión</label>'
+        +'<select id="_ednTipo" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<option value="">Seleccionar...</option>'
+        +tiposReunion.map(t=>'<option value="'+t+'"'+(tipoActual===t?' selected':'')+'>'+t+'</option>').join('')
+        +'</select>'
+        +'<label style="font-size:12px;font-weight:700;">Tema tratado</label>'
+        +'<input type="text" id="_ednTema" value="'+esc(temaActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
+        +'<input type="text" id="_ednLugar" value="'+esc(lugarActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
         +'<div><label style="font-size:12px;font-weight:700;">👤 Encargado</label><input type="text" id="_ednE" value="'+enc.replace(/"/g,'&quot;')+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
         +'<div><label style="font-size:12px;font-weight:700;">🛡️ Guardia</label><input type="text" id="_ednG" value="'+grd.replace(/"/g,'&quot;')+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
-        +'</div><div style="font-size:12px;font-weight:700;margin-bottom:8px;color:#555;">Estado individual:</div>'
+        +'</div>'
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1e8449;">📸 Fotos de la reunión</div>'
+        +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:space-around;">'
+        + fotoSlot('inicio','Inicio',fl.inicio||'')
+        + fotoSlot('medio','Intermedio',fl.medio||'')
+        + fotoSlot('fin','Final',fl.fin||'')
+        +'</div>'
+        +'<div style="font-size:12px;font-weight:700;margin-bottom:8px;color:#555;">Estado individual:</div>'
         +filas
         +'<div style="display:flex;gap:10px;margin-top:14px;">'
         +'<button id="_ednCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
@@ -5882,13 +5984,22 @@ ${paginaFotos}
         await this._conBloqueo(modal.querySelector('#_ednGuard'), 'Guardando...', async () => {
         const _pwdDN = await this._obtenerPwdAdmin('🔐 Contraseña admin');
         if(!_pwdDN) return;
-        const newRegs=regs.map((r,i)=>{const sel=document.getElementById('_edn_'+i);return {...r,estado:sel?sel.value:r.estado};});
+        const newRegs=regs.map((r,i)=>{
+          const sel=document.getElementById('_edn_'+i);
+          const obs=document.getElementById('_edno_'+i);
+          return {...r,estado:sel?sel.value:r.estado,observacion:obs?obs.value:r.observacion};
+        });
+        const fotosPayload={};
+        ['inicio','medio','fin'].forEach(k=>{ if(this._ednFotosNuevas[k]) fotosPayload[k]=this._ednFotosNuevas[k]; });
         try{
           const r2=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
             body:JSON.stringify({accion:'registrarAsistencia',fecha,registros:newRegs,replaceAll:true,
-              tipoReunion:regs[0].tipoReunion||'',tema:regs[0].tema||'',lugarReunion:regs[0].lugarReunion||'',
+              tipoReunion:document.getElementById('_ednTipo').value,
+              tema:document.getElementById('_ednTema').value,
+              lugarReunion:document.getElementById('_ednLugar').value,
               encargado:document.getElementById('_ednE').value,
               comandanteGuardia:document.getElementById('_ednG').value,
+              fotos: fotosPayload,
               adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
           const d2=await r2.json();
           if(!d2.ok)throw new Error(d2.error);
@@ -5899,9 +6010,21 @@ ${paginaFotos}
         });
       };
     }catch(e){this.toast('Error: '+e.message,'error');}
-  }
+  },
 
-,
+  async _ednCargarFoto(tipo, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const prev = document.getElementById('_ednFotoPrev'+tipo);
+    if (prev) prev.innerHTML = '<span style="font-size:11px;color:#999;">...</span>';
+    try {
+      const dataUrl = await this.comprimirImagen(file, 1280, 0.7);
+      this._ednFotosNuevas[tipo] = dataUrl;
+      if (prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;">';
+    } catch(e) {
+      if (prev) prev.innerHTML = '<span style="font-size:11px;color:#c00;">Error</span>';
+    }
+  },
   // ── Asistencia solo admin ─────────────────────────────────────────────────
   abrirAsistencia() {
     if (!this.esAdmin()) {
