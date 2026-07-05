@@ -20,8 +20,14 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.63';
+const APP_VERSION = '5.64';
 const APP_VERSION_NOTAS = [
+  'v5.64: ⚠️ NUEVA pantalla "Ver Deudores": toca un nombre y mira EXACTAMENTE qué domingos (fecha + tema) generaron la deuda.',
+  'v5.64: 🗺️ NUEVO "Mapa de Emergencias" (solo admin): ubica en un mapa cada emergencia con GPS registrado.',
+  'v5.64: 🚫 Doble click corregido en TODAS las acciones (antes solo 3): eliminar, editar, sanciones, cierre de mes, bonificaciones, etc.',
+  'v5.64: 📊 Corregido: los totales de Emergencias y Horas en Operatividad ya no se inflaban al multiplicarse por el número de asistentes.',
+  'v5.64: 📅 Ahora se muestran por separado "Domingos realizados" y "Asistencias totales" (antes se mezclaban).',
+  'v5.64: 🔐 3 ventanas de confirmación que fallaban en silencio en el APK (cerrar sesión, cancelar edición, quitar bombero de bonificación) ahora usan el modal seguro de la app.',
   'v5.63: 🚫 Doble click corregido — los botones se bloquean y muestran "Cargando..." mientras envían (no más registros duplicados).',
   'v5.63: 📊 Se acabaron los números feos tipo "28.09999h" — todo redondeado a 1 decimal.',
   'v5.63: 👥 Autocompletado sin nombres duplicados (tildes y Ñ ya no crean personas dobles).',
@@ -784,8 +790,9 @@ const app = {
   async cerrarSesion() {
     // Cerrar el menú primero para que la confirmación se vea bien
     this.cerrarUserMenu();
-    // Usar confirm() nativo (más robusto que el modal personalizado)
-    const ok = window.confirm('¿Cerrar sesión?\n\nLos reportes ya enviados al servidor seguirán disponibles cuando vuelva a iniciar sesión.\nLos borradores locales no enviados se mantendrán en este dispositivo.');
+    // v5.64: window.confirm() falla en silencio en el APK (WebView Android) —
+    // se usa el modal propio (this.confirmar), igual que en el resto de la app.
+    const ok = await this.confirmar('¿Cerrar sesión?', 'Los reportes ya enviados al servidor seguirán disponibles cuando vuelva a iniciar sesión. Los borradores locales no enviados se mantendrán en este dispositivo.');
     if (!ok) return;
 
     try {
@@ -889,6 +896,8 @@ const app = {
     if (pantallaId === 'pantallaListaActividades') { this.cargarListaActividades(); }
     if (pantallaId === 'pantallaAsistencia') { this.cargarPantallaAsistencia(); }
     if (pantallaId === 'pantallaOperatividad') { this.cargarOperatividad(); }
+    if (pantallaId === 'pantallaDeudores') { this.cargarPantallaDeudores(); }
+    if (pantallaId === 'pantallaMapa') { this.cargarPantallaMapa(); }
     if (pantallaId === 'pantallaConfig' && this.usuario) {
       document.getElementById('cfg_perfil_nombre').value = this.usuario.nombreCompleto || this.usuario.nombre || '';
       document.getElementById('cfg_perfil_grado').value = this.usuario.grado || '';
@@ -914,7 +923,9 @@ const app = {
         pantallaListaActividades: '📋 Actividades',
         pantallaDetalleActividad: '🎯 Detalle Actividad',
         pantallaAsistencia: '📅 Asistencia',
-        pantallaOperatividad: '📊 Operatividad'
+        pantallaOperatividad: '📊 Operatividad',
+        pantallaDeudores: '⚠️ Ver Deudores',
+        pantallaMapa: '🗺️ Mapa de Emergencias'
       };
       document.getElementById('headerTitulo').textContent = titulos[pantallaId] || 'CBVI Reportes';
     }
@@ -1068,7 +1079,7 @@ const app = {
       const resto = sanc.length > 5
         ? '<div style="font-size:11px;color:#c00;margin-top:4px;">+ ' + (sanc.length - 5) + ' más — toca para ver todas</div>' : '';
       cont.innerHTML =
-        '<div onclick="app.abrirAsistencia()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
+        '<div onclick="app.abrirDeudores()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
         + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:6px;">⚠️ Sanciones pendientes (' + sanc.length + ')</div>'
         + filas + resto
         + '</div>';
@@ -2308,7 +2319,7 @@ const app = {
   },
 
   // Solo admin: renumerar reportes en el servidor
-  async renumerarReportes() {
+  async renumerarReportes(btn) {
     if (!this.esAdmin()) {
       this.toast('Solo el administrador puede renumerar', 'error');
       return;
@@ -2323,6 +2334,7 @@ const app = {
     );
     if (!ok) return;
 
+    await this._conBloqueo(btn, 'Renumerando...', async () => {
     this.toast('Renumerando... espere', 'exito');
     try {
       const resp = await fetch(this.config.urlBackend, {
@@ -2344,6 +2356,7 @@ const app = {
       console.error('Error renumerando:', err);
       this.toast('Error de red al renumerar', 'error');
     }
+    });
   },
 
   // ========== 🆕 v5.3: CIERRE DE MES POR FECHA DE LLAMADA ==========
@@ -2519,6 +2532,7 @@ const app = {
   },
 
   async aplicarCierreMes() {
+    if (this._aplicandoCierreMes) return; // v5.64 (BUG 2): anti doble-click
     if (!this._cierreMesPendiente) {
       this.toast('Primero debes previsualizar', 'error');
       return;
@@ -2532,6 +2546,7 @@ const app = {
       `Se renumerarán ${info.cambiosRealizarian} reportes de ${info.nombreMes} ${info.anio}. Esta acción NO se puede deshacer. ¿Continuar?`
     );
     if (!ok) { this._cierreMesPendiente = null; return; }
+    this._aplicandoCierreMes = true;
     this.toast('Aplicando cierre de mes... espere', 'exito');
 
     try {
@@ -2560,6 +2575,8 @@ const app = {
     } catch (err) {
       console.error('Error aplicando cierre de mes:', err);
       this.toast('Error de red: ' + err.message, 'error');
+    } finally {
+      this._aplicandoCierreMes = false;
     }
 
     this._cierreMesPendiente = null;
@@ -2664,12 +2681,9 @@ const app = {
       this.toast('Solo el administrador', 'error');
       return;
     }
-    const ok = window.confirm(
-      `⚠️ ELIMINAR REPORTE\n\n` +
-      `Consecutivo: ${consecutivo || '(sin consecutivo)'}\n\n` +
-      `Se borrará la fila del Google Sheets Y la subcarpeta de fotos/firmas en Drive.\n\n` +
-      `Esta acción NO se puede deshacer.\n\n` +
-      `¿Continuar?`
+    const ok = await this.confirmar(
+      '⚠️ Eliminar reporte',
+      `Consecutivo: ${consecutivo || '(sin consecutivo)'}. Se borrará la fila del Google Sheets y la subcarpeta de fotos/firmas en Drive. Esta acción NO se puede deshacer. ¿Continuar?`
     );
     if (!ok) return;
 
@@ -2915,9 +2929,9 @@ const app = {
           <input id="adminBonifInput_${r.id}"
                  type="text"
                  placeholder="Nombre completo del bombero"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();app.agregarBomberoBonifAdmin('${r.id}')}"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();app.agregarBomberoBonifAdmin(document.getElementById('adminBonifBtn_${r.id}'),'${r.id}')}"
                  style="flex:1;min-width:180px;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
-          <button onclick="app.agregarBomberoBonifAdmin('${r.id}')"
+          <button id="adminBonifBtn_${r.id}" onclick="app.agregarBomberoBonifAdmin(this,'${r.id}')"
                   style="padding:8px 14px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">
             + Agregar
           </button>
@@ -2964,7 +2978,7 @@ const app = {
         return `
           <span style="display:inline-flex;align-items:center;gap:6px;background:#065f46;color:#fff;padding:5px 8px 5px 10px;border-radius:14px;font-size:12px;font-weight:600;">
             ${safe}
-            <button onclick="app.quitarBomberoBonifAdmin('${idReporte}', '${safe}')"
+            <button onclick="app.quitarBomberoBonifAdmin(this, '${idReporte}', '${safe}')"
                     title="Quitar"
                     style="background:rgba(255,255,255,0.25);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;">×</button>
           </span>
@@ -2977,12 +2991,12 @@ const app = {
   },
 
   // Agrega UN bombero a Bonificaciones del reporte
-  async agregarBomberoBonifAdmin(idReporte) {
+  async agregarBomberoBonifAdmin(btn, idReporte) {
     const inp = document.getElementById('adminBonifInput_' + idReporte);
     if (!inp) return;
     const nombre = (inp.value || '').trim();
     if (!nombre) { this.toast('Escribe un nombre', 'error'); return; }
-
+    await this._conBloqueo(btn, 'Agregando...', async () => {
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
@@ -3017,12 +3031,14 @@ const app = {
     } catch (e) {
       this.toast('Error de red: ' + e.message, 'error');
     }
+    });
   },
 
   // Quita UN bombero específico de Bonificaciones del reporte
-  async quitarBomberoBonifAdmin(idReporte, nombre) {
-    const ok = window.confirm(`¿Quitar a "${nombre}" de las bonificaciones de este reporte?`);
+  async quitarBomberoBonifAdmin(btn, idReporte, nombre) {
+    const ok = await this.confirmar('Quitar bombero', `¿Quitar a "${nombre}" de las bonificaciones de este reporte?`);
     if (!ok) return;
+    await this._conBloqueo(btn, 'Quitando...', async () => {
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
@@ -3051,6 +3067,7 @@ const app = {
     } catch (e) {
       this.toast('Error de red: ' + e.message, 'error');
     }
+    });
   },
 
   async editarReporteAdmin(idReporte) {
@@ -3114,7 +3131,7 @@ const app = {
                   style="flex:1;min-width:120px;padding:10px;background:#444;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">
             ← Cancelar
           </button>
-          <button onclick="app.guardarEdicionAdminCompleta()"
+          <button onclick="app.guardarEdicionAdminCompleta(this)"
                   style="flex:2;min-width:160px;padding:10px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">
             💾 Guardar cambios admin
           </button>
@@ -3129,8 +3146,8 @@ const app = {
     }
   },
 
-  cancelarEdicionAdminCompleta() {
-    const ok = window.confirm('¿Cancelar la edición? Los cambios no guardados se perderán.');
+  async cancelarEdicionAdminCompleta() {
+    const ok = await this.confirmar('Cancelar edición', '¿Cancelar la edición? Los cambios no guardados se perderán.');
     if (!ok) return;
     this._modoEdicionAdmin = false;
     this._reporteAdminEditando = null;
@@ -3141,7 +3158,8 @@ const app = {
 
   // Lee el formulario completo y envía editarReporte al backend con TODOS los campos
   // (incluye recursos, víctimas, organizaciones para regenerar hojas auxiliares)
-  async guardarEdicionAdminCompleta() {
+  async guardarEdicionAdminCompleta(btn) {
+    await this._conBloqueo(btn, 'Guardando...', async () => {
     // Toast en línea 1 para confirmar que el botón llega aquí
     this.toast('⏳ Preparando datos...', 'info');
     if (!this._modoEdicionAdmin) { this.toast('❌ No está en modo edición admin', 'error'); return; }
@@ -3166,14 +3184,8 @@ const app = {
       fotosOriginal.length !== fotosActual.length ||
       fotosActual.some((f, i) => f !== fotosOriginal[i]);
     if (fotosCambiadas) {
-      const ok = window.confirm(
-        '⚠️ Detecté cambios en las FOTOS de este reporte.\n\n' +
-        'El editor admin NO sube fotos nuevas al servidor. ' +
-        'Las fotos que ya tenía el reporte en Drive se mantienen igual.\n\n' +
-        'Si necesitas cambiar fotos, pídele al bombero original que abra ' +
-        'el reporte desde su dispositivo (dentro de 24h) o elimínalo y ' +
-        'créalo de nuevo.\n\n' +
-        '¿Continuar y guardar el resto de cambios?'
+      const ok = await this.confirmar('⚠️ Cambios en las fotos detectados',
+        'El editor admin NO sube fotos nuevas al servidor. Las fotos que ya tenía el reporte en Drive se mantienen igual. Si necesitas cambiar fotos, pídele al bombero original que abra el reporte desde su dispositivo (dentro de 24h) o elimínalo y créalo de nuevo. ¿Continuar y guardar el resto de cambios?'
       );
       if (!ok) return;
     }
@@ -3293,6 +3305,7 @@ const app = {
     } catch (e) {
       this.toast('❌ Error inesperado: ' + e.message, 'error');
     }
+    });
   },
 
   cancelarEdicionAdmin() {
@@ -3301,9 +3314,10 @@ const app = {
     this._reporteAdminEditando = null;
   },
 
-  async guardarEdicionAdmin() {
+  async guardarEdicionAdmin(btn) {
     const r = this._reporteAdminEditando;
     if (!r) return;
+    await this._conBloqueo(btn, 'Guardando...', async () => {
     const nuevoCons = document.getElementById('admin_consecutivo').value.trim();
 
     const cambios = {
@@ -3359,6 +3373,7 @@ const app = {
     } catch (e) {
       this.toast('Error de red: ' + e.message, 'error');
     }
+    });
   },
 
   // ========== IMPRIMIR DESDE ADMIN ==========
@@ -4644,7 +4659,8 @@ ${paginaFotos}
       }).join('');
     } catch(e) {}
 
-    // Sanciones (solo admin)
+    // v5.64 (BUG 1): la lista editable de deudores se movió a su propia
+    // pantalla (Ver Deudores). Aquí solo queda un aviso compacto con enlace.
     if (esAdmin) {
       try {
         const resp2 = await fetch(URL_BACKEND, {
@@ -4654,18 +4670,12 @@ ${paginaFotos}
         const d2 = await resp2.json();
         if (d2.ok && d2.sanciones.length) {
           sanPanel.style.display = 'block';
-          document.getElementById('asistSanciones').innerHTML = d2.sanciones.map(s =>
-            `<div style="padding:8px;background:#fff;border-radius:8px;margin-bottom:6px;border-left:3px solid ${s.tipoAlerta==='RETIRO'?'#c00':s.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':'#ff9800'};">
-              <strong>${s.nombre}</strong> — <span style="color:#c00;">${s.horasPendientes}h pendientes</span>
-              ${s.tipoAlerta ? `<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:4px;">${s.tipoAlerta.replace('_',' ')}</span>` : ''}
-              <div style="margin-top:6px;">
-                <input type="number" min="1" max="${s.horasPendientes}" placeholder="Horas a descontar"
-                  id="sanHoras_${s.cedula}" style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;width:120px;font-size:13px;">
-                <button onclick="app.cumplirSancion('${s.cedula}','${s.nombre}')"
-                  style="background:#1e8449;color:#fff;border:none;border-radius:4px;padding:5px 10px;cursor:pointer;margin-left:6px;font-size:13px;">✅ Cumplidas</button>
-              </div>
-            </div>`
-          ).join('');
+          document.getElementById('asistSanciones').innerHTML =
+            '<div onclick="app.abrirDeudores()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
+            + '<span>' + d2.sanciones.length + ' unidad(es) con horas de sanción pendientes</span>'
+            + '<span style="color:#c00;font-weight:700;">Ver Deudores →</span></div>';
+        } else {
+          sanPanel.style.display = 'none';
         }
       } catch(e) {}
     }
@@ -4719,13 +4729,6 @@ ${paginaFotos}
       + '</div>';
   },
 
-  _setAsistencia(key, nombre, estado) {
-    if (this._asistRegistros[key]) this._asistRegistros[key].estado = estado;
-    // actualizar color del select sin re-render completo
-    const sel = event ? event.target : null;
-    if (sel) sel.style.background = estado==='PRESENTE'?'#e8f5e9':estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee';
-  },
-
   _quitarAsistencia(key) {
     delete this._asistRegistros[key];
     const fecha = document.getElementById('asistFecha').value;
@@ -4769,7 +4772,7 @@ ${paginaFotos}
 
   // v5.54 FIX: faltaba esta función (el botón "Agregar y registrar" no hacía nada).
   // Registra el bombero en la base de datos del personal Y lo suma a la lista del domingo.
-  async agregarNuevoBomberoAsistencia() {
+  async agregarNuevoBomberoAsistencia(btn) {
     const nombre = (document.getElementById('asistNuevoNombre').value || '').toUpperCase().trim();
     const cedula = (document.getElementById('asistNuevoCedula').value || '').trim();
     const tel    = (document.getElementById('asistNuevoTel').value || '').trim();
@@ -4779,7 +4782,7 @@ ${paginaFotos}
     const key = cedula || nombre;
     if (this._asistRegistros[key]) { this.toast(nombre + ' ya está en la lista', 'error'); return; }
 
-    this.toast('Registrando en la base de datos...', 'info');
+    await this._conBloqueo(btn, 'Registrando...', async () => {
     try {
       const r = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -4812,6 +4815,7 @@ ${paginaFotos}
       this.toast('Sin conexión. Intenta de nuevo con internet.', 'error');
       console.error(e);
     }
+    });
   },
 
   _setAsistencia(cedula, nombre, estado) {
@@ -4960,21 +4964,103 @@ ${paginaFotos}
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
   },
 
-  async cumplirSancion(cedula, nombre) {
+  async cumplirSancion(btn, cedula, nombre) {
     const input = document.getElementById('sanHoras_' + cedula);
     const horas = Number(input ? input.value : 0);
     if (!horas || horas <= 0) { this.toast('Ingresa las horas cumplidas', 'error'); return; }
+    await this._conBloqueo(btn, 'Guardando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'cumplirSancion', cedula, horas,
+            adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        });
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error);
+        this.toast('✅ ' + data.mensaje, 'ok');
+        setTimeout(() => this.cargarPantallaDeudores(), 1000);
+      } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+    });
+  },
+
+  // ═══ v5.64 (BUG 1+2): pantalla dedicada "Ver Deudores" ═══
+  // Antes vivía embebida (con edición) dentro de Asistencia. Ahora es su
+  // propia pantalla con accordion: toca un nombre para ver EXACTAMENTE
+  // qué domingos (fecha + tema) le generaron la deuda.
+  abrirDeudores() {
+    if (!this.esAdmin()) { this.toast('Solo administradores pueden ver esto', 'error'); return; }
+    this.irA('pantallaDeudores');
+  },
+
+  async cargarPantallaDeudores() {
+    const cont = document.getElementById('deudoresContenido');
+    if (!cont) return;
+    if (!this.esAdmin()) {
+      cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;">🔒</div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver esto</div></div>';
+      return;
+    }
+    cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Cargando...</div>';
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'cumplirSancion', cedula, horas,
-          adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        body: JSON.stringify({ accion: 'listarSanciones', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
       });
       const data = await resp.json();
-      if (!data.ok) throw new Error(data.error);
-      this.toast('✅ ' + data.mensaje, 'ok');
-      setTimeout(() => this.cargarPantallaAsistencia(), 1000);
-    } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+      if (!data.ok) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + (data.error||'desconocido') + '</div>'; return; }
+      const sanc = (data.sanciones || []).filter(s => Number(s.horasPendientes) > 0);
+      if (!sanc.length) {
+        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#1e8449;background:#fff;border-radius:12px;"><div style="font-size:40px;">✅</div><div style="margin-top:10px;font-weight:700;">Sin deudores pendientes</div></div>';
+        return;
+      }
+      sanc.sort((a,b) => Number(b.horasPendientes) - Number(a.horasPendientes));
+      const badge = (s) => {
+        if (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO')
+          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>';
+        if (s.tipoAlerta === 'LLAMADO_ESCRITO')
+          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>';
+        if (s.tipoAlerta === 'LLAMADO_VERBAL')
+          return '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>';
+        return '';
+      };
+      cont.innerHTML = sanc.map((s,i) => {
+        const uid = 'deu_' + i;
+        return '<div style="background:#fff;border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #c00;">'
+          + '<div onclick="app._toggleDeudorAccordion(\''+uid+'\',\''+s.cedula+'\')" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
+          + '<div><strong>'+s.nombre+'</strong>'+badge(s)+'<div style="font-size:12px;color:#666;margin-top:2px;">CC: '+s.cedula+'</div></div>'
+          + '<div style="text-align:right;"><div style="color:#c00;font-weight:700;">'+s.horasPendientes+'h</div><div style="font-size:11px;color:#999;">▼ ver domingos</div></div>'
+          + '</div>'
+          + '<div id="'+uid+'_det" style="display:none;padding:0 14px 14px;border-top:1px solid #f5f5f5;"></div>'
+          + '</div>';
+      }).join('');
+    } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + e.message + '</div>'; }
+  },
+
+  async _toggleDeudorAccordion(uid, cedula) {
+    const det = document.getElementById(uid + '_det');
+    if (!det) return;
+    const abierto = det.style.display !== 'none';
+    if (abierto) { det.style.display = 'none'; return; }
+    det.style.display = 'block';
+    if (det.dataset.cargado === '1') return;
+    det.innerHTML = '<div style="padding:10px 0;color:#999;font-size:13px;">Cargando domingos...</div>';
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'obtenerFaltasDomingoPersona', cedula, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const data = await resp.json();
+      if (!data.ok) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+data.error+'</div>'; return; }
+      det.dataset.cargado = '1';
+      const faltas = data.faltas || [];
+      det.innerHTML = '<div style="padding-top:10px;">'
+        + (faltas.length
+          ? faltas.map(f => '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;"><strong>📅 '+f.fecha+'</strong><div style="color:#666;margin-top:2px;">'+f.tema+'</div></div>').join('')
+          : '<div style="padding:8px 0;color:#999;font-size:13px;">Sin domingos sin excusa registrados</div>')
+        + '<div style="margin-top:10px;">'
+        + '<input type="number" min="1" placeholder="Horas a descontar" id="sanHoras_'+cedula+'" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;width:130px;font-size:13px;">'
+        + '<button onclick="app.cumplirSancion(this,\''+cedula+'\',\'\')" style="background:#1e8449;color:#fff;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;margin-left:6px;font-size:13px;">✅ Marcar cumplidas</button>'
+        + '</div></div>';
+    } catch(e) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+e.message+'</div>'; }
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -5046,7 +5132,7 @@ ${paginaFotos}
         + '<div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div></div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
         + card0(0,'Unidades activas','#1a5276') + card0(0,'Emergencias únicas','#c0392b')
-        + card0('0h','Horas en actividades','#1e8449') + card0(0,'Asist. domingos total','#e67e22')
+        + card0('0h','Horas en actividades','#1e8449') + card0(0,'Domingos realizados','#e67e22')
         + '</div>'
         + '<div style="text-align:center;padding:20px;color:#999;background:#fff;border-radius:12px;">Sin registros en este período</div>';
       return;
@@ -5119,7 +5205,13 @@ ${paginaFotos}
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div style="font-size:28px;font-weight:700;color:#e67e22;">${totalDomingos}</div>
-          <div style="font-size:12px;color:#666;">Asist. domingos total</div>
+          <div style="font-size:12px;color:#666;">Domingos realizados</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;">
+        <div style="background:#fff;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:22px;font-weight:700;color:#8e44ad;">${this._operStats && this._operStats.asistenciasTotales !== undefined ? this._operStats.asistenciasTotales : d.reduce((s,p)=>s+(p.domingosPresente||0),0)}</div>
+          <div style="font-size:12px;color:#666;">Asistencias totales (suma individual)</div>
         </div>
       </div>
 
@@ -5279,10 +5371,13 @@ ${paginaFotos}
 
   async eliminarActividad(id, tipo) {
     this._confirmarAccion('\u00BFEliminar actividad "'+tipo+'"?', async () => {
-      const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
-      if (!_pwd) return;
-      this.toast('Eliminando...','info');
-      try{
+      if (!this._eliminandoIds) this._eliminandoIds = new Set();
+      if (this._eliminandoIds.has(id)) return; // v5.64 (BUG 2): anti doble-click
+      this._eliminandoIds.add(id);
+      try {
+        const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+        if (!_pwd) return;
+        this.toast('Eliminando...','info');
         const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
           body:JSON.stringify({accion:'eliminarActividad',id,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
         const d=await r.json();
@@ -5290,15 +5385,19 @@ ${paginaFotos}
         this.toast('\u2705 Actividad eliminada','ok');
         setTimeout(()=>this.cargarListaActividades(),800);
       }catch(e){this.toast('Error: '+e.message,'error');}
+      finally { this._eliminandoIds.delete(id); }
     });
   },
 
   async eliminarDomingo(fecha) {
     this._confirmarAccion('\u00BFEliminar asistencia del '+fecha+'?', async () => {
-      const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
-      if (!_pwd) return;
-      this.toast('Eliminando...','info');
-      try{
+      if (!this._eliminandoFechas) this._eliminandoFechas = new Set();
+      if (this._eliminandoFechas.has(fecha)) return; // v5.64 (BUG 2): anti doble-click
+      this._eliminandoFechas.add(fecha);
+      try {
+        const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+        if (!_pwd) return;
+        this.toast('Eliminando...','info');
         const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
           body:JSON.stringify({accion:'eliminarDomingo',fecha,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
         const d=await r.json();
@@ -5306,6 +5405,7 @@ ${paginaFotos}
         this.toast('\u2705 Domingo eliminado','ok');
         setTimeout(()=>this.cargarPantallaAsistencia(),800);
       }catch(e){this.toast('Error: '+e.message,'error');}
+      finally { this._eliminandoFechas.delete(fecha); }
     });
   },
 
@@ -5320,9 +5420,9 @@ ${paginaFotos}
         body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
         h1{color:#6e2fa0;font-size:15pt;margin-bottom:4px;}
         h2{color:#333;font-size:12pt;border-bottom:2px solid #6e2fa0;padding-bottom:4px;margin-top:16px;}
-        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0;}
+        .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0;}
         .stat{border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center;}
-        .stat .num{font-size:22pt;font-weight:700;color:#6e2fa0;}
+        .stat .num{font-size:20pt;font-weight:700;color:#6e2fa0;}
         .stat .lbl{font-size:9pt;color:#666;}
         table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt;}
         th{background:#6e2fa0;color:#fff;padding:7px 8px;text-align:left;}
@@ -5336,9 +5436,10 @@ ${paginaFotos}
       <p style="color:#666;margin:0 0 12px;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | Cuerpo de Bomberos Voluntarios de Inírida</p>
       <div class="stats">
         <div class="stat"><div class="num">${d.length}</div><div class="lbl">Unidades activas</div></div>
-        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.emergencias,0)}</div><div class="lbl">Emergencias atendidas</div></div>
-        <div class="stat"><div class="num">${this._r1(d.reduce((s,p)=>s+p.horasActividades,0))}h</div><div class="lbl">Horas en actividades</div></div>
-        <div class="stat"><div class="num">${d.reduce((s,p)=>s+p.domingosPresente,0)}</div><div class="lbl">Asistencias domingo</div></div>
+        <div class="stat"><div class="num">${this._operStats ? this._operStats.totalEmergenciasUnicas : d.reduce((s,p)=>s+p.emergencias,0)}</div><div class="lbl">Emergencias únicas</div></div>
+        <div class="stat"><div class="num">${this._r1(this._operStats && this._operStats.totalHorasActividades !== undefined ? this._operStats.totalHorasActividades : d.reduce((s,p)=>s+p.horasActividades,0))}h</div><div class="lbl">Horas en actividades</div></div>
+        <div class="stat"><div class="num">${this._operStats && this._operStats.totalDomingos !== undefined ? this._operStats.totalDomingos : '-'}</div><div class="lbl">Domingos realizados</div></div>
+        <div class="stat"><div class="num">${this._operStats && this._operStats.asistenciasTotales !== undefined ? this._operStats.asistenciasTotales : d.reduce((s,p)=>s+p.domingosPresente,0)}</div><div class="lbl">Asistencias totales</div></div>
       </div>
       <h2>🏆 Ranking General</h2>
       <table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th><th>Sanciones</th></tr>
@@ -5403,6 +5504,86 @@ ${paginaFotos}
     setTimeout(()=>w.print(),800);
   },
 
+
+  // ═══ v5.64 (BUG 4): pantalla "Mapa de Emergencias" (Leaflet + OSM, admin) ═══
+  // Gratis, sin API key. Solo pinta reportes que SÍ tienen GPS guardado.
+  abrirMapa() {
+    if (!this.esAdmin()) { this.toast('Solo administradores pueden ver el mapa', 'error'); return; }
+    this.irA('pantallaMapa');
+  },
+
+  _leafletMapa: null,
+
+  async cargarPantallaMapa() {
+    const estado = document.getElementById('mapaEstado');
+    const cont = document.getElementById('leafletMapaContenedor');
+    if (!estado || !cont) return;
+    if (!this.esAdmin()) {
+      estado.style.display = 'block'; estado.textContent = '🔒 Solo administradores'; cont.style.display = 'none';
+      return;
+    }
+    if (typeof L === 'undefined') {
+      estado.style.display = 'block';
+      estado.textContent = '⚠️ No se pudo cargar el mapa (revisa tu conexión a internet).';
+      cont.style.display = 'none';
+      return;
+    }
+    estado.style.display = 'block'; estado.textContent = 'Cargando reportes...'; cont.style.display = 'none';
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarReportesParaMapa', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const data = await resp.json();
+      if (!data.ok) { estado.textContent = 'Error: ' + (data.error||'desconocido'); return; }
+      const reportes = data.reportes || [];
+      if (!reportes.length) {
+        estado.textContent = '📭 Sin emergencias con coordenadas GPS registradas todavía.';
+        return;
+      }
+      estado.style.display = 'none';
+      cont.style.display = 'block';
+
+      // Cachear localmente para que "Ver reporte completo" funcione aunque el
+      // admin no haya visitado antes la lista de reportes en esta sesión.
+      if (!this._reportesAdmin) this._reportesAdmin = [];
+      reportes.forEach(r => { if (!this._reportesAdmin.some(x => x.id === r.id)) this._reportesAdmin.push(r); });
+
+      if (this._leafletMapa) { this._leafletMapa.remove(); this._leafletMapa = null; }
+      this._leafletMapa = L.map(cont).setView([reportes[0].lat, reportes[0].lng], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap'
+      }).addTo(this._leafletMapa);
+
+      const bounds = [];
+      reportes.forEach(r => {
+        bounds.push([r.lat, r.lng]);
+        const clas = (r.clasificacion || []).join(', ') || 'Sin clasificar';
+        const popupHtml = '<div style="font-size:13px;min-width:180px;">'
+          + '<div style="font-weight:700;color:#c0392b;">🚨 ' + (r.consecutivo || r.id) + '</div>'
+          + '<div style="margin-top:4px;"><b>Fecha:</b> ' + (r.fecha || '-') + '</div>'
+          + '<div><b>Dirección:</b> ' + (r.direccion || '-') + '</div>'
+          + '<div><b>Clasificación:</b> ' + clas + '</div>'
+          + '<button onclick="app._verReporteDesdeMapa(\'' + r.id + '\')" style="margin-top:8px;background:#6e2fa0;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
+          + '</div>';
+        L.marker([r.lat, r.lng]).addTo(this._leafletMapa).bindPopup(popupHtml);
+      });
+      if (bounds.length > 1) this._leafletMapa.fitBounds(bounds, { padding: [30, 30] });
+    } catch(e) {
+      estado.style.display = 'block'; cont.style.display = 'none';
+      estado.textContent = 'Error: ' + e.message;
+    }
+  },
+
+  // Abre el reporte completo (read-only) desde un pin del mapa, reutilizando
+  // el visor del Panel Admin. Pide la contraseña admin si aún no está en
+  // sesión (misma protección que el resto del Panel Admin).
+  async _verReporteDesdeMapa(id) {
+    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador para ver el reporte');
+    if (!pw) return;
+    this.irA('pantallaPanelAdmin');
+    setTimeout(() => this.verReporteAdmin(id), 50);
+  },
 
   // ── Autocomplete encargado/guardia en asistencia ─────────────────────────
   _buscarAsistCampo(inputId, sugId, q) {
@@ -5509,6 +5690,7 @@ ${paginaFotos}
 
       modal.querySelector('#_eaCancel').onclick = () => { document.body.removeChild(modal); this._eaLimpiar(); };
       modal.querySelector('#_eaGuard').onclick = async () => {
+        await this._conBloqueo(modal.querySelector('#_eaGuard'), 'Guardando...', async () => {
         const _pwdEA = await this._obtenerPwdAdmin('🔐 Contraseña admin');
         if (!_pwdEA) return;
         this.toast('⏳ Guardando cambios...','info');
@@ -5536,6 +5718,7 @@ ${paginaFotos}
           this.toast('✅ Actividad actualizada','ok');
           setTimeout(()=>this.cargarListaActividades(),800);
         }catch(e){this.toast('Error: '+e.message,'error');}
+        });
       };
     }catch(e){this.toast('Error: '+e.message,'error');}
   },
@@ -5667,6 +5850,7 @@ ${paginaFotos}
       document.body.appendChild(modal);
       modal.querySelector('#_ednCancel').onclick=()=>document.body.removeChild(modal);
       modal.querySelector('#_ednGuard').onclick=async()=>{
+        await this._conBloqueo(modal.querySelector('#_ednGuard'), 'Guardando...', async () => {
         const _pwdDN = await this._obtenerPwdAdmin('🔐 Contraseña admin');
         if(!_pwdDN) return;
         const newRegs=regs.map((r,i)=>{const sel=document.getElementById('_edn_'+i);return {...r,estado:sel?sel.value:r.estado};});
@@ -5683,6 +5867,7 @@ ${paginaFotos}
           this.toast('✅ Domingo actualizado','ok');
           setTimeout(()=>this.cargarPantallaAsistencia(),800);
         }catch(e){this.toast('Error: '+e.message,'error');}
+        });
       };
     }catch(e){this.toast('Error: '+e.message,'error');}
   }

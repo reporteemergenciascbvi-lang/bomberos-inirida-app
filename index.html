@@ -23,6 +23,9 @@
 
 <!-- Google Identity Services (login con Google) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- v5.64 (BUG 4 - mapa): Leaflet + OpenStreetMap. Gratis, sin API key, sin facturación. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
   :root {
@@ -731,6 +734,17 @@
       <div style="font-size:9px;color:#999;margin-top:1px;">Solo admin</div>
     </button>
   </div>
+  <!-- v5.64 (BUG 1+4): Ver Deudores. -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+    <button onclick="app.abrirDeudores()" style="background:#fff;color:#c00;border:2px solid #c00;border-radius:12px;padding:12px 8px;cursor:pointer;text-align:center;font-weight:700;">
+      <div style="font-size:22px;">⚠️</div><div style="font-size:11px;margin-top:3px;">VER DEUDORES</div>
+      <div style="font-size:9px;color:#999;margin-top:1px;">Solo admin</div>
+    </button>
+    <button onclick="app.abrirMapa()" style="background:#fff;color:#1a7a5e;border:2px solid #1a7a5e;border-radius:12px;padding:12px 8px;cursor:pointer;text-align:center;font-weight:700;">
+      <div style="font-size:22px;">🗺️</div><div style="font-size:11px;margin-top:3px;">MAPA EMERGENCIAS</div>
+      <div style="font-size:9px;color:#999;margin-top:1px;">Solo admin</div>
+    </button>
+  </div>
   <div class="lema-pie">"ABNEGACIÓN Y DISCIPLINA"</div>
   <div class="credito-pie">
     App desarrollada por <strong>Bombero Jeferson Jeancarlos Rangel Gil</strong><br>
@@ -745,7 +759,7 @@
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v5.63</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v5.64</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -769,9 +783,13 @@
 
       <p><b>🔄 9. Sincronización</b><br>Al iniciar sesión en otro dispositivo con el mismo correo, todos los reportes se descargan automáticamente. Nada se pierde al limpiar caché o cambiar de teléfono.</p>
 
-      <p><b>⚠️ 10. Recordatorio de sanciones (admins)</b><br>En la pantalla de inicio, los administradores ven una tarjeta roja con las unidades que deben horas de sanción, sus horas pendientes y el nivel de alerta (verbal, escrito o deserción). Tóquela para ir directo al módulo de Asistencia.</p>
+      <p><b>⚠️ 10. Recordatorio de sanciones (admins)</b><br>En la pantalla de inicio, los administradores ven una tarjeta roja con las unidades que deben horas de sanción, sus horas pendientes y el nivel de alerta (verbal, escrito o deserción). Tóquela para ir directo a <b>Ver Deudores</b>.</p>
 
-      <p><b>⏳ 11. Botones con "Cargando"</b><br>Al enviar un reporte, actividad o asistencia, el botón se bloquea y muestra una animación de carga. <b>Espere a que termine</b> — tocar varias veces ya no crea registros duplicados, la app lo impide automáticamente.</p>
+      <p><b>⏳ 11. Botones con "Cargando"</b><br>Al enviar cualquier acción (reporte, actividad, asistencia, sanción, edición, eliminación, etc.), el botón se bloquea y muestra una animación de carga. <b>Espere a que termine</b> — tocar varias veces ya no crea registros duplicados, la app lo impide automáticamente.</p>
+
+      <p><b>⚠️ 12. Ver Deudores</b><br>Panel exclusivo de administrador (botón rojo en el inicio o desde la tarjeta de sanciones). Lista cada unidad con horas de sanción pendientes. Toque un nombre para desplegar el acordeón con <b>las fechas y temas exactos</b> de los domingos que faltó sin excusa. Desde ahí mismo puede registrar horas cumplidas.</p>
+
+      <p><b>🗺️ 13. Mapa de Emergencias</b><br>Panel exclusivo de administrador. Muestra en un mapa (sin costo, sin API key) cada emergencia que tenga coordenadas GPS registradas. Toque un pin para ver dirección, fecha y clasificación, con acceso directo a "Ver reporte completo".</p>
 
     </div>
     <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
@@ -916,7 +934,7 @@
 
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
         <button onclick="app.cancelarEdicionAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Cancelar</button>
-        <button onclick="app.guardarEdicionAdmin()" style="flex:1;min-width:120px;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar</button>
+        <button onclick="app.guardarEdicionAdmin(this)" style="flex:1;min-width:120px;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar</button>
         <button onclick="app.imprimirReporteEditandoAdmin()" style="flex:1;min-width:110px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Imprimir</button>
       </div>
     </div>
@@ -1526,7 +1544,7 @@
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Si los consecutivos se desordenaron por usuarios con versiones viejas, este botón pide al servidor renumerar todos los reportes en orden cronológico.
       </p>
-      <button class="btn btn-secundario btn-completo" onclick="app.renumerarReportes()" style="background: #fef2f2; color: var(--rojo); border-color: #fca5a5;">
+      <button class="btn btn-secundario btn-completo" onclick="app.renumerarReportes(this)" style="background: #fef2f2; color: var(--rojo); border-color: #fca5a5;">
         🔄 Renumerar todos los reportes (Admin)
       </button>
     </div>
@@ -1806,7 +1824,7 @@
           </select>
         </div>
         <div style="display:flex;gap:8px;">
-          <button onclick="app.agregarNuevoBomberoAsistencia()" style="flex:1;background:#e65100;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">✅ Agregar y registrar</button>
+          <button onclick="app.agregarNuevoBomberoAsistencia(this)" style="flex:1;background:#e65100;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">✅ Agregar y registrar</button>
           <button onclick="document.getElementById('asistFormNuevoBombero').style.display='none'" style="background:#f5f5f5;color:#333;border:none;border-radius:8px;padding:10px;cursor:pointer;">✕</button>
         </div>
       </div>
@@ -1832,6 +1850,31 @@
       🏆 Ranking: emergencias + horas de actividades + asistencia domingos
     </div>
     <div id="operatividadContenido"><div style="text-align:center;padding:40px;color:#999;">Cargando...</div></div>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
+  </div>
+</div>
+
+<!-- ══════════ PANTALLA: VER DEUDORES (v5.64 — BUG 1+2) ══════════ -->
+<div class="pantalla" id="pantallaDeudores">
+  <div style="padding:0 4px;">
+    <h2 style="color:#c00;margin:10px 0;">⚠️ Deudores de Horas de Sanción</h2>
+    <div style="background:#fff3e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#e65100;">
+      Solo consulta y registro de horas cumplidas. Para registrar asistencia de un domingo, ve a 📅 Asistencia.
+    </div>
+    <div id="deudoresContenido"><div style="text-align:center;padding:40px;color:#999;">Cargando...</div></div>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
+  </div>
+</div>
+
+<!-- ══════════ PANTALLA: MAPA DE EMERGENCIAS (v5.64 — BUG 4) ══════════ -->
+<div class="pantalla" id="pantallaMapa">
+  <div style="padding:0 4px;">
+    <h2 style="color:#1a7a5e;margin:10px 0;">🗺️ Mapa de Emergencias</h2>
+    <div style="background:#e8f5f0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#1a7a5e;">
+      📍 Ubicación de emergencias registradas con coordenadas GPS. Toca un pin para ver el detalle.
+    </div>
+    <div id="mapaEstado" style="text-align:center;padding:20px;color:#999;">Cargando mapa...</div>
+    <div id="leafletMapaContenedor" style="display:none;height:65vh;min-height:380px;border-radius:12px;overflow:hidden;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,0.1);"></div>
     <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
   </div>
 </div>
