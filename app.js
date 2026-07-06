@@ -20,8 +20,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.66';
+const APP_VERSION = '5.67';
 const APP_VERSION_NOTAS = [
+  'v5.67: 📍 Corregido: las coordenadas GPS ahora se editan SOLO desde la sección 3 (Ubicación) al usar ✏️ Editar — ya se guardan correctamente y se reflejan en el Mapa.',
+  'v5.67: 👁️ La vista "Ver" de bonificaciones ahora es solo lectura — para agregar o quitar bomberos usa ✏️ Editar.',
   'v5.66: 📸 Fotos del domingo AHORA editables (Inicio/Intermedio/Final) — antes no aparecían al editar. También Tipo de reunión, Tema, Lugar y Observación por persona.',
   'v5.66: 📍 Admin puede corregir las coordenadas GPS de un reporte si quedaron mal capturadas (aparece al editar en el Panel Admin).',
   'v5.66: 🎨 Mapa de Emergencias: cada pin tiene el color según el tipo de emergencia (incendio, primeros auxilios, rescate...) + leyenda con la tabla de colores.',
@@ -2937,24 +2939,12 @@ const app = {
       `)}
 
       ${card('💰 Bonificaciones — bomberos que participaron', `
-        <div style="font-size:12px;color:#555;background:#fffbe6;padding:8px;border-radius:4px;margin-bottom:10px;border:1px solid #f0dca0;">
+        <div style="font-size:12px;color:#555;background:#f0f7ff;padding:8px;border-radius:4px;margin-bottom:10px;border:1px solid #b0cfe0;">
           Lista de bomberos registrados en la hoja <em>Bonificaciones</em>
-          para este reporte. Agrega o quita uno a uno. Cada cambio se guarda
-          inmediatamente y recalcula el resumen del tesorero.
+          para este reporte. Para agregar o quitar bomberos usa <strong>✏️ Editar</strong>.
         </div>
-        <div id="adminBonifChips_${r.id}" style="min-height:36px;display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f8f8f8;border:1px solid #e5e5e5;border-radius:6px;margin-bottom:8px;">
+        <div id="adminBonifChips_${r.id}" style="min-height:36px;display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f8f8f8;border:1px solid #e5e5e5;border-radius:6px;">
           <span style="color:#888;font-style:italic;font-size:12px;">Cargando...</span>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <input id="adminBonifInput_${r.id}"
-                 type="text"
-                 placeholder="Nombre completo del bombero"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();app.agregarBomberoBonifAdmin(document.getElementById('adminBonifBtn_${r.id}'),'${r.id}')}"
-                 style="flex:1;min-width:180px;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
-          <button id="adminBonifBtn_${r.id}" onclick="app.agregarBomberoBonifAdmin(this,'${r.id}')"
-                  style="padding:8px 14px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">
-            + Agregar
-          </button>
         </div>
       `)}
     `;
@@ -2989,18 +2979,21 @@ const app = {
       }
       const bomberos = data.bomberos || [];
       if (bomberos.length === 0) {
-        cont.innerHTML = '<span style="color:#888;font-style:italic;font-size:12px;">Sin bomberos registrados aún. Agrega el primero abajo.</span>';
+        cont.innerHTML = '<span style="color:#888;font-style:italic;font-size:12px;">Sin bomberos registrados aún.</span>';
         return;
       }
+      // Si NO existe el input de agregar, estamos en modo "Ver" → chips sin botón ×
+      const esVistaReadOnly = !document.getElementById('adminBonifInput_' + idReporte);
       // Render chips
       cont.innerHTML = bomberos.map(nombre => {
         const safe = String(nombre).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        return `
-          <span style="display:inline-flex;align-items:center;gap:6px;background:#065f46;color:#fff;padding:5px 8px 5px 10px;border-radius:14px;font-size:12px;font-weight:600;">
-            ${safe}
+        const btnQuitar = esVistaReadOnly ? '' : `
             <button onclick="app.quitarBomberoBonifAdmin(this, '${idReporte}', '${safe}')"
                     title="Quitar"
-                    style="background:rgba(255,255,255,0.25);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;">×</button>
+                    style="background:rgba(255,255,255,0.25);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;">×</button>`;
+        return `
+          <span style="display:inline-flex;align-items:center;gap:6px;background:#065f46;color:#fff;padding:5px ${esVistaReadOnly ? '10px' : '8px'} 5px 10px;border-radius:14px;font-size:12px;font-weight:600;">
+            ${safe}${btnQuitar}
           </span>
         `;
       }).join('') +
@@ -3111,6 +3104,11 @@ const app = {
     this.cargarEnFormulario(r);
     this.fotosTemp = [...(r.fotos || []), null, null, null, null, null, null].slice(0, 6);
 
+    // v5.67: Forzar modo manual para que el admin siempre pueda editar
+    // coordenadas desde la sección 3, y leerFormulario() las capture.
+    this.modoUbicacion = 'manual';
+    this.actualizarUIGPS();
+
     // Cambiar UI a modo edición admin
     this._aplicarUIEdicionAdmin(true, r);
 
@@ -3147,11 +3145,8 @@ const app = {
           <div style="flex:1 1 100%;font-size:13px;font-weight:700;margin-bottom:4px;">
             🛡️ Editando como administrador — ${ (r && r.consecutivo) || '' }
           </div>
-          <div style="flex:1 1 100%;margin-bottom:6px;">
-            <label style="font-size:11px;font-weight:700;display:block;margin-bottom:2px;">📍 Coordenadas GPS (lat, lng) — corrige si están mal para el Mapa de Emergencias</label>
-            <input type="text" id="admin_gps" placeholder="Ej: 4.0028, -67.9086"
-                   value="${ (r && r.gps) ? r.gps.lat + ', ' + r.gps.lng : '' }"
-                   style="width:100%;padding:8px;border:none;border-radius:6px;font-size:13px;box-sizing:border-box;">
+          <div style="flex:1 1 100%;margin-bottom:6px;font-size:11px;opacity:0.85;">
+            📍 Para corregir coordenadas GPS, edítalas en la sección <strong>3 — Ubicación del Incidente</strong> arriba.
           </div>
           <button onclick="app.cancelarEdicionAdminCompleta()"
                   style="flex:1;min-width:120px;padding:10px;background:#444;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">
@@ -3266,16 +3261,10 @@ const app = {
       comandanteEstacion: r.comandanteEstacion || ''
     };
 
-    // v5.65 (BUG: admin no podía corregir GPS mal capturado) — valida "lat, lng"
-    // antes de mandarlo; si está vacío o mal escrito, NO se toca el valor guardado.
-    const gpsTxt = (document.getElementById('admin_gps')?.value || '').trim();
-    if (gpsTxt) {
-      const partesGps = gpsTxt.split(',').map(s => parseFloat(s.trim()));
-      if (partesGps.length === 2 && !isNaN(partesGps[0]) && !isNaN(partesGps[1])) {
-        cambios.gpsCoordenadas = partesGps[0] + ', ' + partesGps[1];
-      } else {
-        this.toast('⚠️ GPS con formato inválido (usa "lat, lng") — no se cambió', 'error');
-      }
+    // v5.67: GPS se lee de la sección 3 del formulario (r.gps), no de un campo separado.
+    // leerFormulario() ya leyó f_lat_manual / f_lng_manual porque modoUbicacion='manual'.
+    if (r.gps && !isNaN(r.gps.lat) && !isNaN(r.gps.lng)) {
+      cambios.gpsCoordenadas = r.gps.lat + ', ' + r.gps.lng;
     }
 
     this.toast('⏳ Guardando cambios...', 'info');
