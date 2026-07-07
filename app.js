@@ -20,8 +20,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.68';
+const APP_VERSION = '5.69';
 const APP_VERSION_NOTAS = [
+  'v5.69: 🔐 Seguridad del servidor reforzada: ahora solo tú puedes editar tu propio perfil, y agregar personal a la base es exclusivo del administrador. Registrar actividades exige sesión válida.',
+  'v5.69: 🎫 Tu sesión ahora dura más sin pedirte iniciar sesión tan seguido. Si una vez te pide volver a entrar, es normal por esta mejora.',
   'v5.68: 🔐 Seguridad reforzada: los textos que se escriben (temas, lugares, novedades, narrativa, dirección) ahora se muestran de forma segura en toda la app.',
   'v5.68: 🔤 Corregido el inicio de sesión con Google para nombres con tildes o Ñ (antes podía fallar o mostrarse con símbolos raros).',
   'v5.68: 📱 Avisos que no se veían en el APK (cerrar la app, aviso de foto no guardada) ahora usan las ventanas propias de la app.',
@@ -462,7 +464,7 @@ const app = {
     if (this._avisoTokenMostrado) return; // no spamear
     this._avisoTokenMostrado = true;
     try {
-      this.toast('Tu sesión de Google expiró. Cierra y vuelve a iniciar sesión para seguir como admin.', 'error');
+      this.toast('Tu sesión expiró. Cierra sesión y vuelve a iniciar sesión para continuar.', 'error');
     } catch (e) {}
     setTimeout(() => { this._avisoTokenMostrado = false; }, 30000);
   },

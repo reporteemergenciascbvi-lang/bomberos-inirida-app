@@ -1,0 +1,73 @@
+# ============================================================
+# CBVI Reportes — Chequeo automático (CI)
+# NO despliega nada. Solo REVISA en cada push que:
+#   1. app.js y sw.js no tengan errores de sintaxis.
+#   2. manifest.json sea JSON válido.
+#   3. La versión esté cuadrada en los 4 lugares (app.js, sw.js, index.html).
+#   4. No queden diálogos nativos (confirm/alert/prompt) que fallan en el APK.
+# Si algo falla, GitHub marca el commit con ❌ y te avisa por correo.
+# Esto NO cambia la URL del backend ni toca la app en producción.
+# ============================================================
+name: Chequeo CBVI
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Usar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 1) Sintaxis de app.js y sw.js
+        run: |
+          echo "Revisando sintaxis..."
+          node --check app.js && echo "  app.js OK"
+          node --check sw.js  && echo "  sw.js OK"
+
+      - name: 2) manifest.json es JSON válido
+        run: |
+          if [ -f manifest.json ]; then
+            node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('  manifest.json OK')"
+          else
+            echo "  (no hay manifest.json — se omite)"
+          fi
+
+      - name: 3) Versión cuadrada en app.js / sw.js / index.html
+        run: |
+          APPV=$(grep -oE "APP_VERSION *= *'[0-9]+\.[0-9]+'" app.js | grep -oE "[0-9]+\.[0-9]+" | head -1)
+          SWV=$(grep -oE "bomberos-inirida-v5-[0-9]+" sw.js | grep -oE "[0-9]+$" | head -1)
+          IDXV=$(grep -oE "app\.js\?v=[0-9]+\.[0-9]+" index.html | grep -oE "[0-9]+\.[0-9]+" | head -1)
+          echo "  app.js      = $APPV"
+          echo "  sw.js cache = 5.$SWV"
+          echo "  index.html  = $IDXV"
+          APPNUM=$(echo "$APPV" | tr -d '.')
+          SWNUM="5$SWV"
+          IDXNUM=$(echo "$IDXV" | tr -d '.')
+          if [ "$APPNUM" != "$SWNUM" ] || [ "$APPNUM" != "$IDXNUM" ]; then
+            echo "::error::Versión DESCUADRADA. app.js=$APPV, sw.js=5.$SWV, index.html=$IDXV. Cuadra los 3 antes de subir."
+            exit 1
+          fi
+          echo "  Versión cuadrada ✅"
+
+      - name: 4) Sin diálogos nativos (fallan en el APK)
+        run: |
+          # confirm(/alert(/prompt( sueltos rompen en WebView Android.
+          # Se permiten this.confirmar / _confirmar / comentarios.
+          HITS=$(grep -nE "(^|[^._a-zA-Z])(confirm|alert|prompt)\s*\(" app.js \
+                 | grep -vE "confirmar|_confirmar|//|window\.(confirm|prompt)\(\) (NO|falla)" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "::error::Hay diálogos nativos (confirm/alert/prompt). Usa los modales propios de la app."
+            exit 1
+          fi
+          echo "  Sin diálogos nativos ✅"
