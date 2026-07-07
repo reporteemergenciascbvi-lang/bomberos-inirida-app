@@ -1,8 +1,8 @@
-/* Service Worker v5.66 - CBVI Reportes
+/* Service Worker v5.68 - CBVI Reportes
    NETWORK-FIRST para los archivos del propio sitio: con internet SIEMPRE
    baja la última versión (se acabó el caché viejo pegado en el teléfono).
    El caché queda solo como respaldo cuando NO hay señal. */
-const CACHE = 'bomberos-inirida-v5-67';
+const CACHE = 'bomberos-inirida-v5-68';
 const ARCHIVOS = ['./', './index.html', './app.js', './logos.js', './manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -38,6 +38,13 @@ self.addEventListener('fetch', (e) => {
         caches.open(CACHE).then(c => c.put(req, clon)).catch(() => {});
       }
       return r;
-    }).catch(() => caches.match(req).then(resp => resp || caches.match('./index.html')))
+    }).catch(() => caches.match(req).then(resp => {
+      if (resp) return resp;
+      // Solo devolver index.html como respaldo en navegaciones (SPA).
+      // Para un JS/CSS/imagen que falte en caché, devolver index.html rompería
+      // la app (HTML servido como script). Mejor un error de red limpio.
+      if (req.mode === 'navigate') return caches.match('./index.html');
+      return Response.error();
+    }))
   );
 });

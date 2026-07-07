@@ -20,8 +20,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.67';
+const APP_VERSION = '5.68';
 const APP_VERSION_NOTAS = [
+  'v5.68: 🔐 Seguridad reforzada: los textos que se escriben (temas, lugares, novedades, narrativa, dirección) ahora se muestran de forma segura en toda la app.',
+  'v5.68: 🔤 Corregido el inicio de sesión con Google para nombres con tildes o Ñ (antes podía fallar o mostrarse con símbolos raros).',
+  'v5.68: 📱 Avisos que no se veían en el APK (cerrar la app, aviso de foto no guardada) ahora usan las ventanas propias de la app.',
+  'v5.68: ⚡ Mejora de estabilidad sin conexión.',
   'v5.67: 📍 Corregido: las coordenadas GPS ahora se editan SOLO desde la sección 3 (Ubicación) al usar ✏️ Editar — ya se guardan correctamente y se reflejan en el Mapa.',
   'v5.67: 👁️ La vista "Ver" de bonificaciones ahora es solo lectura — para agregar o quitar bomberos usa ✏️ Editar.',
   'v5.66: 📸 Fotos del domingo AHORA editables (Inicio/Intermedio/Final) — antes no aparecían al editar. También Tipo de reunión, Tema, Lugar y Observación por persona.',
@@ -465,8 +469,9 @@ const app = {
 
   async manejarRespuestaGoogle(response) {
     try {
-      // Decodificar el JWT (sin verificar firma — Google ya lo firmó)
-      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      // Decodificar el JWT (sin verificar firma — Google ya lo firmó).
+      // Usa decodificador base64url + UTF-8 (nombres con tildes/Ñ, tokens con - _).
+      const payload = this._decodificarJWT(response.credential);
 
       // v5.48 SEGURIDAD: guardamos el idToken firmado por Google. El backend lo
       // verifica para confirmar la identidad real (anti-suplantación de admin).
@@ -998,14 +1003,15 @@ const app = {
         return;
       }
 
-      // Si está en home, preguntar antes de cerrar
+      // Si está en home, preguntar antes de cerrar.
+      // confirm() NATIVO no funciona en el APK/WebView Android (devuelve false
+      // en silencio) → usamos el modal propio de la app.
       if (this.pantallaActual === 'pantallaHome') {
-        if (confirm('¿Cerrar la app?')) {
-          // Permitir que el navegador cierre
-          history.back();
-        } else {
-          history.pushState({ pantalla: 'pantallaHome' }, '');
-        }
+        this.confirmar('¿Cerrar la app?', 'Se cerrará la aplicación. Los reportes ya enviados quedan guardados en el servidor.')
+          .then(ok => {
+            if (ok) { history.back(); }                                 // salir
+            else { history.pushState({ pantalla: 'pantallaHome' }, ''); } // quedarse
+          });
         return;
       }
 
@@ -1095,7 +1101,7 @@ const app = {
       };
       const filas = sanc.slice(0, 5).map(s =>
         '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #ffe0e0;font-size:13px;">'
-        + '<span style="font-weight:600;">' + s.nombre + badge(s) + '</span>'
+        + '<span style="font-weight:600;">' + app._esc(s.nombre) + badge(s) + '</span>'
         + '<span style="color:#c00;font-weight:700;white-space:nowrap;margin-left:8px;">' + s.horasPendientes + 'h</span>'
         + '</div>').join('');
       const resto = sanc.length > 5
@@ -2672,7 +2678,7 @@ const app = {
     cont.innerHTML = reportes.map(r => `
       <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;">
         <div style="font-weight:bold;color:#7a1010;font-size:15px;">${r.consecutivo || '(sin consecutivo)'}</div>
-        <div style="font-size:13px;color:#333;margin-top:2px;">${r.direccion || 'Sin dirección'}</div>
+        <div style="font-size:13px;color:#333;margin-top:2px;">${app._esc(r.direccion || 'Sin dirección')}</div>
         <div style="font-size:11px;color:#888;margin-top:4px;">
           ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
         </div>
@@ -2793,7 +2799,7 @@ const app = {
   // Renderiza el HTML de detalle de un reporte (read-only) — incluye todas
   // las secciones del formulario más fotos clickeables (se abren a tamaño real).
   _renderDetalleReporteAdmin(r) {
-    const fmt = (v) => (v === null || v === undefined || v === '') ? '<span style="color:#999;">—</span>' : String(v);
+    const fmt = (v) => (v === null || v === undefined || v === '') ? '<span style="color:#999;">—</span>' : app._esc(v);
     const fecha = (v) => {
       if (!v) return '—';
       try { return new Date(v).toLocaleString('es-CO'); } catch (e) { return String(v); }
@@ -3581,10 +3587,10 @@ const app = {
           ${fecha}
         </p>
         <p><strong>Tipo:</strong> ${tipos}</p>
-        <p><strong>Dirección:</strong> ${r.direccion || '—'}</p>
+        <p><strong>Dirección:</strong> ${app._esc(r.direccion || '—')}</p>
         <p><strong>Barrio:</strong> ${r.barrio || '—'}</p>
         ${r.gps ? `<p><strong>GPS:</strong> ${r.gps.lat.toFixed(6)}, ${r.gps.lng.toFixed(6)} ${r.gpsManual ? '(manual)' : ''}</p>` : ''}
-        <p><strong>Narrativa:</strong> ${r.narrativa || '—'}</p>
+        <p><strong>Narrativa:</strong> ${app._esc(r.narrativa || '—')}</p>
         ${r.operador ? `<p style="font-size:12px; color: var(--gris-texto); margin-top:8px;"><strong>Reporte realizado por:</strong> ${r.operador} ${r.operadorGrado ? '(' + r.operadorGrado + ')' : ''}</p>` : ''}
       </div>
       ${recursosHTML ? `<div class="config-card"><h3>Recursos</h3><ul style="padding-left: 20px;">${recursosHTML}</ul></div>` : ''}
@@ -3724,7 +3730,7 @@ const app = {
 
   generarHTMLImpresion(r) {
     const fecha = (s) => s ? new Date(s).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '';
-    const sn = (v) => v || '_____________';
+    const sn = (v) => v ? app._esc(v) : '_____________';
     const checkbox = (chk) => chk ? '☒' : '☐';
     const isClasif = (t) => (r.clasificacion || []).includes(t);
     const isCausa = (c) => (r.causas || []).includes(c);
@@ -4205,6 +4211,44 @@ ${paginaFotos}
   // v5.64 (BUG 3): pill breve arriba de la pantalla con el verbo de la acción
   // (Abriendo/Cerrando...). No bloquea nada — es solo la señal visual de que
   // el botón respondió al toque. No pisa el toast (que es para éxito/error).
+  // ── Escape HTML (anti-XSS) ─────────────────────────────────────────────────
+  // Texto libre (tema, lugar, novedades, narrativa, descripción, observación…)
+  // se inyecta con innerHTML en muchas vistas. Sin escapar, un texto con < > & "
+  // rompe el HTML o podría ejecutar código. Este helper lo neutraliza.
+  _esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
+  // ── Decodificar el payload de un JWT de Google (APK-safe) ──────────────────
+  // atob() solo entiende base64 estándar y devuelve bytes Latin1. Los JWT usan
+  // base64url (- _) y los nombres traen tildes/Ñ (UTF-8). Sin esto, un nombre
+  // como "MUÑOZ" salía con símbolos raros y, si el token traía - o _, el login
+  // fallaba entero. Aquí convertimos base64url→base64 y decodificamos UTF-8.
+  _decodificarJWT(token) {
+    try {
+      const parte = String(token).split('.')[1] || '';
+      let b64 = parte.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const bin = atob(b64);
+      let json;
+      if (typeof TextDecoder !== 'undefined') {
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        json = new TextDecoder('utf-8').decode(bytes);
+      } else {
+        json = decodeURIComponent(bin.split('').map(function (c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+      }
+      return JSON.parse(json);
+    } catch (e) {
+      // Último recurso: método anterior (no romper el login si algo raro pasa)
+      return JSON.parse(atob(String(token).split('.')[1]));
+    }
+  },
+
   _flashAccion(texto) {
     const el = document.getElementById('navFeedback');
     if (!el) return;
@@ -4466,9 +4510,11 @@ ${paginaFotos}
         const fallo = ['inicio','medio','fin'].some(k => df.recibidas[k] && !df.subidas[k]);
         if (fallo) {
           const linea = (k) => 'Foto ' + k + ': recibida=' + (df.recibidas[k]?'SÍ':'NO')
-            + ' | guardada en Drive=' + (df.subidas[k]?'SÍ ✅':'NO ❌')
-            + ((df.errores && df.errores[k]) ? ('\n   ⚠️ motivo: ' + df.errores[k]) : '');
-          alert('⚠️ Una foto no se guardó\n\n' + linea('inicio') + '\n' + linea('medio') + '\n' + linea('fin'));
+            + ' | Drive=' + (df.subidas[k]?'SÍ ✅':'NO ❌')
+            + ((df.errores && df.errores[k]) ? (' (' + df.errores[k] + ')') : '');
+          // alert() nativo NO se ve en el APK/WebView → modal propio de la app.
+          this.confirmar('⚠️ Foto no guardada',
+            'Una foto no se subió al servidor.  ·  ' + linea('inicio') + '  ·  ' + linea('medio') + '  ·  ' + linea('fin'));
         }
       }
       this.toast('✅ Actividad registrada', 'ok');
@@ -4508,7 +4554,7 @@ ${paginaFotos}
           '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1a5276;">'
           +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
           +'<div style="flex:1;cursor:pointer;" data-actid="'+a.id+'" onclick="app.verDetalleActividad(this.dataset.actid)">'
-          +'<div style="font-weight:700;color:#1a5276;">'+a.tipo+' - '+a.descripcion.substring(0,50)+'</div>'
+          +'<div style="font-weight:700;color:#1a5276;">'+app._esc(a.tipo)+' - '+app._esc(String(a.descripcion||'').substring(0,50))+'</div>'
           +'<div style="font-size:13px;color:#666;margin-top:4px;">'+(String(a.fecha||'').substring(0,10))+' | '+a.duracion+'h | 👥 '+a.numUnidades+'</div>'
           +'<div style="font-size:12px;color:#999;margin-top:2px;">Por: '+a.registradoPor+'</div>'
           +'</div>'
@@ -4531,7 +4577,7 @@ ${paginaFotos}
         htmlDom = dD.domingos.map(d =>
           '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1e8449;cursor:pointer;" data-f="'+d.fecha+'" onclick="app.verAsistenciaDomingo(this.dataset.f)">'
           +'<div style="font-weight:700;color:#1e8449;">📅 '+d.fecha+(d.tipo?' — '+d.tipo:'')+'</div>'
-          +(d.tema?'<div style="font-size:12px;color:#666;margin:2px 0;">'+d.tema+'</div>':'')
+          +(d.tema?'<div style="font-size:12px;color:#666;margin:2px 0;">'+app._esc(d.tema)+'</div>':'')
           +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
           +'<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">✅ Presentes: '+(d.presentes||0)+'</span>'
           +'<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">📝 Con excusa: '+(d.excusados||0)+'</span>'
@@ -4565,12 +4611,12 @@ ${paginaFotos}
       cont.innerHTML = `
         <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
           <div style="font-size:18px;font-weight:700;color:#1a5276;margin-bottom:8px;">${a.tipo}</div>
-          <div style="color:#333;margin-bottom:6px;">${a.descripcion}</div>
+          <div style="color:#333;margin-bottom:6px;">${app._esc(a.descripcion)}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;color:#555;">
-            <div>📅 ${a.fecha}</div><div>📍 ${a.lugar||'-'}</div>
+            <div>📅 ${app._esc(a.fecha)}</div><div>📍 ${app._esc(a.lugar||'-')}</div>
             <div>🕐 ${a.horaInicio||'-'} → ${a.horaFin||'-'}</div><div>⏱️ ${a.duracion}h</div>
           </div>
-          ${a.novedades ? `<div style="margin-top:8px;padding:8px;background:#f5f5f5;border-radius:6px;font-size:13px;">${a.novedades}</div>` : ''}
+          ${a.novedades ? `<div style="margin-top:8px;padding:8px;background:#f5f5f5;border-radius:6px;font-size:13px;">${app._esc(a.novedades)}</div>` : ''}
         </div>
         <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
           <div style="font-weight:700;margin-bottom:8px;">👥 Personal (${a.personal.length})</div>
@@ -4630,10 +4676,10 @@ ${paginaFotos}
       <div class="lema">"ABNEGACIÓN Y DISCIPLINA"</div>
 
       <h2 class="sec">${a.tipo}</h2>
-      <p><strong>Descripción:</strong> ${a.descripcion}</p>
+      <p><strong>Descripción:</strong> ${app._esc(a.descripcion)}</p>
       <table><tr><th>Fecha</th><th>Lugar</th><th>Hora inicio</th><th>Hora fin</th><th>Duración</th></tr>
-      <tr><td>${String(a.fecha||'').substring(0,10)}</td><td>${a.lugar||'-'}</td><td>${a.horaInicio||'-'}</td><td>${a.horaFin||'-'}</td><td>${a.duracion}h</td></tr></table>
-      ${a.novedades ? `<p><strong>Novedades:</strong> ${a.novedades}</p>` : ''}
+      <tr><td>${app._esc(String(a.fecha||'').substring(0,10))}</td><td>${app._esc(a.lugar||'-')}</td><td>${app._esc(a.horaInicio||'-')}</td><td>${app._esc(a.horaFin||'-')}</td><td>${app._esc(a.duracion)}h</td></tr></table>
+      ${a.novedades ? `<p><strong>Novedades:</strong> ${app._esc(a.novedades)}</p>` : ''}
 
       <h2 class="sec">Personal asistente (${a.personal.length})</h2>
       <table><tr><th>#</th><th>Nombre</th><th>Cédula</th><th>Rango</th><th>Horas</th></tr>
@@ -4938,7 +4984,7 @@ ${paginaFotos}
 
       const grupo = (titulo, arr, color, bg) =>
         '<div style="margin-top:10px;"><div style="font-weight:700;font-size:13px;color:'+color+';">'+titulo+' ('+arr.length+')</div>'
-        + (arr.length ? arr.map(r => '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:'+bg+';border-radius:6px;margin-top:4px;font-size:13px;"><span>'+r.nombre+'</span>'+(r.observacion?'<span style="color:#666;font-size:11px;">'+r.observacion+'</span>':'')+'</div>').join('')
+        + (arr.length ? arr.map(r => '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:'+bg+';border-radius:6px;margin-top:4px;font-size:13px;"><span>'+app._esc(r.nombre)+'</span>'+(r.observacion?'<span style="color:#666;font-size:11px;">'+app._esc(r.observacion)+'</span>':'')+'</div>').join('')
                       : '<div style="color:#999;font-size:12px;padding:4px;">Ninguno</div>')
         + '</div>';
 
@@ -4978,7 +5024,7 @@ ${paginaFotos}
         +   '<div style="font-weight:700;font-size:16px;color:#1e8449;">📅 '+fecha+'</div>'
         +   '<button onclick="document.getElementById(\'_domModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;">×</button>'
         + '</div>'
-        + (regs[0] && regs[0].tipoReunion ? '<div style="font-size:13px;color:#555;">'+regs[0].tipoReunion+(regs[0].tema?' — '+regs[0].tema:'')+'</div>' : '')
+        + (regs[0] && regs[0].tipoReunion ? '<div style="font-size:13px;color:#555;">'+app._esc(regs[0].tipoReunion)+(regs[0].tema?' — '+app._esc(regs[0].tema):'')+'</div>' : '')
         + (_enc ? '<div style="font-size:12px;color:#555;margin-top:4px;">Encargado: <strong>'+_enc+'</strong></div>' : '')
         + (_grd ? '<div style="font-size:12px;color:#555;">Guardia: <strong>'+_grd+'</strong></div>' : '')
         + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
@@ -5093,7 +5139,7 @@ ${paginaFotos}
       const faltas = data.faltas || [];
       det.innerHTML = '<div style="padding-top:10px;">'
         + (faltas.length
-          ? faltas.map(f => '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;"><strong>📅 '+f.fecha+'</strong><div style="color:#666;margin-top:2px;">'+f.tema+'</div></div>').join('')
+          ? faltas.map(f => '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;"><strong>📅 '+app._esc(f.fecha)+'</strong><div style="color:#666;margin-top:2px;">'+app._esc(f.tema)+'</div></div>').join('')
           : '<div style="padding:8px 0;color:#999;font-size:13px;">Sin domingos sin excusa registrados</div>')
         + '<div style="margin-top:10px;">'
         + '<input type="number" min="1" placeholder="Horas a descontar" id="sanHoras_'+cedula+'" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;width:130px;font-size:13px;">'
@@ -5349,11 +5395,11 @@ ${paginaFotos}
       }else if(tipo==='activ'){
         const lista=data.actividades||[];
         if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin actividades en este período</div>';}
-        else lista.forEach(a=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#1e8449;">'+(a.tipo||'Actividad')+'</strong><span style="float:right;font-weight:700;color:#1e8449;">'+a.horas+'h</span><div style="color:#555;">'+(a.descripcion||'').substring(0,50)+'</div><div style="font-size:11px;color:#999;">📅 '+a.fecha+'</div></div>';});
+        else lista.forEach(a=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#1e8449;">'+app._esc(a.tipo||'Actividad')+'</strong><span style="float:right;font-weight:700;color:#1e8449;">'+app._esc(a.horas)+'h</span><div style="color:#555;">'+app._esc(String(a.descripcion||'').substring(0,50))+'</div><div style="font-size:11px;color:#999;">📅 '+app._esc(a.fecha)+'</div></div>';});
       }else{
         const lista=data.domingos||[];
         if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin domingos en este período</div>';}
-        else lista.forEach(d=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#e67e22;">📅 '+d.fecha+'</strong>'+(d.tipo?'<span style="float:right;font-size:11px;color:#666;">'+d.tipo+'</span>':'')+(d.tema?'<div style="color:#555;">'+d.tema+'</div>':'')+(d.lugar?'<div style="font-size:11px;color:#999;">📍 '+d.lugar+'</div>':'')+'</div>';});
+        else lista.forEach(d=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#e67e22;">📅 '+app._esc(d.fecha)+'</strong>'+(d.tipo?'<span style="float:right;font-size:11px;color:#666;">'+app._esc(d.tipo)+'</span>':'')+(d.tema?'<div style="color:#555;">'+app._esc(d.tema)+'</div>':'')+(d.lugar?'<div style="font-size:11px;color:#999;">📍 '+app._esc(d.lugar)+'</div>':'')+'</div>';});
       }
       html+='</div>'; cont.innerHTML=html;
     }catch(e){cont.innerHTML='<div style="font-size:12px;color:#c00;padding:4px;">Error de red</div>';}
@@ -5710,7 +5756,7 @@ ${paginaFotos}
       this._eaFotosNuevas = { inicio:null, medio:null, fin:null };  // null = no cambiada
       this._eaFotosActuales = { inicio:a.fotoInicio||'', medio:a.fotoMedio||'', fin:a.fotoFin||'' };
       const tipos = ['Acompañamiento','Capacitación','Entrenamiento','Simulacro','Inspección','Jornada comunitaria','Bomberitos Junior','Arreglos / Reparaciones (institución)','Mantenimiento','Otra'];
-      const esc = (s) => String(s||'').replace(/"/g,'&quot;');
+      const esc = (s) => app._esc(s);
       const fotoSlot = (k, lbl, src) =>
         '<div style="text-align:center;">'
         + '<div style="font-size:10px;color:#666;">'+lbl+'</div>'
@@ -5915,7 +5961,7 @@ ${paginaFotos}
       const tipoActual=regs[0].tipoReunion||''; const temaActual=regs[0].tema||''; const lugarActual=regs[0].lugarReunion||'';
       const sts={'PRESENTE':'Presente','AUSENTE_EXCUSA':'C/excusa','AUSENTE_SIN_EXCUSA':'Sin excusa'};
       const tiposReunion=['Capacitación','Entrenamiento','Reunión ordinaria','Simulacro','Jornada comunitaria','Otra'];
-      const esc=(s)=>String(s||'').replace(/"/g,'&quot;');
+      const esc=(s)=>app._esc(s);
 
       // v5.65 (BUG: fotos de domingo no editables): mismo patrón que Actividades
       this._ednFotosNuevas = { inicio:null, medio:null, fin:null };
