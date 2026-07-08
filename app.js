@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.72';
+const APP_VERSION = '5.73';
 const APP_VERSION_NOTAS = [
+  'v5.73: 🪪 Ahora, si dos bomberos quedaron con la misma cédula, la app te avisa con claridad (te dice con quién choca) en vez de un confuso “ya está”. Corrige la cédula repetida en la base y listo.',
   'v5.72: 🧩 Corregido en Asistencia: al agregar un bombero que ya estaba, la app te lleva a su fila y la resalta (se acabó el “ya está pero no lo veo”). Búsqueda de duplicados más precisa (por cédula o nombre).',
   'v5.71: 🛡️ Blindaje profesional: descontar horas de sanción ahora es a prueba de fallos de red. Si se cae el internet justo al guardar y reintentas, ya NUNCA se descuenta dos veces.',
   'v5.70: 🔧 Corregido: al marcar horas de sanción cumplidas en "Ver Deudores" ya no sale "No autorizado". Ahora pide la contraseña de administrador si hace falta, y se evita cualquier doble descuento por doble toque.',
@@ -4854,29 +4855,48 @@ ${paginaFotos}
     const _sug = document.getElementById('asistSugerencias'); if (_sug) _sug.style.display = 'none';
     const _bus = document.getElementById('asistBuscar'); if (_bus) _bus.value = '';
     const fecha = document.getElementById('asistFecha').value;
-    // v5.72 FIX: dedup ROBUSTO. El buscador y la lista precargada a veces guardan
-    // a la persona bajo claves distintas (cédula vs nombre), porque el backend
-    // deduplica diferente en cada lado. Buscamos por cédula O por nombre
-    // normalizado para no dar un falso "ya está" ni duplicar.
     const ced = String(p.cedula || '').trim();
-    const nn = this._normNombre(p.nombre);
-    let keyExistente = null;
-    for (const k in this._asistRegistros) {
-      const e = this._asistRegistros[k];
-      if ((ced && String(e.cedula || '').trim() === ced) || (nn && this._normNombre(e.nombre) === nn)) { keyExistente = k; break; }
-    }
-    if (keyExistente) {
-      // Ya está: re-render, avisa Y lleva al usuario hasta la fila (resaltada),
-      // así se acabó el "dice que ya está pero no lo veo".
+    // v5.72/v5.73: dedup ROBUSTO por cédula O nombre normalizado + aviso claro si
+    // la cédula ya pertenece a OTRA persona (cédula duplicada en la base).
+    const exist = this._buscarAsistExistente(ced, p.nombre);
+    if (exist) {
       this._renderAsistencia(fecha);
-      this.toast(p.nombre + ' ya está en la lista (resaltado)', 'info');
-      this._flashAsistItem(keyExistente);
+      this._avisarAsistExistente(exist, ced, p.nombre);
+      this._flashAsistItem(exist.key);
       return;
     }
     const key = ced || p.nombre;
     this._asistRegistros[key] = { nombre: p.nombre, cedula: ced, estado: 'PRESENTE' };
     this._renderAsistencia(fecha);
     this._flashAsistItem(key);
+  },
+
+  // Busca en la lista actual a alguien que coincida por cédula O por nombre
+  // normalizado. Devuelve {key, entry} o null.
+  _buscarAsistExistente(cedula, nombre) {
+    const ced = String(cedula || '').trim();
+    const nn = this._normNombre(nombre);
+    for (const k in this._asistRegistros) {
+      const e = this._asistRegistros[k];
+      if ((ced && String(e.cedula || '').trim() === ced) || (nn && this._normNombre(e.nombre) === nn)) {
+        return { key: k, entry: e };
+      }
+    }
+    return null;
+  },
+
+  // Mensaje al usuario cuando la persona "ya está". Si la CÉDULA coincide pero el
+  // NOMBRE es distinto → es una cédula duplicada (dos personas, misma cédula):
+  // se avisa con claridad para que corrija el dato.
+  _avisarAsistExistente(exist, cedula, nombre) {
+    const ced = String(cedula || '').trim();
+    const mismoNombre = this._normNombre(exist.entry.nombre) === this._normNombre(nombre);
+    if (ced && !mismoNombre) {
+      this.toast('⚠️ La cédula ' + ced + ' ya está en la lista como "' + exist.entry.nombre
+        + '". Dos personas NO pueden tener la misma cédula: corrige el dato en la base.', 'error');
+    } else {
+      this.toast(nombre + ' ya está en la lista (resaltado)', 'info');
+    }
   },
 
   // Normaliza un nombre igual que el backend (_normFuerteBackend): mayúsculas,
@@ -4914,7 +4934,15 @@ ${paginaFotos}
     const rango  = (document.getElementById('asistNuevoRango').value || 'BOMBERO');
     if (!nombre || !cedula) { this.toast('Nombre y cédula son obligatorios', 'error'); return; }
     const key = cedula || nombre;
-    if (this._asistRegistros[key]) { this.toast(nombre + ' ya está en la lista', 'error'); return; }
+    // v5.73: dedup robusto + aviso claro si la cédula ya es de otra persona.
+    const _yaAsist = this._buscarAsistExistente(cedula, nombre);
+    if (_yaAsist) {
+      const fechaR = document.getElementById('asistFecha').value;
+      this._renderAsistencia(fechaR);
+      this._avisarAsistExistente(_yaAsist, cedula, nombre);
+      this._flashAsistItem(_yaAsist.key);
+      return;
+    }
 
     await this._conBloqueo(btn, 'Registrando...', async () => {
     try {
