@@ -20,8 +20,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.71';
+const APP_VERSION = '5.72';
 const APP_VERSION_NOTAS = [
+  'v5.72: 🧩 Corregido en Asistencia: al agregar un bombero que ya estaba, la app te lleva a su fila y la resalta (se acabó el “ya está pero no lo veo”). Búsqueda de duplicados más precisa (por cédula o nombre).',
   'v5.71: 🛡️ Blindaje profesional: descontar horas de sanción ahora es a prueba de fallos de red. Si se cae el internet justo al guardar y reintentas, ya NUNCA se descuenta dos veces.',
   'v5.70: 🔧 Corregido: al marcar horas de sanción cumplidas en "Ver Deudores" ya no sale "No autorizado". Ahora pide la contraseña de administrador si hace falta, y se evita cualquier doble descuento por doble toque.',
   'v5.69: 🔐 Seguridad del servidor reforzada: ahora solo tú puedes editar tu propio perfil, y agregar personal a la base es exclusivo del administrador. Registrar actividades exige sesión válida.',
@@ -4798,16 +4799,16 @@ ${paginaFotos}
       + (lista.length === 0
         ? '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal cargado aun</div>'
         : lista.map((p,i) =>
-          '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0;">'
-          + '<div style="flex:1;"><div style="font-size:14px;font-weight:600;">'+p.nombre+'</div>'
-          + '<div style="font-size:11px;color:#999;">CC: '+(p.cedula||'-')+'</div></div>'
-          + '<select data-k="'+(p.cedula||p.nombre)+'" data-n="'+p.nombre.replace(/"/g,"&quot;")+'" onchange="app._setAsistencia(this.dataset.k,this.dataset.n,this.value)" '
+          '<div data-row="'+String(p.cedula||p.nombre||'').replace(/"/g,'&quot;')+'" style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0;">'
+          + '<div style="flex:1;"><div style="font-size:14px;font-weight:600;">'+app._esc(p.nombre||'(sin nombre)')+'</div>'
+          + '<div style="font-size:11px;color:#999;">CC: '+app._esc(p.cedula||'-')+'</div></div>'
+          + '<select data-k="'+String(p.cedula||p.nombre||'').replace(/"/g,'&quot;')+'" data-n="'+app._esc(p.nombre||'')+'" onchange="app._setAsistencia(this.dataset.k,this.dataset.n,this.value)" '
           + 'style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:'+(p.estado==='PRESENTE'?'#e8f5e9':p.estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee')+'">'
           + '<option value="PRESENTE" '+(p.estado==='PRESENTE'?'selected':'')+'>Presente</option>'
           + '<option value="AUSENTE_EXCUSA" '+(p.estado==='AUSENTE_EXCUSA'?'selected':'')+'>C/excusa</option>'
           + '<option value="AUSENTE_SIN_EXCUSA" '+(p.estado==='AUSENTE_SIN_EXCUSA'?'selected':'')+'>Sin excusa</option>'
           + '</select>'
-          + '<button data-k="'+(p.cedula||p.nombre)+'" onclick="app._quitarAsistencia(this.dataset.k)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;padding:4px;margin-left:4px;">X</button>'
+          + '<button data-k="'+String(p.cedula||p.nombre||'').replace(/"/g,'&quot;')+'" onclick="app._quitarAsistencia(this.dataset.k)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;padding:4px;margin-left:4px;">X</button>'
           + '</div>'
         ).join(''))
       + '<div style="position:relative;margin-top:10px;">'
@@ -4850,13 +4851,57 @@ ${paginaFotos}
   },
 
   agregarAsistente(p) {
-    document.getElementById('asistSugerencias').style.display = 'none';
-    document.getElementById('asistBuscar').value = '';
-    const key = p.cedula || p.nombre;
-    if (this._asistRegistros[key]) { this.toast(p.nombre + ' ya está', 'error'); return; }
-    this._asistRegistros[key] = { nombre: p.nombre, cedula: p.cedula, estado: 'PRESENTE' };
+    const _sug = document.getElementById('asistSugerencias'); if (_sug) _sug.style.display = 'none';
+    const _bus = document.getElementById('asistBuscar'); if (_bus) _bus.value = '';
     const fecha = document.getElementById('asistFecha').value;
+    // v5.72 FIX: dedup ROBUSTO. El buscador y la lista precargada a veces guardan
+    // a la persona bajo claves distintas (cédula vs nombre), porque el backend
+    // deduplica diferente en cada lado. Buscamos por cédula O por nombre
+    // normalizado para no dar un falso "ya está" ni duplicar.
+    const ced = String(p.cedula || '').trim();
+    const nn = this._normNombre(p.nombre);
+    let keyExistente = null;
+    for (const k in this._asistRegistros) {
+      const e = this._asistRegistros[k];
+      if ((ced && String(e.cedula || '').trim() === ced) || (nn && this._normNombre(e.nombre) === nn)) { keyExistente = k; break; }
+    }
+    if (keyExistente) {
+      // Ya está: re-render, avisa Y lleva al usuario hasta la fila (resaltada),
+      // así se acabó el "dice que ya está pero no lo veo".
+      this._renderAsistencia(fecha);
+      this.toast(p.nombre + ' ya está en la lista (resaltado)', 'info');
+      this._flashAsistItem(keyExistente);
+      return;
+    }
+    const key = ced || p.nombre;
+    this._asistRegistros[key] = { nombre: p.nombre, cedula: ced, estado: 'PRESENTE' };
     this._renderAsistencia(fecha);
+    this._flashAsistItem(key);
+  },
+
+  // Normaliza un nombre igual que el backend (_normFuerteBackend): mayúsculas,
+  // espacios colapsados y sin tildes/Ñ → para comparar personas de forma fiable.
+  _normNombre(s) {
+    return String(s || '').trim().toUpperCase().replace(/\s+/g, ' ')
+      .replace(/[ÁÀÄÂ]/g, 'A').replace(/[ÉÈËÊ]/g, 'E').replace(/[ÍÌÏÎ]/g, 'I')
+      .replace(/[ÓÒÖÔ]/g, 'O').replace(/[ÚÙÜÛ]/g, 'U').replace(/Ñ/g, 'N');
+  },
+
+  // Lleva la vista a una fila de asistencia y la resalta un momento.
+  _flashAsistItem(key) {
+    requestAnimationFrame(() => {
+      const cont = document.getElementById('asistListaPersonal');
+      if (!cont) return;
+      let sel;
+      try { sel = '[data-row="' + (window.CSS && CSS.escape ? CSS.escape(String(key)) : String(key)) + '"]'; } catch (e) { return; }
+      let row; try { row = cont.querySelector(sel); } catch (e) { row = null; }
+      if (!row) return;
+      try { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { try { row.scrollIntoView(); } catch (e2) {} }
+      const bgPrev = row.style.background;
+      row.style.transition = 'background 0.3s';
+      row.style.background = '#fff3cd';
+      setTimeout(() => { row.style.background = bgPrev || ''; }, 1600);
+    });
   },
 
   // v5.54 FIX: faltaba esta función (el botón "Agregar y registrar" no hacía nada).
