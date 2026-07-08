@@ -20,8 +20,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.69';
+const APP_VERSION = '5.71';
 const APP_VERSION_NOTAS = [
+  'v5.71: 🛡️ Blindaje profesional: descontar horas de sanción ahora es a prueba de fallos de red. Si se cae el internet justo al guardar y reintentas, ya NUNCA se descuenta dos veces.',
+  'v5.70: 🔧 Corregido: al marcar horas de sanción cumplidas en "Ver Deudores" ya no sale "No autorizado". Ahora pide la contraseña de administrador si hace falta, y se evita cualquier doble descuento por doble toque.',
   'v5.69: 🔐 Seguridad del servidor reforzada: ahora solo tú puedes editar tu propio perfil, y agregar personal a la base es exclusivo del administrador. Registrar actividades exige sesión válida.',
   'v5.69: 🎫 Tu sesión ahora dura más sin pedirte iniciar sesión tan seguido. Si una vez te pide volver a entrar, es normal por esta mejora.',
   'v5.68: 🔐 Seguridad reforzada: los textos que se escriben (temas, lugares, novedades, narrativa, dirección) ahora se muestran de forma segura en toda la app.',
@@ -5055,18 +5057,33 @@ ${paginaFotos}
     const input = document.getElementById('sanHoras_' + cedula);
     const horas = Number(input ? input.value : 0);
     if (!horas || horas <= 0) { this.toast('Ingresa las horas cumplidas', 'error'); return; }
+    // v5.70 FIX + v5.71 IDEMPOTENCIA:
+    //  (1) Descontar horas exige contraseña admin; se pide DENTRO de _conBloqueo
+    //      (un doble-toque no abre dos modales ni descuenta dos veces).
+    //  (2) idCliente = "recibo" único. Si la red falla tras descontar y reintentas
+    //      el MISMO descuento, va el mismo recibo → el servidor NO resta de nuevo.
+    //      Se genera recibo nuevo solo si cambian las horas o tras un éxito.
     await this._conBloqueo(btn, 'Guardando...', async () => {
+      const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña admin para descontar horas');
+      if (!_pwd) return; // canceló → no se hace nada
+      this._idCumplir = this._idCumplir || {};
+      let reg = this._idCumplir[cedula];
+      if (!reg || reg.horas !== horas) {
+        reg = { id: 'cs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), horas: horas };
+        this._idCumplir[cedula] = reg;
+      }
       try {
         const resp = await fetch(URL_BACKEND, {
           method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({ accion: 'cumplirSancion', cedula, horas,
-            adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+            idCliente: reg.id, adminEmail: this.usuario.email, adminPassword: _pwd })
         });
         const data = await resp.json();
         if (!data.ok) throw new Error(data.error);
+        delete this._idCumplir[cedula]; // éxito → el próximo descuento usa recibo nuevo
         this.toast('✅ ' + data.mensaje, 'ok');
         setTimeout(() => this.cargarPantallaDeudores(), 1000);
-      } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+      } catch(e) { this.toast('Error: ' + e.message, 'error'); } // error → conserva el recibo para reintento seguro
     });
   },
 
