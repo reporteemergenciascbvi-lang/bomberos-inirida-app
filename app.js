@@ -20,8 +20,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.73';
+const APP_VERSION = '5.74';
 const APP_VERSION_NOTAS = [
+  'v5.74: 📨 Corregido (importante): si el servidor rechazaba un reporte (mala señal, mantenimiento…), la app lo marcaba como "Enviado" igual y el reporte se perdía en silencio. Ahora queda "Pendiente" y se reenvía solo al volver la señal — sin duplicarse.',
+  'v5.74: 🔐 Blindaje del servidor: enviar, actualizar o eliminar reportes y consultar la base de personal ahora exige sesión válida. Si un día te pide volver a iniciar sesión, es normal — tu reporte no se pierde.',
+  'v5.74: 🧹 Corregido: al entrar con OTRA cuenta de Google en el mismo teléfono ya no se mezclan las sesiones (antes podía quedar activa la identidad anterior).',
+  'v5.74: 🖥️ Los mensajes de error del servidor ahora se muestran de forma segura en pantalla.',
   'v5.73: 🪪 Ahora, si dos bomberos quedaron con la misma cédula, la app te avisa con claridad (te dice con quién choca) en vez de un confuso “ya está”. Corrige la cédula repetida en la base y listo.',
   'v5.72: 🧩 Corregido en Asistencia: al agregar un bombero que ya estaba, la app te lleva a su fila y la resalta (se acabó el “ya está pero no lo veo”). Búsqueda de duplicados más precisa (por cédula o nombre).',
   'v5.71: 🛡️ Blindaje profesional: descontar horas de sanción ahora es a prueba de fallos de red. Si se cae el internet justo al guardar y reintentas, ya NUNCA se descuenta dos veces.',
@@ -483,6 +487,12 @@ const app = {
       // verifica para confirmar la identidad real (anti-suplantación de admin).
       this._googleIdToken = response.credential;
       this._googleTokenExp = (payload.exp ? payload.exp * 1000 : 0); // ms epoch
+
+      // v5.74: limpiar cualquier pase de una sesión ANTERIOR (otra cuenta de
+      // Google en el mismo teléfono). Sin esto, el inyector de fetch adjuntaba
+      // el pase viejo y el backend (que prefiere pase sobre token) respondía
+      // con la identidad de la cuenta anterior → sesiones mezcladas.
+      this._pase = '';
 
       // 1. Buscar perfil LOCAL primero (más rápido)
       const claveBomberoPorCorreo = 'bombero:' + payload.email;
@@ -2324,15 +2334,26 @@ const app = {
         redirect: 'follow'
       });
 
+      // v5.74: Apps Script SIEMPRE responde HTTP 200, incluso en errores
+      // ({ok:false}, p. ej. "Demasiadas peticiones" o "No autorizado"). Antes se
+      // marcaba "enviado" sin mirar data.ok y un reporte rechazado se perdía en
+      // silencio. Ahora solo se marca enviado con confirmación real del servidor;
+      // si no, queda "pendiente" y sincronizarPendientes lo reintenta al volver
+      // la señal (el backend ignora duplicados por id → no se duplica nada).
       let consecutivoServidor = '';
       try {
         const data = await resp.json();
-        if (data && data.ok && data.consecutivo) {
-          consecutivoServidor = data.consecutivo;
+        if (!data || data.ok !== true) {
+          console.warn('Servidor rechazó el reporte:', data && data.error);
+          this.toast('El servidor no aceptó el reporte: ' + ((data && data.error) || 'error desconocido') + '. Queda pendiente y se reintentará.', 'error');
+          return false;
         }
+        if (data.consecutivo) consecutivoServidor = data.consecutivo;
       } catch (e) {
-        // Si no se puede leer la respuesta (no-cors fallback), seguimos
+        // Respuesta ilegible = SIN confirmación → queda pendiente (reintento
+        // seguro: el backend detecta el id repetido y no duplica).
         console.warn('No se pudo leer respuesta del servidor:', e);
+        return false;
       }
 
       // Si el servidor devolvió un consecutivo, lo guardamos en el reporte local
@@ -2654,7 +2675,7 @@ const app = {
         return;
       }
       if (!data.ok) {
-        cont.innerHTML = '<div style="padding:20px;color:#c00;">Error: ' + (data.error || 'desconocido') + '<br><br><small>Si dice "No autorizado", verifica que el backend tenga la versión nueva.</small></div>';
+        cont.innerHTML = '<div style="padding:20px;color:#c00;">Error: ' + app._esc(data.error || 'desconocido') + '<br><br><small>Si dice "No autorizado", verifica que el backend tenga la versión nueva.</small></div>';
         return;
       }
       this._reportesAdmin = data.reportes || [];
@@ -4788,7 +4809,7 @@ ${paginaFotos}
       const [d1,d2]=await Promise.all([r1.json(),r2.json()]);
       const prev={}; if(d2.ok) d2.registros.forEach(r=>{prev[r.cedula||r.nombre]=r.estado;});
       if(d1.ok) d1.personal.forEach(p=>{const k=p.cedula||p.nombre;this._asistRegistros[k]={nombre:p.nombre,cedula:p.cedula,estado:prev[k]||'PRESENTE'};});
-    }catch(e){cont.innerHTML='<div style="color:#c00;padding:10px;">Error: '+e.message+'</div>';return;}
+    }catch(e){cont.innerHTML='<div style="color:#c00;padding:10px;">Error: '+app._esc(e.message)+'</div>';return;}
     this._renderAsistencia(fecha);
   },
 
@@ -5183,7 +5204,7 @@ ${paginaFotos}
         body: JSON.stringify({ accion: 'listarSanciones', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
       });
       const data = await resp.json();
-      if (!data.ok) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + (data.error||'desconocido') + '</div>'; return; }
+      if (!data.ok) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + app._esc(data.error||'desconocido') + '</div>'; return; }
       const sanc = (data.sanciones || []).filter(s => Number(s.horasPendientes) > 0);
       if (!sanc.length) {
         cont.innerHTML = '<div style="text-align:center;padding:30px;color:#1e8449;background:#fff;border-radius:12px;"><div style="font-size:40px;">✅</div><div style="margin-top:10px;font-weight:700;">Sin deudores pendientes</div></div>';
@@ -5226,7 +5247,7 @@ ${paginaFotos}
         body: JSON.stringify({ accion: 'obtenerFaltasDomingoPersona', cedula, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
       });
       const data = await resp.json();
-      if (!data.ok) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+data.error+'</div>'; return; }
+      if (!data.ok) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+app._esc(data.error)+'</div>'; return; }
       det.dataset.cargado = '1';
       const faltas = data.faltas || [];
       det.innerHTML = '<div style="padding-top:10px;">'
@@ -5237,7 +5258,7 @@ ${paginaFotos}
         + '<input type="number" min="1" placeholder="Horas a descontar" id="sanHoras_'+cedula+'" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;width:130px;font-size:13px;">'
         + '<button onclick="app.cumplirSancion(this,\''+cedula+'\',\'\')" style="background:#1e8449;color:#fff;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;margin-left:6px;font-size:13px;">✅ Marcar cumplidas</button>'
         + '</div></div>';
-    } catch(e) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+e.message+'</div>'; }
+    } catch(e) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+app._esc(e.message)+'</div>'; }
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -5259,7 +5280,7 @@ ${paginaFotos}
       });
       const data = await resp.json();
       if (!data.ok) {
-        cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + (data.error||'desconocido') + '</div>'; return;
+        cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + app._esc(data.error||'desconocido') + '</div>'; return;
       }
       // Si no hay datos, _operData queda vacío y _renderOperatividad
       // muestra los filtros + métricas en 0 (sin loop)
@@ -5477,7 +5498,7 @@ ${paginaFotos}
       const resp=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({accion,nombre,mes:this._operMes,anio:this._operAnio})});
       const data=await resp.json();
-      if(!data.ok){cont.innerHTML='<div style="font-size:12px;color:#c00;padding:4px;">Error: '+data.error+'</div>';return;}
+      if(!data.ok){cont.innerHTML='<div style="font-size:12px;color:#c00;padding:4px;">Error: '+app._esc(data.error)+'</div>';return;}
       const borderColor = tipo==='emerg'?'#c0392b':tipo==='activ'?'#1e8449':'#e67e22';
       let html='<div style="background:#fafafa;border-radius:8px;padding:8px;border-top:2px solid '+borderColor+'">';
       if(tipo==='emerg'){
