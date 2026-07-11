@@ -770,7 +770,7 @@
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v5.75</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v5.76</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1551,6 +1551,16 @@
     </div>
 
     <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
+      <h4 style="color: #7a1010; font-size: 14px; margin-bottom: 8px;">📨 Alerta de sanciones a deudores</h4>
+      <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
+        Envía AHORA el recordatorio por correo: uno personal a cada unidad que debe horas y el resumen completo a la estación. El envío automático de los <strong>viernes 9:30 AM</strong> funciona aparte y no se afecta.
+      </p>
+      <button class="btn btn-completo" onclick="app.enviarAlertaSanciones(this)" style="background: #7a1010; color: #fff;">
+        📨 Enviar alerta de sanciones ahora
+      </button>
+    </div>
+
+    <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
       <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">🔧 Renumerar reportes (peligroso)</h4>
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Si los consecutivos se desordenaron por usuarios con versiones viejas, este botón pide al servidor renumerar todos los reportes en orden cronológico.
@@ -1624,8 +1634,8 @@
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=5.75"></script>
-<script src="app.js?v=5.75"></script>
+<script src="logos.js?v=5.76"></script>
+<script src="app.js?v=5.76"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

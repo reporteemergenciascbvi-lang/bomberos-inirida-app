@@ -21,8 +21,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.75';
+const APP_VERSION = '5.76';
 const APP_VERSION_NOTAS = [
+  'v5.76: 📨 NUEVO: alerta de sanciones por correo. Cada viernes 9:30 AM la estación recibe el resumen de unidades que deben horas y cada deudor su recordatorio personal. El admin también puede enviarla al instante desde Configuración → Zona Administrador.',
+  'v5.76: 🛡️ El servidor ahora deja registro permanente de seguridad (intentos no autorizados y acciones administrativas) y avisa por correo a la estación si detecta actividad sospechosa.',
   'v5.75: 👥 Nueva cuenta de administración habilitada (Tesorería CBVI) para apoyar la gestión de la estación.',
   'v5.74: 📨 Corregido (importante): si el servidor rechazaba un reporte (mala señal, mantenimiento…), la app lo marcaba como "Enviado" igual y el reporte se perdía en silencio. Ahora queda "Pendiente" y se reenvía solo al volver la señal — sin duplicarse.',
   'v5.74: 🔐 Blindaje del servidor: enviar, actualizar o eliminar reportes y consultar la base de personal ahora exige sesión válida. Si un día te pide volver a iniciar sesión, es normal — tu reporte no se pierde.',
@@ -2413,6 +2415,54 @@ const app = {
       console.error('Error renumerando:', err);
       this.toast('Error de red al renumerar', 'error');
     }
+    });
+  },
+
+  // ═══ v5.76: alerta de sanciones bajo demanda (botón en Configuración) ═══
+  // El backend recalcula sanciones, manda el correo personal a cada deudor y
+  // el resumen a la estación. El pase firmado viaja solo (interceptor de
+  // fetch); el servidor tiene enfriamiento de 10 min contra doble envío y
+  // _conBloqueo evita el doble toque local.
+  async enviarAlertaSanciones(btn) {
+    if (!this.esAdmin()) {
+      this.toast('Solo el administrador', 'error');
+      return;
+    }
+    if (!this.config.urlBackend) {
+      this.toast('Configure URL del backend primero', 'error');
+      return;
+    }
+    const ok = await this.confirmar(
+      '📨 Enviar alerta de sanciones',
+      'Se enviará AHORA un correo a cada unidad deudora (a su correo personal) y el resumen completo a la estación. ¿Continuar?'
+    );
+    if (!ok) return;
+
+    await this._conBloqueo(btn, 'Enviando...', async () => {
+      try {
+        const resp = await fetch(this.config.urlBackend, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            accion: 'enviarAlertaSanciones',
+            adminEmail: this.usuario.email
+          })
+        });
+        const data = await resp.json();
+        if (data && data.ok) {
+          if (!data.deudores) {
+            this.toast('✅ No hay unidades con horas pendientes — no se envió ningún correo', 'exito');
+          } else {
+            const faltantes = (data.sinCorreo && data.sinCorreo.length) ? ' · ' + data.sinCorreo.length + ' sin correo en la base' : '';
+            this.toast('✅ Alerta enviada: ' + data.enviados + ' de ' + data.deudores + ' deudor(es) con correo' + faltantes, 'exito');
+          }
+        } else {
+          this.toast('Error: ' + ((data && data.error) || 'desconocido'), 'error');
+        }
+      } catch (err) {
+        console.error('Error enviando alerta de sanciones:', err);
+        this.toast('Error de red al enviar la alerta', 'error');
+      }
     });
   },
 
