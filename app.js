@@ -8,7 +8,8 @@ const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.go
 const ADMIN_EMAILS = [
   'gilrangeljeancarlosjeferson@gmail.com',
   'bomberosinirida@gmail.com',
-  'reporteemergenciascbvi@gmail.com'
+  'reporteemergenciascbvi@gmail.com',
+  'tesoreria.bomberosinirida@gmail.com'
 ];
 const ADMIN_EMAIL = ADMIN_EMAILS[0]; // compatibilidad
 const ADMIN_PASSWORD = ''; // La contraseña NO está en el código — el admin la escribe al entrar al panel.
@@ -20,8 +21,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.74';
+const APP_VERSION = '5.75';
 const APP_VERSION_NOTAS = [
+  'v5.75: 👥 Nueva cuenta de administración habilitada (Tesorería CBVI) para apoyar la gestión de la estación.',
   'v5.74: 📨 Corregido (importante): si el servidor rechazaba un reporte (mala señal, mantenimiento…), la app lo marcaba como "Enviado" igual y el reporte se perdía en silencio. Ahora queda "Pendiente" y se reenvía solo al volver la señal — sin duplicarse.',
   'v5.74: 🔐 Blindaje del servidor: enviar, actualizar o eliminar reportes y consultar la base de personal ahora exige sesión válida. Si un día te pide volver a iniciar sesión, es normal — tu reporte no se pierde.',
   'v5.74: 🧹 Corregido: al entrar con OTRA cuenta de Google en el mismo teléfono ya no se mezclan las sesiones (antes podía quedar activa la identidad anterior).',
