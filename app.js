@@ -21,8 +21,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.76';
+const APP_VERSION = '5.81';
 const APP_VERSION_NOTAS = [
+  'v5.81: ⏳ Al abrir una asistencia de domingo (desde Mis Actividades o el historial) ahora aparece DE INMEDIATO la ventana "Abriendo asistencia..." con animación — antes parecía que el toque no hacía nada.',
+  'v5.81: 🎖️ El llamado a lista ahora va por rangos: OFICIALES (Capitán, Teniente, Subteniente) → SUBOFICIALES (Sargento, Cabo) → BOMBEROS → ASPIRANTES. Dentro de cada rango se respeta el orden de las filas de la hoja Personal_CBVI (1, 2, 3...): ordena la hoja y la app llama a lista en ese orden.',
+  'v5.81: 📝 Al marcar a alguien "C/excusa" se abre al instante el cuadro para escribir la observación (motivo de la excusa) — ya no toca guardar y luego editar el domingo. La observación queda visible bajo el nombre y se corrige tocándola.',
+  'v5.81: ➕ Nuevos rangos disponibles al registrar bombero: Subteniente y Cabo.',
   'v5.76: 📨 NUEVO: alerta de sanciones por correo. Cada viernes 9:30 AM la estación recibe el resumen de unidades que deben horas y cada deudor su recordatorio personal. El admin también puede enviarla al instante desde Configuración → Zona Administrador.',
   'v5.76: 🛡️ El servidor ahora deja registro permanente de seguridad (intentos no autorizados y acciones administrativas) y avisa por correo a la estación si detecta actividad sospechosa.',
   'v5.75: 👥 Nueva cuenta de administración habilitada (Tesorería CBVI) para apoyar la gestión de la estación.',
@@ -4859,32 +4863,87 @@ ${paginaFotos}
         fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'listarAsistenciaDomingo',fecha})})
       ]);
       const [d1,d2]=await Promise.all([r1.json(),r2.json()]);
-      const prev={}; if(d2.ok) d2.registros.forEach(r=>{prev[r.cedula||r.nombre]=r.estado;});
-      if(d1.ok) d1.personal.forEach(p=>{const k=p.cedula||p.nombre;this._asistRegistros[k]={nombre:p.nombre,cedula:p.cedula,estado:prev[k]||'PRESENTE'};});
+      // v5.81: se restaura también la observación previa (no solo el estado)
+      const prev={}; if(d2.ok) d2.registros.forEach(r=>{prev[r.cedula||r.nombre]={estado:r.estado,observacion:String(r.observacion||'')};});
+      // v5.81: se guarda rango + orden (fila en Personal_CBVI) para llamar a
+      // lista por rangos y en el orden de la hoja (antes el objeto ordenaba
+      // por cédula numérica y el orden quedaba "raro").
+      if(d1.ok) d1.personal.forEach((p,ix)=>{
+        const k=p.cedula||p.nombre; const pv=prev[k]||{};
+        this._asistRegistros[k]={nombre:p.nombre,cedula:p.cedula,rango:p.rango||'BOMBERO',
+          orden:(p.orden!==undefined&&p.orden!==null)?Number(p.orden):(ix+1),
+          estado:pv.estado||'PRESENTE',observacion:pv.observacion||''};
+      });
     }catch(e){cont.innerHTML='<div style="color:#c00;padding:10px;">Error: '+app._esc(e.message)+'</div>';return;}
     this._renderAsistencia(fecha);
   },
 
+  // v5.81: categoría jerárquica para el llamado a lista.
+  // 0=OFICIALES, 1=SUBOFICIALES, 2=BOMBEROS (y desconocidos), 3=ASPIRANTES.
+  // SUBTENIENTE contiene "TENIENTE" → cae en Oficiales igual (correcto).
+  _catRango(rango) {
+    const r = this._normNombre(rango || '');
+    if (r.indexOf('COMANDANTE') !== -1 || r.indexOf('CAPITAN') !== -1 || r.indexOf('TENIENTE') !== -1) return 0;
+    if (r.indexOf('SARGENTO') !== -1 || r.indexOf('CABO') !== -1) return 1;
+    if (r.indexOf('ASPIRANTE') !== -1) return 3;
+    return 2;
+  },
+
+  _ROTULOS_CAT: ['🎖️ OFICIALES', '🪖 SUBOFICIALES', '🚒 BOMBEROS', '🎓 ASPIRANTES'],
+
   _renderAsistencia(fecha) {
     const cont = document.getElementById('asistListaPersonal');
     if (!cont) return;
-    const lista = Object.values(this._asistRegistros);
+    // v5.81: llamado a lista por rangos (Oficiales → Suboficiales → Bomberos →
+    // Aspirantes) y, dentro de cada rango, por el orden de fila de la hoja
+    // Personal_CBVI. Antes Object.values() ordenaba por cédula numérica.
+    const lista = Object.values(this._asistRegistros).sort((a, b) => {
+      const ca = this._catRango(a.rango), cb = this._catRango(b.rango);
+      if (ca !== cb) return ca - cb;
+      return (a.orden || 999999) - (b.orden || 999999);
+    });
+    const filaHTML = (p) => {
+      const key = String(p.cedula || p.nombre || '').replace(/"/g, '&quot;');
+      const conExcusa = p.estado === 'AUSENTE_EXCUSA';
+      return '<div data-row="'+key+'" style="padding:8px;border-bottom:1px solid #f0f0f0;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+        + '<div style="flex:1;"><div style="font-size:14px;font-weight:600;">'+app._esc(p.nombre||'(sin nombre)')+'</div>'
+        + '<div style="font-size:11px;color:#999;">CC: '+app._esc(p.cedula||'-')+'</div></div>'
+        + '<select data-k="'+key+'" data-n="'+app._esc(p.nombre||'')+'" onchange="app._setAsistencia(this.dataset.k,this.dataset.n,this.value)" '
+        + 'style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:'+(p.estado==='PRESENTE'?'#e8f5e9':p.estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee')+'">'
+        + '<option value="PRESENTE" '+(p.estado==='PRESENTE'?'selected':'')+'>Presente</option>'
+        + '<option value="AUSENTE_EXCUSA" '+(p.estado==='AUSENTE_EXCUSA'?'selected':'')+'>C/excusa</option>'
+        + '<option value="AUSENTE_SIN_EXCUSA" '+(p.estado==='AUSENTE_SIN_EXCUSA'?'selected':'')+'>Sin excusa</option>'
+        + '</select>'
+        + '<button data-k="'+key+'" onclick="app._quitarAsistencia(this.dataset.k)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;padding:4px;margin-left:4px;">X</button>'
+        + '</div>'
+        // v5.81: observación de la excusa visible y editable con un toque
+        + (conExcusa
+          ? '<div data-k="'+key+'" onclick="app._editarObsExcusa(this.dataset.k)" style="margin-top:5px;background:#fff8e1;border:1px dashed #e6a23c;border-radius:6px;padding:5px 8px;font-size:12px;color:#8a5a00;cursor:pointer;">'
+            + (p.observacion ? '📝 ' + app._esc(p.observacion) : '📝 <em>Toca aquí para escribir la observación de la excusa…</em>')
+            + '</div>'
+          : '')
+        + '</div>';
+    };
+    let cuerpo = '';
+    if (lista.length === 0) {
+      cuerpo = '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal cargado aun</div>';
+    } else {
+      const conteo = [0,0,0,0];
+      lista.forEach(p => { conteo[this._catRango(p.rango)]++; });
+      let catPrev = -1;
+      for (const p of lista) {
+        const c = this._catRango(p.rango);
+        if (c !== catPrev) {
+          cuerpo += '<div style="margin:12px 0 4px;padding:6px 10px;background:#1e8449;color:#fff;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.5px;">'
+            + this._ROTULOS_CAT[c] + ' (' + conteo[c] + ')</div>';
+          catPrev = c;
+        }
+        cuerpo += filaHTML(p);
+      }
+    }
     cont.innerHTML = '<div style="font-size:12px;color:#555;margin-bottom:10px;">Registrando asistencia para el <strong>'+fecha+'</strong></div>'
-      + (lista.length === 0
-        ? '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal cargado aun</div>'
-        : lista.map((p,i) =>
-          '<div data-row="'+String(p.cedula||p.nombre||'').replace(/"/g,'&quot;')+'" style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid #f0f0f0;">'
-          + '<div style="flex:1;"><div style="font-size:14px;font-weight:600;">'+app._esc(p.nombre||'(sin nombre)')+'</div>'
-          + '<div style="font-size:11px;color:#999;">CC: '+app._esc(p.cedula||'-')+'</div></div>'
-          + '<select data-k="'+String(p.cedula||p.nombre||'').replace(/"/g,'&quot;')+'" data-n="'+app._esc(p.nombre||'')+'" onchange="app._setAsistencia(this.dataset.k,this.dataset.n,this.value)" '
-          + 'style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:'+(p.estado==='PRESENTE'?'#e8f5e9':p.estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee')+'">'
-          + '<option value="PRESENTE" '+(p.estado==='PRESENTE'?'selected':'')+'>Presente</option>'
-          + '<option value="AUSENTE_EXCUSA" '+(p.estado==='AUSENTE_EXCUSA'?'selected':'')+'>C/excusa</option>'
-          + '<option value="AUSENTE_SIN_EXCUSA" '+(p.estado==='AUSENTE_SIN_EXCUSA'?'selected':'')+'>Sin excusa</option>'
-          + '</select>'
-          + '<button data-k="'+String(p.cedula||p.nombre||'').replace(/"/g,'&quot;')+'" onclick="app._quitarAsistencia(this.dataset.k)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;padding:4px;margin-left:4px;">X</button>'
-          + '</div>'
-        ).join(''))
+      + cuerpo
       + '<div style="position:relative;margin-top:10px;">'
       + '<input type="text" id="asistBuscar" placeholder="Buscar y agregar bombero..." autocomplete="off" '
       + 'style="width:100%;padding:10px;border:1px solid #1e8449;border-radius:8px;font-size:14px;box-sizing:border-box;" '
@@ -4939,9 +4998,18 @@ ${paginaFotos}
       return;
     }
     const key = ced || p.nombre;
-    this._asistRegistros[key] = { nombre: p.nombre, cedula: ced, estado: 'PRESENTE' };
+    // v5.81: conserva el rango (para el grupo correcto) y lo pone al final de
+    // su categoría (orden alto = después de los que vienen de la hoja).
+    this._asistRegistros[key] = { nombre: p.nombre, cedula: ced, rango: p.rango || 'BOMBERO', orden: this._sigOrdenAsist(), estado: 'PRESENTE' };
     this._renderAsistencia(fecha);
     this._flashAsistItem(key);
+  },
+
+  // v5.81: orden incremental para los agregados a mano — quedan al final de su
+  // categoría de rango, después del personal que viene de la hoja.
+  _sigOrdenAsist() {
+    this._asistSeqAdd = (this._asistSeqAdd || 0) + 1;
+    return 100000 + this._asistSeqAdd;
   },
 
   // Busca en la lista actual a alguien que coincida por cédula O por nombre
@@ -5031,7 +5099,8 @@ ${paginaFotos}
       if (!d.ok) { this.toast('Error: ' + (d.error || 'no se pudo registrar'), 'error'); return; }
 
       // Sumarlo a la lista del domingo actual (Presente)
-      this._asistRegistros[key] = { nombre, cedula, estado: 'PRESENTE' };
+      // v5.81: con rango y orden para que caiga en su grupo del llamado a lista
+      this._asistRegistros[key] = { nombre, cedula, rango, orden: this._sigOrdenAsist(), estado: 'PRESENTE' };
       // Disponible en autocompletar de inmediato
       if (typeof ROSTER_BOMBEROS !== 'undefined' && !ROSTER_BOMBEROS.includes(nombre)) {
         ROSTER_BOMBEROS.push(nombre); this.poblarRosterBomberos();
@@ -5053,15 +5122,60 @@ ${paginaFotos}
     });
   },
 
-  _setAsistencia(cedula, nombre, estado) {
-    this._asistRegistros[cedula] = { nombre, cedula, estado };
+  _setAsistencia(key, nombre, estado) {
+    // v5.81: se conserva la entrada existente (rango, orden, observación) —
+    // antes se reemplazaba el objeto entero y se perdían esos campos.
+    const e = this._asistRegistros[key] || { nombre, cedula: key };
+    e.estado = estado;
+    this._asistRegistros[key] = e;
     // cambiar color del select
-    const selects = document.querySelectorAll('#asistListaPersonal select');
-    selects.forEach(sel => {
-      if (sel.getAttribute('onchange') && sel.getAttribute('onchange').includes(cedula)) {
-        sel.style.background = estado==='PRESENTE'?'#e8f5e9':estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee';
-      }
-    });
+    const fecha = document.getElementById('asistFecha') ? document.getElementById('asistFecha').value : '';
+    const cont = document.getElementById('asistListaPersonal');
+    let sel = null;
+    try { sel = cont ? cont.querySelector('select[data-k="' + (window.CSS && CSS.escape ? CSS.escape(String(key)) : String(key)) + '"]') : null; } catch (er) {}
+    if (sel) sel.style.background = estado==='PRESENTE'?'#e8f5e9':estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee';
+    // v5.81 (punto 4): al marcar C/excusa se pide la observación AL INSTANTE
+    if (estado === 'AUSENTE_EXCUSA') {
+      this._editarObsExcusa(key);
+    } else if (e.observacion) {
+      // Si se corrige el estado (ya no es excusa), la observación de la excusa
+      // se limpia para no guardar un motivo que ya no aplica.
+      e.observacion = '';
+      this._renderAsistencia(fecha);
+    }
+  },
+
+  // v5.81 (punto 4): cuadro propio (I4: nada de prompt() nativo) para escribir
+  // o corregir la observación de una excusa ANTES de subir la asistencia.
+  _editarObsExcusa(key) {
+    const e = this._asistRegistros[key];
+    if (!e) return;
+    const viejo = document.getElementById('_obsExcModal');
+    if (viejo) viejo.remove();
+    const modal = document.createElement('div');
+    modal.id = '_obsExcModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+      + '<div style="font-size:15px;font-weight:700;color:#e65100;margin-bottom:4px;">📝 Excusa de ' + app._esc(e.nombre || '') + '</div>'
+      + '<div style="font-size:12px;color:#777;margin-bottom:10px;">Escribe el motivo de la excusa (queda guardado con la asistencia).</div>'
+      + '<textarea id="_obsExcTxt" rows="3" placeholder="Ej: incapacidad médica, viaje, trabajo..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>'
+      + '<div style="display:flex;gap:10px;margin-top:12px;">'
+      + '<button id="_obsExcOmitir" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Sin observación</button>'
+      + '<button id="_obsExcGuardar" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Guardar</button>'
+      + '</div></div>';
+    document.body.appendChild(modal);
+    const txt = modal.querySelector('#_obsExcTxt');
+    txt.value = e.observacion || '';
+    setTimeout(() => { try { txt.focus(); } catch (er) {} }, 50);
+    const cerrar = () => { try { document.body.removeChild(modal); } catch (er) {} };
+    const fecha = document.getElementById('asistFecha') ? document.getElementById('asistFecha').value : '';
+    modal.querySelector('#_obsExcOmitir').onclick = () => { cerrar(); this._renderAsistencia(fecha); this._flashAsistItem(key); };
+    modal.querySelector('#_obsExcGuardar').onclick = () => {
+      e.observacion = (txt.value || '').trim();
+      cerrar();
+      this._renderAsistencia(fecha);
+      this._flashAsistItem(key);
+    };
   },
 
   async guardarAsistencia(btn) {
@@ -5116,13 +5230,29 @@ ${paginaFotos}
     // v5.57: modal que funciona desde CUALQUIER pantalla (antes escribía en
     // #asistHistorial, que solo existe en la pantalla de Asistencia → fallaba
     // silenciosamente desde "Mis Actividades").
+    // v5.81 (punto 1): el modal aparece AL INSTANTE con "Abriendo asistencia..."
+    // y animación — antes el toque no mostraba nada mientras respondía el
+    // servidor (en Inírida eso pueden ser varios segundos).
+    const _prevM = document.getElementById('_domModal');
+    if (_prevM) _prevM.remove();
+    const m = document.createElement('div');
+    m.id = '_domModal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;overflow-y:auto;padding:14px;';
+    m.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:26px 18px;max-width:460px;margin:auto;text-align:center;">'
+      + '<span style="display:inline-block;width:26px;height:26px;border:3px solid #cde7d8;border-top-color:#1e8449;border-radius:50%;animation:girocbvi .7s linear infinite;"></span>'
+      + '<div style="margin-top:10px;font-weight:700;color:#1e8449;font-size:14px;">⏳ Abriendo asistencia del ' + app._esc(fecha) + '...</div>'
+      + '<div style="font-size:12px;color:#999;margin-top:4px;">Espera un momento</div>'
+      + '</div>';
+    document.body.appendChild(m);
+    m.onclick = (e) => { if (e.target === m) m.remove(); };
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ accion: 'listarAsistenciaDomingo', fecha })
       });
       const data = await resp.json();
-      if (!data.ok) { this.toast('No se pudo cargar el domingo', 'error'); return; }
+      if (!data.ok) { m.remove(); this.toast('No se pudo cargar el domingo', 'error'); return; }
       const regs = data.registros || [];
       const fotos = data.fotos || [];
       const pres = regs.filter(r => r.estado === 'PRESENTE');
@@ -5165,9 +5295,8 @@ ${paginaFotos}
           + '</div>'
         : '';
 
-      const m = document.createElement('div');
-      m.id = '_domModal';
-      m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;overflow-y:auto;padding:14px;';
+      // v5.81: el modal ya está en pantalla (con la animación de carga) —
+      // aquí solo se reemplaza su contenido por el detalle del domingo.
       m.innerHTML =
         '<div style="background:#fff;border-radius:16px;padding:18px;max-width:460px;margin:auto;">'
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
@@ -5194,9 +5323,7 @@ ${paginaFotos}
               + '</div>'
             : '')
         + '</div>';
-      document.body.appendChild(m);
-      m.onclick = (e) => { if (e.target === m) m.remove(); };
-    } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+    } catch(e) { m.remove(); this.toast('Error: ' + e.message, 'error'); }
   },
 
   async cumplirSancion(btn, cedula, nombre) {
