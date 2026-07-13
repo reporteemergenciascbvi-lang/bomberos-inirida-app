@@ -21,8 +21,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.81';
+const APP_VERSION = '5.82';
 const APP_VERSION_NOTAS = [
+  'v5.82: 🗺️ Mapa de Emergencias renovado: cada pin lleva el EMOJI de su tipo (🔥 incendio, 🚑 primeros auxilios, 🚗 rescate vehicular...) con colores más fáciles de distinguir.',
+  'v5.82: 🗺️ La leyenda ahora FILTRA: toca un tipo para ocultar/mostrar sus pines. Nuevos filtros por año y mes, contador de emergencias visibles y botón 🎯 para reencuadrar el mapa.',
+  'v5.82: 🗺️ Corregido: la fecha en los pines del mapa se veía en formato técnico feo — ahora sale como día normal (2026-07-13).',
+  'v5.82: 📨 El resumen general de sancionados ahora llega también a un tercer correo administrativo autorizado.',
   'v5.81: ⏳ Al abrir una asistencia de domingo (desde Mis Actividades o el historial) ahora aparece DE INMEDIATO la ventana "Abriendo asistencia..." con animación — antes parecía que el toque no hacía nada.',
   'v5.81: 🎖️ El llamado a lista ahora va por rangos: OFICIALES (Capitán, Teniente, Subteniente) → SUBOFICIALES (Sargento, Cabo) → BOMBEROS → ASPIRANTES. Dentro de cada rango se respeta el orden de las filas de la hoja Personal_CBVI (1, 2, 3...): ordena la hoja y la app llama a lista en ese orden.',
   'v5.81: 📝 Al marcar a alguien "C/excusa" se abre al instante el cuadro para escribir la observación (motivo de la excusa) — ya no toca guardar y luego editar el domingo. La observación queda visible bajo el nombre y se corrige tocándola.',
@@ -5892,35 +5896,43 @@ ${paginaFotos}
   _leafletMapa: null,
 
   // v5.65 (feature: banderas por color según tipo de emergencia).
+  // v5.82: cada tipo lleva EMOJI dentro del pin (mucho más identificable que
+  // el color solo) + paleta de colores con más contraste entre sí.
   // Un reporte puede tener varias clasificaciones marcadas — se usa la
   // PRIMERA que coincida en este orden de prioridad para pintar el pin.
   _MAPA_COLORES: [
-    { tipo: 'Incendio estructural',              color: '#f9a825', etiqueta: '🟡 Incendio' },
-    { tipo: 'Incendio forestal',                 color: '#f9a825', etiqueta: '🟡 Incendio' },
-    { tipo: 'Incendio vehicular',                color: '#f9a825', etiqueta: '🟡 Incendio' },
-    { tipo: 'Primeros auxilios',                 color: '#e53935', etiqueta: '🔴 Primeros auxilios / traslado' },
-    { tipo: 'Materiales peligrosos (MATPEL)',    color: '#f4511e', etiqueta: '🟠 MATPEL' },
-    { tipo: 'Rescate vehicular',                 color: '#1e88e5', etiqueta: '🔵 Rescate vehicular' },
-    { tipo: 'Rescate en altura',                 color: '#8e24aa', etiqueta: '🟣 Rescate en altura' },
-    { tipo: 'Rescate acuático',                  color: '#00acc1', etiqueta: '🔷 Rescate acuático' },
-    { tipo: 'Inundación / desastre natural',     color: '#00897b', etiqueta: '🟢 Inundación / desastre natural' },
-    { tipo: 'Colapso estructural',               color: '#546e7a', etiqueta: '⚫ Colapso estructural' },
-    { tipo: 'Rescate animal',                    color: '#6d4c41', etiqueta: '🟤 Rescate animal' },
-    { tipo: 'Otra',                              color: '#9e9e9e', etiqueta: '⚪ Otra' }
+    { tipo: 'Incendio estructural',              color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
+    { tipo: 'Incendio forestal',                 color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
+    { tipo: 'Incendio vehicular',                color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
+    { tipo: 'Primeros auxilios',                 color: '#c62828', emoji: '🚑', etiqueta: 'Primeros auxilios / traslado' },
+    { tipo: 'Materiales peligrosos (MATPEL)',    color: '#f9a825', emoji: '☣️', etiqueta: 'MATPEL' },
+    { tipo: 'Rescate vehicular',                 color: '#1565c0', emoji: '🚗', etiqueta: 'Rescate vehicular' },
+    { tipo: 'Rescate en altura',                 color: '#6a1b9a', emoji: '🧗', etiqueta: 'Rescate en altura' },
+    { tipo: 'Rescate acuático',                  color: '#00838f', emoji: '🌊', etiqueta: 'Rescate acuático' },
+    { tipo: 'Inundación / desastre natural',     color: '#2e7d32', emoji: '⛈️', etiqueta: 'Inundación / desastre natural' },
+    { tipo: 'Colapso estructural',               color: '#37474f', emoji: '🏚️', etiqueta: 'Colapso estructural' },
+    { tipo: 'Rescate animal',                    color: '#5d4037', emoji: '🐾', etiqueta: 'Rescate animal' },
+    { tipo: 'Otra',                              color: '#757575', emoji: '❓', etiqueta: 'Otra' }
   ],
 
-  _colorPorClasificacion(clasificacionArr) {
+  _REGLA_SIN_CLASIFICAR: { color: '#757575', emoji: '❓', etiqueta: 'Sin clasificar' },
+
+  // v5.82: devuelve la REGLA completa (color + emoji + etiqueta), no solo el color.
+  _reglaPorClasificacion(clasificacionArr) {
     const arr = clasificacionArr || [];
-    for (const regla of this._MAPA_COLORES) { if (arr.includes(regla.tipo)) return regla.color; }
-    return '#9e9e9e'; // sin clasificar
+    for (const regla of this._MAPA_COLORES) { if (arr.includes(regla.tipo)) return regla; }
+    return this._REGLA_SIN_CLASIFICAR;
   },
 
-  _iconoColor(color) {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="36" viewBox="0 0 26 36">'
-      + '<path d="M13 0C5.8 0 0 5.8 0 13c0 9.7 13 23 13 23s13-13.3 13-23C26 5.8 20.2 0 13 0z" fill="'+color+'" stroke="#fff" stroke-width="1.5"/>'
-      + '<circle cx="13" cy="13" r="5" fill="#fff"/>'
+  // v5.82: pin más grande, con sombra y el emoji del tipo adentro.
+  _iconoMapa(regla) {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40">'
+      + '<path d="M15 0C6.7 0 0 6.7 0 15c0 11.2 15 25 15 25s15-13.8 15-25C30 6.7 23.3 0 15 0z" fill="'+regla.color+'" stroke="#fff" stroke-width="2"/>'
+      + '<circle cx="15" cy="15" r="10" fill="#fff"/>'
       + '</svg>';
-    return L.divIcon({ html: svg, className: '', iconSize: [26,36], iconAnchor: [13,36], popupAnchor: [0,-32] });
+    const html = '<div style="position:relative;width:30px;height:40px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));">' + svg
+      + '<span style="position:absolute;top:5px;left:0;width:30px;text-align:center;font-size:13px;line-height:20px;">' + regla.emoji + '</span></div>';
+    return L.divIcon({ html: html, className: '', iconSize: [30,40], iconAnchor: [15,40], popupAnchor: [0,-36] });
   },
 
   async cargarPantallaMapa() {
@@ -5953,22 +5965,32 @@ ${paginaFotos}
       estado.style.display = 'none';
       cont.style.display = 'block';
 
-      // Leyenda / tabla de conversión color → tipo de emergencia
-      const leyenda = document.getElementById('mapaLeyenda');
-      if (leyenda) {
-        const tiposPresentes = new Set();
-        reportes.forEach(r => (r.clasificacion||[]).forEach(c => tiposPresentes.add(c)));
-        const filas = this._MAPA_COLORES.filter(r => tiposPresentes.has(r.tipo));
-        leyenda.innerHTML = (filas.length ? filas : this._MAPA_COLORES).map(r =>
-          '<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;border-radius:12px;padding:3px 9px;margin:2px;font-size:11px;border:1px solid #eee;">'
-          + '<span style="width:10px;height:10px;border-radius:50%;background:'+r.color+';display:inline-block;"></span>'+r.etiqueta+'</span>'
-        ).join('');
-      }
-
       // Cachear localmente para que "Ver reporte completo" funcione aunque el
       // admin no haya visitado antes la lista de reportes en esta sesión.
       if (!this._reportesAdmin) this._reportesAdmin = [];
       reportes.forEach(r => { if (!this._reportesAdmin.some(x => x.id === r.id)) this._reportesAdmin.push(r); });
+
+      // v5.82: filtros por año/mes (poblados con las fechas reales) + contador
+      const filtros = document.getElementById('mapaFiltros');
+      if (filtros) {
+        const anios = new Set();
+        reportes.forEach(r => { const a = String(r.fecha||'').substring(0,4); if (/^\d{4}$/.test(a)) anios.add(a); });
+        const MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const estiloSel = 'padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12px;background:#fff;';
+        filtros.innerHTML =
+          '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
+          + '<select id="mapaFiltroAnio" onchange="app._aplicarFiltroMapa()" style="'+estiloSel+'">'
+          +   '<option value="">📅 Todos los años</option>'
+          +   Array.from(anios).sort().reverse().map(a => '<option value="'+a+'">'+a+'</option>').join('')
+          + '</select>'
+          + '<select id="mapaFiltroMes" onchange="app._aplicarFiltroMapa()" style="'+estiloSel+'">'
+          +   '<option value="">Todos los meses</option>'
+          +   MESES.map((mn,i) => i ? '<option value="'+String(i).padStart(2,'0')+'">'+mn+'</option>' : '').join('')
+          + '</select>'
+          + '<button onclick="app._centrarMapaTodos()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a7a5e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🎯 Ver todas</button>'
+          + '<span id="mapaContador" style="font-size:12px;color:#555;font-weight:700;"></span>'
+          + '</div>';
+      }
 
       if (this._leafletMapa) { this._leafletMapa.remove(); this._leafletMapa = null; }
       this._leafletMapa = L.map(cont).setView([reportes[0].lat, reportes[0].lng], 12);
@@ -5976,25 +5998,98 @@ ${paginaFotos}
         maxZoom: 19, attribution: '© OpenStreetMap'
       }).addTo(this._leafletMapa);
 
-      const bounds = [];
+      // v5.82: cada marcador queda registrado con su etiqueta y fecha para
+      // poder filtrar sin volver a pedir nada al servidor.
+      this._mapaMarkers = [];
+      this._mapaEtiquetasOff = new Set();
       reportes.forEach(r => {
-        bounds.push([r.lat, r.lng]);
+        const regla = this._reglaPorClasificacion(r.clasificacion);
         const clas = (r.clasificacion || []).join(', ') || 'Sin clasificar';
-        const color = this._colorPorClasificacion(r.clasificacion);
-        const popupHtml = '<div style="font-size:13px;min-width:180px;">'
-          + '<div style="font-weight:700;color:'+color+';">🚨 ' + (r.consecutivo || r.id) + '</div>'
-          + '<div style="margin-top:4px;"><b>Fecha:</b> ' + (r.fecha || '-') + '</div>'
-          + '<div><b>Dirección:</b> ' + (r.direccion || '-') + '</div>'
-          + '<div><b>Clasificación:</b> ' + clas + '</div>'
-          + '<button onclick="app._verReporteDesdeMapa(\'' + r.id + '\')" style="margin-top:8px;background:#6e2fa0;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
+        const f = String(r.fecha || '');
+        // v5.82 (I5/I10): dirección, clasificación y consecutivo pasan por
+        // _esc() y el id del reporte viaja en data-id (antes iba concatenado
+        // dentro del onclick y sin escapar).
+        const popupHtml = '<div style="font-size:13px;min-width:190px;">'
+          + '<div style="font-weight:700;color:'+regla.color+';">'+regla.emoji+' ' + app._esc(String(r.consecutivo || r.id)) + '</div>'
+          + '<div style="margin-top:4px;"><b>Fecha:</b> ' + app._esc(f.substring(0,10) || '-') + '</div>'
+          + '<div><b>Dirección:</b> ' + app._esc(r.direccion || '-') + '</div>'
+          + '<div><b>Clasificación:</b> ' + app._esc(clas) + '</div>'
+          + '<button data-id="' + String(r.id||'').replace(/"/g,'&quot;') + '" onclick="app._verReporteDesdeMapa(this.dataset.id)" style="margin-top:8px;background:#6e2fa0;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
           + '</div>';
-        L.marker([r.lat, r.lng], { icon: this._iconoColor(color) }).addTo(this._leafletMapa).bindPopup(popupHtml);
+        const marker = L.marker([r.lat, r.lng], { icon: this._iconoMapa(regla) }).bindPopup(popupHtml);
+        marker.addTo(this._leafletMapa);
+        this._mapaMarkers.push({ marker: marker, etiqueta: regla.etiqueta, anio: f.substring(0,4), mes: f.substring(5,7) });
       });
-      if (bounds.length > 1) this._leafletMapa.fitBounds(bounds, { padding: [30, 30] });
+      this._pintarLeyendaMapa();
+      this._aplicarFiltroMapa(true);
     } catch(e) {
       estado.style.display = 'block'; cont.style.display = 'none';
       estado.textContent = 'Error: ' + e.message;
     }
+  },
+
+  // v5.82: leyenda interactiva — cada chip muestra el conteo y al tocarlo
+  // oculta/muestra los pines de ese tipo (tachado = oculto).
+  _pintarLeyendaMapa() {
+    const leyenda = document.getElementById('mapaLeyenda');
+    if (!leyenda || !this._mapaMarkers) return;
+    const conteo = {};
+    this._mapaMarkers.forEach(m => { conteo[m.etiqueta] = (conteo[m.etiqueta] || 0) + 1; });
+    const vistas = new Set(); const reglas = [];
+    this._MAPA_COLORES.forEach(r => { if (conteo[r.etiqueta] && !vistas.has(r.etiqueta)) { vistas.add(r.etiqueta); reglas.push(r); } });
+    if (conteo[this._REGLA_SIN_CLASIFICAR.etiqueta]) reglas.push(this._REGLA_SIN_CLASIFICAR);
+    leyenda.innerHTML = '<div style="font-size:11px;color:#666;margin:2px 0 4px;">👆 Toca un tipo para ocultar/mostrar sus pines:</div>'
+      + reglas.map(r => {
+        const off = this._mapaEtiquetasOff.has(r.etiqueta);
+        return '<span data-e="' + r.etiqueta.replace(/"/g,'&quot;') + '" onclick="app._toggleFiltroMapa(this.dataset.e)" '
+          + 'style="display:inline-flex;align-items:center;gap:4px;background:' + (off ? '#f0f0f0' : '#fff') + ';border-radius:12px;padding:3px 9px;margin:2px;font-size:11px;border:1.5px solid ' + (off ? '#ddd' : r.color) + ';cursor:pointer;' + (off ? 'opacity:.5;text-decoration:line-through;' : '') + '">'
+          + '<span style="width:10px;height:10px;border-radius:50%;background:' + r.color + ';display:inline-block;"></span>'
+          + r.emoji + ' ' + r.etiqueta + ' (' + conteo[r.etiqueta] + ')</span>';
+      }).join('');
+  },
+
+  _toggleFiltroMapa(etiqueta) {
+    if (!this._mapaEtiquetasOff) this._mapaEtiquetasOff = new Set();
+    if (this._mapaEtiquetasOff.has(etiqueta)) this._mapaEtiquetasOff.delete(etiqueta);
+    else this._mapaEtiquetasOff.add(etiqueta);
+    this._pintarLeyendaMapa();
+    this._aplicarFiltroMapa();
+  },
+
+  // v5.82: aplica leyenda + año + mes sobre los marcadores ya creados.
+  // ajustarVista=true solo en la carga inicial (no le mueve el zoom al admin
+  // cada vez que cambia un filtro).
+  _aplicarFiltroMapa(ajustarVista) {
+    if (!this._leafletMapa || !this._mapaMarkers) return;
+    const selA = document.getElementById('mapaFiltroAnio');
+    const selM = document.getElementById('mapaFiltroMes');
+    const anio = selA ? selA.value : '';
+    const mes = selM ? selM.value : '';
+    const bounds = []; let visibles = 0;
+    this._mapaMarkers.forEach(m => {
+      const pasa = !this._mapaEtiquetasOff.has(m.etiqueta)
+        && (!anio || m.anio === anio)
+        && (!mes || m.mes === mes);
+      if (pasa) {
+        if (!this._leafletMapa.hasLayer(m.marker)) m.marker.addTo(this._leafletMapa);
+        const ll = m.marker.getLatLng(); bounds.push([ll.lat, ll.lng]); visibles++;
+      } else if (this._leafletMapa.hasLayer(m.marker)) {
+        this._leafletMapa.removeLayer(m.marker);
+      }
+    });
+    this._mapaBoundsVisibles = bounds;
+    const contador = document.getElementById('mapaContador');
+    if (contador) contador.textContent = '📍 ' + visibles + ' de ' + this._mapaMarkers.length;
+    if (ajustarVista === true && bounds.length > 1) this._leafletMapa.fitBounds(bounds, { padding: [30, 30] });
+  },
+
+  // v5.82: reencuadra el mapa para ver todos los pines visibles.
+  _centrarMapaTodos() {
+    if (!this._leafletMapa) return;
+    const b = this._mapaBoundsVisibles || [];
+    if (b.length > 1) this._leafletMapa.fitBounds(b, { padding: [30, 30] });
+    else if (b.length === 1) this._leafletMapa.setView(b[0], 15);
+    else this.toast('No hay emergencias visibles con los filtros actuales', 'info');
   },
 
   // Abre el reporte completo (read-only) desde un pin del mapa, reutilizando
