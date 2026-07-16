@@ -21,8 +21,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.82';
+const APP_VERSION = '5.84';
 const APP_VERSION_NOTAS = [
+  'v5.84: 📤 Corregido (importante): reenviar un reporte "Pendiente" ya NO lo duplica en la base — el servidor ahora reconoce los reintentos aunque lleguen varios toques seguidos.',
+  'v5.84: ⏳ El botón "Enviar" del reporte pendiente ahora muestra "Enviando..." y se bloquea mientras trabaja — se acabó tocar varias veces "porque no pasaba nada".',
+  'v5.84: ➕ Los botones "+ Agregar recurso / víctima / organización" del formulario ahora se ven claros y grandes (antes quedaban casi invisibles).',
+  'v5.83: 🛡️ Refuerzos internos de seguridad en el servidor.',
   'v5.82: 🗺️ Mapa de Emergencias renovado: cada pin lleva el EMOJI de su tipo (🔥 incendio, 🚑 primeros auxilios, 🚗 rescate vehicular...) con colores más fáciles de distinguir.',
   'v5.82: 🗺️ La leyenda ahora FILTRA: toca un tipo para ocultar/mostrar sus pines. Nuevos filtros por año y mes, contador de emergencias visibles y botón 🎯 para reencuadrar el mapa.',
   'v5.82: 🗺️ Corregido: la fecha en los pines del mapa se veía en formato técnico feo — ahora sale como día normal (2026-07-13).',
@@ -2335,6 +2339,12 @@ const app = {
 
   async sincronizarReporte(reporte) {
     if (!this.config.urlBackend) return false;
+    // v5.84: candado por reporte — si este id ya tiene un envío EN CURSO
+    // (toques repetidos, o botón + sincronización automática a la vez), no
+    // se dispara otra petición paralela del MISMO reporte.
+    this._syncEnCurso = this._syncEnCurso || new Set();
+    if (this._syncEnCurso.has(reporte.id)) return false;
+    this._syncEnCurso.add(reporte.id);
     try {
       const payload = { ...reporte, token: this.config.token || '' };
       // Usamos modo 'cors' para PODER LEER la respuesta del servidor
@@ -2382,6 +2392,8 @@ const app = {
     } catch (err) {
       console.error('Error al sincronizar:', err);
       return false;
+    } finally {
+      this._syncEnCurso.delete(reporte.id);
     }
   },
 
@@ -3640,12 +3652,17 @@ const app = {
     this.actualizarHome();
   },
 
-  async reintentarEnvio() {
+  async reintentarEnvio(btn) {
     if (!this.reporteActual) return;
     if (!navigator.onLine) { this.toast('Sin conexión', 'error'); return; }
-    const ok = await this.sincronizarReporte(this.reporteActual);
-    this.toast(ok ? 'Reporte enviado' : 'Error al enviar', ok ? 'exito' : 'error');
-    if (ok) this.verDetalle(this.reporteActual.id);
+    // v5.84: bloqueo anti doble-toque + spinner "Enviando..." — antes el botón
+    // no daba señal de vida y cada toque extra disparaba OTRO envío paralelo
+    // del mismo reporte (origen de los duplicados).
+    await this._conBloqueo(btn, 'Enviando...', async () => {
+      const ok = await this.sincronizarReporte(this.reporteActual);
+      this.toast(ok ? '✅ Reporte enviado' : 'No se pudo enviar. Sigue pendiente y se reintentará al volver la señal.', ok ? 'exito' : 'error');
+      if (ok) this.verDetalle(this.reporteActual.id);
+    });
   },
 
   // ==================== DETALLE ====================
