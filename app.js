@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.84';
+const APP_VERSION = '5.86';
 const APP_VERSION_NOTAS = [
+  'v5.86: 🔳 El Mapa de Emergencias ahora se puede ampliar a pantalla completa (botón ⛶) para ver mejor los pines, con botón ✕ para regresar al tamaño normal.',
+  'v5.86: 🛡️ Refuerzos internos de seguridad: se reforzó el escape de texto libre (nombres, víctimas, recursos) en varias vistas y en el PDF del reporte.',
+  'v5.85: 🗺️ Corregido: una coordenada GPS mal escrita (sin punto decimal) podía "romper" el Mapa de Emergencias y dejar TODOS los pines fuera de la vista. Ahora se valida el rango y se avisa si el dato es inválido.',
   'v5.84: 📤 Corregido (importante): reenviar un reporte "Pendiente" ya NO lo duplica en la base — el servidor ahora reconoce los reintentos aunque lleguen varios toques seguidos.',
   'v5.84: ⏳ El botón "Enviar" del reporte pendiente ahora muestra "Enviando..." y se bloquea mientras trabaja — se acabó tocar varias veces "porque no pasaba nada".',
   'v5.84: ➕ Los botones "+ Agregar recurso / víctima / organización" del formulario ahora se ven claros y grandes (antes quedaban casi invisibles).',
@@ -1029,6 +1032,15 @@ const app = {
         history.pushState({ pantalla: this.pantallaActual }, '');
         return;
       }
+      // v5.86: si el Mapa de Emergencias está en pantalla completa, el botón
+      // Atrás del celular la cierra primero (no debe sacar al admin de la
+      // pantalla del mapa de un solo toque).
+      const mapaWrap = document.getElementById('mapaWrap');
+      if (mapaWrap && mapaWrap.classList.contains('mapa-fullscreen')) {
+        this._toggleMapaFullscreen(false);
+        history.pushState({ pantalla: this.pantallaActual }, '');
+        return;
+      }
 
       // Si está en login, dejar que el navegador haga su acción
       if (this.pantallaActual === 'pantallaLogin' || this.pantallaActual === 'pantallaRegistroComplemento') {
@@ -2006,12 +2018,21 @@ const app = {
     r.clasificacionOtra = document.getElementById('f_clasif_otra').value;
 
     if (this.modoUbicacion === 'manual') {
-      const lat = parseFloat(document.getElementById('f_lat_manual').value);
-      const lng = parseFloat(document.getElementById('f_lng_manual').value);
-      if (!isNaN(lat) && !isNaN(lng)) {
+      const latTxt = document.getElementById('f_lat_manual').value;
+      const lngTxt = document.getElementById('f_lng_manual').value;
+      const lat = parseFloat(latTxt);
+      const lng = parseFloat(lngTxt);
+      // v5.85 (BUG mapa): validar RANGO, no solo isNaN — un valor sin punto
+      // decimal (ej. "-679185" en vez de "-67.9185") pasaba isNaN y luego
+      // rompía el encuadre del Mapa de Emergencias para TODOS los pines.
+      const latValida = !isNaN(lat) && lat >= -90 && lat <= 90;
+      const lngValida = !isNaN(lng) && lng >= -180 && lng <= 180;
+      if (latValida && lngValida) {
         r.gps = { lat, lng, accuracy: 0, altitude: null, speedKmh: null, heading: '' };
         r.gpsGMS = `${this.decimalAGMS(lat, true)} ${this.decimalAGMS(lng, false)}`;
         r.gpsManual = true;
+      } else if (latTxt || lngTxt) {
+        this.toast('⚠️ Coordenadas GPS inválidas (revisa el punto decimal) — no se guardaron', 'error');
       }
     }
 
@@ -3612,7 +3633,10 @@ const app = {
   async _imprimirReporteEnVentanaNueva(r) {
     try {
       const html = this.generarHTMLImpresion(r);
-      const ventana = window.open('', '_blank', 'width=900,height=1200');
+      // v5.86: noopener corta el enlace ventana.opener → esta pestaña de
+      // impresión (que solo escribe HTML propio) ya no tiene forma de tocar
+      // la app viva aunque algún dato inyectado lograra ejecutarse.
+      const ventana = window.open('', '_blank', 'width=900,height=1200,noopener');
       if (!ventana) {
         this.toast('El navegador bloqueó la ventana emergente. Permita pop-ups e intente de nuevo.', 'error');
         return;
@@ -3821,7 +3845,8 @@ const app = {
     const r = this.reporteActual;
     const html = this.generarHTMLImpresion(r);
 
-    const ventana = window.open('', '_blank');
+    // v5.86: noopener — ver nota en _imprimirReporteEnVentanaNueva.
+    const ventana = window.open('', '_blank', 'noopener');
     if (!ventana) {
       this.toast('Bloqueador de ventanas activo. Permita ventanas emergentes.', 'error');
       return;
@@ -3839,12 +3864,17 @@ const app = {
     const isClasif = (t) => (r.clasificacion || []).includes(t);
     const isCausa = (c) => (r.causas || []).includes(c);
 
+    // v5.86 (BUG seguridad — I5): estos campos son texto libre del formulario
+    // (recurso/responsable/víctima…) y este HTML se inyecta con
+    // ventana.document.write() en una pestaña del MISMO origen que la app
+    // (window.open sin noopener) — sin _esc(), un nombre con <script> o
+    // <img onerror=...> se ejecutaba con acceso a window.opener (la app viva).
     const recursosFilas = (r.recursos || []).map(rec => `
       <tr>
-        <td>${rec.recurso || ''}</td>
-        <td style="text-align:center;">${rec.cantidad || ''}</td>
-        <td>${rec.codigo || ''}</td>
-        <td>${rec.responsable || ''}${rec.personal && rec.personal.length ? '<br><small>' + rec.personal.join(', ') + '</small>' : ''}</td>
+        <td>${app._esc(rec.recurso || '')}</td>
+        <td style="text-align:center;">${app._esc(rec.cantidad || '')}</td>
+        <td>${app._esc(rec.codigo || '')}</td>
+        <td>${app._esc(rec.responsable || '')}${rec.personal && rec.personal.length ? '<br><small>' + app._esc(rec.personal.join(', ')) + '</small>' : ''}</td>
       </tr>
     `).join('');
 
@@ -3854,11 +3884,11 @@ const app = {
 
     const victimasFilas = (r.victimas || []).map(v => `
       <tr>
-        <td>${v.nombre || ''} ${v.edad ? '/ ' + v.edad : ''}</td>
-        <td>${v.tipo || ''}</td>
-        <td>${v.lesiones || ''}</td>
-        <td>${v.atencion || ''}</td>
-        <td>${v.traslado || ''}</td>
+        <td>${app._esc(v.nombre || '')} ${v.edad ? '/ ' + app._esc(v.edad) : ''}</td>
+        <td>${app._esc(v.tipo || '')}</td>
+        <td>${app._esc(v.lesiones || '')}</td>
+        <td>${app._esc(v.atencion || '')}</td>
+        <td>${app._esc(v.traslado || '')}</td>
       </tr>
     `).join('');
 
@@ -4093,7 +4123,7 @@ const app = {
     <div class="checkbox-row">
       ${TIPOS_EVENTO.map(t => `<div>${checkbox(isClasif(t))} ${t}</div>`).join('')}
     </div>
-    ${r.clasificacionOtra ? `<div style="font-size:8pt; padding: 2px;"><strong>Otra:</strong> ${r.clasificacionOtra}</div>` : ''}
+    ${r.clasificacionOtra ? `<div style="font-size:8pt; padding: 2px;"><strong>Otra:</strong> ${app._esc(r.clasificacionOtra)}</div>` : ''}
   </div>
 
   <div class="seccion">
@@ -4138,7 +4168,7 @@ const app = {
     <table class="tabla-datos" style="margin-top:4px;">
       <tr>
         <td class="label" style="width:35%;">COMANDANTE DE INCIDENTE:</td>
-        <td>${_comandantePdf || '_____________'}</td>
+        <td>${_comandantePdf ? app._esc(_comandantePdf) : '_____________'}</td>
         <td class="label" style="width:22%;">TOTAL DE PERSONAL:</td>
         <td style="text-align:center; font-weight:bold;">${_totalPersPdf}</td>
       </tr>
@@ -4503,8 +4533,8 @@ ${paginaFotos}
         const j = JSON.stringify(per).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         return `<div onclick='app.seleccionarPersonalActividad(${JSON.stringify(per).replace(/'/g, "&#39;")})'
           style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">
-          <strong>${per.nombre}</strong><br>
-          <span style="color:#666;font-size:12px;">CC: ${per.cedula} | ${per.rango}</span>
+          <strong>${app._esc(per.nombre)}</strong><br>
+          <span style="color:#666;font-size:12px;">CC: ${app._esc(per.cedula)} | ${app._esc(per.rango)}</span>
         </div>`;
       }).join('');
       sug.style.display = 'block';
@@ -4725,7 +4755,7 @@ ${paginaFotos}
         <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
           <div style="font-weight:700;margin-bottom:8px;">👥 Personal (${a.personal.length})</div>
           ${a.personal.map(p => `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px;">
-            <strong>${p.nombre}</strong> — ${p.rango}<div style="font-size:12px;color:#666;">CC: ${p.cedula}</div>
+            <strong>${app._esc(p.nombre)}</strong> — ${app._esc(p.rango)}<div style="font-size:12px;color:#666;">CC: ${app._esc(p.cedula)}</div>
           </div>`).join('')}
         </div>
         ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `
@@ -4743,7 +4773,8 @@ ${paginaFotos}
   imprimirActividad() {
     const a = this._detalleActividadData;
     if (!a) return;
-    const w = window.open('', '_blank');
+    // v5.86: noopener — ver nota en _imprimirReporteEnVentanaNueva.
+    const w = window.open('', '_blank', 'noopener');
     const logo = (typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '';
     const tel = (typeof TELEFONO_ESTACION !== 'undefined') ? TELEFONO_ESTACION : '314 531 1605';
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -4787,7 +4818,7 @@ ${paginaFotos}
 
       <h2 class="sec">Personal asistente (${a.personal.length})</h2>
       <table><tr><th>#</th><th>Nombre</th><th>Cédula</th><th>Rango</th><th>Horas</th></tr>
-      ${a.personal.map((p,i) => `<tr><td>${i+1}</td><td>${p.nombre}</td><td>${p.cedula}</td><td>${p.rango}</td><td>${p.horas}h</td></tr>`).join('')}
+      ${a.personal.map((p,i) => `<tr><td>${i+1}</td><td>${app._esc(p.nombre)}</td><td>${app._esc(p.cedula)}</td><td>${app._esc(p.rango)}</td><td>${app._esc(p.horas)}h</td></tr>`).join('')}
       </table>
 
       ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `<h2 class="sec">Registro fotográfico</h2><div class="fotos">
@@ -4996,7 +5027,7 @@ ${paginaFotos}
         sug.innerHTML = data.resultados.map(per =>
           `<div onclick='app.agregarAsistente(${JSON.stringify(per).replace(/'/g,"&#39;")})'
             style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;">
-            <strong>${per.nombre}</strong> <span style="color:#666;font-size:12px;">CC: ${per.cedula}</span>
+            <strong>${app._esc(per.nombre)}</strong> <span style="color:#666;font-size:12px;">CC: ${app._esc(per.cedula)}</span>
           </div>`
         ).join('');
         sug.style.display = 'block';
@@ -5811,7 +5842,7 @@ ${paginaFotos}
     const d = this._operData;
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades+b.domingosPresente)-(a.emergencias*2+a.horasActividades+a.domingosPresente));
-    const w = window.open('','_blank');
+    const w = window.open('','_blank','noopener');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Informe General Operatividad — ${mesNombre} ${this._operAnio}</title>
       <style>
@@ -5843,7 +5874,7 @@ ${paginaFotos}
       <table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th><th>Sanciones</th></tr>
       ${top.map((p,i)=>{
         const pts=this._r1(p.emergencias*2+p.horasActividades+p.domingosPresente);
-        return `<tr><td>${i+1}</td><td><strong>${p.nombre}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${this._r1(p.horasActividades)}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
+        return `<tr><td>${i+1}</td><td><strong>${app._esc(p.nombre)}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${this._r1(p.horasActividades)}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
       }).join('')}
       </table>
       <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
@@ -5855,7 +5886,7 @@ ${paginaFotos}
   _imprimirReportePorUnidad() {
     const d = [...this._operData].sort((a,b)=>a.nombre.localeCompare(b.nombre));
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
-    const w = window.open('','_blank');
+    const w = window.open('','_blank','noopener');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
       <style>
@@ -5881,7 +5912,7 @@ ${paginaFotos}
         const colorAlerta=(p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#e67e22':null;
         return `<div class="ficha">
           <div class="ficha-header">
-            <div><div class="nombre">${p.nombre}</div><div style="font-size:10pt;color:#666;">CC: ${p.cedula||'-'} ${p.rango?'| '+p.rango:''}</div></div>
+            <div><div class="nombre">${app._esc(p.nombre)}</div><div style="font-size:10pt;color:#666;">CC: ${app._esc(p.cedula||'-')} ${p.rango?'| '+app._esc(p.rango):''}</div></div>
             <div style="text-align:right;"><div class="pts">${pts} pts</div>${colorAlerta?`<div class="alerta" style="background:${colorAlerta};color:#fff;">${(p.tipoAlerta||'').replace('_',' ')}</div>`:''}</div>
           </div>
           <div class="grid">
@@ -5956,6 +5987,9 @@ ${paginaFotos}
     const estado = document.getElementById('mapaEstado');
     const cont = document.getElementById('leafletMapaContenedor');
     if (!estado || !cont) return;
+    // v5.86: si el admin salió del mapa estando en pantalla completa, que no
+    // quede "pegado" para la próxima vez que entre a esta pantalla.
+    this._toggleMapaFullscreen(false);
     if (!this.esAdmin()) {
       estado.style.display = 'block'; estado.textContent = '🔒 Solo administradores'; cont.style.display = 'none';
       return;
@@ -6005,6 +6039,7 @@ ${paginaFotos}
           +   MESES.map((mn,i) => i ? '<option value="'+String(i).padStart(2,'0')+'">'+mn+'</option>' : '').join('')
           + '</select>'
           + '<button onclick="app._centrarMapaTodos()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a7a5e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🎯 Ver todas</button>'
+          + '<button id="mapaBtnFullscreen" onclick="app._toggleMapaFullscreen()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a5276;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">⛶ Pantalla completa</button>'
           + '<span id="mapaContador" style="font-size:12px;color:#555;font-weight:700;"></span>'
           + '</div>';
       }
@@ -6107,6 +6142,22 @@ ${paginaFotos}
     if (b.length > 1) this._leafletMapa.fitBounds(b, { padding: [30, 30] });
     else if (b.length === 1) this._leafletMapa.setView(b[0], 15);
     else this.toast('No hay emergencias visibles con los filtros actuales', 'info');
+  },
+
+  // v5.86 (feature: mapa en pantalla completa). forzar=true/false fija el
+  // estado; sin argumento, alterna. Se usa desde el botón ⛶, el botón ✕
+  // flotante y el botón Atrás del celular (configurarBotonAtrasMovil).
+  _toggleMapaFullscreen(forzar) {
+    const wrap = document.getElementById('mapaWrap');
+    if (!wrap) return;
+    const activar = (typeof forzar === 'boolean') ? forzar : !wrap.classList.contains('mapa-fullscreen');
+    wrap.classList.toggle('mapa-fullscreen', activar);
+    const btn = document.getElementById('mapaBtnFullscreen');
+    if (btn) btn.textContent = activar ? '↙️ Salir de pantalla completa' : '⛶ Pantalla completa';
+    // Leaflet mide su contenedor al crearse; si el tamaño cambia después por
+    // CSS (como aquí) hay que avisarle o el mapa queda con recuadros en
+    // blanco / mal encuadrado. 320ms = duración holgada del cambio de layout.
+    setTimeout(() => { if (this._leafletMapa) this._leafletMapa.invalidateSize(); }, 320);
   },
 
   // Abre el reporte completo (read-only) desde un pin del mapa, reutilizando
@@ -6283,7 +6334,7 @@ ${paginaFotos}
     cont.innerHTML = this._eaPersonal.map((p,i) => {
       const enc = !!p.esEncargado;
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:'+(enc?'#fff8e1':'#f8f8f8')+';border-radius:8px;margin-bottom:4px;">'
-        +'<div><strong style="font-size:13px;">'+p.nombre+'</strong>'+(enc?' (ENCARGADO)':'')+'<div style="font-size:11px;color:#666;">CC: '+(p.cedula||'-')+' | '+p.rango+'</div></div>'
+        +'<div><strong style="font-size:13px;">'+app._esc(p.nombre)+'</strong>'+(enc?' (ENCARGADO)':'')+'<div style="font-size:11px;color:#666;">CC: '+app._esc(p.cedula||'-')+' | '+app._esc(p.rango)+'</div></div>'
         +'<div style="display:flex;gap:4px;">'
         +'<button data-i="'+i+'" onclick="app._eaToggleEncargado(+this.dataset.i)" title="Encargado" style="background:none;border:none;font-size:18px;cursor:pointer;opacity:'+(enc?'1':'0.25')+';">&#11088;</button>'
         +'<button data-i="'+i+'" onclick="app._eaQuitarPersonal(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;">&#x2715;</button>'
