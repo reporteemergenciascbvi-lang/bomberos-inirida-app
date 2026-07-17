@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.86';
+const APP_VERSION = '5.87';
 const APP_VERSION_NOTAS = [
+  'v5.87: ✅ Los avisos de éxito (actividad guardada, asistencia registrada, foto cargada...) ahora salen en VERDE como corresponde — antes salían en negro neutro.',
+  'v5.87: 🗺️ Si el Mapa de Emergencias falla por falta de señal, ahora aparece un botón 🔄 Reintentar en vez de quedarse pegado en el error.',
+  'v5.87: 🛡️ Blindaje interno: la pantalla de Operatividad "Por Unidad" ya no puede romperse completa si llega un registro sin nombre, y se reforzó el escape de texto en más listas (sanciones, deudores, personal).',
   'v5.86: 🔳 El Mapa de Emergencias ahora se puede ampliar a pantalla completa (botón ⛶) para ver mejor los pines, con botón ✕ para regresar al tamaño normal.',
   'v5.86: 🛡️ Refuerzos internos de seguridad: se reforzó el escape de texto libre (nombres, víctimas, recursos) en varias vistas y en el PDF del reporte.',
   'v5.85: 🗺️ Corregido: una coordenada GPS mal escrita (sin punto decimal) podía "romper" el Mapa de Emergencias y dejar TODOS los pines fuera de la vista. Ahora se valida el rango y se avisa si el dato es inválido.',
@@ -4530,7 +4533,6 @@ ${paginaFotos}
       });
       data.resultados = Object.values(_vistosNorm);
       sug.innerHTML = data.resultados.map(per => {
-        const j = JSON.stringify(per).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         return `<div onclick='app.seleccionarPersonalActividad(${JSON.stringify(per).replace(/'/g, "&#39;")})'
           style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">
           <strong>${app._esc(per.nombre)}</strong><br>
@@ -4553,7 +4555,7 @@ ${paginaFotos}
     if (yaExiste) { this.toast(p.nombre + ' ya está en la lista', 'error'); return; }
     this._actPersonal.push(p);
     this._renderPersonalActividad();
-    this.toast('✅ ' + p.nombre + ' agregado', 'ok');
+    this.toast('✅ ' + p.nombre + ' agregado', 'exito');
   },
 
   agregarPersonalNuevoActividad() {
@@ -4569,7 +4571,7 @@ ${paginaFotos}
     document.getElementById('actNuevoCedula').value = '';
     document.getElementById('actNuevoTel').value = '';
     document.getElementById('actFormNuevo').style.display = 'none';
-    this.toast('✅ ' + nombre + ' agregado', 'ok');
+    this.toast('✅ ' + nombre + ' agregado', 'exito');
   },
 
   _renderPersonalActividad() {
@@ -4578,8 +4580,8 @@ ${paginaFotos}
     cont.innerHTML=this._actPersonal.map((p,i)=>{
       const enc=!!p.esEncargado;
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:'+(enc?'#fff8e1':'#f8f8f8')+';border-radius:8px;margin-bottom:6px;">'
-        +'<div><strong style="font-size:14px;">'+p.nombre+'</strong>'+(p.esNuevo?' (NUEVO)':'')+(enc?' (ENCARGADO)':'')
-        +'<div style="font-size:12px;color:#666;">CC: '+p.cedula+' | '+p.rango+'</div></div>'
+        +'<div><strong style="font-size:14px;">'+app._esc(p.nombre||'(sin nombre)')+'</strong>'+(p.esNuevo?' (NUEVO)':'')+(enc?' (ENCARGADO)':'')
+        +'<div style="font-size:12px;color:#666;">CC: '+app._esc(p.cedula||'-')+' | '+app._esc(p.rango||'')+'</div></div>'
         +'<div style="display:flex;gap:4px;">'
         +'<button data-i="'+i+'" onclick="app._toggleEncargado(+this.dataset.i)" title="Encargado" style="background:none;border:none;font-size:20px;cursor:pointer;opacity:'+(enc?'1':'0.25')+';">&#11088;</button>'
         +'<button data-i="'+i+'" onclick="app._quitarPersonalActividad(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:18px;cursor:pointer;">&#x2715;</button>'
@@ -4651,7 +4653,7 @@ ${paginaFotos}
             'Una foto no se subió al servidor.  ·  ' + linea('inicio') + '  ·  ' + linea('medio') + '  ·  ' + linea('fin'));
         }
       }
-      this.toast('✅ Actividad registrada', 'ok');
+      this.toast('✅ Actividad registrada', 'exito');
       this._actIdCliente = null; // ← próximo registro tendrá su propio id
       // Reset form
       this._actPersonal = [];
@@ -5269,7 +5271,7 @@ ${paginaFotos}
       }
       const ausentes = registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
       this._asistFotos = { inicio:null, medio:null, fin:null };
-      this.toast('✅ Asistencia guardada — ' + ausentes + ' ausentes sin excusa', 'ok');
+      this.toast('✅ Asistencia guardada — ' + ausentes + ' ausentes sin excusa', 'exito');
       setTimeout(() => this.cargarPantallaAsistencia(), 1000);
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
     finally {
@@ -5339,7 +5341,7 @@ ${paginaFotos}
           + sanc.map(s => {
               const al = msgAlerta(s);
               return '<div style="background:#fff5f5;border:1px solid #ffcdd2;border-radius:8px;padding:8px;margin-top:6px;font-size:13px;">'
-                + '<strong>'+s.nombre+'</strong>'
+                + '<strong>'+app._esc(s.nombre||'')+'</strong>'
                 + '<div style="font-size:12px;color:#c00;margin-top:2px;">Debe <strong>'+s.horas+'h</strong> de sanción · '+s.inasist+' inasistencia(s)</div>'
                 + (al ? '<div style="font-size:12px;font-weight:700;color:#7a1010;margin-top:2px;">'+al+'</div>' : '')
                 + '</div>';
@@ -5356,8 +5358,8 @@ ${paginaFotos}
         +   '<button onclick="document.getElementById(\'_domModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;">×</button>'
         + '</div>'
         + (regs[0] && regs[0].tipoReunion ? '<div style="font-size:13px;color:#555;">'+app._esc(regs[0].tipoReunion)+(regs[0].tema?' — '+app._esc(regs[0].tema):'')+'</div>' : '')
-        + (_enc ? '<div style="font-size:12px;color:#555;margin-top:4px;">Encargado: <strong>'+_enc+'</strong></div>' : '')
-        + (_grd ? '<div style="font-size:12px;color:#555;">Guardia: <strong>'+_grd+'</strong></div>' : '')
+        + (_enc ? '<div style="font-size:12px;color:#555;margin-top:4px;">Encargado: <strong>'+app._esc(_enc)+'</strong></div>' : '')
+        + (_grd ? '<div style="font-size:12px;color:#555;">Guardia: <strong>'+app._esc(_grd)+'</strong></div>' : '')
         + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
         +   '<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">✅ Presentes: '+pres.length+'</span>'
         +   '<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">📝 Con excusa: '+exc.length+'</span>'
@@ -5406,7 +5408,7 @@ ${paginaFotos}
         const data = await resp.json();
         if (!data.ok) throw new Error(data.error);
         delete this._idCumplir[cedula]; // éxito → el próximo descuento usa recibo nuevo
-        this.toast('✅ ' + data.mensaje, 'ok');
+        this.toast('✅ ' + data.mensaje, 'exito');
         setTimeout(() => this.cargarPantallaDeudores(), 1000);
       } catch(e) { this.toast('Error: ' + e.message, 'error'); } // error → conserva el recibo para reintento seguro
     });
@@ -5454,8 +5456,8 @@ ${paginaFotos}
       cont.innerHTML = sanc.map((s,i) => {
         const uid = 'deu_' + i;
         return '<div style="background:#fff;border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #c00;">'
-          + '<div onclick="app._toggleDeudorAccordion(\''+uid+'\',\''+s.cedula+'\')" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
-          + '<div><strong>'+s.nombre+'</strong>'+badge(s)+'<div style="font-size:12px;color:#666;margin-top:2px;">CC: '+s.cedula+'</div></div>'
+          + '<div data-uid="'+uid+'" data-ced="'+app._esc(s.cedula||'')+'" onclick="app._toggleDeudorAccordion(this.dataset.uid,this.dataset.ced)" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
+          + '<div><strong>'+app._esc(s.nombre||'')+'</strong>'+badge(s)+'<div style="font-size:12px;color:#666;margin-top:2px;">CC: '+app._esc(s.cedula||'-')+'</div></div>'
           + '<div style="text-align:right;"><div style="color:#c00;font-weight:700;">'+s.horasPendientes+'h</div><div style="font-size:11px;color:#999;">▼ ver domingos</div></div>'
           + '</div>'
           + '<div id="'+uid+'_det" style="display:none;padding:0 14px 14px;border-top:1px solid #f5f5f5;"></div>'
@@ -5598,7 +5600,7 @@ ${paginaFotos}
     const medallas = ['🥇','🥈','🥉'];
     const rankRow = (p,i,val,lbl) => '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
       + '<div><span style="font-size:15px;">'+(medallas[i]||('<span style="font-size:11px;color:#999;">#'+(i+1)+'</span>'))+'</span>'
-      + '<strong style="margin-left:6px;font-size:13px;">'+p.nombre+'</strong></div>'
+      + '<strong style="margin-left:6px;font-size:13px;">'+app._esc(p.nombre||'')+'</strong></div>'
       + '<span style="font-weight:700;color:#6e2fa0;">'+val+' '+lbl+'</span></div>';
     const rankList = (lista, getId, getVal, lbl, color) => {
       if(!lista.length) return '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin datos en este período</div>';
@@ -5664,7 +5666,9 @@ ${paginaFotos}
   _renderPorUnidad() {
     const cont = document.getElementById('operContenidoFiltrado');
     if (!cont) return;
-    const d = [...this._operData].sort((a,b) => a.nombre.localeCompare(b.nombre));
+    // v5.87 (trampa §4.3): una fila sin nombre tronaba localeCompare y
+    // rompía TODO el render de "Por Unidad" — String(...||'') lo blinda.
+    const d = [...this._operData].sort((a,b) => String(a.nombre||'').localeCompare(String(b.nombre||'')));
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
 
     cont.innerHTML = `
@@ -5683,7 +5687,7 @@ ${paginaFotos}
     const lista = document.getElementById('listaUnidades');
     if (!lista) return;
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
-    const filtrado = this._operData.filter(p => p.nombre.toUpperCase().includes(q.toUpperCase()));
+    const filtrado = this._operData.filter(p => String(p.nombre||'').toUpperCase().includes(String(q||'').toUpperCase()));
     lista.innerHTML = filtrado.map(p => this._cardUnidad(p, mesNombre)).join('');
   },
 
@@ -5692,22 +5696,23 @@ ${paginaFotos}
     const pctDom = p.domingosPresente + p.domingosAusente > 0
       ? Math.round(p.domingosPresente/(p.domingosPresente+p.domingosAusente)*100) : 0;
     const colorAlerta = (p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#ff9800':null;
-    const uid = 'u_'+p.nombre.replace(/[^a-zA-Z]/g,'').substring(0,12);
+    const nom = String(p.nombre||'');
+    const uid = 'u_'+nom.replace(/[^a-zA-Z]/g,'').substring(0,12);
     return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
-      +'<div><div style="font-weight:700;font-size:15px;">'+p.nombre+'</div>'
-      +'<div style="font-size:12px;color:#666;">CC: '+(p.cedula||'-')+'</div></div>'
+      +'<div><div style="font-weight:700;font-size:15px;">'+app._esc(nom||'(sin nombre)')+'</div>'
+      +'<div style="font-size:12px;color:#666;">CC: '+app._esc(p.cedula||'-')+'</div></div>'
       +'<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">'+pts+' pts</div>'
       +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
       +'</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
-      +'<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
       +'<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
       +'<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
-      +'<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
       +'<div style="font-size:18px;font-weight:700;color:#1e8449;">'+this._r1(p.horasActividades)+'h</div>'
       +'<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
-      +'<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(p.nombre)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
       +'<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
       +'<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div></div>'
       +'</div>'
@@ -5811,7 +5816,7 @@ ${paginaFotos}
           body:JSON.stringify({accion:'eliminarActividad',id,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
         const d=await r.json();
         if(!d.ok)throw new Error(d.error);
-        this.toast('\u2705 Actividad eliminada','ok');
+        this.toast('\u2705 Actividad eliminada','exito');
         setTimeout(()=>this.cargarListaActividades(),800);
       }catch(e){this.toast('Error: '+e.message,'error');}
       finally { this._eliminandoIds.delete(id); }
@@ -5831,7 +5836,7 @@ ${paginaFotos}
           body:JSON.stringify({accion:'eliminarDomingo',fecha,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
         const d=await r.json();
         if(!d.ok)throw new Error(d.error);
-        this.toast('\u2705 Domingo eliminado','ok');
+        this.toast('\u2705 Domingo eliminado','exito');
         setTimeout(()=>this.cargarPantallaAsistencia(),800);
       }catch(e){this.toast('Error: '+e.message,'error');}
       finally { this._eliminandoFechas.delete(fecha); }
@@ -5884,7 +5889,7 @@ ${paginaFotos}
   },
 
   _imprimirReportePorUnidad() {
-    const d = [...this._operData].sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    const d = [...this._operData].sort((a,b)=>String(a.nombre||'').localeCompare(String(b.nombre||'')));
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const w = window.open('','_blank','noopener');
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -5996,7 +6001,10 @@ ${paginaFotos}
     }
     if (typeof L === 'undefined') {
       estado.style.display = 'block';
-      estado.textContent = '⚠️ No se pudo cargar el mapa (revisa tu conexión a internet).';
+      // v5.87: antes era texto muerto — en Inírida la señal va y viene, así
+      // que el error ahora trae botón de reintento (recarga solo esta pantalla).
+      estado.innerHTML = '⚠️ No se pudo cargar el mapa (revisa tu conexión a internet).'
+        + '<br><button onclick="app.cargarPantallaMapa()" style="margin-top:10px;padding:10px 18px;background:#1a7a5e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>';
       cont.style.display = 'none';
       return;
     }
@@ -6076,7 +6084,10 @@ ${paginaFotos}
       this._aplicarFiltroMapa(true);
     } catch(e) {
       estado.style.display = 'block'; cont.style.display = 'none';
-      estado.textContent = 'Error: ' + e.message;
+      // v5.87: error con reintento (red intermitente en Inírida) — e.message
+      // pasa por _esc porque va a innerHTML.
+      estado.innerHTML = 'Error: ' + app._esc(e.message)
+        + '<br><button onclick="app.cargarPantallaMapa()" style="margin-top:10px;padding:10px 18px;background:#1a7a5e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>';
     }
   },
 
@@ -6183,11 +6194,11 @@ ${paginaFotos}
         const data = await resp.json();
         if (!data.ok || !data.resultados.length) { sug.style.display='none'; return; }
         sug.innerHTML = data.resultados.map(per =>
-          '<div data-n="'+per.nombre.replace(/"/g,'&quot;')+'" data-inp="'+inputId+'" data-sug="'+sugId+'" '
+          '<div data-n="'+app._esc(per.nombre||'')+'" data-inp="'+inputId+'" data-sug="'+sugId+'" '
           +'onclick="document.getElementById(this.dataset.inp).value=this.dataset.n;'
           +'document.getElementById(this.dataset.sug).style.display=\'none\';" '
-          +'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">'+per.nombre
-          +'<span style="color:#999;font-size:11px;margin-left:6px;">CC:'+per.cedula+'</span></div>'
+          +'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">'+app._esc(per.nombre||'')
+          +'<span style="color:#999;font-size:11px;margin-left:6px;">CC:'+app._esc(per.cedula||'-')+'</span></div>'
         ).join('');
         sug.style.display = 'block';
       } catch(e) { if(sug) sug.style.display='none'; }
@@ -6300,7 +6311,7 @@ ${paginaFotos}
           if(!d.ok)throw new Error(d.error);
           document.body.removeChild(modal);
           this._eaLimpiar();
-          this.toast('✅ Actividad actualizada','ok');
+          this.toast('✅ Actividad actualizada','exito');
           setTimeout(()=>this.cargarListaActividades(),800);
         }catch(e){this.toast('Error: '+e.message,'error');}
         });
@@ -6361,7 +6372,7 @@ ${paginaFotos}
         const data = await resp.json();
         if (!data.ok || !data.resultados.length) { sug.innerHTML='<div style="padding:8px 12px;color:#999;font-size:12px;">Sin resultados</div>'; return; }
         sug.innerHTML = data.resultados.map(per =>
-          '<div onclick=\'app._eaAddPersonal('+JSON.stringify(per).replace(/'/g,"&#39;")+')\' style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>'+per.nombre+'</strong> <span style="color:#666;font-size:12px;">CC: '+per.cedula+'</span></div>'
+          '<div onclick=\'app._eaAddPersonal('+JSON.stringify(per).replace(/'/g,"&#39;")+')\' style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>'+app._esc(per.nombre||'')+'</strong> <span style="color:#666;font-size:12px;">CC: '+app._esc(per.cedula||'-')+'</span></div>'
         ).join('');
         sug.style.display='block';
       } catch(e) { sug.style.display='none'; }
@@ -6383,7 +6394,7 @@ ${paginaFotos}
     if (!this._eaRecursos.length) { cont.innerHTML = '<div style="color:#999;font-size:12px;text-align:center;padding:6px;">Sin vehículos</div>'; return; }
     cont.innerHTML = this._eaRecursos.map((r,i) =>
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#f8f8f8;border-radius:8px;margin-bottom:4px;">'
-      +'<div style="font-size:13px;"><strong>'+(r.tipo||'-')+'</strong>'+(r.codigo?' ('+r.codigo+')':'')+(r.responsable?'<div style="font-size:11px;color:#666;">'+r.responsable+'</div>':'')+'</div>'
+      +'<div style="font-size:13px;"><strong>'+app._esc(r.tipo||'-')+'</strong>'+(r.codigo?' ('+app._esc(r.codigo)+')':'')+(r.responsable?'<div style="font-size:11px;color:#666;">'+app._esc(r.responsable)+'</div>':'')+'</div>'
       +'<button data-i="'+i+'" onclick="app._eaQuitarRecurso(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;">&#x2715;</button>'
       +'</div>'
     ).join('');
@@ -6435,7 +6446,7 @@ ${paginaFotos}
       modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
       const filas=regs.map((r,i)=>'<div style="padding:7px 0;border-bottom:1px solid #f0f0f0;">'
         +'<div style="display:flex;align-items:center;justify-content:space-between;">'
-        +'<div style="flex:1;font-size:13px;font-weight:600;">'+r.nombre+'<div style="font-size:11px;color:#999;">CC: '+(r.cedula||'-')+'</div></div>'
+        +'<div style="flex:1;font-size:13px;font-weight:600;">'+app._esc(r.nombre||'')+'<div style="font-size:11px;color:#999;">CC: '+app._esc(r.cedula||'-')+'</div></div>'
         +'<select id="_edn_'+i+'" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:12px;">'
         +Object.entries(sts).map(([v,l])=>'<option value="'+v+'"'+(r.estado===v?' selected':'')+'>'+l+'</option>').join('')
         +'</select></div>'
@@ -6453,8 +6464,8 @@ ${paginaFotos}
         +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
         +'<input type="text" id="_ednLugar" value="'+esc(lugarActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
-        +'<div><label style="font-size:12px;font-weight:700;">👤 Encargado</label><input type="text" id="_ednE" value="'+enc.replace(/"/g,'&quot;')+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
-        +'<div><label style="font-size:12px;font-weight:700;">🛡️ Guardia</label><input type="text" id="_ednG" value="'+grd.replace(/"/g,'&quot;')+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">👤 Encargado</label><input type="text" id="_ednE" value="'+esc(enc)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">🛡️ Guardia</label><input type="text" id="_ednG" value="'+esc(grd)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
         +'</div>'
         +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1e8449;">📸 Fotos de la reunión</div>'
         +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:space-around;">'
@@ -6494,7 +6505,7 @@ ${paginaFotos}
           const d2=await r2.json();
           if(!d2.ok)throw new Error(d2.error);
           document.body.removeChild(modal);
-          this.toast('✅ Domingo actualizado','ok');
+          this.toast('✅ Domingo actualizado','exito');
           setTimeout(()=>this.cargarPantallaAsistencia(),800);
         }catch(e){this.toast('Error: '+e.message,'error');}
         });
@@ -6545,7 +6556,7 @@ ${paginaFotos}
         const okId = 'asistFoto' + (tipo==='inicio'?'Inicio':tipo==='medio'?'Medio':'Fin') + 'Ok';
         const ok = document.getElementById(okId);
         if (ok) ok.style.display = 'block';
-        this.toast('Foto ' + tipo + ' cargada','ok');
+        this.toast('Foto ' + tipo + ' cargada','exito');
       };
       img.src = e.target.result;
     };
