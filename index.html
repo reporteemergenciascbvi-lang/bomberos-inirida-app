@@ -13,7 +13,15 @@
              object-src 'none';
              base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#7a1010">
+<meta name="theme-color" id="metaThemeColor" content="#7A1010">
+<!-- v5.88: aplica el tema guardado (original | apple) ANTES de pintar la página,
+     evitando el "flash" del diseño equivocado al abrir la app. -->
+<script>
+try {
+  var _temaCbvi = localStorage.getItem('cbvi_tema');
+  document.documentElement.setAttribute('data-theme', _temaCbvi === 'apple' ? 'apple' : 'original');
+} catch (e) { document.documentElement.setAttribute('data-theme', 'original'); }
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -30,7 +38,7 @@
 
 <style>
   :root {
-    --rojo: #7a1010;
+    --rojo: #7A1010;
     --rojo-claro: #c41e3a;
     --rojo-oscuro: #4a0808;
     --amarillo: #f4c430;
@@ -585,6 +593,295 @@
   flex:1 1 auto; height:auto; min-height:0; margin-bottom:0; border-radius:8px;
 }
 #mapaWrap.mapa-fullscreen #mapaBtnCerrarFull { display:flex; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v5.88 — SELECTOR DE TEMA + TEMA "MINIMALISTA" (estilo tipo Apple)
+   La app arranca SIEMPRE en el diseño Original (sin ningún cambio).
+   Solo cuando el usuario elige "Minimalista", <html data-theme="apple">
+   activa las reglas de abajo. La lógica y el HTML no cambian — solo
+   el aspecto visual. La elección se guarda en localStorage del equipo.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* --- Selector de tema en Configuración (visible en ambos diseños) --- */
+.tema-selector { display: flex; gap: 8px; }
+.tema-selector .tema-opcion {
+  flex: 1; padding: 12px 8px; border-radius: 12px;
+  border: 1.5px solid var(--gris-borde); background: var(--blanco);
+  font-size: 13px; font-weight: 600; color: var(--gris-texto);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s, box-shadow .15s;
+}
+.tema-selector .tema-opcion .tema-icono { font-size: 22px; }
+.tema-selector .tema-opcion.activo {
+  border-color: var(--rojo); color: var(--rojo);
+  background: rgba(122,16,16,.05);
+  box-shadow: inset 0 0 0 1px var(--rojo);
+}
+
+/* --- Mini selector segmentado dentro del menú de usuario --- */
+.user-menu .menu-tema {
+  padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.user-menu .menu-tema .tema-mini {
+  flex: 1; display: flex; background: var(--gris-fondo);
+  border-radius: 999px; padding: 3px;
+}
+.user-menu .menu-tema .tema-mini button {
+  flex: 1; padding: 6px 4px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; color: var(--gris-texto);
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+.user-menu .menu-tema .tema-mini button.activo {
+  background: var(--blanco); color: var(--rojo);
+  box-shadow: 0 1px 3px rgba(0,0,0,.12);
+}
+
+/* ═══ TEMA MINIMALISTA (tipo Apple) ═══ */
+[data-theme="apple"] {
+  --rojo: #d70015;
+  --rojo-claro: #ff3b30;
+  --rojo-oscuro: #a3000e;
+  --amarillo: #ffcc00;
+  --amarillo-claro: #fffbe6;
+  --negro: #1d1d1f;
+  --gris-fondo: #f5f5f7;
+  --gris-borde: #d2d2d7;
+  --gris-texto: #6e6e73;
+  --verde: #248a3d;
+  --verde-claro: #e9f9ee;
+  --naranja: #c93400;
+  --azul: #007aff;
+  --azul-claro: #e8f1ff;
+  --sombra: 0 1px 2px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.06);
+  --sombra-fuerte: 0 8px 30px rgba(0,0,0,.14);
+  --radio: 14px;
+}
+
+/* Transición de entrada de pantallas: SOLO opacidad (un transform aquí
+   rompería los elementos fixed/sticky hijos, p. ej. acciones-flotantes). */
+[data-theme="apple"] .pantalla.activa { animation: cbviAppleIn .22s ease-out; }
+@keyframes cbviAppleIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Encabezado: vidrio esmerilado claro con texto oscuro */
+[data-theme="apple"] header.app-header {
+  background: rgba(255,255,255,.82);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  color: var(--negro);
+  box-shadow: none;
+  border-bottom: 1px solid rgba(0,0,0,.07);
+}
+[data-theme="apple"] header.app-header .btn-volver { color: var(--rojo); }
+[data-theme="apple"] header.app-header .estado-conexion {
+  background: rgba(0,0,0,.05); color: var(--gris-texto);
+}
+[data-theme="apple"] .user-avatar {
+  background: var(--rojo); color: #fff; border: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18);
+}
+
+/* Menú de usuario */
+[data-theme="apple"] .user-menu {
+  border-radius: 18px; border: 1px solid rgba(0,0,0,.05);
+  box-shadow: var(--sombra-fuerte);
+}
+[data-theme="apple"] .user-menu .user-info {
+  background: var(--gris-fondo); color: var(--negro);
+}
+[data-theme="apple"] .user-menu .user-info .avatar-grande {
+  background: var(--rojo); color: #fff;
+}
+[data-theme="apple"] .user-menu .user-info .grado-usuario,
+[data-theme="apple"] .user-menu .user-info .correo-usuario {
+  color: var(--gris-texto); opacity: 1;
+}
+[data-theme="apple"] .user-menu .menu-item:hover { background: var(--gris-fondo); }
+[data-theme="apple"] .user-menu .menu-item:last-child { color: var(--rojo-claro); }
+
+/* Login y registro complementario: fondo claro, tarjeta flotante */
+[data-theme="apple"] .login-pantalla,
+[data-theme="apple"] .registro-complemento {
+  background: linear-gradient(180deg, #f5f5f7 0%, #e9e9ee 100%);
+  color: var(--negro);
+}
+[data-theme="apple"] .login-pantalla .caja,
+[data-theme="apple"] .registro-complemento .caja {
+  border-radius: 24px; border: 1px solid rgba(0,0,0,.03);
+  box-shadow: 0 24px 60px rgba(0,0,0,.13);
+}
+[data-theme="apple"] .login-pantalla h2 { color: var(--rojo); letter-spacing: -.02em; }
+[data-theme="apple"] .login-pantalla .info-cuerpo {
+  background: var(--azul-claro); border-left: 3px solid var(--azul);
+  border-radius: 12px; color: #0b4f9e;
+}
+
+/* Botón principal del Home (NUEVA EMERGENCIA): rojo plano, sombra suave */
+[data-theme="apple"] .home-cta {
+  background: var(--rojo); border-radius: 20px; padding: 28px 20px;
+  box-shadow: 0 12px 30px rgba(215,0,21,.28), 0 2px 6px rgba(215,0,21,.16);
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+[data-theme="apple"] .home-cta:active {
+  transform: scale(.97);
+  box-shadow: 0 4px 12px rgba(215,0,21,.25);
+}
+
+/* Jerarquía tipográfica */
+[data-theme="apple"] .seccion-titulo { letter-spacing: 1.2px; font-weight: 600; }
+[data-theme="apple"] .pantalla h2 { letter-spacing: -.02em; }
+
+/* Tarjetas: radio generoso, sombra difusa, borde apenas visible.
+   (reporte-item y config-card.admin llevan codificación de color en el
+   borde izquierdo — se respeta y no se toca.) */
+[data-theme="apple"] .stat-card,
+[data-theme="apple"] .seccion-form,
+[data-theme="apple"] .config-card,
+[data-theme="apple"] .reporte-item {
+  border-radius: 16px; box-shadow: var(--sombra);
+}
+[data-theme="apple"] .stat-card,
+[data-theme="apple"] .seccion-form,
+[data-theme="apple"] .config-card {
+  border: 1px solid rgba(0,0,0,.04);
+}
+[data-theme="apple"] .config-card.admin { border-left: 4px solid var(--amarillo); }
+[data-theme="apple"] .reporte-item {
+  border-top: 1px solid rgba(0,0,0,.04);
+  border-right: 1px solid rgba(0,0,0,.04);
+  border-bottom: 1px solid rgba(0,0,0,.04);
+}
+[data-theme="apple"] .stat-card .numero { letter-spacing: -.02em; }
+
+/* Secciones del formulario: cabecera integrada en la tarjeta (lista agrupada) */
+[data-theme="apple"] .seccion-form .seccion-header {
+  background: transparent; color: var(--negro);
+  border-bottom: 1px solid rgba(0,0,0,.05);
+}
+[data-theme="apple"] .seccion-form.colapsada .seccion-header { border-bottom: none; }
+[data-theme="apple"] .seccion-header .num { background: var(--rojo); }
+
+/* Botones */
+[data-theme="apple"] .btn {
+  border-radius: 13px; letter-spacing: .01em;
+  transition: transform .12s ease, background-color .15s ease, box-shadow .15s ease;
+}
+[data-theme="apple"] .btn:active { transform: scale(.96); }
+[data-theme="apple"] .btn-primary {
+  background: var(--rojo); box-shadow: 0 2px 10px rgba(215,0,21,.24);
+}
+[data-theme="apple"] .btn-primary:hover { background: var(--rojo-oscuro); }
+[data-theme="apple"] .btn-secundario {
+  background: var(--blanco); border: 1px solid var(--gris-borde);
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+[data-theme="apple"] .btn-imprimir { background: var(--azul); }
+
+/* Campos de entrada: radio suave + anillo de enfoque estilo Apple */
+[data-theme="apple"] .campo input[type="text"], [data-theme="apple"] .campo input[type="tel"],
+[data-theme="apple"] .campo input[type="email"], [data-theme="apple"] .campo input[type="number"],
+[data-theme="apple"] .campo input[type="date"], [data-theme="apple"] .campo input[type="time"],
+[data-theme="apple"] .campo input[type="datetime-local"], [data-theme="apple"] .campo textarea,
+[data-theme="apple"] .campo select {
+  border: 1px solid var(--gris-borde); border-radius: 12px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+[data-theme="apple"] .campo input:focus, [data-theme="apple"] .campo textarea:focus,
+[data-theme="apple"] .campo select:focus {
+  border-color: var(--rojo-claro);
+  box-shadow: 0 0 0 4px rgba(255,59,48,.12);
+}
+[data-theme="apple"] .checkbox-card {
+  border-radius: 12px; border: 1px solid var(--gris-borde);
+  transition: border-color .15s, background .15s;
+}
+[data-theme="apple"] .checkbox-card input { accent-color: var(--rojo-claro); }
+[data-theme="apple"] .checkbox-card:has(input:checked) {
+  border-color: var(--rojo-claro); background: rgba(255,59,48,.05);
+}
+
+/* Tarjeta GPS: grafito plano con acciones en píldora */
+[data-theme="apple"] .gps-card {
+  background: #1c1c1e; border-radius: 16px; box-shadow: var(--sombra);
+}
+[data-theme="apple"] .gps-card.error { background: #3d1114; }
+[data-theme="apple"] .gps-card.manual { background: #2c2c2e; }
+[data-theme="apple"] .gps-card .acciones button {
+  border-radius: 999px; background: rgba(255,255,255,.16);
+}
+[data-theme="apple"] .gps-card .acciones button.activo {
+  background: rgba(255,255,255,.32); box-shadow: 0 0 0 2px rgba(255,255,255,.7);
+}
+[data-theme="apple"] .gps-manual-fields,
+[data-theme="apple"] .gps-detalles { border-radius: 12px; }
+
+/* Fotos, firmas y filas dinámicas */
+[data-theme="apple"] .foto-slot {
+  border-radius: 14px; border: 1.5px dashed var(--gris-borde);
+  background: var(--gris-fondo);
+}
+[data-theme="apple"] .foto-slot.con-foto { border-color: var(--rojo-claro); }
+[data-theme="apple"] .firma-canvas {
+  border-radius: 12px; border: 1.5px dashed var(--gris-borde);
+}
+[data-theme="apple"] .tabla-dinamica .fila { border-radius: 12px; }
+[data-theme="apple"] .agregar-fila {
+  border-radius: 12px; border: 1.5px dashed #1a5276;
+  background: rgba(26,82,118,.06);
+}
+[data-theme="apple"] .personal-lista { border-radius: 12px; }
+[data-theme="apple"] .btn-ci { border-radius: 10px; }
+[data-theme="apple"] .resumen-personal { border-radius: 12px; }
+
+/* Barra de acciones flotante y avisos: vidrio esmerilado */
+[data-theme="apple"] .acciones-flotantes {
+  background: rgba(255,255,255,.85);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0,0,0,.06); box-shadow: none;
+}
+[data-theme="apple"] .toast {
+  background: rgba(29,29,31,.94); border-radius: 999px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+}
+[data-theme="apple"] .toast.exito { background: rgba(36,138,61,.95); }
+[data-theme="apple"] .toast.error { background: rgba(215,0,21,.95); }
+[data-theme="apple"] .nav-feedback {
+  background: rgba(29,29,31,.78); border-radius: 999px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+
+/* Modales */
+[data-theme="apple"] .modal {
+  border-radius: 20px; box-shadow: var(--sombra-fuerte);
+}
+[data-theme="apple"] .modal-header {
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  font-size: 16px; letter-spacing: -.01em;
+}
+[data-theme="apple"] .modal-acciones { border-top: 1px solid rgba(0,0,0,.06); }
+[data-theme="apple"] .modal-foto-opciones .opciones { border-radius: 24px 24px 0 0; }
+[data-theme="apple"] .modal-foto-opciones button {
+  border-radius: 13px; border: 1px solid var(--gris-borde);
+}
+
+/* Barra de progreso del formulario */
+[data-theme="apple"] .progreso-bar {
+  background: rgba(255,255,255,.85);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+[data-theme="apple"] .progreso-fill { background: var(--rojo); }
+[data-theme="apple"] .progreso-track { background: rgba(0,0,0,.08); }
+
+/* Detalles finos */
+[data-theme="apple"] .ayuda-seccion { border-radius: 10px; }
+[data-theme="apple"] .badge,
+[data-theme="apple"] .badge-admin,
+[data-theme="apple"] .badge-admin-section { border-radius: 999px; }
+[data-theme="apple"] #leafletMapaContenedor { border-radius: 16px; }
+[data-theme="apple"] .tema-selector .tema-opcion.activo { background: rgba(255,59,48,.06); }
 </style>
 </head>
 <body>
@@ -616,6 +913,14 @@
     <div class="grado-usuario" id="menuGradoUsuario">—</div>
     <div class="correo-usuario" id="menuCorreoUsuario">—</div>
     <div class="badge-admin" id="menuBadgeAdmin" style="display:none;">★ ADMINISTRADOR</div>
+  </div>
+  <!-- v5.88: selector rápido de diseño (no cierra el menú para ver el cambio al instante) -->
+  <div class="menu-tema">
+    <span style="font-size:14px;">🎨</span>
+    <div class="tema-mini">
+      <button type="button" data-tema-opcion="original" onclick="app.aplicarTema('original')">🚒 Original</button>
+      <button type="button" data-tema-opcion="apple" onclick="app.aplicarTema('apple')">🍎 Minimalista</button>
+    </div>
   </div>
   <button class="menu-item" onclick="app.irA('pantallaConfig'); app.cerrarUserMenu();">
     <span class="icono">⚙️</span> Mis datos / Configuración
@@ -737,15 +1042,15 @@
   <div class="info-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0;">
     <div onclick="app.irA('pantallaManual')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
       <div style="font-size:28px;">📖</div>
-      <div style="font-size:11px;font-weight:700;color:#7a1010;margin-top:4px;">Manual</div>
+      <div style="font-size:11px;font-weight:700;color:var(--rojo);margin-top:4px;">Manual</div>
     </div>
     <div onclick="app.irA('pantallaComoFunciona')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
       <div style="font-size:28px;">⚙️</div>
-      <div style="font-size:11px;font-weight:700;color:#7a1010;margin-top:4px;">Cómo funciona</div>
+      <div style="font-size:11px;font-weight:700;color:var(--rojo);margin-top:4px;">Cómo funciona</div>
     </div>
     <div onclick="app.irA('pantallaLegal')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
       <div style="font-size:28px;">⚖️</div>
-      <div style="font-size:11px;font-weight:700;color:#7a1010;margin-top:4px;">Bases legales</div>
+      <div style="font-size:11px;font-weight:700;color:var(--rojo);margin-top:4px;">Bases legales</div>
     </div>
   </div>
 
@@ -792,11 +1097,11 @@
 <!-- ========== PANTALLA: MANUAL DE USUARIO ========== -->
 <div class="pantalla" id="pantallaManual">
   <div style="padding:0 4px;">
-    <h2 style="color:#7a1010;margin:10px 0;">📖 Manual de uso</h2>
+    <h2 style="color:var(--rojo);margin:10px 0;">📖 Manual de uso</h2>
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v5.87</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v5.88</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -829,14 +1134,14 @@
       <p><b>🗺️ 13. Mapa de Emergencias</b><br>Panel exclusivo de administrador. Muestra en un mapa (sin costo, sin API key) cada emergencia que tenga coordenadas GPS registradas. Cada pin lleva el <b>emoji de su tipo</b> (🔥 incendio, 🚑 primeros auxilios, 🚗 rescate vehicular...). La <b>leyenda filtra</b>: toque un tipo para ocultar/mostrar sus pines; también puede filtrar por <b>año y mes</b>, ver el contador de emergencias visibles y reencuadrar con <b>🎯 Ver todas</b>. Toque un pin para ver dirección, fecha y clasificación, con acceso directo a "Ver reporte completo".</p>
 
     </div>
-    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
   </div>
 </div>
 
 <!-- ========== PANTALLA: CÓMO FUNCIONA ========== -->
 <div class="pantalla" id="pantallaComoFunciona">
   <div style="padding:0 4px;">
-    <h2 style="color:#7a1010;margin:10px 0;">⚙️ Cómo funciona la app</h2>
+    <h2 style="color:var(--rojo);margin:10px 0;">⚙️ Cómo funciona la app</h2>
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <p><b>🔐 Inicio de sesión seguro</b><br>La app usa <b>Google OAuth</b>. Solo accede quien inicie sesión con un correo Gmail autorizado por el administrador. La app NO guarda contraseñas. El administrador tiene una contraseña adicional para funciones sensibles.</p>
@@ -875,14 +1180,14 @@
       <p><b>🔒 Privacidad</b><br>Cada bombero ve solo sus propios reportes. El admin ve todos. Los datos NO son públicos — requieren login con Gmail autorizado. La contraseña del admin nunca sale del dispositivo en texto plano.</p>
 
     </div>
-    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
   </div>
 </div>
 
 <!-- ========== PANTALLA: BASES LEGALES ========== -->
 <div class="pantalla" id="pantallaLegal">
   <div style="padding:0 4px;">
-    <h2 style="color:#7a1010;margin:10px 0;">⚖️ Bases legales</h2>
+    <h2 style="color:var(--rojo);margin:10px 0;">⚖️ Bases legales</h2>
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.6;color:#222;font-size:14px;">
       <p><b>Ley 1575 de 2012 — Ley General de Bomberos de Colombia</b><br>Establece la organización y funciones del Sistema Nacional de Bomberos. El reporte oficial de emergencias es de obligatorio diligenciamiento por las unidades que atienden el evento.</p>
 
@@ -911,14 +1216,14 @@
         Calle 15 N° 5-07 Zona Indígena · "ABNEGACIÓN Y DISCIPLINA"
       </p>
     </div>
-    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
   </div>
 </div>
 
 <!-- ========== PANTALLA: PANEL ADMIN ========== -->
 <div class="pantalla" id="pantallaPanelAdmin">
   <div style="padding:0 4px;">
-    <h2 style="color:#7a1010;margin:10px 0;">🛡️ Panel de Administrador</h2>
+    <h2 style="color:var(--rojo);margin:10px 0;">🛡️ Panel de Administrador</h2>
 
     <div id="listaReportesAdminWrap">
       <input type="text" id="filtroAdmin" placeholder="Buscar por consecutivo, correo o dirección..."
@@ -927,7 +1232,7 @@
       <div id="listaReportesAdmin" style="max-height:60vh;overflow-y:auto;"></div>
     </div>
 
-    <div id="panelAdminViendo" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid #7a1010;">
+    <div id="panelAdminViendo" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid var(--rojo);">
       <div id="panelAdminViendoContenido"></div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
         <button onclick="app.cerrarVistaAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">← Volver</button>
@@ -935,8 +1240,8 @@
       </div>
     </div>
 
-    <div id="panelAdminEditando" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid #7a1010;">
-      <h3 id="admin_titulo" style="color:#7a1010;margin:0 0 12px 0;">Editar reporte</h3>
+    <div id="panelAdminEditando" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid var(--rojo);">
+      <h3 id="admin_titulo" style="color:var(--rojo);margin:0 0 12px 0;">Editar reporte</h3>
 
       <div style="margin-bottom:10px;">
         <label style="font-weight:700;font-size:13px;">Consecutivo (ej. RE-2026-0087):</label>
@@ -971,7 +1276,7 @@
 
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
         <button onclick="app.cancelarEdicionAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Cancelar</button>
-        <button onclick="app.guardarEdicionAdmin(this)" style="flex:1;min-width:120px;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar</button>
+        <button onclick="app.guardarEdicionAdmin(this)" style="flex:1;min-width:120px;padding:12px;background:var(--rojo);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar</button>
         <button onclick="app.imprimirReporteEditandoAdmin()" style="flex:1;min-width:110px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Imprimir</button>
       </div>
     </div>
@@ -1525,6 +1830,23 @@
   </div>
 
   <div class="config-card">
+    <h3>🎨 Diseño de la app</h3>
+    <p style="font-size:12px;color:var(--gris-texto);margin-bottom:12px;">
+      Elige el aspecto visual de la app. Todo funciona exactamente igual con cualquiera de los dos diseños — tu elección se guarda solo en este dispositivo.
+    </p>
+    <div class="tema-selector">
+      <button type="button" class="tema-opcion" data-tema-opcion="original" onclick="app.aplicarTema('original')">
+        <span class="tema-icono">🚒</span>
+        <span>Original</span>
+      </button>
+      <button type="button" class="tema-opcion" data-tema-opcion="apple" onclick="app.aplicarTema('apple')">
+        <span class="tema-icono">🍎</span>
+        <span>Minimalista</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="config-card">
     <h3>☁️ Conexión al servidor</h3>
     <div style="background: var(--verde-claro); border-left: 3px solid var(--verde); padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #065f46; margin-bottom: 12px;">
       ✅ <strong>La app ya está configurada</strong> y conectada al servidor del cuerpo de bomberos. No necesita configurar nada para empezar a usar la app.
@@ -1561,27 +1883,27 @@
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Ver, editar e imprimir TODOS los reportes (de todas las cuentas). Cambiar consecutivos. Requiere contraseña adicional.
       </p>
-      <button class="btn btn-completo" onclick="app.abrirPanelAdmin()" style="background: #7a1010; color: #fff;">
+      <button class="btn btn-completo" onclick="app.abrirPanelAdmin()" style="background: var(--rojo); color: #fff;">
         🛡️ Abrir Panel Admin
       </button>
     </div>
 
     <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
-      <h4 style="color: #7a1010; font-size: 14px; margin-bottom: 8px;">📅 Cierre de mes por fecha de llamada (recomendado)</h4>
+      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">📅 Cierre de mes por fecha de llamada (recomendado)</h4>
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Reorganiza los consecutivos de un mes específico según la <strong>fecha y hora de la llamada</strong> (no según cuándo se subió). Ideal para usar al final de cada mes. Solo afecta el mes seleccionado.
       </p>
-      <button class="btn btn-completo" onclick="app.abrirCierreMes()" style="background: #7a1010; color: #fff;">
+      <button class="btn btn-completo" onclick="app.abrirCierreMes()" style="background: var(--rojo); color: #fff;">
         📅 Cerrar mes y reorganizar consecutivos
       </button>
     </div>
 
     <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
-      <h4 style="color: #7a1010; font-size: 14px; margin-bottom: 8px;">📨 Alerta de sanciones a deudores</h4>
+      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">📨 Alerta de sanciones a deudores</h4>
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Envía AHORA el recordatorio por correo: uno personal a cada unidad que debe horas y el resumen completo a la estación. El envío automático de los <strong>viernes 9:30 AM</strong> funciona aparte y no se afecta.
       </p>
-      <button class="btn btn-completo" onclick="app.enviarAlertaSanciones(this)" style="background: #7a1010; color: #fff;">
+      <button class="btn btn-completo" onclick="app.enviarAlertaSanciones(this)" style="background: var(--rojo); color: #fff;">
         📨 Enviar alerta de sanciones ahora
       </button>
     </div>
@@ -1660,8 +1982,8 @@
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=5.87"></script>
-<script src="app.js?v=5.87"></script>
+<script src="logos.js?v=5.88"></script>
+<script src="app.js?v=5.88"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

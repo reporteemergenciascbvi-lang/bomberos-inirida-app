@@ -21,8 +21,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.87';
+const APP_VERSION = '5.88';
 const APP_VERSION_NOTAS = [
+  'v5.88: 🎨 NUEVO: ahora puedes elegir el DISEÑO de la app — 🚒 Original o 🍎 Minimalista (estilo limpio tipo Apple). Está en el menú de tu avatar (arriba a la derecha) y en Configuración → Diseño de la app. Tu elección se guarda solo en este dispositivo.',
+  'v5.88: ✨ Diseño Minimalista: fondo claro, tarjetas con bordes redondeados, sombras suaves, encabezado translúcido y transiciones suaves. TODO funciona exactamente igual — solo cambia el aspecto.',
   'v5.87: ✅ Los avisos de éxito (actividad guardada, asistencia registrada, foto cargada...) ahora salen en VERDE como corresponde — antes salían en negro neutro.',
   'v5.87: 🗺️ Si el Mapa de Emergencias falla por falta de señal, ahora aparece un botón 🔄 Reintentar en vez de quedarse pegado en el error.',
   'v5.87: 🛡️ Blindaje interno: la pantalla de Operatividad "Por Unidad" ya no puede romperse completa si llega un registro sin nombre, y se reforzó el escape de texto en más listas (sanciones, deudores, personal).',
@@ -249,6 +251,9 @@ const app = {
   async init() {
     // v5.48 SEGURIDAD: inyecta el idToken de Google en toda petición al backend.
     this._instalarFetchToken();
+
+    // v5.88: aplica el diseño elegido (original | apple) antes de pintar la UI.
+    this.aplicarTema(this._temaGuardado(), true);
 
     if (typeof LOGO_SMALL !== 'undefined') {
       document.getElementById('logoHeader').src = LOGO_SMALL;
@@ -845,6 +850,39 @@ const app = {
     document.getElementById('userMenu').classList.remove('visible');
   },
 
+  // ==================== TEMA DE DISEÑO (v5.88) ====================
+  // Dos diseños: 'original' (clásico CBVI) y 'apple' (Minimalista). La
+  // elección vive en localStorage del dispositivo (NO se sube al servidor)
+  // y también se aplica en el <head> antes de pintar la página (anti-flash).
+  // La estética cambia SOLO por CSS ([data-theme] + variables) — ninguna
+  // pantalla, flujo ni dato se toca. Riesgo funcional: cero.
+  _temaGuardado() {
+    try {
+      return localStorage.getItem('cbvi_tema') === 'apple' ? 'apple' : 'original';
+    } catch (e) { return 'original'; }
+  },
+
+  aplicarTema(tema, silencioso = false) {
+    const t = (tema === 'apple') ? 'apple' : 'original';
+    try { localStorage.setItem('cbvi_tema', t); } catch (e) {}
+    document.documentElement.setAttribute('data-theme', t);
+    // Color de la barra de estado del teléfono acorde al tema activo
+    const metaTema = document.getElementById('metaThemeColor');
+    if (metaTema) metaTema.setAttribute('content', t === 'apple' ? '#f5f5f7' : '#7a1010');
+    this._sincronizarUITema();
+    if (!silencioso) {
+      this.toast(t === 'apple' ? '🍎 Diseño Minimalista activado' : '🚒 Diseño Original activado', 'exito');
+    }
+  },
+
+  // Marca el botón activo en AMBOS selectores (menú de usuario y Configuración)
+  _sincronizarUITema() {
+    const t = this._temaGuardado();
+    document.querySelectorAll('[data-tema-opcion]').forEach(btn => {
+      btn.classList.toggle('activo', btn.getAttribute('data-tema-opcion') === t);
+    });
+  },
+
   async cerrarSesion() {
     // Cerrar el menú primero para que la confirmación se vea bien
     this.cerrarUserMenu();
@@ -898,6 +936,8 @@ const app = {
     set('cfg_token', this.config.token);
     set('cfg_proximo_numero', this.config.proximoNumero || 1);
     set('cfg_prefijo', this.config.prefijo || 'RE');
+    // v5.88: reflejar el tema activo en el selector de Configuración
+    this._sincronizarUITema();
   },
 
   async guardarConfig() {
@@ -2542,7 +2582,7 @@ const app = {
 
     const html = `
       <div style="padding: 20px;">
-        <h3 style="color: #7a1010; margin-bottom: 12px;">📅 Cierre de mes y renumeración</h3>
+        <h3 style="color: var(--rojo); margin-bottom: 12px;">📅 Cierre de mes y renumeración</h3>
         <p style="font-size: 14px; color: #555; margin-bottom: 16px; line-height: 1.5;">
           Esta acción reorganizará los consecutivos del mes seleccionado en <strong>orden cronológico por fecha de llamada</strong>.
           Los reportes de otros meses NO se tocan.
@@ -2564,7 +2604,7 @@ const app = {
           <button class="btn btn-secundario" onclick="app.cerrarModalCierreMes()" style="flex: 1;">Cancelar</button>
           <button class="btn" onclick="app.previsualizarCierreMes()" style="flex: 1; background: #f59e0b; color: #fff;">👁️ Previsualizar</button>
         </div>
-        <button id="btn_aplicar_cierre" class="btn btn-completo" onclick="app.aplicarCierreMes()" style="display: none; margin-top: 8px; background: #7a1010; color: #fff;">
+        <button id="btn_aplicar_cierre" class="btn btn-completo" onclick="app.aplicarCierreMes()" style="display: none; margin-top: 8px; background: var(--rojo); color: #fff;">
           ✅ Aplicar cambios definitivamente
         </button>
       </div>
@@ -2799,8 +2839,8 @@ const app = {
     }
 
     cont.innerHTML = reportes.map(r => `
-      <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid #7a1010;background:#fff;border-radius:6px;">
-        <div style="font-weight:bold;color:#7a1010;font-size:15px;">${r.consecutivo || '(sin consecutivo)'}</div>
+      <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid var(--rojo);background:#fff;border-radius:6px;">
+        <div style="font-weight:bold;color:var(--rojo);font-size:15px;">${r.consecutivo || '(sin consecutivo)'}</div>
         <div style="font-size:13px;color:#333;margin-top:2px;">${app._esc(r.direccion || 'Sin dirección')}</div>
         <div style="font-size:11px;color:#888;margin-top:4px;">
           ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
@@ -2811,7 +2851,7 @@ const app = {
             👁️ Ver
           </button>
           <button onclick="app.editarReporteAdmin('${r.id}')"
-                  style="flex:1;min-width:80px;padding:8px 6px;background:#7a1010;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
+                  style="flex:1;min-width:80px;padding:8px 6px;background:var(--rojo);color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
             ✏️ Editar
           </button>
           <button onclick="app.imprimirReporteAdmin('${r.id}')"
@@ -2966,7 +3006,7 @@ const app = {
 
     const card = (titulo, contenidoHTML) => `
       <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px;margin-bottom:10px;">
-        <h4 style="color:#7a1010;margin:0 0 8px 0;font-size:14px;">${titulo}</h4>
+        <h4 style="color:var(--rojo);margin:0 0 8px 0;font-size:14px;">${titulo}</h4>
         <div style="font-size:13px;color:#222;line-height:1.5;">${contenidoHTML}</div>
       </div>
     `;
@@ -2974,7 +3014,7 @@ const app = {
     const fila = (label, valor) => `<div><strong>${label}:</strong> ${fmt(valor)}</div>`;
 
     return `
-      <h3 style="color:#7a1010;margin:0 0 12px 0;">📄 ${r.consecutivo || '(sin consecutivo)'}</h3>
+      <h3 style="color:var(--rojo);margin:0 0 12px 0;">📄 ${r.consecutivo || '(sin consecutivo)'}</h3>
       <div style="font-size:12px;color:#666;margin-bottom:12px;">
         ID: <code>${r.id}</code> · Estación: ${fmt(r.estacion)}
       </div>
@@ -3269,7 +3309,7 @@ const app = {
       if (!barra) {
         barra = document.createElement('div');
         barra.id = 'barraEdicionAdmin';
-        barra.style.cssText = 'position:sticky;bottom:0;left:0;right:0;background:#7a1010;color:#fff;padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;z-index:50;box-shadow:0 -2px 8px rgba(0,0,0,0.25);';
+        barra.style.cssText = 'position:sticky;bottom:0;left:0;right:0;background:var(--rojo);color:#fff;padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;z-index:50;box-shadow:0 -2px 8px rgba(0,0,0,0.25);';
         barra.innerHTML = `
           <div style="flex:1 1 100%;font-size:13px;font-weight:700;margin-bottom:4px;">
             🛡️ Editando como administrador — ${ (r && r.consecutivo) || '' }
@@ -4783,17 +4823,17 @@ ${paginaFotos}
       <title>Actividad ${a.id}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:12pt;margin:15mm;color:#000;}
-        .header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #7a1010;padding-bottom:10px;}
+        .header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #7A1010;padding-bottom:10px;}
         .header img{width:80px;height:80px;object-fit:contain;}
         .header .info{flex:1;text-align:center;}
         .header h2{margin:0;font-size:14pt;}
         .header .info div{font-size:9pt;}
-        .titulo{text-align:center;font-size:15pt;font-weight:700;color:#7a1010;margin:10px 0 2px;}
+        .titulo{text-align:center;font-size:15pt;font-weight:700;color:#7A1010;margin:10px 0 2px;}
         .lema{text-align:center;font-style:italic;font-size:10pt;margin-bottom:12px;}
-        h2.sec{color:#7a1010;font-size:13pt;border-bottom:1px solid #ccc;margin-top:18px;}
+        h2.sec{color:#7A1010;font-size:13pt;border-bottom:1px solid #ccc;margin-top:18px;}
         table{width:100%;border-collapse:collapse;margin:8px 0;}
         th,td{border:1px solid #000;padding:6px 8px;font-size:10pt;}
-        th{background:#7a1010;color:#fff;}
+        th{background:#7A1010;color:#fff;}
         .fotos{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0;}
         .fotos img{width:100%;max-height:80mm;object-fit:contain;border:1px solid #ccc;}
         .pie{margin-top:24px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#666;text-align:center;}
@@ -5343,7 +5383,7 @@ ${paginaFotos}
               return '<div style="background:#fff5f5;border:1px solid #ffcdd2;border-radius:8px;padding:8px;margin-top:6px;font-size:13px;">'
                 + '<strong>'+app._esc(s.nombre||'')+'</strong>'
                 + '<div style="font-size:12px;color:#c00;margin-top:2px;">Debe <strong>'+s.horas+'h</strong> de sanción · '+s.inasist+' inasistencia(s)</div>'
-                + (al ? '<div style="font-size:12px;font-weight:700;color:#7a1010;margin-top:2px;">'+al+'</div>' : '')
+                + (al ? '<div style="font-size:12px;font-weight:700;color:var(--rojo);margin-top:2px;">'+al+'</div>' : '')
                 + '</div>';
             }).join('')
           + '</div>'
@@ -5766,7 +5806,7 @@ ${paginaFotos}
         + '<input id="_pwdAdmInput" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:14px;" placeholder="Contraseña">'
         + '<div style="display:flex;gap:10px;">'
         + '<button id="_pwdAdmCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
-        + '<button id="_pwdAdmOk" style="flex:1;padding:12px;background:#7a1010;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Entrar</button>'
+        + '<button id="_pwdAdmOk" style="flex:1;padding:12px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Entrar</button>'
         + '</div></div>';
       document.body.appendChild(modal);
       const inp = modal.querySelector('#_pwdAdmInput');
