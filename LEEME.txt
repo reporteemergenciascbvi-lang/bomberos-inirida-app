@@ -1,44 +1,50 @@
 ════════════════════════════════════════════════════════════════════
-FILES 49 — CBVI REPORTES v5.88
-Selector de diseño: 🚒 Original ↔ 🍎 Minimalista (tipo Apple)
+FILES 50 — CBVI REPORTES v5.89
+Barra de navegación inferior + animaciones + skeletons + PC/tableta
 ════════════════════════════════════════════════════════════════════
 
 QUÉ CONTIENE (solo FRONTEND — el backend NO se tocó):
 
-  • index.html ... Tema dual en CSS ([data-theme="apple"]), selector de
-                    diseño en el menú del avatar y en Configuración,
-                    script anti-flash en <head>, scripts ?v=5.88.
-  • app.js ....... APP_VERSION '5.88' + notas de versión, métodos de
-                    tema (aplicarTema / _temaGuardado / _sincronizarUITema),
-                    colores de marca pasados a var(--rojo) para seguir
-                    el tema elegido. El PDF impreso conserva el rojo
-                    institucional #7a1010 SIEMPRE (no cambia con el tema).
-  • sw.js ........ Caché bomberos-inirida-v5-88.
+  • index.html ... Barra de navegación inferior (#bottomNav) con 5
+                    accesos: 🏠 Inicio, 🎯 Actividad, 🚨 Nuevo Reporte
+                    (botón central elevado), 📋 Registros, ⚙️ Ajustes.
+                    Animación de fundido al cambiar de pantalla (AMBOS
+                    temas), "rebote" al tocar botones, skeletons
+                    animados en vez del texto "Cargando..." (Registros,
+                    Operatividad, Deudores), soporte de "reducir
+                    movimiento" (accesibilidad), scripts ?v=5.89.
+  • app.js ....... APP_VERSION '5.89' + 4 notas de versión, método
+                    _actualizarBottomNav() y su llamada en irA().
+  • sw.js ........ Caché bomberos-inirida-v5-89.
 
 CÓMO SUBIRLO (manual, como siempre):
 
   1) GITHUB (frontend / APK):
      Sube estos 3 archivos al repo bomberos-inirida-app reemplazando
      los anteriores. Commit sugerido:
-       "v5.88: selector de diseño Original/Minimalista (tema Apple)"
+       "v5.89: barra navegación inferior + animaciones + skeletons"
 
   2) APPS SCRIPT (backend): NO HAY CAMBIOS.
-     El Codigo.gs v5.85 sigue exactamente igual. NO redesplegar.
+     El Codigo.gs v5.85 (files 48) sigue exactamente igual. NO redesplegar.
 
 CÓMO VERIFICAR QUE QUEDÓ BIEN:
 
-  1. Abre la app con internet → aparece el banner verde
-     "Nueva versión instalada: v5.88".
-  2. Toca tu avatar (arriba a la derecha) → verás el selector
-     🚒 Original | 🍎 Minimalista.
-  3. Elige 🍎 Minimalista → toda la app cambia al instante:
-     fondo claro, tarjetas redondeadas, encabezado translúcido.
-  4. Cierra y vuelve a abrir la app → recuerda tu elección
-     (se guarda solo en tu teléfono, nada se sube al servidor).
-  5. En Configuración → "🎨 Diseño de la app" también puedes cambiarlo.
+  1. Abre la app con internet → banner verde "Nueva versión instalada: v5.89".
+  2. Abajo verás la barra nueva con 5 botones; el 🚨 rojo del centro
+     abre directamente un Nuevo Reporte.
+  3. La barra se OCULTA sola en: login, formulario de reporte y detalle
+     de reporte (ahí estorbaría sobre los botones de guardar).
+  4. Al cambiar de pantalla verás un fundido suave; al tocar cualquier
+     botón, un pequeño "rebote".
+  5. Entra a 📋 Registros con señal lenta → verás las "siluetas"
+     animadas mientras carga (ya no el texto "Cargando...").
+  6. En PC o tableta la barra se centra (máx. 720px), no se estira.
+  7. Si en el teléfono activas Accesibilidad → "Quitar animaciones",
+     la app las desactiva sola.
 
 SI ALGO SE VIERA RARO:
-  Vuelve a 🚒 Original desde el mismo selector — el diseño original
-  está intacto, no se eliminó nada.
+  La barra nunca tapa los botones flotantes de guardar (queda por
+  debajo de ellos) y si falta en el HTML la app no se rompe (el JS
+  lo detecta y sigue igual que antes).
 
 "ABNEGACIÓN Y DISCIPLINA"

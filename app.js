@@ -21,8 +21,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.88';
+const APP_VERSION = '5.89';
 const APP_VERSION_NOTAS = [
+  'v5.89: 🧭 NUEVO: barra de navegación inferior con acceso directo a 🏠 Inicio, 🎯 Nueva Actividad, 🚨 Nuevo Reporte (botón central), 📋 Registros y ⚙️ Ajustes. Ya no hay que devolverse al Inicio para cambiar de sección.',
+  'v5.89: ✨ Animaciones suaves al cambiar de pantalla y al tocar botones (estilo app profesional). Si tu teléfono tiene activada la opción "reducir movimiento" (accesibilidad), la app la respeta y no anima.',
+  'v5.89: ⏳ Mientras cargan los Registros, la Operatividad o los Deudores ahora se ve una "silueta" animada en vez del texto "Cargando..." — se nota que la app está trabajando.',
+  'v5.89: 💻 Mejorado en pantallas grandes (PC y tabletas): la barra inferior se centra y no se estira a todo lo ancho.',
   'v5.88: 🎨 NUEVO: ahora puedes elegir el DISEÑO de la app — 🚒 Original o 🍎 Minimalista (estilo limpio tipo Apple). Está en el menú de tu avatar (arriba a la derecha) y en Configuración → Diseño de la app. Tu elección se guarda solo en este dispositivo.',
   'v5.88: ✨ Diseño Minimalista: fondo claro, tarjetas con bordes redondeados, sombras suaves, encabezado translúcido y transiciones suaves. TODO funciona exactamente igual — solo cambia el aspecto.',
   'v5.87: ✅ Los avisos de éxito (actividad guardada, asistencia registrada, foto cargada...) ahora salen en VERDE como corresponde — antes salían en negro neutro.',
@@ -883,6 +887,26 @@ const app = {
     });
   },
 
+  // v5.89: barra de navegación inferior. Se OCULTA en login/registro y en
+  // pantallas de formulario/detalle (esas ya tienen sus propios botones
+  // flotantes abajo y la barra estorbaría). Se MARCA el ítem de la sección
+  // activa. Si la barra no existe (HTML viejo), no hace nada — nunca rompe.
+  _actualizarBottomNav(pantallaId) {
+    const barra = document.getElementById('bottomNav');
+    if (!barra) return;
+    const OCULTA_EN = ['pantallaLogin', 'pantallaRegistroComplemento', 'pantallaForm', 'pantallaDetalle'];
+    barra.classList.toggle('oculta', OCULTA_EN.indexOf(pantallaId) !== -1);
+    const SECCION = {
+      pantallaHome: 'home', pantallaActividades: 'actividad',
+      pantallaListaActividades: 'registros', pantallaDetalleActividad: 'registros',
+      pantallaConfig: 'config'
+    };
+    const activa = SECCION[pantallaId] || '';
+    barra.querySelectorAll('[data-nav]').forEach(btn => {
+      btn.classList.toggle('activo', btn.getAttribute('data-nav') === activa);
+    });
+  },
+
   async cerrarSesion() {
     // Cerrar el menú primero para que la confirmación se vea bien
     this.cerrarUserMenu();
@@ -985,6 +1009,9 @@ const app = {
     document.getElementById(pantallaId).classList.add('activa');
     this.pantallaActual = pantallaId;
     window.scrollTo(0, 0);
+    // v5.89: actualizar la barra inferior SIEMPRE (incluido el early-return
+    // del login, que es justo donde debe quedar oculta).
+    this._actualizarBottomNav(pantallaId);
 
     const header = document.getElementById('header');
     const btnVolver = document.getElementById('btnVolver');

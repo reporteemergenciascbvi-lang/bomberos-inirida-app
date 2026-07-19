@@ -661,8 +661,12 @@ try {
 
 /* Transición de entrada de pantallas: SOLO opacidad (un transform aquí
    rompería los elementos fixed/sticky hijos, p. ej. acciones-flotantes). */
-[data-theme="apple"] .pantalla.activa { animation: cbviAppleIn .22s ease-out; }
-@keyframes cbviAppleIn { from { opacity: 0; } to { opacity: 1; } }
+/* v5.89: fade suave al cambiar de pantalla en AMBOS temas (antes solo apple).
+   SOLO opacidad — jamás transform en .pantalla, porque convertirla en
+   "contenedor con transform" rompe position:fixed/sticky de sus hijos
+   (acciones-flotantes, progreso-bar). */
+.pantalla.activa { animation: cbviFadeIn .18s ease-out; }
+@keyframes cbviFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* Encabezado: vidrio esmerilado claro con texto oscuro */
 [data-theme="apple"] header.app-header {
@@ -882,6 +886,70 @@ try {
 [data-theme="apple"] .badge-admin-section { border-radius: 999px; }
 [data-theme="apple"] #leafletMapaContenedor { border-radius: 16px; }
 [data-theme="apple"] .tema-selector .tema-opcion.activo { background: rgba(255,59,48,.06); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v5.89 — BARRA DE NAVEGACIÓN INFERIOR + MICRO-ANIMACIONES + SKELETONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Barra inferior fija. z-index 89: bajo .acciones-flotantes (90) y el
+   toast (1000) para nunca taparlos. Se oculta con la clase .oculta. */
+#bottomNav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 89;
+  background: #fff; border-top: 1px solid var(--gris-borde);
+  box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+  padding-bottom: env(safe-area-inset-bottom, 0px); /* notch iPhone */
+}
+#bottomNav.oculta { display: none; }
+#bottomNav .bottom-nav-inner {
+  max-width: 720px; margin: 0 auto; display: flex; align-items: stretch;
+}
+#bottomNav button {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px; padding: 8px 2px 6px;
+  color: #8a8a8e; font-size: 10.5px; font-weight: 600;
+}
+#bottomNav button .nav-ico { font-size: 20px; line-height: 1.2; }
+#bottomNav button.activo { color: var(--rojo); }
+/* Botón central 🚨 elevado: la acción principal de la app */
+#bottomNav button.nav-central { flex: 0 0 auto; padding: 0 14px; }
+#bottomNav button.nav-central .nav-ico {
+  width: 52px; height: 52px; margin-top: -22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: #fff; background: var(--rojo);
+  border-radius: 50%; border: 3px solid #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+}
+[data-theme="apple"] #bottomNav {
+  background: rgba(255,255,255,.88);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid rgba(0,0,0,.06);
+}
+
+/* Micro-animación: leve "rebote" al tocar botones (sensación de app
+   nativa). Transform SOLO en el botón — nunca en ancestros de elementos
+   fixed/sticky. Selector de elemento: cualquier transition de clase gana. */
+button { transition: transform .15s ease; }
+button:active { transform: scale(.96); }
+
+/* Skeletons: silueta animada mientras carga una lista (reemplaza el
+   texto estático "Cargando..."). El JS pisa este HTML al terminar. */
+.skeleton-linea, .skeleton-tarjeta {
+  background: linear-gradient(90deg, #e8e8e8 25%, #f5f5f5 50%, #e8e8e8 75%);
+  background-size: 200% 100%;
+  animation: cbviShimmer 1.2s infinite linear;
+}
+.skeleton-linea { height: 14px; border-radius: 7px; margin: 10px 0; }
+.skeleton-tarjeta { height: 72px; border-radius: var(--radio, 12px); margin-bottom: 10px; }
+@keyframes cbviShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Accesibilidad: si el sistema pide "reducir movimiento", no se anima nada */
+@media (prefers-reduced-motion: reduce) {
+  .pantalla.activa { animation: none; }
+  button { transition: none; }
+  button:active { transform: none; }
+  .skeleton-linea, .skeleton-tarjeta { animation: none; }
+}
 </style>
 </head>
 <body>
@@ -1101,7 +1169,7 @@ try {
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v5.88</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v5.89</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1982,8 +2050,8 @@ try {
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=5.88"></script>
-<script src="app.js?v=5.88"></script>
+<script src="logos.js?v=5.89"></script>
+<script src="app.js?v=5.89"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
@@ -2087,7 +2155,7 @@ try {
 <div class="pantalla" id="pantallaListaActividades">
   <div style="padding:0 4px;">
     <h2 style="color:#1a5276;margin:10px 0;">📋 Mis Actividades y Asistencia de Domingos</h2>
-    <div id="listaActividadesContenido" style="margin-bottom:12px;"><div style="text-align:center;padding:40px;color:#999;">Cargando...</div></div>
+    <div id="listaActividadesContenido" style="margin-bottom:12px;"><!-- v5.89: skeleton shimmer (el JS lo pisa al cargar) --><div class="skeleton-tarjeta"></div><div class="skeleton-tarjeta"></div><div class="skeleton-tarjeta"></div></div>
     <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
   </div>
 </div>
@@ -2221,7 +2289,7 @@ try {
     <div style="background:#fff3e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#e65100;">
       🏆 Ranking: emergencias + horas de actividades + asistencia domingos
     </div>
-    <div id="operatividadContenido"><div style="text-align:center;padding:40px;color:#999;">Cargando...</div></div>
+    <div id="operatividadContenido"><!-- v5.89: skeleton shimmer (el JS lo pisa al cargar) --><div class="skeleton-tarjeta"></div><div class="skeleton-linea" style="width:60%"></div><div class="skeleton-linea"></div><div class="skeleton-linea" style="width:80%"></div><div class="skeleton-linea"></div></div>
     <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
   </div>
 </div>
@@ -2233,7 +2301,7 @@ try {
     <div style="background:#fff3e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#e65100;">
       Solo consulta y registro de horas cumplidas. Para registrar asistencia de un domingo, ve a 📅 Asistencia.
     </div>
-    <div id="deudoresContenido"><div style="text-align:center;padding:40px;color:#999;">Cargando...</div></div>
+    <div id="deudoresContenido"><!-- v5.89: skeleton shimmer (el JS lo pisa al cargar) --><div class="skeleton-tarjeta"></div><div class="skeleton-tarjeta"></div><div class="skeleton-tarjeta"></div></div>
     <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
   </div>
 </div>
@@ -2260,5 +2328,19 @@ try {
     <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
   </div>
 </div>
+
+<!-- v5.89: barra de navegación inferior. Arranca OCULTA (clase .oculta) para
+     que no se vea en el login antes de que cargue app.js; irA() la muestra/
+     oculta según la pantalla y marca el ítem activo. El 🚨 central es la
+     acción principal: Nuevo Reporte. -->
+<nav id="bottomNav" class="oculta" aria-label="Navegación principal">
+  <div class="bottom-nav-inner">
+    <button type="button" data-nav="home" onclick="app.irA('pantallaHome')"><span class="nav-ico">🏠</span><span class="nav-txt">Inicio</span></button>
+    <button type="button" data-nav="actividad" onclick="app.iniciarNuevaActividad()"><span class="nav-ico">🎯</span><span class="nav-txt">Actividad</span></button>
+    <button type="button" data-nav="reporte" class="nav-central" onclick="app.nuevoReporte()" aria-label="Nuevo reporte de emergencia"><span class="nav-ico">🚨</span></button>
+    <button type="button" data-nav="registros" onclick="app.irA('pantallaListaActividades')"><span class="nav-ico">📋</span><span class="nav-txt">Registros</span></button>
+    <button type="button" data-nav="config" onclick="app.irA('pantallaConfig')"><span class="nav-ico">⚙️</span><span class="nav-txt">Ajustes</span></button>
+  </div>
+</nav>
 </body>
 </html>
