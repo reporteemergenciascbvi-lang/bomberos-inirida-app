@@ -1,50 +1,99 @@
-════════════════════════════════════════════════════════════════════
-FILES 50 — CBVI REPORTES v5.89
-Barra de navegación inferior + animaciones + skeletons + PC/tableta
-════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════
+  files 52 — CBVI Reportes
+  FRONTEND v5.90  ·  BACKEND v5.87
+  Fecha: 2026-07-20  ·  Hecho por: Claude
+═══════════════════════════════════════════════════════════════════════
 
-QUÉ CONTIENE (solo FRONTEND — el backend NO se tocó):
+Esta carpeta contiene AMBAS partes (antes estaban separadas):
+  · Frontend v5.90  → app.js, index.html, sw.js  (base: files 51 = v5.89)
+  · Backend  v5.87  → Codigo.gs                  (base: files 49 = v5.86)
+  · Iconos corregidos → icon-192.png, icon-512.png
 
-  • index.html ... Barra de navegación inferior (#bottomNav) con 5
-                    accesos: 🏠 Inicio, 🎯 Actividad, 🚨 Nuevo Reporte
-                    (botón central elevado), 📋 Registros, ⚙️ Ajustes.
-                    Animación de fundido al cambiar de pantalla (AMBOS
-                    temas), "rebote" al tocar botones, skeletons
-                    animados en vez del texto "Cargando..." (Registros,
-                    Operatividad, Deudores), soporte de "reducir
-                    movimiento" (accesibilidad), scripts ?v=5.89.
-  • app.js ....... APP_VERSION '5.89' + 4 notas de versión, método
-                    _actualizarBottomNav() y su llamada en irA().
-  • sw.js ........ Caché bomberos-inirida-v5-89.
+⚠️ El backend de files 49 (v5.86, blindajes de auth) SEGUÍA SIN DESPLEGAR.
+   Al desplegar este Codigo.gs se despliegan también aquellos arreglos.
 
-CÓMO SUBIRLO (manual, como siempre):
 
-  1) GITHUB (frontend / APK):
-     Sube estos 3 archivos al repo bomberos-inirida-app reemplazando
-     los anteriores. Commit sugerido:
-       "v5.89: barra navegación inferior + animaciones + skeletons"
+───────────────────────────────────────────────────────────────────────
+QUÉ CAMBIÓ (los 5 puntos pedidos)
+───────────────────────────────────────────────────────────────────────
 
-  2) APPS SCRIPT (backend): NO HAY CAMBIOS.
-     El Codigo.gs v5.85 (files 48) sigue exactamente igual. NO redesplegar.
+1) SE QUITÓ LA BARRA DE NAVEGACIÓN INFERIOR  [index.html]
+   Se eliminó el <nav id="bottomNav"> y todo su CSS.
+   El método app._actualizarBottomNav() SE DEJÓ a propósito: ya empezaba
+   con "if (!barra) return;", así que sin la barra no hace nada. Quitarlo
+   habría obligado a tocar irA(), que es el corazón de la navegación.
 
-CÓMO VERIFICAR QUE QUEDÓ BIEN:
+2) REDISEÑO ESTÉTICO  [index.html]
+   · Paleta: grises con tinte cálido, sombras en capas, radios 14px.
+   · Bloque nuevo "v5.90 — REFINAMIENTO VISUAL", TODO prefijado con
+     [data-theme="original"].
+   ⚠️ IMPORTANTE: el tema 🍎 Minimalista NO se tocó (cero riesgo ahí).
+     Solo se embelleció el tema 🚒 Original. El rojo institucional
+     #7A1010 NO cambió (es el del escudo y el del PDF).
 
-  1. Abre la app con internet → banner verde "Nueva versión instalada: v5.89".
-  2. Abajo verás la barra nueva con 5 botones; el 🚨 rojo del centro
-     abre directamente un Nuevo Reporte.
-  3. La barra se OCULTA sola en: login, formulario de reporte y detalle
-     de reporte (ahí estorbaría sobre los botones de guardar).
-  4. Al cambiar de pantalla verás un fundido suave; al tocar cualquier
-     botón, un pequeño "rebote".
-  5. Entra a 📋 Registros con señal lenta → verás las "siluetas"
-     animadas mientras carga (ya no el texto "Cargando...").
-  6. En PC o tableta la barra se centra (máx. 720px), no se estira.
-  7. Si en el teléfono activas Accesibilidad → "Quitar animaciones",
-     la app las desactiva sola.
+3) ÍCONO SIN CUADRO BLANCO  [icon-192.png, icon-512.png]
+   CAUSA: los iconos "any" tenían fondo BLANCO OPACO (0% de píxeles
+   transparentes). El splash los pintaba sobre el rojo → cuadro blanco.
+   FIX: relleno desde los bordes hacia adentro — solo el blanco conectado
+   al exterior se volvió transparente, así el blanco INTERIOR del escudo
+   (el relleno de la cruz de malta) quedó intacto. Verificado: la fila
+   central del escudo sigue 100% opaca, sin agujeros.
+   Los icon-maskable-*.png NO se tocaron (su fondo rojo es correcto).
 
-SI ALGO SE VIERA RARO:
-  La barra nunca tapa los botones flotantes de guardar (queda por
-  debajo de ellos) y si falta en el HTML la app no se rompe (el JS
-  lo detecta y sigue igual que antes).
+4) ACTIVIDAD REALIZADA AL DESCONTAR HORAS  [app.js + Codigo.gs]
+   Al pulsar "✅ Registrar horas cumplidas" ahora se abre un cuadro que
+   pide horas + LA ACTIVIDAD QUE REALIZÓ la unidad (obligatoria).
+   Se guarda en Sanciones_Cumplidas, columna F "Actividad_Realizada"
+   (el encabezado se rotula solo la primera vez, es idempotente).
+   Se corrigió de paso la invariante I10: el botón ya no interpola la
+   cédula dentro del string del onclick, usa data-* (una cédula con una
+   comilla rompía el handler entero).
 
-"ABNEGACIÓN Y DISCIPLINA"
+5) CORREOS QUE DICEN QUÉ DOMINGO SE FALTÓ  [Codigo.gs]
+   El correo a cada unidad ahora lista fecha + tema de cada domingo,
+   en español ("Domingo 12 de julio de 2026").
+   Se hace con UNA sola lectura de la hoja para todos los deudores
+   (_mapaFaltasPorCedula), no una consulta por persona — con el personal
+   completo eso reventaría el tiempo de ejecución de Apps Script.
+
+
+───────────────────────────────────────────────────────────────────────
+VERIFICACIONES HECHAS
+───────────────────────────────────────────────────────────────────────
+En este PC NO hay node (ni deno/bun), así que "node --check" (§4.1 paso 4)
+no se pudo correr. En su lugar se usó un tokenizador propio que ignora
+strings, plantillas, comentarios y regex:
+  · Balance JS: OK en app.js, sw.js y Codigo.gs.
+  · CONTROL: el mismo validador se corrió sobre files 51 / files 49 (que
+    ya funcionan) y da OK — el validador es fiable, no complaciente.
+  · Tags HTML: mismo resultado exacto que files 51. El único aviso
+    ("</svg> ...") es un falso positivo del favicon SVG inline y está
+    igual en el control. No es una regresión.
+  · Llaves CSS: balance 0 en ambos.
+  · I2 DOMContentLoaded → app.init() presente (app.js:6702).
+  · I4 sin alert/confirm/prompt nativos (solo aparecen en comentarios).
+  · I5 _esc() escapa " y ' → los data-* nuevos son seguros.
+  · Idempotencia: el recibo idCliente ahora contempla también la
+    actividad, así que corregir el texto genera registro nuevo (correcto)
+    y reintentar lo mismo NO descuenta dos veces.
+
+⚠️ RIESGO RESIDUAL HONESTO: el rediseño (punto 2) no se pudo ver
+   renderizado desde aquí. Es CSS puramente visual y acotado al tema
+   Original, pero conviene abrirlo una vez antes de subirlo.
+
+
+───────────────────────────────────────────────────────────────────────
+CÓMO DESPLEGAR
+───────────────────────────────────────────────────────────────────────
+GITHUB (frontend) — subir estos 5 archivos al repo bomberos-inirida-app:
+   app.js · index.html · sw.js · icon-192.png · icon-512.png
+
+APPS SCRIPT (backend) — pegar Codigo.gs y desplegar con:
+   Implementar → Administrar implementaciones → ✏️ Editar → Nueva versión
+   ⚠️ INVARIANTE I1: la MISMA implementación. Crear una nueva cambia la
+   URL y rompe la app entera.
+
+El ícono nuevo puede tardar en verse: Android cachea el splash. Se ve al
+reinstalar la APK o al limpiar los datos de la app.
+
+                    ABNEGACIÓN Y DISCIPLINA

@@ -21,8 +21,13 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.89';
+const APP_VERSION = '5.90';
 const APP_VERSION_NOTAS = [
+  'v5.90: 🧭 Se QUITÓ la barra de navegación inferior que se agregó en la v5.89. Devolvía accesos que ya estaban en el Inicio y quitaba espacio de pantalla. Todo se navega igual que antes desde el Inicio.',
+  'v5.90: 🎨 Diseño renovado del tema 🚒 Original: encabezado con más profundidad y filo dorado, tarjetas con relieve suave, botones con volumen, campos que se iluminan en rojo al escribir y esquinas más redondeadas. El tema 🍎 Minimalista quedó exactamente igual.',
+  'v5.90: ✅ Al descontar horas de sanción en "Ver Deudores" ahora se abre un cuadro que pide LA ACTIVIDAD QUE REALIZÓ la unidad (aseo, mantenimiento, apoyo, etc.). Queda como constancia permanente junto con las horas.',
+  'v5.90: ✉️ Los correos de sanción que le llegan a cada unidad ahora DICEN EXACTAMENTE qué domingos faltó (fecha y tema de cada uno), no solo el total de horas. Si una fecha está mal, ya se puede reclamar con el dato en la mano.',
+  'v5.90: 📱 El ícono al abrir la app ya no sale dentro de un cuadro blanco: el escudo se ve recortado sobre el fondo rojo institucional.',
   'v5.89: 🧭 NUEVO: barra de navegación inferior con acceso directo a 🏠 Inicio, 🎯 Nueva Actividad, 🚨 Nuevo Reporte (botón central), 📋 Registros y ⚙️ Ajustes. Ya no hay que devolverse al Inicio para cambiar de sección.',
   'v5.89: ✨ Animaciones suaves al cambiar de pantalla y al tocar botones (estilo app profesional). Si tu teléfono tiene activada la opción "reducir movimiento" (accesibilidad), la app la respeta y no anima.',
   'v5.89: ⏳ Mientras cargan los Registros, la Operatividad o los Deudores ahora se ve una "silueta" animada en vez del texto "Cargando..." — se nota que la app está trabajando.',
@@ -5447,29 +5452,73 @@ ${paginaFotos}
     } catch(e) { m.remove(); this.toast('Error: ' + e.message, 'error'); }
   },
 
-  async cumplirSancion(btn, cedula, nombre) {
-    const input = document.getElementById('sanHoras_' + cedula);
-    const horas = Number(input ? input.value : 0);
-    if (!horas || horas <= 0) { this.toast('Ingresa las horas cumplidas', 'error'); return; }
-    // v5.70 FIX + v5.71 IDEMPOTENCIA:
+  // v5.90: modal propio (invariante I4 — nada de prompt() nativo, falla en el
+  // APK) para registrar el cumplimiento de horas. Además de las horas pide la
+  // ACTIVIDAD QUE REALIZÓ la unidad, que queda como constancia escrita en la
+  // hoja Sanciones_Cumplidas. Devuelve Promise<{horas, actividad} | null>.
+  _pedirCumplimientoSancion(nombre, horasPendientes) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;';
+      const pend = Number(horasPendientes) || 0;
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+        + '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:4px;">✅ Registrar horas cumplidas</div>'
+        + '<div style="font-size:13px;color:#666;margin-bottom:16px;">' + this._esc(nombre || 'Unidad')
+        + (pend > 0 ? ' — <strong style="color:#c00;">' + pend + 'h pendientes</strong>' : '') + '</div>'
+        + '<label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:5px;">Horas a descontar</label>'
+        + '<input id="_csHoras" type="number" min="1" ' + (pend > 0 ? 'max="' + pend + '"' : '')
+        + ' inputmode="numeric" placeholder="Ej: 4" style="width:100%;box-sizing:border-box;padding:11px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:14px;">'
+        + '<label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:5px;">Actividad que realizó <span style="color:#c00;">*</span></label>'
+        + '<textarea id="_csAct" rows="3" maxlength="300" placeholder="Ej: Aseo y mantenimiento de la máquina 01, apoyo logístico en simulacro..." style="width:100%;box-sizing:border-box;padding:11px;border:1px solid #ddd;border-radius:8px;font-size:15px;resize:vertical;margin-bottom:4px;"></textarea>'
+        + '<div style="font-size:11px;color:#999;margin-bottom:14px;">Queda como constancia permanente de en qué cumplió la sanción.</div>'
+        + '<div style="display:flex;gap:10px;">'
+        + '<button id="_csCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
+        + '<button id="_csOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Registrar</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      const inpH = modal.querySelector('#_csHoras');
+      const inpA = modal.querySelector('#_csAct');
+      setTimeout(() => { try { inpH.focus(); } catch (e) {} }, 50);
+      const fin = (val) => { try { document.body.removeChild(modal); } catch (e) {} resolve(val); };
+      modal.querySelector('#_csCancel').onclick = () => fin(null);
+      modal.querySelector('#_csOk').onclick = () => {
+        const horas = Number(inpH.value);
+        const actividad = (inpA.value || '').trim();
+        if (!horas || horas <= 0) { this.toast('Ingresa las horas cumplidas', 'error'); inpH.focus(); return; }
+        if (pend > 0 && horas > pend) { this.toast('No puede descontar más de ' + pend + 'h pendientes', 'error'); inpH.focus(); return; }
+        if (!actividad) { this.toast('Escribe qué actividad realizó', 'error'); inpA.focus(); return; }
+        fin({ horas: horas, actividad: actividad });
+      };
+    });
+  },
+
+  async cumplirSancion(btn, cedula, nombre, horasPendientes) {
+    // v5.70 FIX + v5.71 IDEMPOTENCIA + v5.90 CONSTANCIA:
     //  (1) Descontar horas exige contraseña admin; se pide DENTRO de _conBloqueo
     //      (un doble-toque no abre dos modales ni descuenta dos veces).
     //  (2) idCliente = "recibo" único. Si la red falla tras descontar y reintentas
     //      el MISMO descuento, va el mismo recibo → el servidor NO resta de nuevo.
-    //      Se genera recibo nuevo solo si cambian las horas o tras un éxito.
+    //      Se genera recibo nuevo solo si cambian los datos o tras un éxito.
+    //  (3) v5.90: se pide la actividad realizada ANTES de la contraseña (si el
+    //      admin cancela el formulario, ni siquiera se le molesta con la clave).
     await this._conBloqueo(btn, 'Guardando...', async () => {
+      const datos = await this._pedirCumplimientoSancion(nombre, horasPendientes);
+      if (!datos) return; // canceló → no se hace nada
+      const horas = datos.horas, actividad = datos.actividad;
       const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña admin para descontar horas');
       if (!_pwd) return; // canceló → no se hace nada
       this._idCumplir = this._idCumplir || {};
       let reg = this._idCumplir[cedula];
-      if (!reg || reg.horas !== horas) {
-        reg = { id: 'cs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), horas: horas };
+      // El recibo se reusa SOLO si se reintenta exactamente lo mismo (horas Y
+      // actividad). Si el admin corrige cualquiera de los dos, es otro registro.
+      if (!reg || reg.horas !== horas || reg.actividad !== actividad) {
+        reg = { id: 'cs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), horas: horas, actividad: actividad };
         this._idCumplir[cedula] = reg;
       }
       try {
         const resp = await fetch(URL_BACKEND, {
           method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'cumplirSancion', cedula, horas,
+          body: JSON.stringify({ accion: 'cumplirSancion', cedula, horas, actividad,
             idCliente: reg.id, adminEmail: this.usuario.email, adminPassword: _pwd })
         });
         const data = await resp.json();
@@ -5523,7 +5572,7 @@ ${paginaFotos}
       cont.innerHTML = sanc.map((s,i) => {
         const uid = 'deu_' + i;
         return '<div style="background:#fff;border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #c00;">'
-          + '<div data-uid="'+uid+'" data-ced="'+app._esc(s.cedula||'')+'" onclick="app._toggleDeudorAccordion(this.dataset.uid,this.dataset.ced)" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
+          + '<div data-uid="'+uid+'" data-ced="'+app._esc(s.cedula||'')+'" data-nom="'+app._esc(s.nombre||'')+'" data-hp="'+app._esc(String(s.horasPendientes||''))+'" onclick="app._toggleDeudorAccordion(this.dataset.uid,this.dataset.ced,this.dataset.nom,this.dataset.hp)" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
           + '<div><strong>'+app._esc(s.nombre||'')+'</strong>'+badge(s)+'<div style="font-size:12px;color:#666;margin-top:2px;">CC: '+app._esc(s.cedula||'-')+'</div></div>'
           + '<div style="text-align:right;"><div style="color:#c00;font-weight:700;">'+s.horasPendientes+'h</div><div style="font-size:11px;color:#999;">▼ ver domingos</div></div>'
           + '</div>'
@@ -5533,7 +5582,9 @@ ${paginaFotos}
     } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + e.message + '</div>'; }
   },
 
-  async _toggleDeudorAccordion(uid, cedula) {
+  // v5.90: recibe también nombre (nom) y horas pendientes (hp) para poder
+  // mostrarlos en el modal de registro de cumplimiento sin volver a consultar.
+  async _toggleDeudorAccordion(uid, cedula, nom, hp) {
     const det = document.getElementById(uid + '_det');
     if (!det) return;
     const abierto = det.style.display !== 'none';
@@ -5554,9 +5605,14 @@ ${paginaFotos}
         + (faltas.length
           ? faltas.map(f => '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;"><strong>📅 '+app._esc(f.fecha)+'</strong><div style="color:#666;margin-top:2px;">'+app._esc(f.tema)+'</div></div>').join('')
           : '<div style="padding:8px 0;color:#999;font-size:13px;">Sin domingos sin excusa registrados</div>')
-        + '<div style="margin-top:10px;">'
-        + '<input type="number" min="1" placeholder="Horas a descontar" id="sanHoras_'+cedula+'" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;width:130px;font-size:13px;">'
-        + '<button onclick="app.cumplirSancion(this,\''+cedula+'\',\'\')" style="background:#1e8449;color:#fff;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;margin-left:6px;font-size:13px;">✅ Marcar cumplidas</button>'
+        // v5.90: el input suelto de horas se reemplazó por un modal que además
+        // pide la ACTIVIDAD REALIZADA. El botón pasa los datos por data-* en vez
+        // de interpolar la cédula dentro del string del onclick (invariante I10:
+        // una cédula con comilla o carácter raro rompía el handler entero).
+        + '<div style="margin-top:12px;">'
+        + '<button data-ced="'+app._esc(cedula||'')+'" data-nom="'+app._esc(nom||'')+'" data-hp="'+app._esc(String(hp||''))+'"'
+        + ' onclick="app.cumplirSancion(this,this.dataset.ced,this.dataset.nom,this.dataset.hp)"'
+        + ' style="background:#1e8449;color:#fff;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;font-weight:700;width:100%;">✅ Registrar horas cumplidas</button>'
         + '</div></div>';
     } catch(e) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+app._esc(e.message)+'</div>'; }
   },

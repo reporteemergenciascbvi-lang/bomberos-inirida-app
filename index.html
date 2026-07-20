@@ -38,24 +38,35 @@ try {
 
 <style>
   :root {
+    /* v5.90 — Refinamiento visual. El rojo institucional (#7A1010) NO cambia:
+       es el color oficial del CBVI y el del escudo/PDF. Lo que se afinó son
+       los grises, las sombras y los radios, que antes eran planos y duros. */
     --rojo: #7A1010;
     --rojo-claro: #c41e3a;
     --rojo-oscuro: #4a0808;
     --amarillo: #f4c430;
     --amarillo-claro: #fef9c3;
     --negro: #1a1a1a;
-    --gris-fondo: #f5f5f5;
-    --gris-borde: #d4d4d4;
-    --gris-texto: #555;
+    /* Grises con una pizca de cálido (tono del rojo) en vez de gris puro:
+       hace que el fondo "acompañe" al rojo institucional y no lo pelee. */
+    --gris-fondo: #f4f1f0;
+    --gris-borde: #e3dedd;
+    --gris-texto: #5c5453;
+    --gris-suave: #8d8382;
     --verde: #2d7a3e;
     --verde-claro: #d1fae5;
     --naranja: #d97706;
     --azul: #1e40af;
     --azul-claro: #dbeafe;
     --blanco: #ffffff;
-    --sombra: 0 2px 8px rgba(0,0,0,0.08);
-    --sombra-fuerte: 0 4px 16px rgba(0,0,0,0.15);
-    --radio: 8px;
+    /* Sombras en capas (cerca + lejos) = profundidad realista en vez del
+       "borrón" gris de una sola sombra. Tintadas hacia el rojo-oscuro. */
+    --sombra: 0 1px 2px rgba(74,8,8,0.05), 0 3px 10px rgba(74,8,8,0.06);
+    --sombra-fuerte: 0 2px 6px rgba(74,8,8,0.10), 0 10px 28px rgba(74,8,8,0.14);
+    --sombra-suave: 0 1px 3px rgba(74,8,8,0.05);
+    --radio: 14px;
+    --radio-sm: 10px;
+    --radio-lg: 20px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -657,6 +668,12 @@ try {
   --sombra: 0 1px 2px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.06);
   --sombra-fuerte: 0 8px 30px rgba(0,0,0,.14);
   --radio: 14px;
+  /* v5.90: tokens nuevos también aquí, en versión neutra (sin el tinte rojo
+     del tema Original), para que el Minimalista NO los herede tintados. */
+  --gris-suave: #8e8e93;
+  --sombra-suave: 0 1px 3px rgba(0,0,0,.05);
+  --radio-sm: 10px;
+  --radio-lg: 20px;
 }
 
 /* Transición de entrada de pantallas: SOLO opacidad (un transform aquí
@@ -888,43 +905,134 @@ try {
 [data-theme="apple"] .tema-selector .tema-opcion.activo { background: rgba(255,59,48,.06); }
 
 /* ═══════════════════════════════════════════════════════════════════
-   v5.89 — BARRA DE NAVEGACIÓN INFERIOR + MICRO-ANIMACIONES + SKELETONS
+   v5.89 — MICRO-ANIMACIONES + SKELETONS
+   (v5.90: el bloque #bottomNav se eliminó junto con la barra inferior)
    ═══════════════════════════════════════════════════════════════════ */
 
-/* Barra inferior fija. z-index 89: bajo .acciones-flotantes (90) y el
-   toast (1000) para nunca taparlos. Se oculta con la clase .oculta. */
-#bottomNav {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 89;
-  background: #fff; border-top: 1px solid var(--gris-borde);
-  box-shadow: 0 -2px 12px rgba(0,0,0,.08);
-  padding-bottom: env(safe-area-inset-bottom, 0px); /* notch iPhone */
+/* ═══════════════════════════════════════════════════════════════════
+   v5.90 — REFINAMIENTO VISUAL DEL TEMA ORIGINAL
+   ───────────────────────────────────────────────────────────────────
+   TODO va prefijado con [data-theme="original"] a propósito: el tema
+   🍎 Minimalista queda BYTE-INTACTO (cero riesgo de regresión ahí) y
+   solo se embellece el tema institucional, que es el que se usa a diario.
+   Nada de esto cambia estructura ni comportamiento — solo aspecto.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* — Encabezado: se le da cuerpo con una veladura diagonal y una línea
+     dorada inferior (el amarillo del escudo). Antes era un degradado
+     plano que se cortaba en seco contra el contenido. */
+[data-theme="original"] header.app-header {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,0) 55%),
+    linear-gradient(135deg, var(--rojo-oscuro), var(--rojo) 70%, #8d1616 100%);
+  border-bottom: 2px solid rgba(244,196,48,.55);
 }
-#bottomNav.oculta { display: none; }
-#bottomNav .bottom-nav-inner {
-  max-width: 720px; margin: 0 auto; display: flex; align-items: stretch;
+[data-theme="original"] header.app-header h1 { letter-spacing: .4px; }
+[data-theme="original"] header.app-header .subtitulo {
+  opacity: .78; letter-spacing: 1.1px; text-transform: uppercase; font-weight: 600;
 }
-#bottomNav button {
-  flex: 1; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 2px; padding: 8px 2px 6px;
-  color: #8a8a8e; font-size: 10.5px; font-weight: 600;
+[data-theme="original"] header.app-header .logo {
+  box-shadow: 0 2px 6px rgba(0,0,0,.28);
+  border: 1.5px solid rgba(255,255,255,.9);
 }
-#bottomNav button .nav-ico { font-size: 20px; line-height: 1.2; }
-#bottomNav button.activo { color: var(--rojo); }
-/* Botón central 🚨 elevado: la acción principal de la app */
-#bottomNav button.nav-central { flex: 0 0 auto; padding: 0 14px; }
-#bottomNav button.nav-central .nav-ico {
-  width: 52px; height: 52px; margin-top: -22px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 24px; color: #fff; background: var(--rojo);
-  border-radius: 50%; border: 3px solid #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+[data-theme="original"] header.app-header .estado-conexion {
+  background: rgba(0,0,0,.20); border: 1px solid rgba(255,255,255,.16);
+  letter-spacing: .3px;
 }
-[data-theme="apple"] #bottomNav {
-  background: rgba(255,255,255,.88);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-  border-top: 1px solid rgba(0,0,0,.06);
+
+/* — Tarjetas: borde hairline + sombra en capas. El borde de 1px evita que
+     la tarjeta blanca "flote sin apoyo" sobre el fondo claro. */
+[data-theme="original"] .stat-card,
+[data-theme="original"] .reporte-item,
+[data-theme="original"] .actividad-item,
+[data-theme="original"] .card {
+  border: 1px solid rgba(74,8,8,.06);
+  transition: box-shadow .18s ease, transform .18s ease;
 }
+[data-theme="original"] .stat-card {
+  background: linear-gradient(180deg, #fff 0%, #fdfbfb 100%);
+}
+[data-theme="original"] .stat-card .numero {
+  font-size: 24px; letter-spacing: -.5px;
+}
+[data-theme="original"] .stat-card .etiqueta {
+  letter-spacing: .6px; color: var(--gris-suave);
+}
+
+/* — Ítems de lista: la barra de color de la izquierda se vuelve un acento
+     redondeado en vez de un borde cuadrado pegado al canto. */
+[data-theme="original"] .reporte-item {
+  border-left-width: 5px; padding: 15px 14px;
+}
+[data-theme="original"] .reporte-item:active {
+  transform: scale(.988);
+  box-shadow: var(--sombra-suave);
+}
+
+/* — Badges tipo píldora, con un punto de color al inicio. */
+[data-theme="original"] .badge {
+  border-radius: 999px; letter-spacing: .5px; padding: 4px 10px;
+}
+
+/* — Botón primario: degradado corto + sombra tintada del propio color,
+     que es lo que da la sensación de "botón real" y no de rectángulo. */
+[data-theme="original"] .btn { letter-spacing: .2px; }
+[data-theme="original"] .btn-primary {
+  background: linear-gradient(180deg, #8d1616 0%, var(--rojo) 55%, #6a0e0e 100%);
+  box-shadow: 0 2px 5px rgba(74,8,8,.28), inset 0 1px 0 rgba(255,255,255,.13);
+}
+[data-theme="original"] .btn-primary:hover {
+  background: linear-gradient(180deg, var(--rojo) 0%, #6a0e0e 100%);
+}
+[data-theme="original"] .btn-primary:active {
+  box-shadow: 0 1px 2px rgba(74,8,8,.30), inset 0 1px 3px rgba(0,0,0,.22);
+}
+[data-theme="original"] .btn-peligro {
+  background: linear-gradient(180deg, #d32222 0%, #b91c1c 55%, #971616 100%);
+  box-shadow: 0 2px 5px rgba(153,20,20,.28), inset 0 1px 0 rgba(255,255,255,.13);
+}
+[data-theme="original"] .btn-imprimir {
+  background: linear-gradient(180deg, #2a53c9 0%, var(--azul) 55%, #17348f 100%);
+  box-shadow: 0 2px 5px rgba(30,64,175,.28), inset 0 1px 0 rgba(255,255,255,.13);
+}
+[data-theme="original"] .btn-secundario {
+  border-color: var(--gris-borde);
+  box-shadow: var(--sombra-suave);
+}
+[data-theme="original"] .btn-secundario:hover {
+  background: #faf8f8; border-color: #cfc7c6;
+}
+
+/* — Campos de formulario: anillo de foco rojo institucional. Antes el foco
+     dependía del outline azul por defecto del navegador (se veía ajeno). */
+[data-theme="original"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="original"] textarea,
+[data-theme="original"] select {
+  border-radius: var(--radio-sm);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+[data-theme="original"] input:not([type="checkbox"]):not([type="radio"]):focus,
+[data-theme="original"] textarea:focus,
+[data-theme="original"] select:focus {
+  outline: none;
+  border-color: var(--rojo);
+  box-shadow: 0 0 0 3px rgba(122,16,16,.12);
+}
+
+/* — Títulos de sección: pequeño guion rojo delante, para dar jerarquía. */
+[data-theme="original"] .seccion-titulo {
+  display: flex; align-items: center; gap: 8px; color: var(--gris-suave);
+}
+[data-theme="original"] .seccion-titulo::before {
+  content: ""; width: 14px; height: 3px; border-radius: 2px;
+  background: var(--rojo); flex-shrink: 0;
+}
+
+/* — Estado vacío: menos apagado, más intencional. */
+[data-theme="original"] .vacio-estado .icono { opacity: .35; }
+
+/* — Menú de usuario y modales: radio grande, coherente con las tarjetas. */
+[data-theme="original"] .user-menu { border-radius: var(--radio-lg); }
 
 /* Micro-animación: leve "rebote" al tocar botones (sensación de app
    nativa). Transform SOLO en el botón — nunca en ancestros de elementos
@@ -1169,7 +1277,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v5.89</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v5.90</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -2050,8 +2158,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=5.89"></script>
-<script src="app.js?v=5.89"></script>
+<script src="logos.js?v=5.90"></script>
+<script src="app.js?v=5.90"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
@@ -2329,18 +2437,9 @@ button:active { transform: scale(.96); }
   </div>
 </div>
 
-<!-- v5.89: barra de navegación inferior. Arranca OCULTA (clase .oculta) para
-     que no se vea en el login antes de que cargue app.js; irA() la muestra/
-     oculta según la pantalla y marca el ítem activo. El 🚨 central es la
-     acción principal: Nuevo Reporte. -->
-<nav id="bottomNav" class="oculta" aria-label="Navegación principal">
-  <div class="bottom-nav-inner">
-    <button type="button" data-nav="home" onclick="app.irA('pantallaHome')"><span class="nav-ico">🏠</span><span class="nav-txt">Inicio</span></button>
-    <button type="button" data-nav="actividad" onclick="app.iniciarNuevaActividad()"><span class="nav-ico">🎯</span><span class="nav-txt">Actividad</span></button>
-    <button type="button" data-nav="reporte" class="nav-central" onclick="app.nuevoReporte()" aria-label="Nuevo reporte de emergencia"><span class="nav-ico">🚨</span></button>
-    <button type="button" data-nav="registros" onclick="app.irA('pantallaListaActividades')"><span class="nav-ico">📋</span><span class="nav-txt">Registros</span></button>
-    <button type="button" data-nav="config" onclick="app.irA('pantallaConfig')"><span class="nav-ico">⚙️</span><span class="nav-txt">Ajustes</span></button>
-  </div>
-</nav>
+<!-- v5.90: la barra de navegación inferior de la v5.89 se RETIRÓ a petición
+     de la comandancia (duplicaba accesos que ya están en el Inicio y robaba
+     alto de pantalla). El método app._actualizarBottomNav() sigue existiendo
+     y es inofensivo: si no encuentra #bottomNav, retorna sin hacer nada. -->
 </body>
 </html>
