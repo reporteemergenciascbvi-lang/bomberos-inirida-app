@@ -21,8 +21,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.90';
+const APP_VERSION = '5.91';
 const APP_VERSION_NOTAS = [
+  'v5.91: ⚠️ CAMBIO IMPORTANTE EN LAS SANCIONES. Por cada domingo que pase sin que cumplas tus horas, la deuda se DUPLICA (2h → 4h → 8h → 16h...), con un tope de 32 horas. Asistir NO detiene la duplicación y presentar excusa TAMPOCO: la excusa justifica que no viniste, no que dejaste de cumplir lo que ya debías. Lo único que la detiene es cumplir las horas antes del próximo domingo.',
+  'v5.91: 🤝 Ajuste por única vez: como antes el sistema no aplicaba bien esta regla, a quienes les habría subido de golpe se les dejó la deuda en el valor que ya venían viendo duplicado una sola vez, y no en el total que les correspondía. De aquí en adelante la regla corre normal para todos.',
+  'v5.91: 📋 Las alertas quedan igual: 3 domingos seguidos = llamado de atención verbal · 4 = llamado escrito con copia a la hoja de vida · 5 = deserción, con retiro de las actividades bomberiles y a consideración del Capitán el reingreso.',
+  'v5.91: ✉️ El correo de sanción ahora explica cómo crece la deuda y hasta qué tope, además de los domingos que faltaste.',
   'v5.90: 🧭 Se QUITÓ la barra de navegación inferior que se agregó en la v5.89. Devolvía accesos que ya estaban en el Inicio y quitaba espacio de pantalla. Todo se navega igual que antes desde el Inicio.',
   'v5.90: 🎨 Diseño renovado del tema 🚒 Original: encabezado con más profundidad y filo dorado, tarjetas con relieve suave, botones con volumen, campos que se iluminan en rojo al escribir y esquinas más redondeadas. El tema 🍎 Minimalista quedó exactamente igual.',
   'v5.90: ✅ Al descontar horas de sanción en "Ver Deudores" ahora se abre un cuadro que pide LA ACTIVIDAD QUE REALIZÓ la unidad (aseo, mantenimiento, apoyo, etc.). Queda como constancia permanente junto con las horas.',
@@ -5560,6 +5564,13 @@ ${paginaFotos}
         return;
       }
       sanc.sort((a,b) => Number(b.horasPendientes) - Number(a.horasPendientes));
+      // v5.91: la regla a la vista, para no tener que explicarla cada vez que
+      // alguien pregunta por qué le subieron las horas si sí asistió.
+      const reglaHTML = '<div style="background:#fff8e1;border:1px solid #ffe082;border-left:4px solid #f4c430;border-radius:10px;padding:11px 13px;margin-bottom:12px;font-size:12px;line-height:1.55;color:#5d4037;">'
+        + '<strong>⚠️ Cómo crecen estas horas</strong><br>'
+        + 'Cada domingo que pasa sin cumplirlas, la deuda se <strong>duplica</strong> (2h → 4h → 8h → 16h…), con tope de <strong>32h</strong>.<br>'
+        + 'Asistir <strong>no</strong> detiene la duplicación, y la excusa <strong>tampoco</strong>: justifica no haber venido, no haber dejado de cumplir. Solo cumplir las horas la detiene.'
+        + '</div>';
       const badge = (s) => {
         if (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO')
           return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>';
@@ -5569,7 +5580,7 @@ ${paginaFotos}
           return '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>';
         return '';
       };
-      cont.innerHTML = sanc.map((s,i) => {
+      cont.innerHTML = reglaHTML + sanc.map((s,i) => {
         const uid = 'deu_' + i;
         return '<div style="background:#fff;border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #c00;">'
           + '<div data-uid="'+uid+'" data-ced="'+app._esc(s.cedula||'')+'" data-nom="'+app._esc(s.nombre||'')+'" data-hp="'+app._esc(String(s.horasPendientes||''))+'" onclick="app._toggleDeudorAccordion(this.dataset.uid,this.dataset.ced,this.dataset.nom,this.dataset.hp)" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'

@@ -1,99 +1,120 @@
 ═══════════════════════════════════════════════════════════════════════
-  files 52 — CBVI Reportes
-  FRONTEND v5.90  ·  BACKEND v5.87
+  files 53 — CBVI Reportes
+  FRONTEND v5.91  ·  BACKEND v5.88
   Fecha: 2026-07-20  ·  Hecho por: Claude
 ═══════════════════════════════════════════════════════════════════════
 
-Esta carpeta contiene AMBAS partes (antes estaban separadas):
-  · Frontend v5.90  → app.js, index.html, sw.js  (base: files 51 = v5.89)
-  · Backend  v5.87  → Codigo.gs                  (base: files 49 = v5.86)
-  · Iconos corregidos → icon-192.png, icon-512.png
+⚠️ ESTA CARPETA REEMPLAZA A files 52 (que nunca se subió).
+   Contiene TODO lo de files 52 (v5.90/v5.87) MÁS la regla nueva de
+   sanciones. Subiendo files 53 va todo junto; no hay que subir files 52.
 
-⚠️ El backend de files 49 (v5.86, blindajes de auth) SEGUÍA SIN DESPLEGAR.
-   Al desplegar este Codigo.gs se despliegan también aquellos arreglos.
-
-
-───────────────────────────────────────────────────────────────────────
-QUÉ CAMBIÓ (los 5 puntos pedidos)
-───────────────────────────────────────────────────────────────────────
-
-1) SE QUITÓ LA BARRA DE NAVEGACIÓN INFERIOR  [index.html]
-   Se eliminó el <nav id="bottomNav"> y todo su CSS.
-   El método app._actualizarBottomNav() SE DEJÓ a propósito: ya empezaba
-   con "if (!barra) return;", así que sin la barra no hace nada. Quitarlo
-   habría obligado a tocar irA(), que es el corazón de la navegación.
-
-2) REDISEÑO ESTÉTICO  [index.html]
-   · Paleta: grises con tinte cálido, sombras en capas, radios 14px.
-   · Bloque nuevo "v5.90 — REFINAMIENTO VISUAL", TODO prefijado con
-     [data-theme="original"].
-   ⚠️ IMPORTANTE: el tema 🍎 Minimalista NO se tocó (cero riesgo ahí).
-     Solo se embelleció el tema 🚒 Original. El rojo institucional
-     #7A1010 NO cambió (es el del escudo y el del PDF).
-
-3) ÍCONO SIN CUADRO BLANCO  [icon-192.png, icon-512.png]
-   CAUSA: los iconos "any" tenían fondo BLANCO OPACO (0% de píxeles
-   transparentes). El splash los pintaba sobre el rojo → cuadro blanco.
-   FIX: relleno desde los bordes hacia adentro — solo el blanco conectado
-   al exterior se volvió transparente, así el blanco INTERIOR del escudo
-   (el relleno de la cruz de malta) quedó intacto. Verificado: la fila
-   central del escudo sigue 100% opaca, sin agujeros.
-   Los icon-maskable-*.png NO se tocaron (su fondo rojo es correcto).
-
-4) ACTIVIDAD REALIZADA AL DESCONTAR HORAS  [app.js + Codigo.gs]
-   Al pulsar "✅ Registrar horas cumplidas" ahora se abre un cuadro que
-   pide horas + LA ACTIVIDAD QUE REALIZÓ la unidad (obligatoria).
-   Se guarda en Sanciones_Cumplidas, columna F "Actividad_Realizada"
-   (el encabezado se rotula solo la primera vez, es idempotente).
-   Se corrigió de paso la invariante I10: el botón ya no interpola la
-   cédula dentro del string del onclick, usa data-* (una cédula con una
-   comilla rompía el handler entero).
-
-5) CORREOS QUE DICEN QUÉ DOMINGO SE FALTÓ  [Codigo.gs]
-   El correo a cada unidad ahora lista fecha + tema de cada domingo,
-   en español ("Domingo 12 de julio de 2026").
-   Se hace con UNA sola lectura de la hoja para todos los deudores
-   (_mapaFaltasPorCedula), no una consulta por persona — con el personal
-   completo eso reventaría el tiempo de ejecución de Apps Script.
+Archivos: app.js · index.html · sw.js · Codigo.gs
+          icon-192.png · icon-512.png
 
 
 ───────────────────────────────────────────────────────────────────────
-VERIFICACIONES HECHAS
+LO NUEVO DE ESTA VERSIÓN: LA REGLA DE SANCIONES
 ───────────────────────────────────────────────────────────────────────
-En este PC NO hay node (ni deno/bun), así que "node --check" (§4.1 paso 4)
-no se pudo correr. En su lugar se usó un tokenizador propio que ignora
-strings, plantillas, comentarios y regex:
-  · Balance JS: OK en app.js, sw.js y Codigo.gs.
-  · CONTROL: el mismo validador se corrió sobre files 51 / files 49 (que
-    ya funcionan) y da OK — el validador es fiable, no complaciente.
-  · Tags HTML: mismo resultado exacto que files 51. El único aviso
-    ("</svg> ...") es un falso positivo del favicon SVG inline y está
-    igual en el control. No es una regresión.
-  · Llaves CSS: balance 0 en ambos.
-  · I2 DOMContentLoaded → app.init() presente (app.js:6702).
-  · I4 sin alert/confirm/prompt nativos (solo aparecen en comentarios).
-  · I5 _esc() escapa " y ' → los data-* nuevos son seguros.
-  · Idempotencia: el recibo idCliente ahora contempla también la
-    actividad, así que corregir el texto genera registro nuevo (correcto)
-    y reintentar lo mismo NO descuenta dos veces.
 
-⚠️ RIESGO RESIDUAL HONESTO: el rediseño (punto 2) no se pudo ver
-   renderizado desde aquí. Es CSS puramente visual y acotado al tema
-   Original, pero conviene abrirlo una vez antes de subirlo.
+ANTES:  horas = 2^(nº de faltas) − cumplidas
+        Una fórmula ciega al tiempo: si no cumplías, la deuda se quedaba
+        quieta hasta que volvieras a faltar.
+
+AHORA:  se recorren los domingos EN ORDEN. En cada domingo:
+          1. ¿Traía deuda?  → SE DUPLICA
+          2. ¿Faltó sin excusa y no debía nada? → arranca en 2h
+          3. ¿Faltó sin excusa y ya debía? → solo duplica (no suma aparte)
+
+        Asistir NO detiene la duplicación. Tener excusa TAMPOCO: la excusa
+        justifica no haber venido, no haber dejado de cumplir lo que ya
+        debía. Lo ÚNICO que la detiene es cumplir las horas a tiempo.
+
+        TOPE: 32 horas. De ahí no pasa.
+
+Ejemplo oficial (4 domingos):
+        D1 faltó sin excusa .......... 2h
+        D2 asistió, no cumplió ....... 2 x2 =  4h
+        D3 faltó CON excusa .......... 4 x2 =  8h
+        D4 asistió, no cumplió ....... 8 x2 = 16h
+
+
+AMNISTÍA DE ARRANQUE (una sola vez)
+        Constante: SANCIONES_DUPLICA_DESDE = '2026-07-19'
+        Todo lo anterior a esa fecha se congela con la regla vieja; la
+        duplicación corre desde ahí. Efecto: la deuda que la gente ya veía
+        se duplica UNA vez, en vez de dispararse de golpe.
+
+        OSCAR   (1 falta 28/06):  con la regla pura serían 16h  →  queda en 4h
+        YADHIRA (faltas 05 y 12/07):                             →  queda en 8h
+
+        ⚠️ NO MOVER esa constante hacia atrás. Recalcularía la historia
+        completa y multiplicaría las horas de todo el personal de golpe.
+
+CAMBIO DE FONDO EN LOS DATOS
+        Sanciones_Cumplidas ahora se lee CON FECHA (columna D), no como un
+        total suelto: hay que saber si el pago cayó antes o después de cada
+        domingo. Un pago hecho el mismo día del domingo cuenta como hecho a
+        tiempo (beneficio de la duda a la unidad).
+
+POR QUÉ NO SE DISPARA SOLO
+        La duplicación se deriva de los domingos REGISTRADOS en la hoja,
+        nunca de new Date(). _recalcularSanciones() borra y recalcula todo
+        desde cero en cada pago y en cada envío de alertas — si dependiera
+        de "hoy", las horas subirían solas en cada recálculo. Probado:
+        50 recálculos seguidos dan siempre el mismo número.
+
+
+───────────────────────────────────────────────────────────────────────
+VERIFICACIÓN
+───────────────────────────────────────────────────────────────────────
+Sin node en este PC, así que la lógica se probó replicando el algoritmo
+exacto en Python y corriéndolo contra 19 casos:  19/19 OK.
+
+  · Ejemplo oficial de junio, paso a paso ....... 2 → 4 → 8 → 16  ✓
+  · Pagar antes del domingo detiene el reloj .... 0h  ✓
+  · Pagar el mismo domingo cuenta a tiempo ...... 0h  ✓
+  · Pagar un día tarde: ya duplicó .............. 2h  ✓
+  · Pago parcial (debe 4h, paga 1h) ............. 3h  ✓
+  · Falta sin excusa con deuda: SOLO duplica .... 4h, no 6h  ✓
+  · Excusa no salva de la duplicación ........... 4h  ✓
+  · Tope de 32h con 10 domingos ................. 32h ✓
+  · Sin deuda nunca sube ........................ 0h  ✓
+  · OSCAR con amnistía .......................... 4h  ✓
+  · YADHIRA con amnistía ........................ 8h  ✓
+  · Determinismo: 50 recálculos ................. siempre 4h  ✓
+  · Quien pagó todo no revive ................... 0h  ✓
+
+Además: balance JS OK en app.js/sw.js/Codigo.gs (validador propio, corrido
+también contra files 52 como control), I2 ✓, I4 ✓, y se confirmó que NO
+existe lógica de sanciones duplicada en otro punto (un solo Math.pow).
+
+
+───────────────────────────────────────────────────────────────────────
+⚠️ LO QUE VA A PASAR AL DESPLEGAR — LEER ANTES
+───────────────────────────────────────────────────────────────────────
+El recálculo corre sobre TODO el personal, no solo sobre Oscar. Varias
+unidades verán sus horas cambiar el mismo día. La app ya lo anuncia en el
+aviso de actualización y lo explica en la pantalla de Deudores, y el correo
+también, pero conviene avisarlo por el canal de la estación antes de que
+empiecen a preguntar.
+
+Quien tenga 6 o más faltas verá su deuda BAJAR a 32h (el tope nuevo). Es
+correcto: la sanción de miles de horas no era cumplible.
 
 
 ───────────────────────────────────────────────────────────────────────
 CÓMO DESPLEGAR
 ───────────────────────────────────────────────────────────────────────
-GITHUB (frontend) — subir estos 5 archivos al repo bomberos-inirida-app:
+GITHUB (frontend) — subir al repo bomberos-inirida-app:
    app.js · index.html · sw.js · icon-192.png · icon-512.png
 
 APPS SCRIPT (backend) — pegar Codigo.gs y desplegar con:
    Implementar → Administrar implementaciones → ✏️ Editar → Nueva versión
-   ⚠️ INVARIANTE I1: la MISMA implementación. Crear una nueva cambia la
-   URL y rompe la app entera.
+   ⚠️ INVARIANTE I1: la MISMA implementación. Crear una nueva cambia la URL
+   y rompe la app entera.
 
-El ícono nuevo puede tardar en verse: Android cachea el splash. Se ve al
-reinstalar la APK o al limpiar los datos de la app.
+Tras desplegar, entra a "Ver Deudores" y confirma que Oscar aparece con 4h.
+Si sale con 2h, es que al domingo 19/07 aún no se le pasó lista en la app:
+el corte necesita ese domingo registrado para poder duplicar.
 
                     ABNEGACIÓN Y DISCIPLINA
