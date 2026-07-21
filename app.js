@@ -23,6 +23,7 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // muestra el banner verde por 10 min con la lista de cambios.
 const APP_VERSION = '5.92';
 const APP_VERSION_NOTAS = [
+  'v5.92: 👁️ NUEVO: al escribir las coordenadas a mano aparece una VISTA PREVIA EN VIVO debajo de los campos que muestra cómo quedará el pin (en decimal y en grados) o te avisa si algo está mal — así lo confirmas antes de enviar el reporte, sin depender de tener señal.',
   'v5.92: 📍 Corregido: al escribir las coordenadas A MANO ahora se aceptan con COMA o con punto decimal (ej: 3,8650 o 3.8650). Antes, si se escribía con coma, la app las guardaba mal y el pin caía en el lugar equivocado del Mapa de Emergencias. También reconoce si pegas las dos coordenadas juntas en un solo campo y el formato de grados (3°51\'54"N). Al guardar, muestra cómo quedaron interpretadas para que las revises.',
   'v5.91: ⚠️ CAMBIO IMPORTANTE EN LAS SANCIONES. Por cada domingo que pase sin que cumplas tus horas, la deuda se DUPLICA (2h → 4h → 8h → 16h...), con un tope de 32 horas. Asistir NO detiene la duplicación y presentar excusa TAMPOCO: la excusa justifica que no viniste, no que dejaste de cumplir lo que ya debías. Lo único que la detiene es cumplir las horas antes del próximo domingo.',
   'v5.91: 🤝 Ajuste por única vez: como antes el sistema no aplicaba bien esta regla, a quienes les habría subido de golpe se les dejó la deuda en el valor que ya venían viendo duplicado una sola vez, y no en el total que les correspondía. De aquí en adelante la regla corre normal para todos.',
@@ -1366,6 +1367,8 @@ const app = {
     this.actualizarUIGPS();
     if (modo === 'auto') {
       this.capturarGPS();
+      const box = document.getElementById('gpsPreview');   // v5.92: ocultar vista previa manual
+      if (box) { box.style.display = 'none'; box.innerHTML = ''; }
     } else {
       const coords = document.getElementById('gpsCoords');
       coords.textContent = 'Modo manual — escriba las coordenadas abajo';
@@ -1373,6 +1376,7 @@ const app = {
         document.getElementById('f_lat_manual').value = this.reporteActual.gps.lat || '';
         document.getElementById('f_lng_manual').value = this.reporteActual.gps.lng || '';
       }
+      this._previewCoordsManual();   // v5.92: muestra en vivo lo que ya hay cargado
     }
   },
 
@@ -1494,6 +1498,34 @@ const app = {
       lngOk: !isNaN(lng) && lng >= -180 && lng <= 180,
       hayTexto: !!(latTxt || lngTxt)
     };
+  },
+
+  // v5.92: Vista previa EN VIVO de las coordenadas manuales (se llama en cada `oninput`).
+  // Muestra exactamente cómo se guardará el pin ANTES de enviar, así la unidad detecta
+  // al instante si escribió mal. Sin llamadas de red ni mapa: funciona sin señal (rural
+  // Inírida) y no mete texto libre a innerHTML (solo números ya parseados y GMS derivado).
+  _previewCoordsManual() {
+    const box = document.getElementById('gpsPreview');
+    if (!box) return;
+    const c = this._leerCoordsManual();
+    if (!c.hayTexto) { box.style.display = 'none'; box.innerHTML = ''; box.className = 'gps-preview'; return; }
+    box.style.display = 'block';
+    if (c.latOk && c.lngOk) {
+      const gms = `${this.decimalAGMS(c.lat, true)} ${this.decimalAGMS(c.lng, false)}`;
+      box.className = 'gps-preview ok';
+      box.innerHTML = '📍 <b>Así se guardará el pin:</b><br>' +
+        `🌐 <span class="val">${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}</span><br>` +
+        `📐 <span class="val">${gms}</span>`;
+    } else {
+      box.className = 'gps-preview err';
+      let msg;
+      if (!isNaN(c.lat) && !isNaN(c.lng)) {
+        msg = 'Coordenadas fuera de rango (latitud −90 a 90, longitud −180 a 180). ¿Falta el punto o la coma decimal?';
+      } else {
+        msg = 'Aún no se entienden. Escriba con coma o punto decimal (ej: 3,8650 y -67,9239).';
+      }
+      box.innerHTML = `⚠️ ${msg}`;
+    }
   },
 
   // Orientación brújula a texto (105 → "105° E")
@@ -2197,6 +2229,7 @@ const app = {
         // Refleja lo que se interpretó, para que la unidad LO VEA antes de enviar.
         document.getElementById('f_lat_manual').value = c.lat.toFixed(6);
         document.getElementById('f_lng_manual').value = c.lng.toFixed(6);
+        this._previewCoordsManual();   // v5.92: sincroniza la vista previa con lo guardado
       } else if (c.hayTexto) {
         this.toast('⚠️ Coordenadas inválidas. Use punto o coma decimal (ej: 3,8650 y -67,9239). Latitud entre −90 y 90, longitud entre −180 y 180.', 'error');
       }

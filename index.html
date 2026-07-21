@@ -375,6 +375,14 @@ try {
     background: white; color: var(--negro); font-size: 13px; margin-bottom: 6px;
   }
   .gps-manual-fields input:last-child { margin-bottom: 0; }
+  /* v5.92: vista previa en vivo de las coordenadas manuales (dentro de la tarjeta oscura) */
+  .gps-preview {
+    margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 12px;
+    line-height: 1.5; border-left: 3px solid transparent;
+  }
+  .gps-preview .val { font-family: monospace; font-size: 12px; }
+  .gps-preview.ok  { background: rgba(34,197,94,0.18);  border-left-color: #22c55e; color: #dcfce7; }
+  .gps-preview.err { background: rgba(245,158,11,0.18); border-left-color: #f59e0b; color: #fef3c7; }
 
   .gps-detalles {
     background: rgba(0,0,0,0.25); padding: 10px 12px;
@@ -1569,8 +1577,9 @@ button:active { transform: scale(.96); }
         </div>
         <div class="gps-detalles" id="gpsDetalles" style="display:none;"></div>
         <div class="gps-manual-fields">
-          <input type="text" id="f_lat_manual" placeholder="Latitud (Ej: 3,8650 o 3.8650)" inputmode="decimal">
-          <input type="text" id="f_lng_manual" placeholder="Longitud (Ej: -67,9239 o -67.9239)" inputmode="decimal">
+          <input type="text" id="f_lat_manual" placeholder="Latitud (Ej: 3,8650 o 3.8650)" inputmode="decimal" oninput="app._previewCoordsManual()">
+          <input type="text" id="f_lng_manual" placeholder="Longitud (Ej: -67,9239 o -67.9239)" inputmode="decimal" oninput="app._previewCoordsManual()">
+          <div id="gpsPreview" class="gps-preview" style="display:none;"></div>
         </div>
       </div>
 
