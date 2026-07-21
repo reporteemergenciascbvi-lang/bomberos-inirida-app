@@ -21,8 +21,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.91';
+const APP_VERSION = '5.92';
 const APP_VERSION_NOTAS = [
+  'v5.92: 📍 Corregido: al escribir las coordenadas A MANO ahora se aceptan con COMA o con punto decimal (ej: 3,8650 o 3.8650). Antes, si se escribía con coma, la app las guardaba mal y el pin caía en el lugar equivocado del Mapa de Emergencias. También reconoce si pegas las dos coordenadas juntas en un solo campo y el formato de grados (3°51\'54"N). Al guardar, muestra cómo quedaron interpretadas para que las revises.',
   'v5.91: ⚠️ CAMBIO IMPORTANTE EN LAS SANCIONES. Por cada domingo que pase sin que cumplas tus horas, la deuda se DUPLICA (2h → 4h → 8h → 16h...), con un tope de 32 horas. Asistir NO detiene la duplicación y presentar excusa TAMPOCO: la excusa justifica que no viniste, no que dejaste de cumplir lo que ya debías. Lo único que la detiene es cumplir las horas antes del próximo domingo.',
   'v5.91: 🤝 Ajuste por única vez: como antes el sistema no aplicaba bien esta regla, a quienes les habría subido de golpe se les dejó la deuda en el valor que ya venían viendo duplicado una sola vez, y no en el total que les correspondía. De aquí en adelante la regla corre normal para todos.',
   'v5.91: 📋 Las alertas quedan igual: 3 domingos seguidos = llamado de atención verbal · 4 = llamado escrito con copia a la hoja de vida · 5 = deserción, con retiro de las actividades bomberiles y a consideración del Capitán el reingreso.',
@@ -1409,6 +1410,92 @@ const app = {
     return `${grados}°${String(minutos).padStart(2,'0')}'${String(segundos).padStart(2,'0')}"${dir}`;
   },
 
+  // v5.92: Convierte UN token de coordenada escrito a mano en un número decimal (o NaN).
+  // Causa raíz del bug del mapa: en Colombia el separador decimal es la COMA, y
+  // parseFloat("3,8650") devuelve 3 (corta en la coma). Como 3 es una latitud válida
+  // cerca de Inírida, pasaba el chequeo de rango y se guardaba MAL en silencio: el pin
+  // caía en (3, -67) en vez de (3.8650, -67.9239) → "desordenado en el mapa".
+  // Ahora tolera: coma o punto decimal, separador de miles, letras de hemisferio
+  // (N/S/E/W/O), grados-minutos-segundos (3°51'54"N) y espacios/símbolos sobrantes.
+  _numDesdeCoord(txt) {
+    if (txt === null || txt === undefined) return NaN;
+    let s = String(txt).trim();
+    if (!s) return NaN;
+
+    // Signo: '-' al inicio, o letra de hemisferio Sur/Oeste (S / W / O de "Oeste").
+    const neg = /^-/.test(s) || /[SWOswo]/.test(s);
+    s = s.replace(/[NSEWOnsewo]/g, ' ');   // fuera letras de hemisferio
+
+    // ¿Grados-minutos-segundos? Tiene símbolos ° ' " o 2-3 grupos numéricos separados.
+    const tieneSimbolos = /[°'"]/.test(s);
+    const grupos = s.replace(/[°'"]/g, ' ').trim().split(/\s+/).filter(t => /\d/.test(t));
+    if (tieneSimbolos || grupos.length >= 2) {
+      const p = grupos.map(x => Math.abs(parseFloat(x.replace(',', '.'))));
+      if (!p.length || p.some(isNaN)) return NaN;
+      const dec = (p[0] || 0) + (p[1] || 0) / 60 + (p[2] || 0) / 3600;
+      return neg ? -dec : dec;
+    }
+
+    // Decimal simple. Normaliza coma / punto (deja solo dígitos, punto y coma).
+    s = s.replace(/[^\d.,]/g, '');
+    if (s.includes('.') && s.includes(',')) {
+      // El ÚLTIMO separador es el decimal; el otro son miles → se elimina.
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else s = s.replace(/,/g, '');
+    } else if (s.includes(',')) {
+      s = s.replace(',', '.');             // coma decimal (Colombia)
+    }
+    const n = parseFloat(s);
+    if (isNaN(n)) return NaN;
+    return neg ? -Math.abs(n) : Math.abs(n);
+  },
+
+  // v5.92: Si la unidad pegó AMBAS coordenadas juntas en un solo campo
+  // (ej. "3.8650, -67.9239" copiado de Google Maps) y el otro campo quedó vacío,
+  // intenta separarlas. Solo devuelve [lat, lng] si logra DOS coordenadas EN RANGO;
+  // si no, devuelve null y el flujo cae al parseo campo por campo.
+  _dividirParDeCoords(txt) {
+    const s = String(txt || '').trim();
+    if (!s) return null;
+    const intentos = [];
+    if (s.includes(';')) intentos.push(s.split(';'));           // separadas por ';'
+    if (/,\s+/.test(s)) intentos.push(s.split(/,\s+/));         // coma+espacio (no parte la coma decimal)
+    const mNeg = s.match(/^(.+?)[,\s]+(-.+)$/);                 // la longitud arranca con '-' (Inírida)
+    if (mNeg) intentos.push([mNeg[1], mNeg[2]]);
+    if (/\s+/.test(s)) intentos.push(s.split(/\s+/));           // separadas por espacio(s)
+    for (const par of intentos) {
+      if (!par || par.length !== 2) continue;
+      const a = this._numDesdeCoord(par[0]);
+      const b = this._numDesdeCoord(par[1]);
+      if (!isNaN(a) && !isNaN(b) && a >= -90 && a <= 90 && b >= -180 && b <= 180) return [a, b];
+    }
+    return null;
+  },
+
+  // v5.92: Lee los dos campos manuales tolerando formatos y el caso "ambas en un campo".
+  _leerCoordsManual() {
+    const latTxt = (document.getElementById('f_lat_manual').value || '').trim();
+    const lngTxt = (document.getElementById('f_lng_manual').value || '').trim();
+    let lat = NaN, lng = NaN;
+    if (latTxt && !lngTxt) {
+      const par = this._dividirParDeCoords(latTxt);
+      if (par) [lat, lng] = par;
+    } else if (lngTxt && !latTxt) {
+      const par = this._dividirParDeCoords(lngTxt);
+      if (par) [lat, lng] = par;
+    }
+    if (isNaN(lat) || isNaN(lng)) {
+      lat = this._numDesdeCoord(latTxt);
+      lng = this._numDesdeCoord(lngTxt);
+    }
+    return {
+      lat, lng,
+      latOk: !isNaN(lat) && lat >= -90 && lat <= 90,
+      lngOk: !isNaN(lng) && lng >= -180 && lng <= 180,
+      hayTexto: !!(latTxt || lngTxt)
+    };
+  },
+
   // Orientación brújula a texto (105 → "105° E")
   headingATexto(grados) {
     if (grados === null || grados === undefined || isNaN(grados)) return '';
@@ -2097,21 +2184,21 @@ const app = {
     r.clasificacionOtra = document.getElementById('f_clasif_otra').value;
 
     if (this.modoUbicacion === 'manual') {
-      const latTxt = document.getElementById('f_lat_manual').value;
-      const lngTxt = document.getElementById('f_lng_manual').value;
-      const lat = parseFloat(latTxt);
-      const lng = parseFloat(lngTxt);
-      // v5.85 (BUG mapa): validar RANGO, no solo isNaN — un valor sin punto
-      // decimal (ej. "-679185" en vez de "-67.9185") pasaba isNaN y luego
-      // rompía el encuadre del Mapa de Emergencias para TODOS los pines.
-      const latValida = !isNaN(lat) && lat >= -90 && lat <= 90;
-      const lngValida = !isNaN(lng) && lng >= -180 && lng <= 180;
-      if (latValida && lngValida) {
-        r.gps = { lat, lng, accuracy: 0, altitude: null, speedKmh: null, heading: '' };
-        r.gpsGMS = `${this.decimalAGMS(lat, true)} ${this.decimalAGMS(lng, false)}`;
+      // v5.92: parser robusto — tolera coma decimal (Colombia), GMS, letras de
+      // hemisferio y ambas coordenadas pegadas en un solo campo. Antes se usaba
+      // parseFloat crudo: "3,8650" → 3 (corta en la coma) se guardaba mal en
+      // silencio y el pin caía en (3, -67). La validación de RANGO de v5.85 se
+      // conserva dentro de _leerCoordsManual().
+      const c = this._leerCoordsManual();
+      if (c.latOk && c.lngOk) {
+        r.gps = { lat: c.lat, lng: c.lng, accuracy: 0, altitude: null, speedKmh: null, heading: '' };
+        r.gpsGMS = `${this.decimalAGMS(c.lat, true)} ${this.decimalAGMS(c.lng, false)}`;
         r.gpsManual = true;
-      } else if (latTxt || lngTxt) {
-        this.toast('⚠️ Coordenadas GPS inválidas (revisa el punto decimal) — no se guardaron', 'error');
+        // Refleja lo que se interpretó, para que la unidad LO VEA antes de enviar.
+        document.getElementById('f_lat_manual').value = c.lat.toFixed(6);
+        document.getElementById('f_lng_manual').value = c.lng.toFixed(6);
+      } else if (c.hayTexto) {
+        this.toast('⚠️ Coordenadas inválidas. Use punto o coma decimal (ej: 3,8650 y -67,9239). Latitud entre −90 y 90, longitud entre −180 y 180.', 'error');
       }
     }
 
