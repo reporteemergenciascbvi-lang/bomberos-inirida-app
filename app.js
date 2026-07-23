@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.93';
+const APP_VERSION = '5.94';
 const APP_VERSION_NOTAS = [
+  'v5.94: 🏷️ Nuevos tipos de emergencia en la Clasificación: Incendio de interfaz, Búsqueda y rescate, Traslado, Atención de árbol caído y Atención de abejas / avispas. Si marcas "Búsqueda y rescate", escribe en "Otra" la modalidad exacta (extraviado, acuática, colapso, etc.). En el Mapa de Emergencias cada uno tiene su propio pin (las abejas van con 🐝).',
+  'v5.94: ⚠️ Ahora cada unidad ve en su Inicio ÚNICAMENTE su propia sanción pendiente (antes solo el admin veía la lista). Toca el aviso para ver de qué domingos viene tu deuda. Nadie ve la de los demás.',
+  'v5.94: 🗺️ Corregido: al abrir "Ver reporte completo" desde el Mapa a veces salía el reporte vacío o pedía la contraseña sin cargar. Ahora la sesión se valida mejor, y si la descarga falla se muestra un aviso con botón de reintentar en vez de un reporte en blanco. Al reentrar al Panel ya no queda abierto el reporte anterior.',
   'v5.93: 🧾 Corregido (sanciones): al descontar horas cumplidas, ahora el pago SIEMPRE se cruza con la deuda aunque la cédula esté escrita distinto (con puntos, espacios o como número) en la asistencia y en el registro. Antes, en esos casos, salía "✅ registrado" pero la deuda no bajaba. Ya no hay que corregir la cédula a mano.',
   'v5.92: 👁️ NUEVO: al escribir las coordenadas a mano aparece una VISTA PREVIA EN VIVO debajo de los campos que muestra cómo quedará el pin (en decimal y en grados) o te avisa si algo está mal — así lo confirmas antes de enviar el reporte, sin depender de tener señal.',
   'v5.92: 📍 Corregido: al escribir las coordenadas A MANO ahora se aceptan con COMA o con punto decimal (ej: 3,8650 o 3.8650). Antes, si se escribía con coma, la app las guardaba mal y el pin caía en el lugar equivocado del Mapa de Emergencias. También reconoce si pegas las dos coordenadas juntas en un solo campo y el formato de grados (3°51\'54"N). Al guardar, muestra cómo quedaron interpretadas para que las revises.',
@@ -144,10 +147,17 @@ const CREDITO_AUTOR = {
   facebook: 'https://www.facebook.com/jeancarlos.rangel.1420'
 };
 
+// v5.94: tipos nuevos pedidos por la comandancia — incendio de interfaz,
+// árbol caído, abejas/avispas, búsqueda y rescate (la modalidad exacta se
+// escribe en "Otra") y "Traslado" como casilla propia junto a Primeros
+// auxilios. Agregar tipos aquí es seguro: la lista de casillas, el PDF y el
+// mapa se pintan DESDE este arreglo; los reportes viejos no se afectan.
 const TIPOS_EVENTO = [
-  'Incendio estructural', 'Incendio forestal', 'Incendio vehicular', 'Rescate vehicular',
-  'Rescate en altura', 'Rescate acuático', 'Primeros auxilios', 'Materiales peligrosos (MATPEL)',
-  'Inundación / desastre natural', 'Colapso estructural', 'Rescate animal', 'Otra'
+  'Incendio estructural', 'Incendio forestal', 'Incendio de interfaz', 'Incendio vehicular',
+  'Rescate vehicular', 'Rescate en altura', 'Rescate acuático', 'Búsqueda y rescate',
+  'Primeros auxilios', 'Traslado', 'Materiales peligrosos (MATPEL)',
+  'Atención de árbol caído', 'Atención de abejas / avispas', 'Rescate animal',
+  'Inundación / desastre natural', 'Colapso estructural', 'Otra'
 ];
 
 const CAUSAS = [
@@ -1204,8 +1214,10 @@ const app = {
   async _cargarWidgetSanciones() {
     const cont = document.getElementById('homeSanciones');
     if (!cont) return;
-    if (!this.esAdmin()) { cont.style.display = 'none'; return; }
-    if (!navigator.onLine) return;
+    if (!navigator.onLine) { cont.style.display = 'none'; return; }
+    // v5.94: la unidad NO admin que tenga deuda ve ÚNICAMENTE su propia sanción
+    // (no la de los demás). El admin sigue viendo el listado completo.
+    if (!this.esAdmin()) { return this._cargarWidgetMiSancion(cont); }
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1239,6 +1251,64 @@ const app = {
         + '</div>';
       cont.style.display = 'block';
     } catch (e) { cont.style.display = 'none'; }
+  },
+
+  // ═══ v5.94: sanción propia para la unidad (NO admin) ═══
+  // Muestra en el Inicio SOLO la deuda de quien está en sesión — nunca la de
+  // los demás. La identidad se verifica en el backend con el pase firmado
+  // (no con el email declarado), así que nadie puede pedir la de otro.
+  async _cargarWidgetMiSancion(cont) {
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'miSancion', pase: this._pase || '', idToken: this._googleIdToken || '' })
+      });
+      const data = await resp.json();
+      if (!data.ok || !data.sancion || Number(data.sancion.horasPendientes) <= 0) { cont.style.display = 'none'; return; }
+      this._miSancionCache = data;
+      const s = data.sancion;
+      const badge =
+        (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO') ? '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>'
+        : (s.tipoAlerta === 'LLAMADO_ESCRITO') ? '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>'
+        : (s.tipoAlerta === 'LLAMADO_VERBAL') ? '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>'
+        : '';
+      cont.innerHTML =
+        '<div onclick="app.abrirMiSancion()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
+        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:4px;">⚠️ Tienes ' + app._esc(String(s.horasPendientes)) + ' horas de sanción pendientes' + badge + '</div>'
+        + '<div style="font-size:12px;color:#c00;">Toca para ver de qué domingos vienen →</div>'
+        + '</div>';
+      cont.style.display = 'block';
+    } catch (e) { cont.style.display = 'none'; }
+  },
+
+  // v5.94: detalle en solo lectura de la deuda propia (modal, sin diálogos
+  // nativos — I4). Usa lo ya traído por _cargarWidgetMiSancion.
+  abrirMiSancion() {
+    const data = this._miSancionCache;
+    if (!data || !data.sancion) return;
+    const s = data.sancion;
+    const faltas = data.faltas || [];
+    const filas = faltas.length
+      ? faltas.map(f =>
+          '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #ffe0e0;font-size:13px;">'
+          + '<span style="font-weight:600;white-space:nowrap;">' + app._esc(f.fecha || '-') + '</span>'
+          + '<span style="color:#555;text-align:right;">' + app._esc(f.tema || '(sin tema)') + '</span>'
+          + '</div>').join('')
+      : '<div style="color:#777;font-style:italic;padding:8px 0;">No hay domingos sin excusa registrados para ti.</div>';
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+      + '<div style="font-size:16px;font-weight:800;color:#c00;text-align:center;margin-bottom:4px;">⚠️ Mi sanción</div>'
+      + '<div style="text-align:center;font-size:14px;color:#333;margin-bottom:12px;">Debes <b style="color:#c00;">' + app._esc(String(s.horasPendientes)) + ' horas</b></div>'
+      + '<div style="font-size:12px;color:#666;margin-bottom:6px;">Domingos sin excusa que generaron tu deuda:</div>'
+      + filas
+      + '<div style="font-size:11px;color:#888;margin-top:12px;line-height:1.5;">La deuda se duplica cada domingo que pase sin cumplir tus horas (tope 32h). Cumplir las horas a tiempo es lo único que la detiene. Si ves un error, avisa al administrador.</div>'
+      + '<button id="_miSancCerrar" style="margin-top:14px;width:100%;padding:12px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cerrar</button>'
+      + '</div>';
+    document.body.appendChild(modal);
+    const cerrar = () => { if (modal.parentNode) document.body.removeChild(modal); };
+    document.getElementById('_miSancCerrar').onclick = cerrar;
+    modal.onclick = (ev) => { if (ev.target === modal) cerrar(); };
   },
 
   // ═══ v5.63 (BUG 9): renovación automática del pase de sesión ═══
@@ -2943,7 +3013,23 @@ const app = {
     if (!pw) return;
     this._adminAutorizado = true;
     this.irA('pantallaPanelAdmin');
+    // v5.94: si venías de "Ver reporte completo" (p. ej. desde el Mapa de
+    // Emergencias), la vista de detalle quedaba abierta y al reentrar al Panel
+    // se veía ese reporte (a veces vacío) en lugar de la lista. Reseteamos.
+    this._resetVistaPanelAdmin();
     await this.cargarReportesAdmin();
+  },
+
+  // v5.94: deja el Panel Admin en su estado inicial (lista visible, detalle y
+  // edición ocultos). Seguro de llamar aunque algún nodo no exista.
+  _resetVistaPanelAdmin() {
+    const viendo = document.getElementById('panelAdminViendo');
+    const editando = document.getElementById('panelAdminEditando');
+    const wrap = document.getElementById('listaReportesAdminWrap');
+    if (viendo) viendo.style.display = 'none';
+    if (editando) editando.style.display = 'none';
+    if (wrap) wrap.style.display = 'block';
+    this._reporteAdminViendo = null;
   },
 
   async cargarReportesAdmin() {
@@ -2957,7 +3043,8 @@ const app = {
         body: JSON.stringify({
           accion: 'listarTodosReportes',
           adminEmail: this.usuario.email,
-          adminPassword: this._adminPwdSession || ''
+          adminPassword: this._adminPwdSession || '',
+          pase: this._pase || ''             // v5.94: identidad firmada (ver obtenerReporteCompleto)
         })
       });
       const text = await resp.text();
@@ -3093,8 +3180,23 @@ const app = {
     const cont = document.getElementById('panelAdminViendoContenido');
     cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Cargando reporte completo desde el servidor...</div>';
 
-    // Descargar reporte completo
-    const r = await this._descargarReporteCompletoAdmin(idReporte) || rBase;
+    // Descargar reporte completo. v5.94: si la descarga falla (auth intermitente
+    // o red caída en Inírida) NO mostramos el stub pobre del mapa como si fuera
+    // el reporte real — eso era el "reporte vacío" que confundía. Mostramos un
+    // aviso claro con botón de reintento, sin dejar el detalle a medias.
+    const rCompleto = await this._descargarReporteCompletoAdmin(idReporte);
+    if (!rCompleto) {
+      const _cid = String(idReporte).replace(/"/g, '&quot;');
+      cont.innerHTML = '<div style="padding:24px;text-align:center;color:#c00;">'
+        + '<div style="font-size:40px;">⚠️</div>'
+        + '<div style="margin-top:8px;font-weight:700;">No se pudo cargar el reporte completo</div>'
+        + '<div style="font-size:13px;color:#666;margin-top:6px;">Puede ser la conexión o que la sesión de administrador expiró. Intenta de nuevo.</div>'
+        + '<button data-id="' + _cid + '" onclick="app.verReporteAdmin(this.dataset.id)" style="margin-top:14px;padding:10px 18px;background:#6e2fa0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>'
+        + '</div>';
+      this._reporteAdminViendo = null;
+      return;
+    }
+    const r = rCompleto;
     this._reporteAdminViendo = r;
 
     // Conectar el botón "Imprimir" del panel a este reporte
@@ -3289,6 +3391,7 @@ const app = {
           accion: 'listarBomberosBonificacion',
           adminEmail: this.usuario.email,
           adminPassword: this._adminPwdSession || '',
+          pase: this._pase || '',            // v5.94: identidad firmada (ver obtenerReporteCompleto)
           idReporte: idReporte
         })
       });
@@ -3785,6 +3888,7 @@ const app = {
           accion: 'obtenerReporteCompleto',
           adminEmail: this.usuario.email,
           adminPassword: this._adminPwdSession || '',
+          pase: this._pase || '',            // v5.94: identidad firmada — sin esto el backend rechaza cuando EXIGIR_TOKEN está estricto o el candado anti-fuerza-bruta está activo
           idReporte: idReporte
         })
       });
@@ -6208,15 +6312,24 @@ ${paginaFotos}
   // el color solo) + paleta de colores con más contraste entre sí.
   // Un reporte puede tener varias clasificaciones marcadas — se usa la
   // PRIMERA que coincida en este orden de prioridad para pintar el pin.
+  // v5.94: se suman los tipos nuevos con pin propio (incendio de interfaz,
+  // búsqueda y rescate, traslado, abejas/avispas 🐝, árbol caído). El orden ES
+  // la prioridad de color del pin cuando un reporte tiene varias casillas
+  // marcadas — gana la primera que coincida.
   _MAPA_COLORES: [
     { tipo: 'Incendio estructural',              color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
     { tipo: 'Incendio forestal',                 color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
+    { tipo: 'Incendio de interfaz',              color: '#bf360c', emoji: '🔥', etiqueta: 'Incendio de interfaz' },
     { tipo: 'Incendio vehicular',                color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
-    { tipo: 'Primeros auxilios',                 color: '#c62828', emoji: '🚑', etiqueta: 'Primeros auxilios / traslado' },
-    { tipo: 'Materiales peligrosos (MATPEL)',    color: '#f9a825', emoji: '☣️', etiqueta: 'MATPEL' },
+    { tipo: 'Búsqueda y rescate',                color: '#4527a0', emoji: '🔦', etiqueta: 'Búsqueda y rescate' },
     { tipo: 'Rescate vehicular',                 color: '#1565c0', emoji: '🚗', etiqueta: 'Rescate vehicular' },
     { tipo: 'Rescate en altura',                 color: '#6a1b9a', emoji: '🧗', etiqueta: 'Rescate en altura' },
     { tipo: 'Rescate acuático',                  color: '#00838f', emoji: '🌊', etiqueta: 'Rescate acuático' },
+    { tipo: 'Primeros auxilios',                 color: '#c62828', emoji: '🚑', etiqueta: 'Primeros auxilios' },
+    { tipo: 'Traslado',                          color: '#ad1457', emoji: '🚑', etiqueta: 'Traslado' },
+    { tipo: 'Materiales peligrosos (MATPEL)',    color: '#f9a825', emoji: '☣️', etiqueta: 'MATPEL' },
+    { tipo: 'Atención de abejas / avispas',      color: '#ff8f00', emoji: '🐝', etiqueta: 'Abejas / avispas' },
+    { tipo: 'Atención de árbol caído',           color: '#33691e', emoji: '🌳', etiqueta: 'Árbol caído' },
     { tipo: 'Inundación / desastre natural',     color: '#2e7d32', emoji: '⛈️', etiqueta: 'Inundación / desastre natural' },
     { tipo: 'Colapso estructural',               color: '#37474f', emoji: '🏚️', etiqueta: 'Colapso estructural' },
     { tipo: 'Rescate animal',                    color: '#5d4037', emoji: '🐾', etiqueta: 'Rescate animal' },
@@ -6267,7 +6380,7 @@ ${paginaFotos}
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'listarReportesParaMapa', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        body: JSON.stringify({ accion: 'listarReportesParaMapa', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '', pase: this._pase || '' })
       });
       const data = await resp.json();
       if (!data.ok) { estado.textContent = 'Error: ' + (data.error||'desconocido'); return; }
