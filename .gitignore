@@ -1,3 +1,22 @@
 # Reportes y capturas que genera gstack (/qa, /review). Son artefactos
 # locales de diagnóstico, no forman parte de la app.
 .gstack/
+
+# Archivos que NO deben publicarse en GitHub Pages.
+# Este repo se sirve entero como sitio web: todo lo que esté acá queda
+# accesible desde internet sin autenticación.
+#
+# appsscript.json = manifiesto del BACKEND (Apps Script). Revelaba
+#   executeAs: USER_DEPLOYING, access: ANYONE_ANONYMOUS y los 5 scopes de
+#   OAuth. No es una credencial, pero es el mapa que necesita alguien para
+#   buscar acciones sin autenticar en doPost. Su lugar es la carpeta del
+#   backend (files N), no el repo del frontend.
+# LEEME.txt = nota interna de traspaso entre versiones (menciona la
+#   estructura de carpetas y qué se corrigió). Es documentación de
+#   desarrollo, no de usuario.
+appsscript.json
+LEEME.txt
+
+# El APK se distribuye por Releases o Drive, nunca versionado en el repo:
+# aquí quedaba descargable por cualquiera y sin firmar.
+*.apk
