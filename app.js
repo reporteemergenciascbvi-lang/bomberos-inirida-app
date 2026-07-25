@@ -21,8 +21,13 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.94';
+const APP_VERSION = '5.95';
 const APP_VERSION_NOTAS = [
+  'v5.95: 📊 Corregido en Operatividad: al tocar "Ver emerg. / Ver activ. / Ver dom." de una unidad, el detalle ahora muestra TODO lo que suma el total, aunque el nombre esté escrito distinto en registros viejos (ahora se cruza también por cédula). Antes el total podía decir 6.3h y el detalle mostrar menos.',
+  'v5.95: ✏️ Al EDITAR la asistencia de un domingo, los campos 👤 Encargado y 🛡️ Guardia ahora AUTOCOMPLETAN buscando en el personal (escribe las iniciales y toca el nombre), igual que al registrar.',
+  'v5.95: 🧾 Al agregar personal a la asistencia ya no se cuela una persona repetida por tener la cédula escrita con puntos o espacios (ej: 1.234.567 y 1234567 ya se reconocen como la misma).',
+  'v5.95: 🏅 En las bonificaciones, los nombres con tilde o Ñ ya no se duplican ("JOSÉ" y "JOSE" son la misma persona) y el botón de quitar elimina bien ambas formas.',
+  'v5.95: 🛡️ Refuerzos internos de seguridad y estabilidad en varias pantallas y en el servidor.',
   'v5.94: 🏷️ Nuevos tipos de emergencia en la Clasificación: Incendio de interfaz, Búsqueda y rescate, Traslado, Atención de árbol caído y Atención de abejas / avispas. Si marcas "Búsqueda y rescate", escribe en "Otra" la modalidad exacta (extraviado, acuática, colapso, etc.). En el Mapa de Emergencias cada uno tiene su propio pin (las abejas van con 🐝).',
   'v5.94: ⚠️ Ahora cada unidad ve en su Inicio ÚNICAMENTE su propia sanción pendiente (antes solo el admin veía la lista). Toca el aviso para ver de qué domingos viene tu deuda. Nadie ve la de los demás.',
   'v5.94: 🗺️ Corregido: al abrir "Ver reporte completo" desde el Mapa a veces salía el reporte vacío o pedía la contraseña sin cargar. Ahora la sesión se valida mejor, y si la descarga falla se muestra un aviso con botón de reintentar en vez de un reporte en blanco. Al reentrar al Panel ya no queda abierto el reporte anterior.',
@@ -651,7 +656,7 @@ const app = {
     await this.guardarPerfilBombero();
 
     this.actualizarUIUsuario();
-    this.toast(`Listo, ${this.usuario.nombrePila || nombre.split(' ')[0]} 🚒`, 'exito');
+    this.toast(`Listo, ${this.usuario.nombrePila || String(nombre || '').split(' ')[0]} 🚒`, 'exito');
     this.irA('pantallaHome');
     await this.actualizarHome();
   },
@@ -1193,7 +1198,7 @@ const app = {
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
       });
       return `
-        <div class="reporte-item ${r.estado}" onclick="app.verDetalle('${r.id}')">
+        <div class="reporte-item ${r.estado}" data-id="${app._esc(r.id)}" onclick="app.verDetalle(this.dataset.id)">
           <div class="info">
             <div class="consec">${r.consecutivo || 'Sin asignar'}</div>
             <div class="desc">${tipos}</div>
@@ -2057,7 +2062,7 @@ const app = {
     const item = document.createElement('div');
     item.className = 'item-personal';
     item.innerHTML = `
-      <input type="text" list="rosterBomberos" placeholder="Nombre del tripulante (escriba inicial)" value="${nombre.replace(/"/g, '&quot;')}" oninput="app.recalcularPersonal()">
+      <input type="text" list="rosterBomberos" placeholder="Nombre del tripulante (escriba inicial)" value="${app._esc(String(nombre || ''))}" oninput="app.recalcularPersonal()">
       <button type="button" class="btn-ci" title="Marcar como Comandante de Incidente (quien dirigió en el lugar)" onclick="app.marcarComandante(this)">⭐</button>
       <button type="button" class="quitar-personal" onclick="this.parentElement.remove(); app.recalcularPersonal();">×</button>
     `;
@@ -2073,9 +2078,8 @@ const app = {
       .map(n => `<option value="${n.replace(/"/g, '&quot;')}"></option>`).join('');
   },
 
-  _normNombre(s) {
-    return (s || '').trim().toUpperCase().replace(/\s+/g, ' ');
-  },
+  // v5.95: se eliminó una definición duplicada (débil, sin quitar tildes) de
+  // _normNombre que había aquí — la vigente (fuerte) vive junto a _cedKey.
 
   // v5.63 (BUG decimales): redondea a 1 decimal — evita "28.099999999999994h"
   _r1(n) {
@@ -3090,19 +3094,19 @@ const app = {
           ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
         </div>
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-          <button onclick="app.verReporteAdmin('${r.id}')"
+          <button data-id="${app._esc(r.id)}" onclick="app.verReporteAdmin(this.dataset.id)"
                   style="flex:1;min-width:80px;padding:8px 6px;background:#065f46;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
             👁️ Ver
           </button>
-          <button onclick="app.editarReporteAdmin('${r.id}')"
+          <button data-id="${app._esc(r.id)}" onclick="app.editarReporteAdmin(this.dataset.id)"
                   style="flex:1;min-width:80px;padding:8px 6px;background:var(--rojo);color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
             ✏️ Editar
           </button>
-          <button onclick="app.imprimirReporteAdmin('${r.id}')"
+          <button data-id="${app._esc(r.id)}" onclick="app.imprimirReporteAdmin(this.dataset.id)"
                   style="flex:1;min-width:80px;padding:8px 6px;background:#1e40af;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
             🖨️ Imprimir
           </button>
-          <button onclick="app.eliminarReporteAdmin('${r.id}', '${(r.consecutivo || '').replace(/'/g, '')}')"
+          <button data-id="${app._esc(r.id)}" data-consec="${app._esc(r.consecutivo || '')}" onclick="app.eliminarReporteAdmin(this.dataset.id, this.dataset.consec)"
                   style="flex:1;min-width:80px;padding:8px 6px;background:#991b1b;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px;">
             🗑️ Eliminar
           </button>
@@ -3415,14 +3419,15 @@ const app = {
       const esVistaReadOnly = !document.getElementById('adminBonifInput_' + idReporte);
       // Render chips
       cont.innerHTML = bomberos.map(nombre => {
-        const safe = String(nombre).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        // v5.95 (I5+I10): _esc completo (antes solo comillas) y datos por data-*, no en el string del onclick.
         const btnQuitar = esVistaReadOnly ? '' : `
-            <button onclick="app.quitarBomberoBonifAdmin(this, '${idReporte}', '${safe}')"
+            <button data-id="${app._esc(idReporte)}" data-nombre="${app._esc(nombre)}"
+                    onclick="app.quitarBomberoBonifAdmin(this, this.dataset.id, this.dataset.nombre)"
                     title="Quitar"
                     style="background:rgba(255,255,255,0.25);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;">×</button>`;
         return `
           <span style="display:inline-flex;align-items:center;gap:6px;background:#065f46;color:#fff;padding:5px ${esVistaReadOnly ? '10px' : '8px'} 5px 10px;border-radius:14px;font-size:12px;font-weight:600;">
-            ${safe}${btnQuitar}
+            ${app._esc(nombre)}${btnQuitar}
           </span>
         `;
       }).join('') +
@@ -4007,8 +4012,8 @@ const app = {
 
     const recursosHTML = (r.recursos || []).map(rec => {
       const personalStr = (rec.personal && rec.personal.length)
-        ? `<br><small>👥 ${rec.personal.join(', ')}</small>` : '';
-      return `<li><strong>${rec.recurso}</strong> (cant: ${rec.cantidad}) ${rec.codigo ? '— ' + rec.codigo : ''} ${rec.responsable ? '— ' + rec.responsable : ''}${personalStr}</li>`;
+        ? `<br><small>👥 ${app._esc(rec.personal.join(', '))}</small>` : '';
+      return `<li><strong>${app._esc(rec.recurso)}</strong> (cant: ${rec.cantidad}) ${rec.codigo ? '— ' + app._esc(rec.codigo) : ''} ${rec.responsable ? '— ' + app._esc(rec.responsable) : ''}${personalStr}</li>`;
     }).join('');
 
     cont.innerHTML = `
@@ -4018,12 +4023,12 @@ const app = {
           <span class="badge ${r.estado}">${this.etiquetaEstado(r.estado)}</span>
           ${fecha}
         </p>
-        <p><strong>Tipo:</strong> ${tipos}</p>
+        <p><strong>Tipo:</strong> ${app._esc(tipos)}</p>
         <p><strong>Dirección:</strong> ${app._esc(r.direccion || '—')}</p>
-        <p><strong>Barrio:</strong> ${r.barrio || '—'}</p>
+        <p><strong>Barrio:</strong> ${app._esc(r.barrio || '—')}</p>
         ${r.gps ? `<p><strong>GPS:</strong> ${r.gps.lat.toFixed(6)}, ${r.gps.lng.toFixed(6)} ${r.gpsManual ? '(manual)' : ''}</p>` : ''}
         <p><strong>Narrativa:</strong> ${app._esc(r.narrativa || '—')}</p>
-        ${r.operador ? `<p style="font-size:12px; color: var(--gris-texto); margin-top:8px;"><strong>Reporte realizado por:</strong> ${r.operador} ${r.operadorGrado ? '(' + r.operadorGrado + ')' : ''}</p>` : ''}
+        ${r.operador ? `<p style="font-size:12px; color: var(--gris-texto); margin-top:8px;"><strong>Reporte realizado por:</strong> ${app._esc(r.operador)} ${r.operadorGrado ? '(' + app._esc(r.operadorGrado) + ')' : ''}</p>` : ''}
       </div>
       ${recursosHTML ? `<div class="config-card"><h3>Recursos</h3><ul style="padding-left: 20px;">${recursosHTML}</ul></div>` : ''}
       <div class="config-card">
@@ -4034,7 +4039,7 @@ const app = {
       ${r.fotos && r.fotos.length ? `<div class="config-card"><h3>Fotografías (${r.fotos.length})</h3>${fotosHTML}</div>` : ''}
       <div class="config-card">
         <h3>Comandante</h3>
-        <p>${r.comandanteNombre || '—'} ${r.comandanteGrado ? `(${r.comandanteGrado})` : ''}</p>
+        <p>${app._esc(r.comandanteNombre || '—')} ${r.comandanteGrado ? `(${app._esc(r.comandanteGrado)})` : ''}</p>
       </div>
     `;
 
@@ -4833,8 +4838,12 @@ ${paginaFotos}
         if (!_vistosNorm[k] || (per.cedula && !_vistosNorm[k].cedula)) _vistosNorm[k] = per;
       });
       data.resultados = Object.values(_vistosNorm);
-      sug.innerHTML = data.resultados.map(per => {
-        return `<div onclick='app.seleccionarPersonalActividad(${JSON.stringify(per).replace(/'/g, "&#39;")})'
+      // v5.95 (I10): el objeto ya no viaja como JSON dentro del onclick (una
+      // comilla/carácter raro en el nombre rompía el handler) — se guarda en
+      // _busqPersonalRes y el div solo lleva el índice en data-i.
+      this._busqPersonalRes = data.resultados;
+      sug.innerHTML = data.resultados.map((per, i) => {
+        return `<div data-i="${i}" onclick="app.seleccionarPersonalActividad(app._busqPersonalRes[this.dataset.i])"
           style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">
           <strong>${app._esc(per.nombre)}</strong><br>
           <span style="color:#666;font-size:12px;">CC: ${app._esc(per.cedula)} | ${app._esc(per.rango)}</span>
@@ -5170,14 +5179,14 @@ ${paginaFotos}
         const esAdmH = this.esAdmin();
         return '<div style="padding:10px;border-bottom:1px solid #f0f0f0;">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
-          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;">📅 '+f+(tipo?' — '+tipo:'')+'</span>'
+          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;">📅 '+f+(tipo?' — '+app._esc(tipo):'')+'</span>'
           + (esAdmH
             ? '<button data-f="'+f+'" onclick="app.editarDomingo(this.dataset.f)" style="background:#1a5276;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">✏️</button>'
               + '<button data-f="'+f+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">🗑️</button>'
             : '')
           + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="color:#1a5276;font-size:13px;cursor:pointer;">Ver →</span>'
           + '</div>'
-          + (tema ? '<div style="font-size:12px;color:#666;margin-top:2px;">'+tema+'</div>' : '')
+          + (tema ? '<div style="font-size:12px;color:#666;margin-top:2px;">'+app._esc(tema)+'</div>' : '')
           + '</div>';
       }).join('');
     } catch(e) {}
@@ -5370,11 +5379,11 @@ ${paginaFotos}
   // Busca en la lista actual a alguien que coincida por cédula O por nombre
   // normalizado. Devuelve {key, entry} o null.
   _buscarAsistExistente(cedula, nombre) {
-    const ced = String(cedula || '').trim();
+    const ced = this._cedKey(cedula); // v5.95: solo dígitos — "1.234.567" == "1234567"
     const nn = this._normNombre(nombre);
     for (const k in this._asistRegistros) {
       const e = this._asistRegistros[k];
-      if ((ced && String(e.cedula || '').trim() === ced) || (nn && this._normNombre(e.nombre) === nn)) {
+      if ((ced && this._cedKey(e.cedula) === ced) || (nn && this._normNombre(e.nombre) === nn)) {
         return { key: k, entry: e };
       }
     }
@@ -5385,7 +5394,7 @@ ${paginaFotos}
   // NOMBRE es distinto → es una cédula duplicada (dos personas, misma cédula):
   // se avisa con claridad para que corrija el dato.
   _avisarAsistExistente(exist, cedula, nombre) {
-    const ced = String(cedula || '').trim();
+    const ced = this._cedKey(cedula); // v5.95: solo dígitos, igual que _buscarAsistExistente
     const mismoNombre = this._normNombre(exist.entry.nombre) === this._normNombre(nombre);
     if (ced && !mismoNombre) {
       this.toast('⚠️ La cédula ' + ced + ' ya está en la lista como "' + exist.entry.nombre
@@ -5401,6 +5410,12 @@ ${paginaFotos}
     return String(s || '').trim().toUpperCase().replace(/\s+/g, ' ')
       .replace(/[ÁÀÄÂ]/g, 'A').replace(/[ÉÈËÊ]/g, 'E').replace(/[ÍÌÏÎ]/g, 'I')
       .replace(/[ÓÒÖÔ]/g, 'O').replace(/[ÚÙÜÛ]/g, 'U').replace(/Ñ/g, 'N');
+  },
+
+  // Equivalente front de _cedKey del backend: cédula a SOLO dígitos, para que
+  // "1.234.567", "1 234 567" y "1234567" crucen como la misma persona.
+  _cedKey(x) {
+    return String(x == null ? '' : x).replace(/\D/g, '');
   },
 
   // Lleva la vista a una fila de asistencia y la resalta un momento.
@@ -6065,13 +6080,13 @@ ${paginaFotos}
       +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
       +'</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
-      +'<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
       +'<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
-      +'<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#1e8449;">'+this._r1(p.horasActividades)+'h</div>'
       +'<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
-      +'<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom))">'
+      +'<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
       +'<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div></div>'
       +'</div>'
@@ -6082,7 +6097,7 @@ ${paginaFotos}
       +'</div></div>';
   },
 
-  async _expandirDetalle(tipo, uid, nombre) {
+  async _expandirDetalle(tipo, uid, nombre, cedula) {
     const cont = document.getElementById(uid+'_det');
     if (!cont) return;
     if (cont.style.display!=='none' && cont.dataset.tipo===tipo) { cont.style.display='none'; return; }
@@ -6091,7 +6106,7 @@ ${paginaFotos}
     const accion = tipo==='emerg'?'obtenerEmergenciasPersona':tipo==='activ'?'obtenerActividadesPersona':'obtenerDomingosPersona';
     try {
       const resp=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({accion,nombre,mes:this._operMes,anio:this._operAnio})});
+        body:JSON.stringify({accion,nombre,cedula:cedula||'',mes:this._operMes,anio:this._operAnio})});
       const data=await resp.json();
       if(!data.ok){cont.innerHTML='<div style="font-size:12px;color:#c00;padding:4px;">Error: '+app._esc(data.error)+'</div>';return;}
       const borderColor = tipo==='emerg'?'#c0392b':tipo==='activ'?'#1e8449':'#e67e22';
@@ -6099,7 +6114,7 @@ ${paginaFotos}
       if(tipo==='emerg'){
         const lista=data.emergencias||[];
         if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin emergencias en este período</div>';}
-        else lista.forEach(e=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#c0392b;">'+e.consecutivo+'</strong><span style="float:right;font-size:11px;color:#666;">'+e.fecha+'</span><div style="color:#555;">'+e.tipo+'</div></div>';});
+        else lista.forEach(e=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#c0392b;">'+app._esc(e.consecutivo)+'</strong><span style="float:right;font-size:11px;color:#666;">'+app._esc(e.fecha)+'</span><div style="color:#555;">'+app._esc(e.tipo)+'</div></div>';});
       }else if(tipo==='activ'){
         const lista=data.actividades||[];
         if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin actividades en este período</div>';}
@@ -6832,8 +6847,14 @@ ${paginaFotos}
         +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
         +'<input type="text" id="_ednLugar" value="'+esc(lugarActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
-        +'<div><label style="font-size:12px;font-weight:700;">👤 Encargado</label><input type="text" id="_ednE" value="'+esc(enc)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
-        +'<div><label style="font-size:12px;font-weight:700;">🛡️ Guardia</label><input type="text" id="_ednG" value="'+esc(grd)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">👤 Encargado</label><div style="position:relative;">'
+        +'<input type="text" id="_ednE" value="'+esc(enc)+'" autocomplete="off" oninput="app._buscarAsistCampo(\'_ednE\',\'_ednESug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_ednESug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
+        +'</div></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">🛡️ Guardia</label><div style="position:relative;">'
+        +'<input type="text" id="_ednG" value="'+esc(grd)+'" autocomplete="off" oninput="app._buscarAsistCampo(\'_ednG\',\'_ednGSug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_ednGSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
+        +'</div></div>'
         +'</div>'
         +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1e8449;">📸 Fotos de la reunión</div>'
         +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:space-around;">'

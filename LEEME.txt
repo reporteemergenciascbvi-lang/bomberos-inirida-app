@@ -1,120 +1,73 @@
 ═══════════════════════════════════════════════════════════════════════
-  files 53 — CBVI Reportes
-  FRONTEND v5.91  ·  BACKEND v5.88
-  Fecha: 2026-07-20  ·  Hecho por: Claude
+  files 57 — CBVI Reportes
+  FRONTEND v5.95  ·  BACKEND v5.91
+  Fecha: 2026-07-24  ·  Hecho por: Claude
 ═══════════════════════════════════════════════════════════════════════
 
-⚠️ ESTA CARPETA REEMPLAZA A files 52 (que nunca se subió).
-   Contiene TODO lo de files 52 (v5.90/v5.87) MÁS la regla nueva de
-   sanciones. Subiendo files 53 va todo junto; no hay que subir files 52.
+⚠️ ESTA CARPETA REEMPLAZA A files 56 (que nunca se subió).
+   Contiene TODO lo de files 56 (v5.94/v5.90) MÁS los fixes de abajo.
+   Subiendo files 57 va todo junto; no hay que subir files 56.
 
 Archivos: app.js · index.html · sw.js · Codigo.gs
-          icon-192.png · icon-512.png
+          icon-192.png · icon-512.png (sin cambios desde files 52)
 
 
 ───────────────────────────────────────────────────────────────────────
-LO NUEVO DE ESTA VERSIÓN: LA REGLA DE SANCIONES
+LO NUEVO DE ESTA VERSIÓN (7 correcciones)
 ───────────────────────────────────────────────────────────────────────
 
-ANTES:  horas = 2^(nº de faltas) − cumplidas
-        Una fórmula ciega al tiempo: si no cumplías, la deuda se quedaba
-        quieta hasta que volvieras a faltar.
+1. OPERATIVIDAD — el detalle ahora cuadra con el total (bug "6.3h vs
+   1.7+1.9"). El total agrupaba por CÉDULA pero el detalle filtraba solo
+   por el nombre escrito exacto: las actividades registradas con otra
+   grafía del nombre sumaban al total y no salían en la lista. Ahora
+   "Ver emerg. / Ver activ. / Ver dom." cruzan por cédula O nombre, con
+   el MISMO criterio del total (helper _matchPersonaFactory en el back).
 
-AHORA:  se recorren los domingos EN ORDEN. En cada domingo:
-          1. ¿Traía deuda?  → SE DUPLICA
-          2. ¿Faltó sin excusa y no debía nada? → arranca en 2h
-          3. ¿Faltó sin excusa y ya debía? → solo duplica (no suma aparte)
+2. EDITAR DOMINGO — los campos 👤 Encargado y 🛡️ Guardia del modal de
+   edición ahora AUTOCOMPLETAN buscando en el personal (antes eran
+   cajas de texto muertas; solo funcionaba en el registro nuevo).
 
-        Asistir NO detiene la duplicación. Tener excusa TAMPOCO: la excusa
-        justifica no haber venido, no haber dejado de cumplir lo que ya
-        debía. Lo ÚNICO que la detiene es cumplir las horas a tiempo.
+3. SEGURIDAD (backend) — listarActividades y obtenerActividad no
+   exigían NINGUNA sesión: cualquiera con la URL pública podía leer
+   actividades, fotos y nombre+cédula del personal. Ahora exigen sesión
+   válida como el resto de lecturas. Llave de emergencia sin redeploy:
+   EXIGIR_TOKEN=false en Script Properties.
 
-        TOPE: 32 horas. De ahí no pasa.
+4. ASISTENCIA — ya no se duplica una persona por tener la cédula
+   escrita con puntos/espacios ("1.234.567" = "1234567").
 
-Ejemplo oficial (4 domingos):
-        D1 faltó sin excusa .......... 2h
-        D2 asistió, no cumplió ....... 2 x2 =  4h
-        D3 faltó CON excusa .......... 4 x2 =  8h
-        D4 asistió, no cumplió ....... 8 x2 = 16h
+5. BONIFICACIONES — "JOSÉ" y "JOSE" ya no duplican fila, y el botón de
+   quitar elimina la fila aunque esté guardada con la otra grafía.
 
+6. ESCAPES ANTI-XSS — texto libre (nombres, temas de domingo, tipos,
+   barrio, operador, comandante, recursos) ahora pasa por _esc() en
+   los chips de bonificación, historial de domingos, detalle de
+   operatividad y detalle del reporte.
 
-AMNISTÍA DE ARRANQUE (una sola vez)
-        Constante: SANCIONES_DUPLICA_DESDE = '2026-07-19'
-        Todo lo anterior a esa fecha se congela con la regla vieja; la
-        duplicación corre desde ahí. Efecto: la deuda que la gente ya veía
-        se duplica UNA vez, en vez de dispararse de golpe.
+7. MENORES — botones del Panel Admin y listas pasan datos por data-*
+   (no interpolados en el onclick), blindaje de nombres nulos en 2
+   renders, y se eliminó una definición duplicada (muerta) de
+   _normNombre en app.js.
 
-        OSCAR   (1 falta 28/06):  con la regla pura serían 16h  →  queda en 4h
-        YADHIRA (faltas 05 y 12/07):                             →  queda en 8h
-
-        ⚠️ NO MOVER esa constante hacia atrás. Recalcularía la historia
-        completa y multiplicaría las horas de todo el personal de golpe.
-
-CAMBIO DE FONDO EN LOS DATOS
-        Sanciones_Cumplidas ahora se lee CON FECHA (columna D), no como un
-        total suelto: hay que saber si el pago cayó antes o después de cada
-        domingo. Un pago hecho el mismo día del domingo cuenta como hecho a
-        tiempo (beneficio de la duda a la unidad).
-
-POR QUÉ NO SE DISPARA SOLO
-        La duplicación se deriva de los domingos REGISTRADOS en la hoja,
-        nunca de new Date(). _recalcularSanciones() borra y recalcula todo
-        desde cero en cada pago y en cada envío de alertas — si dependiera
-        de "hoy", las horas subirían solas en cada recálculo. Probado:
-        50 recálculos seguidos dan siempre el mismo número.
-
-
-───────────────────────────────────────────────────────────────────────
-VERIFICACIÓN
-───────────────────────────────────────────────────────────────────────
-Sin node en este PC, así que la lógica se probó replicando el algoritmo
-exacto en Python y corriéndolo contra 19 casos:  19/19 OK.
-
-  · Ejemplo oficial de junio, paso a paso ....... 2 → 4 → 8 → 16  ✓
-  · Pagar antes del domingo detiene el reloj .... 0h  ✓
-  · Pagar el mismo domingo cuenta a tiempo ...... 0h  ✓
-  · Pagar un día tarde: ya duplicó .............. 2h  ✓
-  · Pago parcial (debe 4h, paga 1h) ............. 3h  ✓
-  · Falta sin excusa con deuda: SOLO duplica .... 4h, no 6h  ✓
-  · Excusa no salva de la duplicación ........... 4h  ✓
-  · Tope de 32h con 10 domingos ................. 32h ✓
-  · Sin deuda nunca sube ........................ 0h  ✓
-  · OSCAR con amnistía .......................... 4h  ✓
-  · YADHIRA con amnistía ........................ 8h  ✓
-  · Determinismo: 50 recálculos ................. siempre 4h  ✓
-  · Quien pagó todo no revive ................... 0h  ✓
-
-Además: balance JS OK en app.js/sw.js/Codigo.gs (validador propio, corrido
-también contra files 52 como control), I2 ✓, I4 ✓, y se confirmó que NO
-existe lógica de sanciones duplicada en otro punto (un solo Math.pow).
-
-
-───────────────────────────────────────────────────────────────────────
-⚠️ LO QUE VA A PASAR AL DESPLEGAR — LEER ANTES
-───────────────────────────────────────────────────────────────────────
-El recálculo corre sobre TODO el personal, no solo sobre Oscar. Varias
-unidades verán sus horas cambiar el mismo día. La app ya lo anuncia en el
-aviso de actualización y lo explica en la pantalla de Deudores, y el correo
-también, pero conviene avisarlo por el canal de la estación antes de que
-empiecen a preguntar.
-
-Quien tenga 6 o más faltas verá su deuda BAJAR a 32h (el tope nuevo). Es
-correcto: la sanción de miles de horas no era cumplible.
-
+Verificado: node --check OK en app.js, sw.js y Codigo.gs · URL del
+backend intacta (I1) · DOMContentLoaded al final (I2) · sin diálogos
+nativos (I4).
 
 ───────────────────────────────────────────────────────────────────────
 CÓMO DESPLEGAR
 ───────────────────────────────────────────────────────────────────────
-GITHUB (frontend) — subir al repo bomberos-inirida-app:
-   app.js · index.html · sw.js · icon-192.png · icon-512.png
 
-APPS SCRIPT (backend) — pegar Codigo.gs y desplegar con:
-   Implementar → Administrar implementaciones → ✏️ Editar → Nueva versión
-   ⚠️ INVARIANTE I1: la MISMA implementación. Crear una nueva cambia la URL
-   y rompe la app entera.
+GITHUB (frontend):
+  Subir al repo: app.js, index.html, sw.js
+  (los iconos ya estaban pendientes desde files 52 — si aún no se
+   subieron, subir también icon-192.png e icon-512.png).
 
-Tras desplegar, entra a "Ver Deudores" y confirma que Oscar aparece con 4h.
-Si sale con 2h, es que al domingo 19/07 aún no se le pasó lista en la app:
-el corte necesita ese domingo registrado para poder duplicar.
+APPS SCRIPT (backend):
+  Pegar Codigo.gs completo y desplegar como "NUEVA VERSIÓN" sobre la
+  MISMA implementación (Implementar → Administrar implementaciones →
+  ✏️ Editar → Nueva versión). ⚠️ NUNCA crear una implementación nueva:
+  cambiaría la URL y rompería la app (invariante I1).
+  Este despliegue arrastra también todo lo pendiente desde files 49
+  (blindajes de auth, regla de sanciones, fix _cedKey, miSancion).
 
-                    ABNEGACIÓN Y DISCIPLINA
+ABNEGACIÓN Y DISCIPLINA 🚒
