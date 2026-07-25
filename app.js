@@ -21,8 +21,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.95';
+const APP_VERSION = '5.96';
 const APP_VERSION_NOTAS = [
+  'v5.96: 🗺️ La leyenda del Mapa de Emergencias ahora muestra TODAS las clasificaciones con su emoji, aunque vayan en cero — antes solo salían los tipos que ya tenían reportes.',
+  'v5.96: 🏷️ Corregido: los reportes con VARIAS clasificaciones marcadas salían como "Sin clasificar" en el mapa (solo cruzaba bien cuando era una sola). Ahora se leen todas y el pin toma su color/emoji correcto. Al editar un reporte, las casillas de clasificación ya aparecen marcadas como corresponde.',
+  'v5.96: 📊 En Operatividad, las cédulas escritas con puntos o espacios ya no crean tarjetas duplicadas de la misma persona. La tarjeta grande ahora dice "Unidades con registros" y muestra aparte cuántas unidades tiene la base activa; los registros con el nombre escrito distinto salen marcados en ámbar para poder corregirlos.',
+  'v5.96: 📸 Corregido: algunos reportes viejos no mostraban sus fotos (el enlace quedó guardado en un formato antiguo). Ahora se leen también esos formatos. Y si al ENVIAR un reporte alguna foto no se puede subir, la app lo avisa de inmediato en vez de callar.',
   'v5.95: 📊 Corregido en Operatividad: al tocar "Ver emerg. / Ver activ. / Ver dom." de una unidad, el detalle ahora muestra TODO lo que suma el total, aunque el nombre esté escrito distinto en registros viejos (ahora se cruza también por cédula). Antes el total podía decir 6.3h y el detalle mostrar menos.',
   'v5.95: ✏️ Al EDITAR la asistencia de un domingo, los campos 👤 Encargado y 🛡️ Guardia ahora AUTOCOMPLETAN buscando en el personal (escribe las iniciales y toca el nombre), igual que al registrar.',
   'v5.95: 🧾 Al agregar personal a la asistencia ya no se cuela una persona repetida por tener la cédula escrita con puntos o espacios (ej: 1.234.567 y 1234567 ya se reconocen como la misma).',
@@ -2666,6 +2670,16 @@ const app = {
           return false;
         }
         if (data.consecutivo) consecutivoServidor = data.consecutivo;
+        // v5.96: si Drive rechazó alguna foto (muy pesada, permisos de carpeta),
+        // antes fallaba EN SILENCIO y el reporte quedaba sin esa foto para
+        // siempre. Ahora se avisa a la unidad en el momento del envío.
+        try {
+          if (Array.isArray(data.urlsFotos) && (reporte.fotos || []).length) {
+            const enviadas = Math.min((reporte.fotos || []).length, 6);
+            const subidas = data.urlsFotos.filter(u => u).length;
+            if (subidas < enviadas) this.toast('⚠️ ' + (enviadas - subidas) + ' foto(s) no se pudieron guardar en Drive (el resto del reporte quedó bien). Avísale al administrador.', 'error');
+          }
+        } catch (eW) {}
       } catch (e) {
         // Respuesta ilegible = SIN confirmación → queda pendiente (reintento
         // seguro: el backend detecta el id repetido y no duplica).
@@ -5936,7 +5950,7 @@ ${paginaFotos}
         + '<div style="font-size:18px;font-weight:700;">'+mesNom0+' '+this._operAnio+'</div>'
         + '<div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div></div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-        + card0(0,'Unidades activas','#1a5276') + card0(0,'Emergencias únicas','#c0392b')
+        + card0(0,'Unidades con registros','#1a5276') + card0(0,'Emergencias únicas','#c0392b')
         + card0('0h','Horas en actividades','#1e8449') + card0(0,'Domingos realizados','#e67e22')
         + '</div>'
         + '<div style="text-align:center;padding:20px;color:#999;background:#fff;border-radius:12px;">Sin registros en este período</div>';
@@ -5998,7 +6012,8 @@ ${paginaFotos}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div style="font-size:28px;font-weight:700;color:#1a5276;">${totalPersonas}</div>
-          <div style="font-size:12px;color:#666;">Unidades activas</div>
+          <div style="font-size:12px;color:#666;">Unidades con registros</div>
+          ${this._operStats && this._operStats.unidadesBase !== undefined ? '<div style="font-size:11px;color:#999;margin-top:2px;">Base activa: '+this._operStats.unidadesBase+'</div>' : ''}
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div style="font-size:28px;font-weight:700;color:#c0392b;">${this._operStats ? this._operStats.totalEmergenciasUnicas : totalEmerg}</div>
@@ -6019,6 +6034,8 @@ ${paginaFotos}
           <div style="font-size:12px;color:#666;">Asistencias totales (suma individual)</div>
         </div>
       </div>
+
+      ${this._operStats && this._operStats.sinCruce > 0 ? '<div style="background:#fff8e1;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #f9a825;"><div style="font-weight:700;color:#8d6e00;font-size:13px;">⚠️ '+this._operStats.sinCruce+' registro(s) no cruzan con la base de personal</div><div style="font-size:12px;color:#8d6e00;margin-top:2px;">Son nombres o cédulas escritos distinto en los registros (por eso hay más tarjetas que unidades reales). Búscalos en "Por Unidad": están marcados en ámbar — corrige la escritura en la hoja para que se fusionen.</div></div>' : ''}
 
       ${totalSancion > 0 ? '<div style="background:#ffebee;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #c00;"><div style="font-weight:700;color:#c00;">⚠️ '+totalSancion+' unidad(es) con sanciones pendientes</div></div>' : ''}
 
@@ -6075,7 +6092,9 @@ ${paginaFotos}
     return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       +'<div><div style="font-weight:700;font-size:15px;">'+app._esc(nom||'(sin nombre)')+'</div>'
-      +'<div style="font-size:12px;color:#666;">CC: '+app._esc(p.cedula||'-')+'</div></div>'
+      +'<div style="font-size:12px;color:#666;">CC: '+app._esc(p.cedula||'-')+'</div>'
+      +(p.enBase===false?'<div style="font-size:11px;background:#fff8e1;color:#8d6e00;border:1px solid #f9a825;border-radius:6px;padding:2px 6px;margin-top:3px;display:inline-block;">⚠️ No cruza con la base (revisar escritura)</div>':'')
+      +'</div>'
       +'<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">'+pts+' pts</div>'
       +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
       +'</div></div>'
@@ -6243,7 +6262,7 @@ ${paginaFotos}
       <h1>📊 Informe de Operatividad Institucional</h1>
       <p style="color:#666;margin:0 0 12px;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | Cuerpo de Bomberos Voluntarios de Inírida</p>
       <div class="stats">
-        <div class="stat"><div class="num">${d.length}</div><div class="lbl">Unidades activas</div></div>
+        <div class="stat"><div class="num">${d.length}</div><div class="lbl">Unidades con registros</div></div>
         <div class="stat"><div class="num">${this._operStats ? this._operStats.totalEmergenciasUnicas : d.reduce((s,p)=>s+p.emergencias,0)}</div><div class="lbl">Emergencias únicas</div></div>
         <div class="stat"><div class="num">${this._r1(this._operStats && this._operStats.totalHorasActividades !== undefined ? this._operStats.totalHorasActividades : d.reduce((s,p)=>s+p.horasActividades,0))}h</div><div class="lbl">Horas en actividades</div></div>
         <div class="stat"><div class="num">${this._operStats && this._operStats.totalDomingos !== undefined ? this._operStats.totalDomingos : '-'}</div><div class="lbl">Domingos realizados</div></div>
@@ -6482,7 +6501,9 @@ ${paginaFotos}
     const conteo = {};
     this._mapaMarkers.forEach(m => { conteo[m.etiqueta] = (conteo[m.etiqueta] || 0) + 1; });
     const vistas = new Set(); const reglas = [];
-    this._MAPA_COLORES.forEach(r => { if (conteo[r.etiqueta] && !vistas.has(r.etiqueta)) { vistas.add(r.etiqueta); reglas.push(r); } });
+    // v5.96: la leyenda muestra TODAS las clasificaciones con su emoji, aunque
+    // vayan en (0) — antes solo salían los tipos con al menos un reporte.
+    this._MAPA_COLORES.forEach(r => { if (!vistas.has(r.etiqueta)) { vistas.add(r.etiqueta); reglas.push(r); } });
     if (conteo[this._REGLA_SIN_CLASIFICAR.etiqueta]) reglas.push(this._REGLA_SIN_CLASIFICAR);
     leyenda.innerHTML = '<div style="font-size:11px;color:#666;margin:2px 0 4px;">👆 Toca un tipo para ocultar/mostrar sus pines:</div>'
       + reglas.map(r => {
@@ -6490,7 +6511,7 @@ ${paginaFotos}
         return '<span data-e="' + r.etiqueta.replace(/"/g,'&quot;') + '" onclick="app._toggleFiltroMapa(this.dataset.e)" '
           + 'style="display:inline-flex;align-items:center;gap:4px;background:' + (off ? '#f0f0f0' : '#fff') + ';border-radius:12px;padding:3px 9px;margin:2px;font-size:11px;border:1.5px solid ' + (off ? '#ddd' : r.color) + ';cursor:pointer;' + (off ? 'opacity:.5;text-decoration:line-through;' : '') + '">'
           + '<span style="width:10px;height:10px;border-radius:50%;background:' + r.color + ';display:inline-block;"></span>'
-          + r.emoji + ' ' + r.etiqueta + ' (' + conteo[r.etiqueta] + ')</span>';
+          + r.emoji + ' ' + r.etiqueta + ' (' + (conteo[r.etiqueta] || 0) + ')</span>';
       }).join('');
   },
 

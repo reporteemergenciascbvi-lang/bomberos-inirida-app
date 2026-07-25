@@ -1,57 +1,60 @@
 ═══════════════════════════════════════════════════════════════════════
-  files 57 — CBVI Reportes
-  FRONTEND v5.95  ·  BACKEND v5.91
+  files 58 — CBVI Reportes
+  FRONTEND v5.96  ·  BACKEND v5.92
   Fecha: 2026-07-24  ·  Hecho por: Claude
 ═══════════════════════════════════════════════════════════════════════
 
-⚠️ ESTA CARPETA REEMPLAZA A files 56 (que nunca se subió).
-   Contiene TODO lo de files 56 (v5.94/v5.90) MÁS los fixes de abajo.
-   Subiendo files 57 va todo junto; no hay que subir files 56.
+⚠️ ESTA CARPETA REEMPLAZA A files 57 (que nunca se subió).
+   Contiene TODO lo de files 57 (v5.95/v5.91 — fix horas operatividad,
+   autocompletado al editar domingo, barrido de seguridad) MÁS los fixes
+   de abajo. Subiendo files 58 va todo junto; NO subir files 57.
 
 Archivos: app.js · index.html · sw.js · Codigo.gs
           icon-192.png · icon-512.png (sin cambios desde files 52)
 
 
 ───────────────────────────────────────────────────────────────────────
-LO NUEVO DE ESTA VERSIÓN (7 correcciones)
+LO NUEVO DE ESTA VERSIÓN (4 correcciones)
 ───────────────────────────────────────────────────────────────────────
 
-1. OPERATIVIDAD — el detalle ahora cuadra con el total (bug "6.3h vs
-   1.7+1.9"). El total agrupaba por CÉDULA pero el detalle filtraba solo
-   por el nombre escrito exacto: las actividades registradas con otra
-   grafía del nombre sumaban al total y no salían en la lista. Ahora
-   "Ver emerg. / Ver activ. / Ver dom." cruzan por cédula O nombre, con
-   el MISMO criterio del total (helper _matchPersonaFactory en el back).
+1. MAPA — LEYENDA COMPLETA. La leyenda ahora muestra TODAS las
+   clasificaciones con su emoji, aunque vayan en (0). Antes solo salían
+   los tipos que ya tenían al menos un reporte.
 
-2. EDITAR DOMINGO — los campos 👤 Encargado y 🛡️ Guardia del modal de
-   edición ahora AUTOCOMPLETAN buscando en el personal (antes eran
-   cajas de texto muertas; solo funcionaba en el registro nuevo).
+2. MAPA — FIX "SIN CLASIFICAR". Los reportes con VARIAS clasificaciones
+   marcadas caían enteros a "Sin clasificar": se guardan unidos con
+   ' | ' pero se leían partiendo por ', '. Ahora se leen bien (pin con
+   su color/emoji real) y en el formulario de edición admin las
+   casillas vuelven a salir marcadas (antes se podían borrar sin
+   querer al guardar una edición). Los "Sin clasificar" que queden
+   después de este fix son reportes de verdad sin clasificación.
 
-3. SEGURIDAD (backend) — listarActividades y obtenerActividad no
-   exigían NINGUNA sesión: cualquiera con la URL pública podía leer
-   actividades, fotos y nombre+cédula del personal. Ahora exigen sesión
-   válida como el resto de lecturas. Llave de emergencia sin redeploy:
-   EXIGIR_TOKEN=false en Script Properties.
+3. OPERATIVIDAD — FIX "48 UNIDADES CUANDO SOMOS 36".
+   a) Cédulas con puntos/espacios creaban DOS tarjetas de la misma
+      persona (clave cruda). Ahora todas las claves pasan por _cedKey.
+   b) La tarjeta grande ahora dice "Unidades con registros" (que es lo
+      que realmente cuenta) y muestra debajo "Base activa: N" con las
+      unidades reales de Personal_CBVI.
+   c) Los registros cuyo nombre/cédula NO cruza con la base salen
+      marcados en ámbar ("⚠️ No cruza con la base") + un aviso arriba
+      con el total. Esos son nombres escritos distinto en las hojas
+      (ej. "MIGUEL CONTRERA" vs "MIGUEL ANGEL CONTRERAS PACHECOS"):
+      corrígelos en la hoja y las tarjetas se fusionan solas.
+      ⚠️ NO se fusionan por parecido a propósito: ELIODORO LOPEZ
+      MARTINEZ y HELIODORO LOPEZ VALENCIA son personas DISTINTAS.
 
-4. ASISTENCIA — ya no se duplica una persona por tener la cédula
-   escrita con puntos/espacios ("1.234.567" = "1234567").
-
-5. BONIFICACIONES — "JOSÉ" y "JOSE" ya no duplican fila, y el botón de
-   quitar elimina la fila aunque esté guardada con la otra grafía.
-
-6. ESCAPES ANTI-XSS — texto libre (nombres, temas de domingo, tipos,
-   barrio, operador, comandante, recursos) ahora pasa por _esc() en
-   los chips de bonificación, historial de domingos, detalle de
-   operatividad y detalle del reporte.
-
-7. MENORES — botones del Panel Admin y listas pasan datos por data-*
-   (no interpolados en el onclick), blindaje de nombres nulos en 2
-   renders, y se eliminó una definición duplicada (muerta) de
-   _normNombre en app.js.
+4. FOTOS DE REPORTES.
+   a) Reportes viejos con el enlace de la foto guardado como texto
+      plano o =HYPERLINK no mostraban sus fotos (solo se leía el
+      formato nuevo). Ahora se leen los 3 formatos.
+   b) Si al ENVIAR un reporte Drive rechaza una foto (muy pesada,
+      permisos), la app ahora lo AVISA de inmediato — antes fallaba en
+      silencio y esa foto se perdía sin que nadie supiera.
+   NOTA: las fotos que NUNCA llegaron a subirse a Drive no se pueden
+   recuperar; el punto (b) evita que vuelva a pasar sin aviso.
 
 Verificado: node --check OK en app.js, sw.js y Codigo.gs · URL del
-backend intacta (I1) · DOMContentLoaded al final (I2) · sin diálogos
-nativos (I4).
+backend intacta (I1) · DOMContentLoaded al final (I2, línea 6989).
 
 ───────────────────────────────────────────────────────────────────────
 CÓMO DESPLEGAR
@@ -59,15 +62,22 @@ CÓMO DESPLEGAR
 
 GITHUB (frontend):
   Subir al repo: app.js, index.html, sw.js
-  (los iconos ya estaban pendientes desde files 52 — si aún no se
-   subieron, subir también icon-192.png e icon-512.png).
+  (+ icon-192.png / icon-512.png si aún no se subieron desde files 52).
 
 APPS SCRIPT (backend):
   Pegar Codigo.gs completo y desplegar como "NUEVA VERSIÓN" sobre la
   MISMA implementación (Implementar → Administrar implementaciones →
   ✏️ Editar → Nueva versión). ⚠️ NUNCA crear una implementación nueva:
   cambiaría la URL y rompería la app (invariante I1).
-  Este despliegue arrastra también todo lo pendiente desde files 49
-  (blindajes de auth, regla de sanciones, fix _cedKey, miSancion).
+  Este despliegue arrastra todo lo pendiente desde files 49.
+
+PRUEBAS RÁPIDAS DESPUÉS DE DESPLEGAR:
+  1. Mapa → la leyenda lista todos los tipos, y los reportes multi-
+     clasificación ya no salen "Sin clasificar".
+  2. Operatividad → el número dice "Unidades con registros" + "Base
+     activa: 36"; buscar tarjetas con la marca ámbar y corregir esas
+     grafías en las hojas.
+  3. Abrir un reporte viejo que no mostraba fotos → deben aparecer
+     (si la foto sí está en Drive).
 
 ABNEGACIÓN Y DISCIPLINA 🚒
