@@ -1,0 +1,3 @@
+# Reportes y capturas que genera gstack (/qa, /review). Son artefactos
+# locales de diagnóstico, no forman parte de la app.
+.gstack/
