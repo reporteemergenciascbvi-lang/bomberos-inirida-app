@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.97';
+const APP_VERSION = '5.98';
 const APP_VERSION_NOTAS = [
+  'v5.98: 👥 La lista de nombres que sale al escribir (en reportes, actividades y asistencia) ahora se toma DIRECTO de la hoja del personal. Antes venía de una lista fija dentro de la app: por eso seguían apareciendo compañeros que ya no están y NO aparecían los que se agregaron después. Ahora se actualiza sola.',
+  'v5.98: ✅ El aviso de "nombre desconocido" al enviar un reporte ya no se equivoca: dejó de alertar con personal que sí está en la hoja, y dejó de dejar pasar en silencio a quien ya no está.',
+  'v5.98: 📴 Sigue funcionando sin señal: la lista queda guardada en el teléfono y se usa igual cuando no hay internet.',
   'v5.97: 🛡️ Ajustes internos de seguridad y de configuración del sitio. No cambia nada de lo que ves, ni cómo inicias sesión, ni cómo se usa la app.',
   'v5.96: 🗺️ La leyenda del Mapa de Emergencias ahora muestra TODAS las clasificaciones con su emoji, aunque vayan en cero — antes solo salían los tipos que ya tenían reportes.',
   'v5.96: 🏷️ Corregido: los reportes con VARIAS clasificaciones marcadas salían como "Sin clasificar" en el mapa (solo cruzaba bien cuando era una sola). Ahora se leen todas y el pin toma su color/emoji correcto. Al editar un reporte, las casillas de clasificación ya aparecen marcadas como corresponde.',
@@ -131,22 +134,31 @@ const APP_VERSION_NOTAS = [
   'Login con red de seguridad: si Google no carga, aparece aviso + botón Reintentar.'
 ];
 
-// === ROSTER DE BOMBEROS (autocompletar) — tomado de la base de datos del personal.
-// Para actualizar: agregue/edite nombres aquí (en Fase 2 se conectará al Sheet "Bomberos"). ===
+// === ROSTER DE BOMBEROS (autocompletar) ===
+// v5.98: ESTA LISTA YA NO MANDA. Es solo la SEMILLA para una instalación nueva
+// que todavía no se ha conectado nunca (celular recién instalado y sin señal).
+// La lista de verdad se lee de la hoja Personal_CBVI al iniciar sesión y queda
+// cacheada en IndexedDB: ver `_cargarRosterDesdeHoja()` y `_rosterVigente()`.
+// Cadena de respaldo: hoja → caché → esta semilla.
+//
+// Antes de v5.98 esta lista era la ÚNICA fuente y estaba congelada: mostraba 10
+// personas que ya no estaban en la hoja y escondía 6 que sí (entre ellas JONNY
+// SUMAY SUÁREZ). Peor: el autocompletado escribía nombres con una grafía
+// distinta a la de la hoja, y esos registros después no cruzaban en Operatividad.
+// NO hace falta editarla a mano nunca más; se actualiza sola desde la hoja.
 const ROSTER_BOMBEROS = [
-  "ANGIE MILENA ORTIZ FLORES","ARIEL FERNANDO CARDENAS TEJEIRO","CRISTIAN ANDRÉS VIDAL TRUJILLO",
-  "DARLINGTON ESTIVEN DELGADO MOLINA","DAVID FELIPE MUÑOZ ACOSTA","DELIO PINZON ALDANA",
-  "DILAN MATEO VELASQUEZ GAITAN","EIKER ALEJANDRO PEÑA RIVAS","ELENA PATRICIA RAMIREZ PEREZ",
+  "ARIEL FERNANDO CARDENAS TEJEIRO","BAUDILIO GALINDO MARÍN","CRISTIAN ANDRES VIDAL TRUJILLO",
+  "DAVID FELIPE MUÑOZ ACOSTA","DELIO PINZON ALDANA","EIKER ALEJANDRO PEÑA RIVAS",
   "ELIODORO LOPEZ MARTINEZ","ELIPSYS ALEXANDRA RONDON MORILLO","ELKIN AUGUSTO RODRIGUEZ GONZALEZ",
-  "FREDY ANDREY SIERRA BORRERO","GERMAN ALONSO ROJAS GARZON","GUILLERMO DÍAZ SABOGAL",
+  "FREDY ANDREY SIERRA BORRERO","GERMAN ALONSO ROJAS GARZON","GUILLERMO DIAZ SABOGAL",
   "HAROLD HENDER BARRETO SAENZ","HECTOR DE JESUS GARCIA CUARTAS","HELIODORO LOPEZ VALENCIA",
-  "HERBHERT ARTEMIO DIAZ AGAPITO","ILBAR ALONZO RESTREPO RODRIGUEZ","JEFERSON JEANCARLOS RANGEL GIL",
-  "JHONNIER ANDRES HENAO HUERTAS","JOSE LUIS FERNANDEZ RODRIGUEZ","JOSE ROSENDO PALMA NARVAEZ",
-  "LEIDY KATHERINE ZAPATA RINCON","LEONIDAS DOMINGUEZ RAMIREZ","MERY JOSEFINA MORILLO MARIÑO",
-  "MIGUEL ANGEL CONTRERAS PACHECOS","MONICA LUZ MERY DIAZ AGAPITO","OSCAR ESTIBEN MARTINEZ LOPEZ",
-  "THANYA EDITH RODRIGUEZ AGAPITO","VERONICA ALEJANDRA CAMICO GARRIDO","WILDER JOSE GAITAN DIAZ",
-  "WILFREDO MIGUEL NUÑEZ TORRES","WILLIAM MARTINEZ PATIÑO","WILSON GARCIA AGAPITO",
-  "YADHIRA NAYERLY DIAZ AGAPITO","YORDY ALONSO MARTINEZ SAMPAYO"
+  "HERBHERT ARTEMIO DIAZ AGAPITO","JEFERSON JEANCARLOS RANGEL GIL","JHON JAIRO LÓPEZ SANTANA",
+  "JONNY SUMAY SUÁREZ","JOSE LUIS FERNANDEZ RODRIGUEZ","JOSE ROSENDO PALMA NARVAEZ",
+  "LEIDY KATHERINE ZAPATA RINCON","MERY JOSEFINA MORILLO MARIÑO","MIGUEL ANGEL CONTRERAS PACHECOS",
+  "MONICA LUZ MERY DIAZ AGAPITO","OSCAR ESTIBEN MARTINEZ LOPEZ","RUTH FÁTIMA CHAGAS BARRETO",
+  "VERONICA ALEJANDRA CAMICO GARRIDO","WILDER JOSE GAITAN DIAZ","WILFREDO MIGUEL NUÑEZ TORRES",
+  "WILLIAM MARTINEZ PATIÑO","YADHIRA NAYERLY DIAZ AGAPITO","YORDAN SANTIAGO TOVAR MARTÍNEZ",
+  "YORDI ALONSO MARTINEZ SAMPAYO"
 ];
 
 const CREDITO_AUTOR = {
@@ -325,6 +337,9 @@ const app = {
       // v5.63 (BUG 9): renovar el pase de 30 días en segundo plano cada vez
       // que se abre la app → el admin ya no queda atado al token de 1h.
       this._renovarPaseSesion().catch(() => {});
+      // v5.98: refrescar el roster desde la hoja Personal_CBVI (caché primero,
+      // red después). En segundo plano: no debe demorar el arranque de la app.
+      this._cargarRosterDesdeHoja().catch(() => {});
       this.actualizarUIUsuario();
       // Si ya completó registro complementario, ir a Home
       if (sesion.registroCompleto) {
@@ -617,6 +632,10 @@ const app = {
       } catch (ePase) { console.warn('No se pudo obtener pase de 8h:', ePase); }
 
       this.toast(`Bienvenido, ${usuario.nombrePila || usuario.email}`, 'exito');
+
+      // v5.98: tras un login NUEVO también se trae el roster de la hoja
+      // (el arranque con sesión ya restaurada lo hace en su propia rama).
+      this._cargarRosterDesdeHoja().catch(() => {});
 
       if (usuario.registroCompleto) {
         this.actualizarUIUsuario();
@@ -2076,11 +2095,60 @@ const app = {
   },
 
   // ============ PERSONAL: roster, autocompletar, auto-suma ============
+  // v5.98: lista de nombres VIGENTE para autocompletar y para validar.
+  // Orden de preferencia: lo que se leyó de la hoja (this._rosterVivo) →
+  // la semilla del código. Nunca devuelve vacío, así que si falla la red o
+  // la caché, la app se comporta como antes y no queda peor.
+  _rosterVigente() {
+    if (Array.isArray(this._rosterVivo) && this._rosterVivo.length) return this._rosterVivo;
+    return (typeof ROSTER_BOMBEROS !== 'undefined') ? ROSTER_BOMBEROS : [];
+  },
+
+  // v5.98: la hoja Personal_CBVI manda. Se llama al restaurar sesión y tras
+  // iniciar sesión. Primero pinta lo cacheado (instantáneo y funciona SIN
+  // señal), luego refresca desde el backend en segundo plano.
+  // Inírida se queda sin cobertura por días: por eso nunca se bloquea ni se
+  // borra la caché ante un fallo de red.
+  async _cargarRosterDesdeHoja() {
+    // 1) Caché primero — sirve offline y evita parpadeo.
+    try {
+      const cache = await DB.obtenerConfig('roster_personal');
+      if (Array.isArray(cache) && cache.length) {
+        this._rosterVivo = cache;
+        this.poblarRosterBomberos();
+      }
+    } catch (e) { /* sin caché: seguimos con la semilla */ }
+
+    // 2) Refresco desde la hoja (solo si hay internet).
+    if (!navigator.onLine) return;
+    try {
+      // El interceptor de fetch agrega idToken y pase automáticamente.
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarTodoPersonal' })
+      });
+      const d = await r.json();
+      if (!d || !d.ok || !Array.isArray(d.personal)) return;
+      const nombres = d.personal
+        .map(p => String((p && p.nombre) || '').trim())
+        .filter(n => n !== '');
+      // Si la hoja viniera vacía, NO se pisa lo que ya funciona.
+      if (!nombres.length) return;
+      this._rosterVivo = nombres;
+      await DB.guardarConfig('roster_personal', nombres);
+      this.poblarRosterBomberos();
+    } catch (e) {
+      /* silencioso: sin señal se sigue usando la caché o la semilla */
+    }
+  },
+
   poblarRosterBomberos() {
     const dl = document.getElementById('rosterBomberos');
-    if (!dl || typeof ROSTER_BOMBEROS === 'undefined') return;
-    dl.innerHTML = ROSTER_BOMBEROS
-      .map(n => `<option value="${n.replace(/"/g, '&quot;')}"></option>`).join('');
+    if (!dl) return;
+    const lista = this._rosterVigente();
+    dl.innerHTML = lista
+      .map(n => `<option value="${String(n).replace(/"/g, '&quot;')}"></option>`).join('');
   },
 
   // v5.95: se eliminó una definición duplicada (débil, sin quitar tildes) de
@@ -2121,7 +2189,10 @@ const app = {
   // la base de bomberos. Si hay nombres desconocidos (typo, tilde, apodo),
   // avisa ANTES de enviar → menos duplicados en Operatividad.
   _nombresDesconocidosEnForm() {
-    const conocidos = new Set((typeof ROSTER_BOMBEROS !== 'undefined' ? ROSTER_BOMBEROS : []).map(n => this._normFuerte(n)));
+    // v5.98: valida contra la lista VIGENTE (hoja → caché → semilla). Antes
+    // usaba la lista congelada del código: alertaba "nombre desconocido" con
+    // personal real recién agregado y dejaba pasar en silencio a los retirados.
+    const conocidos = new Set(this._rosterVigente().map(n => this._normFuerte(n)));
     const desconocidos = [];
     const revisar = (n) => {
       const norm = this._normFuerte(n);
@@ -5487,8 +5558,12 @@ ${paginaFotos}
       // v5.81: con rango y orden para que caiga en su grupo del llamado a lista
       this._asistRegistros[key] = { nombre, cedula, rango, orden: this._sigOrdenAsist(), estado: 'PRESENTE' };
       // Disponible en autocompletar de inmediato
-      if (typeof ROSTER_BOMBEROS !== 'undefined' && !ROSTER_BOMBEROS.includes(nombre)) {
-        ROSTER_BOMBEROS.push(nombre); this.poblarRosterBomberos();
+      // v5.98: se agrega a la lista VIGENTE (la que viene de la hoja), no a la
+      // semilla del código. En el próximo arranque llega ya desde Personal_CBVI.
+      if (!this._rosterVigente().includes(nombre)) {
+        if (!Array.isArray(this._rosterVivo)) this._rosterVivo = this._rosterVigente().slice();
+        this._rosterVivo.push(nombre);
+        this.poblarRosterBomberos();
       }
       // Limpiar y ocultar el formulario
       ['asistNuevoNombre','asistNuevoCedula','asistNuevoTel','asistNuevoCorreo'].forEach(id => {
