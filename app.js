@@ -21,8 +21,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.96';
+const APP_VERSION = '5.97';
 const APP_VERSION_NOTAS = [
+  'v5.97: 📱 Corregido: la app instalada en el celular ya abre a pantalla completa como aplicación propia. Antes, por una falla de configuración del sitio, Android no lograba verificar que la app y la página son del mismo Cuerpo de Bomberos, y la abría mostrando la barra de direcciones del navegador encima.',
+  'v5.97: 🛡️ Ajuste interno en la carga del botón "Continuar con Google". No cambia nada de lo que ves ni cómo inicias sesión.',
   'v5.96: 🗺️ La leyenda del Mapa de Emergencias ahora muestra TODAS las clasificaciones con su emoji, aunque vayan en cero — antes solo salían los tipos que ya tenían reportes.',
   'v5.96: 🏷️ Corregido: los reportes con VARIAS clasificaciones marcadas salían como "Sin clasificar" en el mapa (solo cruzaba bien cuando era una sola). Ahora se leen todas y el pin toma su color/emoji correcto. Al editar un reporte, las casillas de clasificación ya aparecen marcadas como corresponde.',
   'v5.96: 📊 En Operatividad, las cédulas escritas con puntos o espacios ya no crean tarjetas duplicadas de la misma persona. La tarjeta grande ahora dice "Unidades con registros" y muestra aparte cuántas unidades tiene la base activa; los registros con el nombre escrito distinto salen marcados en ámbar para poder corregirlos.',
