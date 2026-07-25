@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self' https://*.google.com https://*.googleapis.com https://*.googleusercontent.com;
-             script-src 'self' 'unsafe-inline' https://accounts.google.com https://unpkg.com;
+             script-src 'self' 'unsafe-inline' https://accounts.google.com;
              img-src 'self' data: https: blob:;
              connect-src 'self' https://*.google.com https://*.googleapis.com https://*.googleusercontent.com https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org;
-             style-src 'self' 'unsafe-inline' https://accounts.google.com https://unpkg.com;
-             font-src 'self' data: https://unpkg.com;
+             style-src 'self' 'unsafe-inline' https://accounts.google.com;
+             font-src 'self' data:;
              frame-src https://accounts.google.com;
              object-src 'none';
              base-uri 'self';">
@@ -33,8 +33,15 @@ try {
 <!-- Google Identity Services (login con Google) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- v5.64 (BUG 4 - mapa): Leaflet + OpenStreetMap. Gratis, sin API key, sin facturación. -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- v5.99: Leaflet AUTOALOJADO (antes venía de unpkg.com).
+     Motivo 1 (seguridad): unpkg estaba en script-src sin SRI. Si esa CDN se
+     comprometía, corría JS arbitrario en la sesión del admin. Ahora unpkg salió
+     de la CSP por completo — es más fuerte que poner SRI, que igual depende de
+     que la CDN responda.
+     Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
+     deja de depender de una CDN externa para siquiera abrir. -->
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=5.99">
+<script src="vendor/leaflet/leaflet.js?v=5.99"></script>
 
 <style>
   :root {
@@ -1285,7 +1292,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v5.98</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v5.99</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -2167,8 +2174,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=5.98"></script>
-<script src="app.js?v=5.98"></script>
+<script src="logos.js?v=5.99"></script>
+<script src="app.js?v=5.99"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

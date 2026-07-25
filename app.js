@@ -21,8 +21,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.98';
+const APP_VERSION = '5.99';
 const APP_VERSION_NOTAS = [
+  'v5.99: 🗺️ El mapa ahora carga desde la propia app y no desde un servidor de terceros. Es más seguro y arranca más rápido; el mapa ya no depende de que ese servidor externo esté disponible.',
+  'v5.99: 🔒 Refuerzo de seguridad: se quitó el permiso que la app le daba a ese servidor externo para ejecutar código.',
   'v5.98: 👥 La lista de nombres que sale al escribir (en reportes, actividades y asistencia) ahora se toma DIRECTO de la hoja del personal. Antes venía de una lista fija dentro de la app: por eso seguían apareciendo compañeros que ya no están y NO aparecían los que se agregaron después. Ahora se actualiza sola.',
   'v5.98: ✅ El aviso de "nombre desconocido" al enviar un reporte ya no se equivoca: dejó de alertar con personal que sí está en la hoja, y dejó de dejar pasar en silencio a quien ya no está.',
   'v5.98: 📴 Sigue funcionando sin señal: la lista queda guardada en el teléfono y se usa igual cuando no hay internet.',

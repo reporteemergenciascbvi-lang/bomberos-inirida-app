@@ -1,9 +1,13 @@
-/* Service Worker v5.98 - CBVI Reportes
+/* Service Worker v5.99 - CBVI Reportes
    NETWORK-FIRST para los archivos del propio sitio: con internet SIEMPRE
    baja la última versión (se acabó el caché viejo pegado en el teléfono).
    El caché queda solo como respaldo cuando NO hay señal. */
-const CACHE = 'bomberos-inirida-v5-98';
-const ARCHIVOS = ['./', './index.html', './app.js', './logos.js', './manifest.json'];
+const CACHE = 'bomberos-inirida-v5-99';
+// v5.99: se agregan los archivos de Leaflet (ahora autoalojados). Antes venían
+// de unpkg.com y NO se cacheaban: sin señal, la libreria del mapa no existia y
+// la pantalla solo podia mostrar el aviso de "revisa tu conexion".
+const ARCHIVOS = ['./', './index.html', './app.js', './logos.js', './manifest.json',
+  './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css'];
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
