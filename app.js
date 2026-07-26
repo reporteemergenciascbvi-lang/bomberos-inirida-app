@@ -6622,7 +6622,15 @@ ${paginaFotos}
   // Devuelve true solo si hay una firma verificada en esta sesión.
   async _exigirFirma() {
     const oper = await this._obtenerOperador();
-    if (oper) return true;
+    if (oper) {
+      // Avisar una vez si se pasó sin firmar por backend antiguo, para que no
+      // parezca que la firma está funcionando cuando en realidad no se aplicó.
+      if (this._pinSoportado === false && !this._avisoPinBackend) {
+        this._avisoPinBackend = true;
+        this.toast('El servidor todavía no tiene la versión con PIN: se entró sin firmar. Actualiza el backend.', 'info');
+      }
+      return true;
+    }
     this.toast('Sin PIN no puedes hacer acciones de administrador. Pídele tu PIN al administrador principal.', 'error');
     return false;
   },
@@ -6649,6 +6657,26 @@ ${paginaFotos}
           return o.nombre;
         } }
     } catch(e) {}
+    /* v6.03 ANTI-BLOQUEO — comprobar que el backend sepa de PINes ANTES de exigirlos.
+       Si el backend desplegado es anterior a v5.96 no conoce la acción
+       `verificarOperador`, así que nadie podría firmar nunca... y como la firma es
+       obligatoria, NADIE podría entrar al Panel — ni para asignar el primer PIN.
+       Ese candado sin llave es peor que la falta de firma, así que en ese caso se
+       deja pasar sin firmar y se avisa. Se comprueba una sola vez por sesión.
+       Sin red NO se degrada: ahí el problema es la red, y el modal ya lo dice. */
+    if (this._pinSoportado === undefined) {
+      try {
+        const r0 = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'verificarOperador' }) });
+        const d0 = await r0.json();
+        this._pinSoportado = !/no reconocid/i.test(String((d0 && d0.error) || ''));
+      } catch (e) { this._pinSoportado = true; }
+    }
+    if (this._pinSoportado === false) {
+      this._operadorSesion = '(sin verificar — backend sin PIN)';
+      return this._operadorSesion;
+    }
     const r = await this._pedirOperador();
     if (!r) return null;   // v6.03: ahora SÍ bloquea (ver _exigirFirma)
     this._operadorSesion = r.nombre; this._operadorCedula = r.cedula; this._operadorPin = r.pin;
