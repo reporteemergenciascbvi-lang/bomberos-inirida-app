@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.99';
+const APP_VERSION = '6.00';
 const APP_VERSION_NOTAS = [
+  'v6.00: 👥 Nuevo en el Panel de Administrador: si alguien registra una actividad con un compañero que todavía no está en la base de personal, esa persona YA NO SE PIERDE. Queda en una lista de "esperando alta" arriba del Panel, y el administrador la aprueba (o la descarta) con un toque. Antes no entraba a la base y después no aparecía en el autocompletado ni la reconocía el aviso de "nombre desconocido".',
+  'v6.00: 🪪 Las cédulas escritas con puntos o espacios ya no crean personas repetidas en la base de personal: "1.234.567" y "1234567" ahora se reconocen como la misma persona al registrarla, tanto desde Actividades como desde Asistencia.',
+  'v6.00: 🛠️ Arreglo interno: dos administradores trabajando al mismo tiempo ya no pueden duplicar por accidente la misma persona en la base.',
   'v5.99: 🗺️ El mapa ahora carga desde la propia app y no desde un servidor de terceros. Es más seguro y arranca más rápido; el mapa ya no depende de que ese servidor externo esté disponible.',
   'v5.99: 🔒 Refuerzo de seguridad: se quitó el permiso que la app le daba a ese servidor externo para ejecutar código.',
   'v5.98: 👥 La lista de nombres que sale al escribir (en reportes, actividades y asistencia) ahora se toma DIRECTO de la hoja del personal. Antes venía de una lista fija dentro de la app: por eso seguían apareciendo compañeros que ya no están y NO aparecían los que se agregaron después. Ahora se actualiza sola.',
@@ -3110,6 +3113,9 @@ const app = {
     // se veía ese reporte (a veces vacío) en lugar de la lista. Reseteamos.
     this._resetVistaPanelAdmin();
     await this.cargarReportesAdmin();
+    // v6.00: bandeja de altas pendientes. Sin await a propósito: es información
+    // secundaria y no debe demorar la apertura del Panel ni romperla si falla.
+    this.cargarPersonalPendiente();
   },
 
   // v5.94: deja el Panel Admin en su estado inicial (lista visible, detalle y
@@ -3122,6 +3128,113 @@ const app = {
     if (editando) editando.style.display = 'none';
     if (wrap) wrap.style.display = 'block';
     this._reporteAdminViendo = null;
+  },
+
+  /* ═══════ v6.00: BANDEJA DE ALTAS PENDIENTES AL ROSTER ═══════
+     Cuando una actividad la registra alguien que NO es administrador, el
+     personal nuevo que aparece ahí no puede entrar solo a la base (escribir en
+     Personal_CBVI es acción de admin desde v5.69, y así debe seguir). Hasta
+     v5.93 esa alta simplemente se perdía en silencio: la persona quedaba
+     "desconocida" para el autocompletado y para el aviso anti-typos, sin que
+     nadie se enterara. Ahora el backend la deja en una bandeja y vos decidís.
+     Esta sección es secundaria: si falla la red, se oculta y no rompe el Panel. */
+  async cargarPersonalPendiente() {
+    const wrap = document.getElementById('pendientesRosterWrap');
+    const cont = document.getElementById('listaPendientesRoster');
+    const titulo = document.getElementById('pendientesRosterTitulo');
+    if (!wrap || !cont) return;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'listarPersonalPendiente',
+          adminEmail: this.usuario.email,
+          adminPassword: this._adminPwdSession || ''
+        })
+      });
+      const data = JSON.parse(await resp.text());
+      const lista = (data && data.ok && Array.isArray(data.pendientes)) ? data.pendientes : [];
+      if (!lista.length) { wrap.style.display = 'none'; cont.innerHTML = ''; return; }
+      if (titulo) titulo.textContent = lista.length === 1
+        ? '1 persona esperando alta'
+        : lista.length + ' personas esperando alta';
+      // I5: todo texto libre pasa por _esc. I10: los datos van en data-*, nunca
+      // interpolados dentro del string del onclick (una cédula o un nombre con
+      // comilla rompería el handler).
+      cont.innerHTML = lista.map(p => {
+        const nom = app._esc(p.nombre || '(sin nombre)');
+        const ced = app._esc(p.cedula || '');
+        const quien = p.registradoPor ? `<div style="font-size:10px;color:#92400e;margin-top:2px;">Lo registró: ${app._esc(p.registradoPor)}${p.fecha ? ' · ' + app._esc(p.fecha) : ''}</div>` : '';
+        return `
+          <div style="background:#fff;border:1px solid #fcd34d;border-radius:8px;padding:10px;margin-bottom:8px;">
+            <div style="font-weight:700;font-size:14px;color:#1f2937;">${nom}</div>
+            <div style="font-size:12px;color:#555;">CC ${ced}${p.rango ? ' · ' + app._esc(p.rango) : ''}</div>
+            ${quien}
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+              <button data-ced="${ced}" data-nom="${nom}"
+                      onclick="app.aprobarPendienteRoster(this, this.dataset.ced, this.dataset.nom)"
+                      style="flex:1;min-width:110px;padding:9px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">✅ Aprobar</button>
+              <button data-ced="${ced}" data-nom="${nom}"
+                      onclick="app.descartarPendienteRoster(this, this.dataset.ced, this.dataset.nom)"
+                      style="flex:1;min-width:110px;padding:9px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">🗑️ Descartar</button>
+            </div>
+          </div>`;
+      }).join('');
+      wrap.style.display = 'block';
+    } catch (e) {
+      wrap.style.display = 'none';
+    }
+  },
+
+  async aprobarPendienteRoster(btn, cedula, nombre) {
+    await this._conBloqueo(btn, 'Aprobando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            accion: 'aprobarPersonalPendiente',
+            adminEmail: this.usuario.email,
+            adminPassword: this._adminPwdSession || '',
+            cedula: cedula
+          })
+        });
+        const data = JSON.parse(await resp.text());
+        if (!data.ok) { this.toast('Error: ' + (data.error || '?'), 'error'); return; }
+        this.toast('✅ ' + (data.mensaje || nombre + ' quedó en el roster'), 'exito');
+        await this.cargarPersonalPendiente();
+      } catch (e) {
+        this.toast('Error de red: ' + e.message, 'error');
+      }
+    });
+  },
+
+  async descartarPendienteRoster(btn, cedula, nombre) {
+    // I4: modal propio, nunca confirm() nativo (falla en silencio en el APK).
+    const ok = await this.confirmar('Descartar del roster',
+      `¿Descartar a "${nombre}"? No entrará a la base de personal. Si vuelve a salir en otra actividad, se anotará de nuevo.`);
+    if (!ok) return;
+    await this._conBloqueo(btn, 'Descartando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            accion: 'descartarPersonalPendiente',
+            adminEmail: this.usuario.email,
+            adminPassword: this._adminPwdSession || '',
+            cedula: cedula
+          })
+        });
+        const data = JSON.parse(await resp.text());
+        if (!data.ok) { this.toast('Error: ' + (data.error || '?'), 'error'); return; }
+        this.toast('🗑️ ' + (data.mensaje || nombre + ' descartado'), 'info');
+        await this.cargarPersonalPendiente();
+      } catch (e) {
+        this.toast('Error de red: ' + e.message, 'error');
+      }
+    });
   },
 
   async cargarReportesAdmin() {
