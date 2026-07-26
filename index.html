@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=5.99">
-<script src="vendor/leaflet/leaflet.js?v=5.99"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.00">
+<script src="vendor/leaflet/leaflet.js?v=6.00"></script>
 
 <style>
   :root {
@@ -1292,7 +1292,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v5.99</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.00</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1415,6 +1415,20 @@ button:active { transform: scale(.96); }
 <div class="pantalla" id="pantallaPanelAdmin">
   <div style="padding:0 4px;">
     <h2 style="color:var(--rojo);margin:10px 0;">🛡️ Panel de Administrador</h2>
+
+    <!-- v6.00: bandeja de altas pendientes al roster. Oculta mientras no haya
+         nada esperando; se muestra sola cuando el backend devuelve pendientes. -->
+    <div id="pendientesRosterWrap" style="display:none;background:#fffbeb;border:2px solid #f59e0b;border-radius:10px;padding:12px;margin-bottom:12px;">
+      <div style="font-weight:800;color:#92400e;margin-bottom:6px;font-size:15px;">
+        👥 <span id="pendientesRosterTitulo">Personas esperando alta</span>
+      </div>
+      <div style="font-size:11px;color:#78350f;margin-bottom:10px;line-height:1.45;">
+        Salieron en una actividad registrada por alguien que no es administrador, así que
+        <b>no entraron solas</b> a la base de personal. Mientras estén acá, el autocompletado
+        no las reconoce y el aviso de "nombre desconocido" las marca. Aprueba para que entren.
+      </div>
+      <div id="listaPendientesRoster"></div>
+    </div>
 
     <div id="listaReportesAdminWrap">
       <input type="text" id="filtroAdmin" placeholder="Buscar por consecutivo, correo o dirección..."
@@ -2174,8 +2188,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=5.99"></script>
-<script src="app.js?v=5.99"></script>
+<script src="logos.js?v=6.00"></script>
+<script src="app.js?v=6.00"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

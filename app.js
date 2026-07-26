@@ -21,8 +21,13 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '5.99';
+const APP_VERSION = '6.00';
 const APP_VERSION_NOTAS = [
+  'v6.00: 👥 Nuevo en el Panel de Administrador: si alguien registra una actividad con un compañero que todavía no está en la base de personal, esa persona YA NO SE PIERDE. Queda en una lista de "esperando alta" arriba del Panel, y el administrador la aprueba (o la descarta) con un toque. Antes no entraba a la base y después no aparecía en el autocompletado ni la reconocía el aviso de "nombre desconocido".',
+  'v6.00: 🪪 Las cédulas escritas con puntos o espacios ya no crean personas repetidas en la base de personal: "1.234.567" y "1234567" ahora se reconocen como la misma persona al registrarla, tanto desde Actividades como desde Asistencia.',
+  'v6.00: 🛠️ Arreglo interno: dos administradores trabajando al mismo tiempo ya no pueden duplicar por accidente la misma persona en la base.',
+  'v6.00: 🗓️ Al editar un domingo ya guardado (botón ✏️) ahora se puede AGREGAR a alguien que quedó fuera de la lista: buscas el nombre, entra como "Presente" y le cambias el estado si hace falta. Antes tocaba borrar el domingo entero y volver a registrarlo persona por persona.',
+  'v6.00: 🛟 Corregido un problema serio: si abrías un domingo YA guardado desde la pantalla de Asistencia y volvías a guardar, se BORRABAN el tipo de reunión, el tema, el lugar, el encargado y el comandante de guardia. Ahora esos datos se cargan solos y se conservan.',
   'v5.99: 🗺️ El mapa ahora carga desde la propia app y no desde un servidor de terceros. Es más seguro y arranca más rápido; el mapa ya no depende de que ese servidor externo esté disponible.',
   'v5.99: 🔒 Refuerzo de seguridad: se quitó el permiso que la app le daba a ese servidor externo para ejecutar código.',
   'v5.98: 👥 La lista de nombres que sale al escribir (en reportes, actividades y asistencia) ahora se toma DIRECTO de la hoja del personal. Antes venía de una lista fija dentro de la app: por eso seguían apareciendo compañeros que ya no están y NO aparecían los que se agregaron después. Ahora se actualiza sola.',
@@ -3110,6 +3115,9 @@ const app = {
     // se veía ese reporte (a veces vacío) en lugar de la lista. Reseteamos.
     this._resetVistaPanelAdmin();
     await this.cargarReportesAdmin();
+    // v6.00: bandeja de altas pendientes. Sin await a propósito: es información
+    // secundaria y no debe demorar la apertura del Panel ni romperla si falla.
+    this.cargarPersonalPendiente();
   },
 
   // v5.94: deja el Panel Admin en su estado inicial (lista visible, detalle y
@@ -3122,6 +3130,113 @@ const app = {
     if (editando) editando.style.display = 'none';
     if (wrap) wrap.style.display = 'block';
     this._reporteAdminViendo = null;
+  },
+
+  /* ═══════ v6.00: BANDEJA DE ALTAS PENDIENTES AL ROSTER ═══════
+     Cuando una actividad la registra alguien que NO es administrador, el
+     personal nuevo que aparece ahí no puede entrar solo a la base (escribir en
+     Personal_CBVI es acción de admin desde v5.69, y así debe seguir). Hasta
+     v5.93 esa alta simplemente se perdía en silencio: la persona quedaba
+     "desconocida" para el autocompletado y para el aviso anti-typos, sin que
+     nadie se enterara. Ahora el backend la deja en una bandeja y vos decidís.
+     Esta sección es secundaria: si falla la red, se oculta y no rompe el Panel. */
+  async cargarPersonalPendiente() {
+    const wrap = document.getElementById('pendientesRosterWrap');
+    const cont = document.getElementById('listaPendientesRoster');
+    const titulo = document.getElementById('pendientesRosterTitulo');
+    if (!wrap || !cont) return;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'listarPersonalPendiente',
+          adminEmail: this.usuario.email,
+          adminPassword: this._adminPwdSession || ''
+        })
+      });
+      const data = JSON.parse(await resp.text());
+      const lista = (data && data.ok && Array.isArray(data.pendientes)) ? data.pendientes : [];
+      if (!lista.length) { wrap.style.display = 'none'; cont.innerHTML = ''; return; }
+      if (titulo) titulo.textContent = lista.length === 1
+        ? '1 persona esperando alta'
+        : lista.length + ' personas esperando alta';
+      // I5: todo texto libre pasa por _esc. I10: los datos van en data-*, nunca
+      // interpolados dentro del string del onclick (una cédula o un nombre con
+      // comilla rompería el handler).
+      cont.innerHTML = lista.map(p => {
+        const nom = app._esc(p.nombre || '(sin nombre)');
+        const ced = app._esc(p.cedula || '');
+        const quien = p.registradoPor ? `<div style="font-size:10px;color:#92400e;margin-top:2px;">Lo registró: ${app._esc(p.registradoPor)}${p.fecha ? ' · ' + app._esc(p.fecha) : ''}</div>` : '';
+        return `
+          <div style="background:#fff;border:1px solid #fcd34d;border-radius:8px;padding:10px;margin-bottom:8px;">
+            <div style="font-weight:700;font-size:14px;color:#1f2937;">${nom}</div>
+            <div style="font-size:12px;color:#555;">CC ${ced}${p.rango ? ' · ' + app._esc(p.rango) : ''}</div>
+            ${quien}
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+              <button data-ced="${ced}" data-nom="${nom}"
+                      onclick="app.aprobarPendienteRoster(this, this.dataset.ced, this.dataset.nom)"
+                      style="flex:1;min-width:110px;padding:9px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">✅ Aprobar</button>
+              <button data-ced="${ced}" data-nom="${nom}"
+                      onclick="app.descartarPendienteRoster(this, this.dataset.ced, this.dataset.nom)"
+                      style="flex:1;min-width:110px;padding:9px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">🗑️ Descartar</button>
+            </div>
+          </div>`;
+      }).join('');
+      wrap.style.display = 'block';
+    } catch (e) {
+      wrap.style.display = 'none';
+    }
+  },
+
+  async aprobarPendienteRoster(btn, cedula, nombre) {
+    await this._conBloqueo(btn, 'Aprobando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            accion: 'aprobarPersonalPendiente',
+            adminEmail: this.usuario.email,
+            adminPassword: this._adminPwdSession || '',
+            cedula: cedula
+          })
+        });
+        const data = JSON.parse(await resp.text());
+        if (!data.ok) { this.toast('Error: ' + (data.error || '?'), 'error'); return; }
+        this.toast('✅ ' + (data.mensaje || nombre + ' quedó en el roster'), 'exito');
+        await this.cargarPersonalPendiente();
+      } catch (e) {
+        this.toast('Error de red: ' + e.message, 'error');
+      }
+    });
+  },
+
+  async descartarPendienteRoster(btn, cedula, nombre) {
+    // I4: modal propio, nunca confirm() nativo (falla en silencio en el APK).
+    const ok = await this.confirmar('Descartar del roster',
+      `¿Descartar a "${nombre}"? No entrará a la base de personal. Si vuelve a salir en otra actividad, se anotará de nuevo.`);
+    if (!ok) return;
+    await this._conBloqueo(btn, 'Descartando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            accion: 'descartarPersonalPendiente',
+            adminEmail: this.usuario.email,
+            adminPassword: this._adminPwdSession || '',
+            cedula: cedula
+          })
+        });
+        const data = JSON.parse(await resp.text());
+        if (!data.ok) { this.toast('Error: ' + (data.error || '?'), 'error'); return; }
+        this.toast('🗑️ ' + (data.mensaje || nombre + ' descartado'), 'info');
+        await this.cargarPersonalPendiente();
+      } catch (e) {
+        this.toast('Error de red: ' + e.message, 'error');
+      }
+    });
   },
 
   async cargarReportesAdmin() {
@@ -5317,6 +5432,22 @@ ${paginaFotos}
       const [d1,d2]=await Promise.all([r1.json(),r2.json()]);
       // v5.81: se restaura también la observación previa (no solo el estado)
       const prev={}; if(d2.ok) d2.registros.forEach(r=>{prev[r.cedula||r.nombre]={estado:r.estado,observacion:String(r.observacion||'')};});
+      /* v6.00 FIX (pérdida de datos) — precargar la CABECERA del domingo.
+         Estos 5 campos se LEÍAN en guardarAsistencia pero no se rellenaban nunca
+         desde lo ya guardado. Como guardarAsistencia manda replaceAll:true, al
+         abrir un domingo existente y pulsar Guardar el backend escribía los 5
+         VACÍOS en todas las filas: se borraban tipo de reunión, tema, lugar,
+         encargado y guardia. listarAsistenciaDomingo ya devolvía estos datos
+         (es lo que consume el modal de ✏️), solo faltaba usarlos acá.
+         Se asignan SIEMPRE, también en blanco cuando el domingo es nuevo: así
+         cambiar de fecha no arrastra el tema del domingo anterior al siguiente. */
+      const _cab = (d2.ok && d2.registros.length) ? d2.registros[0] : {};
+      const _setCab = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+      _setCab('asistTipoReunion', _cab.tipoReunion);
+      _setCab('asistTema', _cab.tema);
+      _setCab('asistLugar', _cab.lugarReunion);
+      _setCab('asistEncargado', _cab.encargado);
+      _setCab('asistComandanteGuardia', _cab.comandanteGuardia);
       // v5.81: se guarda rango + orden (fila en Personal_CBVI) para llamar a
       // lista por rangos y en el orden de la hoja (antes el objeto ordenaba
       // por cédula numérica y el orden quedaba "raro").
@@ -6905,6 +7036,13 @@ ${paginaFotos}
       const data=await resp.json();
       if(!data.ok)throw new Error(data.error||'Error');
       const regs=data.registros; if(!regs.length){this.toast('Sin registros','error');return;}
+      /* v6.00: la lista pasa a ser MUTABLE para poder agregar personas. Antes
+         era un regs.map() fijo: solo se editaban los que ya estaban guardados,
+         así que para sumar a alguien había que borrar el domingo entero y
+         recrearlo a mano (34 estados reescritos). Se copia cada registro para
+         no mutar la respuesta del servidor. */
+      this._ednRegs = regs.map(r => Object.assign({}, r));
+      this._ednNuevos = {};   // cédulas agregadas en esta edición (se pueden quitar)
       const enc=regs[0].encargado||''; const grd=regs[0].comandanteGuardia||'';
       const tipoActual=regs[0].tipoReunion||''; const temaActual=regs[0].tema||''; const lugarActual=regs[0].lugarReunion||'';
       const sts={'PRESENTE':'Presente','AUSENTE_EXCUSA':'C/excusa','AUSENTE_SIN_EXCUSA':'Sin excusa'};
@@ -6926,14 +7064,16 @@ ${paginaFotos}
 
       const modal=document.createElement('div');
       modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
-      const filas=regs.map((r,i)=>'<div style="padding:7px 0;border-bottom:1px solid #f0f0f0;">'
-        +'<div style="display:flex;align-items:center;justify-content:space-between;">'
-        +'<div style="flex:1;font-size:13px;font-weight:600;">'+app._esc(r.nombre||'')+'<div style="font-size:11px;color:#999;">CC: '+app._esc(r.cedula||'-')+'</div></div>'
-        +'<select id="_edn_'+i+'" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:12px;">'
-        +Object.entries(sts).map(([v,l])=>'<option value="'+v+'"'+(r.estado===v?' selected':'')+'>'+l+'</option>').join('')
-        +'</select></div>'
-        +'<input type="text" id="_edno_'+i+'" value="'+esc(r.observacion)+'" placeholder="Observación (opcional)" style="width:100%;margin-top:5px;padding:6px 8px;border:1px solid #eee;border-radius:6px;font-size:12px;box-sizing:border-box;">'
-        +'</div>').join('');
+      // v6.00: las filas se pintan en _ednRenderFilas() para poder re-render al
+      // agregar a alguien. El bloque de búsqueda va justo encima de la lista.
+      const buscador='<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:8px;">'
+        +'<div style="font-size:12px;font-weight:700;color:#1e8449;margin-bottom:5px;">➕ Agregar persona a este domingo</div>'
+        +'<div style="position:relative;">'
+        +'<input type="text" id="_ednBuscar" autocomplete="off" placeholder="Escribe el nombre..." oninput="app._ednBuscarPersona(this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_ednBuscarSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
+        +'</div>'
+        +'<div style="font-size:10px;color:#888;margin-top:4px;">Entra como <b>Presente</b>; cámbialo abajo si corresponde. Si no aparece, primero hay que darlo de alta en el personal.</div>'
+        +'</div>';
       modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;margin:auto;">'
         +'<div style="font-weight:700;font-size:16px;color:#1e8449;margin-bottom:14px;">✏️ Domingo '+fecha+'</div>'
         +'<label style="font-size:12px;font-weight:700;">Tipo de reunión</label>'
@@ -6961,23 +7101,24 @@ ${paginaFotos}
         + fotoSlot('medio','Intermedio',fl.medio||'')
         + fotoSlot('fin','Final',fl.fin||'')
         +'</div>'
+        +buscador
         +'<div style="font-size:12px;font-weight:700;margin-bottom:8px;color:#555;">Estado individual:</div>'
-        +filas
+        +'<div id="_ednFilas"></div>'
         +'<div style="display:flex;gap:10px;margin-top:14px;">'
         +'<button id="_ednCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
         +'<button id="_ednGuard" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>'
         +'</div></div>';
       document.body.appendChild(modal);
+      this._ednRenderFilas();
       modal.querySelector('#_ednCancel').onclick=()=>document.body.removeChild(modal);
       modal.querySelector('#_ednGuard').onclick=async()=>{
         await this._conBloqueo(modal.querySelector('#_ednGuard'), 'Guardando...', async () => {
         const _pwdDN = await this._obtenerPwdAdmin('🔐 Contraseña admin');
         if(!_pwdDN) return;
-        const newRegs=regs.map((r,i)=>{
-          const sel=document.getElementById('_edn_'+i);
-          const obs=document.getElementById('_edno_'+i);
-          return {...r,estado:sel?sel.value:r.estado,observacion:obs?obs.value:r.observacion};
-        });
+        // v6.00: volcar a memoria lo que está en pantalla (incluye las filas
+        // agregadas en esta edición) y mandar eso.
+        this._ednSync();
+        const newRegs=this._ednRegs;
         const fotosPayload={};
         ['inicio','medio','fin'].forEach(k=>{ if(this._ednFotosNuevas[k]) fotosPayload[k]=this._ednFotosNuevas[k]; });
         try{
@@ -6999,6 +7140,124 @@ ${paginaFotos}
         });
       };
     }catch(e){this.toast('Error: '+e.message,'error');}
+  },
+
+  /* ═══════ v6.00: AGREGAR PERSONAS A UN DOMINGO YA GUARDADO ═══════
+     Antes, el modal de ✏️ solo mostraba a los que ya estaban guardados, así que
+     para sumar a alguien había que ELIMINAR el domingo y recrearlo entero (34
+     estados reescritos a mano, con el riesgo de perderlo todo si algo fallaba a
+     mitad). El backend nunca fue el problema: registrarAsistencia con
+     replaceAll:true reescribe el domingo con TODOS los registros que reciba,
+     incluidos los que no estaban. Lo único que faltaba era poder añadirlos acá. */
+
+  // Cédula normalizada a solo dígitos — equivalente en el front de _cedKey del
+  // backend. "1.121.720.941" y "1121720941" son la misma persona.
+  _cedDigitos(x) { return String(x == null ? '' : x).replace(/\D/g, ''); },
+
+  // Vuelca a this._ednRegs lo que el usuario tiene en pantalla. Hay que llamarlo
+  // ANTES de re-renderizar o de guardar; si no, se pierde lo tocado a mano.
+  _ednSync() {
+    (this._ednRegs || []).forEach((r, i) => {
+      const sel = document.getElementById('_edn_' + i);
+      const obs = document.getElementById('_edno_' + i);
+      if (sel) r.estado = sel.value;
+      if (obs) r.observacion = obs.value;
+    });
+  },
+
+  _ednRenderFilas() {
+    const cont = document.getElementById('_ednFilas');
+    if (!cont) return;
+    const sts = { 'PRESENTE':'Presente', 'AUSENTE_EXCUSA':'C/excusa', 'AUSENTE_SIN_EXCUSA':'Sin excusa' };
+    cont.innerHTML = (this._ednRegs || []).map((r, i) => {
+      const ced = this._cedDigitos(r.cedula);
+      const esNuevo = !!(this._ednNuevos && this._ednNuevos[ced]);
+      // Solo se puede quitar lo agregado en ESTA edición. Sacar a alguien que ya
+      // estaba guardado afecta su historial y sus sanciones: es otra decisión,
+      // no se resuelve de contrabando en un botón ×.
+      const btnQuitar = esNuevo
+        ? '<button data-ced="' + app._esc(ced) + '" onclick="app._ednQuitarPersona(this.dataset.ced)" title="Quitar" style="background:#991b1b;color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;padding:0;margin-left:6px;">×</button>'
+        : '';
+      return '<div id="_ednfila_' + i + '" style="padding:7px 0;border-bottom:1px solid #f0f0f0;' + (esNuevo ? 'background:#f0fdf4;border-left:3px solid #16a34a;padding-left:6px;' : '') + '">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+        + '<div style="flex:1;font-size:13px;font-weight:600;">' + app._esc(r.nombre || '(sin nombre)')
+        + (esNuevo ? '<span style="font-size:10px;color:#16a34a;font-weight:700;margin-left:5px;">NUEVO</span>' : '')
+        + '<div style="font-size:11px;color:#999;">CC: ' + app._esc(r.cedula || '-') + '</div></div>'
+        + '<select id="_edn_' + i + '" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:12px;">'
+        + Object.keys(sts).map(v => '<option value="' + v + '"' + (r.estado === v ? ' selected' : '') + '>' + sts[v] + '</option>').join('')
+        + '</select>' + btnQuitar + '</div>'
+        + '<input type="text" id="_edno_' + i + '" value="' + app._esc(r.observacion || '') + '" placeholder="Observación (opcional)" style="width:100%;margin-top:5px;padding:6px 8px;border:1px solid #eee;border-radius:6px;font-size:12px;box-sizing:border-box;">'
+        + '</div>';
+    }).join('');
+  },
+
+  _ednBuscarPersona(q) {
+    const sug = document.getElementById('_ednBuscarSug');
+    if (!sug) return;
+    if (!q || q.trim().length < 1) { sug.style.display = 'none'; return; }
+    clearTimeout(this._t_ednBuscar);
+    this._t_ednBuscar = setTimeout(async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'buscarPersonalCBVI', q: q.trim() }) });
+        const data = await resp.json();
+        if (!data.ok || !data.resultados.length) {
+          sug.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:#999;">Sin coincidencias en el personal.</div>';
+          sug.style.display = 'block'; return;
+        }
+        // I10: los datos van en data-*, nunca dentro del string del onclick.
+        sug.innerHTML = data.resultados.map(per =>
+          '<div data-n="' + app._esc(per.nombre||'') + '" data-c="' + app._esc(per.cedula||'') + '" data-r="' + app._esc(per.rango||'') + '" '
+          + 'onclick="app._ednAgregarPersona(this.dataset.n, this.dataset.c, this.dataset.r)" '
+          + 'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">' + app._esc(per.nombre||'')
+          + '<span style="color:#999;font-size:11px;margin-left:6px;">CC:' + app._esc(per.cedula||'-') + '</span></div>'
+        ).join('');
+        sug.style.display = 'block';
+      } catch(e) { sug.style.display = 'none'; }
+    }, 350);
+  },
+
+  _ednAgregarPersona(nombre, cedula, rango) {
+    const sug = document.getElementById('_ednBuscarSug');
+    const inp = document.getElementById('_ednBuscar');
+    if (sug) sug.style.display = 'none';
+    if (inp) inp.value = '';
+    const ced = this._cedDigitos(cedula);
+    const nom = this._normNombre(nombre || '');
+    // Anti-duplicado por cédula (dígitos) O nombre normalizado — CLAUDE.md §4.3.
+    const yaIdx = (this._ednRegs || []).findIndex(r =>
+      (ced && this._cedDigitos(r.cedula) === ced) || (!ced && this._normNombre(r.nombre || '') === nom));
+    if (yaIdx >= 0) {
+      // Ya está en la lista: en vez de decir "ya está" sobre algo que no se ve,
+      // llevarlo a la fila y resaltarla (mismo criterio que _flashAsistItem).
+      this.toast('Ya está en este domingo', 'info');
+      const caja = document.getElementById('_ednfila_' + yaIdx);
+      if (caja) {
+        caja.scrollIntoView({ behavior:'smooth', block:'center' });
+        const antes = caja.style.background;
+        caja.style.background = '#fef9c3';
+        setTimeout(() => { caja.style.background = antes; }, 1600);
+      }
+      return;
+    }
+    this._ednSync();   // no perder lo que ya tocó a mano antes de re-render
+    this._ednRegs.push({ nombre: nombre || '', cedula: cedula || '', rango: rango || 'BOMBERO',
+      estado: 'PRESENTE', observacion: '' });
+    if (ced) this._ednNuevos[ced] = true;
+    this._ednRenderFilas();
+    this.toast('➕ ' + (nombre || 'Persona') + ' agregado. Falta Guardar.', 'exito');
+  },
+
+  _ednQuitarPersona(ced) {
+    this._ednSync();
+    const i = (this._ednRegs || []).findIndex(r => this._cedDigitos(r.cedula) === String(ced));
+    if (i < 0) return;
+    const nom = this._ednRegs[i].nombre || 'Persona';
+    this._ednRegs.splice(i, 1);
+    if (this._ednNuevos) delete this._ednNuevos[String(ced)];
+    this._ednRenderFilas();
+    this.toast('Quitado: ' + nom, 'info');
   },
 
   async _ednCargarFoto(tipo, input) {
