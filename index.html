@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.01">
-<script src="vendor/leaflet/leaflet.js?v=6.01"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.02">
+<script src="vendor/leaflet/leaflet.js?v=6.02"></script>
 
 <style>
   :root {
@@ -1292,7 +1292,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.01</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.02</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1415,6 +1415,22 @@ button:active { transform: scale(.96); }
 <div class="pantalla" id="pantallaPanelAdmin">
   <div style="padding:0 4px;">
     <h2 style="color:var(--rojo);margin:10px 0;">🛡️ Panel de Administrador</h2>
+
+    <!-- v6.02: quién está firmado + relevo de guardia -->
+    <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+      <div style="font-size:12px;color:#1e3a8a;">🪪 Opera: <b id="operActualTxt">sin firmar</b></div>
+      <button onclick="app.cambiarOperador()" style="padding:7px 12px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;">Cambiar (relevo)</button>
+    </div>
+
+    <!-- v6.02: PIN de las unidades. Solo dice quién tiene y quién no; nunca muestra un PIN. -->
+    <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <div style="font-weight:700;font-size:13px;color:#334155;">🔑 PIN de las unidades</div>
+        <button onclick="app.cargarEstadoPins()" style="padding:6px 10px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Ver / asignar</button>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.45;">Cada unidad necesita su PIN de 4 dígitos para firmar lo que hace de guardia. Sin PIN no puede firmar. Los PIN se guardan cifrados: acá nunca se muestran, solo se pueden reemplazar.</div>
+      <div id="listaEstadoPins" style="margin-top:10px;"></div>
+    </div>
 
     <!-- v6.00: bandeja de altas pendientes al roster. Oculta mientras no haya
          nada esperando; se muestra sola cuando el backend devuelve pendientes. -->
@@ -2188,8 +2204,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.01"></script>
-<script src="app.js?v=6.01"></script>
+<script src="logos.js?v=6.02"></script>
+<script src="app.js?v=6.02"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

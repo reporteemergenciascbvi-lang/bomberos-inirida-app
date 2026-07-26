@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.01';
+const APP_VERSION = '6.02';
 const APP_VERSION_NOTAS = [
+  'v6.02: 🔑 La firma de guardia ahora pide PIN. Antes bastaba escribir un nombre, así que cualquiera podía firmar con el nombre de otro compañero — y el registro habría culpado a quien no fue. Ahora cada unidad tiene su PIN de 4 dígitos y el sistema comprueba que coincida con la cédula: nadie puede registrar acciones a nombre ajeno.',
+  'v6.02: 🔄 Botón "Cambiar (relevo)" arriba del Panel de Administrador, para que el turno que entra firme sin tener que cerrar la app. Arriba se ve siempre quién está operando.',
+  'v6.02: 🛡️ El administrador asigna y cambia los PIN desde el Panel. Se guardan cifrados: ni abriendo la hoja de cálculo se pueden ver, solo reemplazar. Si alguien olvida el suyo, el administrador le pone uno nuevo.',
   'v6.01: 🪪 El celular de la guardia lo usan distintas unidades, así que al entrar al Panel de Administrador la app ahora pregunta QUIÉN está operando. Ese nombre queda registrado junto a lo que se haga (descontar sanciones, registrar o editar asistencias). Se pregunta una sola vez por sesión.',
   'v6.01: 🎖️ Borrar la asistencia de un domingo COMPLETO ahora pide la contraseña de comandancia, porque eso borra el registro de todas las unidades de ese día y recalcula las sanciones. Para corregir un domingo sin borrarlo sigue estando Editar (✏️), que no cambió y no pide nada nuevo.',
   'v6.01: 🛟 Si se corta el internet justo al aprobar o descartar a alguien de la lista de "esperando alta", la app ya no muestra un error falso: revisa cómo quedó de verdad y te lo dice.',
@@ -534,7 +537,14 @@ const app = {
                a propósito: así viaja en TODA llamada sin tener que acordarse de
                agregarlo en cada fetch (que es como se cuelan los olvidos). */
             const oper = self._operadorSesion || '';
-            if (oper && !obj.operador) { obj.operador = oper; cambio = true; }
+            if (oper && !obj.operador) {
+              obj.operador = oper;
+              // v6.02: van también cédula y PIN porque el backend NO se cree el
+              // nombre: valida el PIN y saca el nombre de Personal_CBVI por cédula.
+              obj.operadorCedula = self._operadorCedula || '';
+              obj.operadorPin = self._operadorPin || '';
+              cambio = true;
+            }
             if (cambio) opts = Object.assign({}, opts, { body: JSON.stringify(obj) });
           }
         }
@@ -3130,6 +3140,9 @@ const app = {
     // v6.00: bandeja de altas pendientes. Sin await a propósito: es información
     // secundaria y no debe demorar la apertura del Panel ni romperla si falla.
     this.cargarPersonalPendiente();
+    // v6.02: mostrar quién quedó firmado (la firma se pidió en _obtenerPwdAdmin).
+    const _et = document.getElementById('operActualTxt');
+    if (_et) _et.textContent = this._operadorSesion || 'sin firmar';
   },
 
   // v5.94: deja el Panel Admin en su estado inicial (lista visible, detalle y
@@ -3142,6 +3155,65 @@ const app = {
     if (editando) editando.style.display = 'none';
     if (wrap) wrap.style.display = 'block';
     this._reporteAdminViendo = null;
+  },
+
+  /* ═══════ v6.02: GESTIÓN DE PIN DE LAS UNIDADES ═══════
+     Solo muestra QUIÉN tiene PIN y quién no. El backend nunca devuelve un PIN ni
+     su hash, así que desde acá no hay forma de averiguar el de nadie: se puede
+     reemplazar, no leer. Los que NO tienen PIN salen primero, porque son los que
+     todavía no pueden firmar. */
+  async cargarEstadoPins() {
+    const cont = document.getElementById('listaEstadoPins');
+    if (!cont) return;
+    cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Cargando...</div>';
+    try {
+      const resp = await fetch(URL_BACKEND, { method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ accion:'listarEstadoPins', adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+      const d = await resp.json();
+      if (!d.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
+      if (!d.personal || !d.personal.length) { cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Sin personal activo.</div>'; return; }
+      cont.innerHTML = '<div style="font-size:11px;color:#475569;margin-bottom:8px;font-weight:600;">'
+        + d.conPin + ' de ' + d.total + ' unidades ya tienen PIN</div>'
+        + d.personal.map(p => {
+          const ced = app._esc(p.cedula||'');
+          const nom = app._esc(p.nombre||'(sin nombre)');
+          const badge = p.tienePin
+            ? '<span style="font-size:10px;color:#065f46;font-weight:700;">✅ con PIN' + (p.desde ? ' · ' + app._esc(p.desde) : '') + '</span>'
+            : '<span style="font-size:10px;color:#b45309;font-weight:700;">⚠️ sin PIN</span>';
+          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #e2e8f0;">'
+            + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:600;color:#1f2937;">'+nom+'</div>'
+            + '<div style="font-size:10px;color:#94a3b8;">CC '+ced+' · '+badge+'</div></div>'
+            + '<button data-c="'+ced+'" data-n="'+nom+'" onclick="app.asignarPinUnidad(this, this.dataset.c, this.dataset.n)" '
+            + 'style="padding:6px 10px;background:'+(p.tienePin?'#64748b':'#b45309')+';color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;white-space:nowrap;">'
+            + (p.tienePin ? 'Cambiar' : 'Asignar') + '</button>'
+            + '</div>';
+        }).join('');
+    } catch (e) {
+      cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">Error de red: '+app._esc(e.message||'')+'</div>';
+    }
+  },
+
+  async asignarPinUnidad(btn, cedula, nombre) {
+    const pin = await this._pedirPwdAdmin('🔑 PIN de 4 dígitos para ' + nombre + '<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Se lo tienes que decir a esa unidad. Déjalo vacío y cancela si no quieres cambiarlo.</div>');
+    if (pin === null) return;
+    const p = String(pin || '').trim();
+    if (!/^\d{4}$/.test(p)) { this.toast('El PIN son exactamente 4 dígitos', 'error'); return; }
+    await this._conBloqueo(btn, 'Guardando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'asignarPinOperador', cedula: cedula, pin: p,
+            adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+        const d = await resp.json();
+        if (!d.ok) { this.toast('Error: ' + (d.error||'?'), 'error'); return; }
+        this.toast('🔑 PIN asignado a ' + nombre + '. Dáselo a esa unidad.', 'exito');
+        await this.cargarEstadoPins();
+      } catch (e) {
+        this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+        await this.cargarEstadoPins();
+      }
+    });
   },
 
   /* ═══════ v6.00: BANDEJA DE ALTAS PENDIENTES AL ROSTER ═══════
@@ -6436,12 +6508,57 @@ ${paginaFotos}
      y el log queda marcado como "operador NO declarado", que en sí es una señal. */
   async _obtenerOperador() {
     if (this._operadorSesion) return this._operadorSesion;
-    try { const s = sessionStorage.getItem('cbvi_operador'); if (s) { this._operadorSesion = s; return s; } } catch(e) {}
-    const nom = await this._pedirOperador();
-    if (!nom || !nom.trim()) return null;   // no bloquea: queda sin declarar
-    this._operadorSesion = nom.trim().toUpperCase();
-    try { sessionStorage.setItem('cbvi_operador', this._operadorSesion); } catch(e) {}
-    return this._operadorSesion;
+    try {
+      const s = sessionStorage.getItem('cbvi_oper');
+      if (s) { const o = JSON.parse(s);
+        if (o && o.nombre && o.cedula && o.pin) {
+          this._operadorSesion = o.nombre; this._operadorCedula = o.cedula; this._operadorPin = o.pin;
+          return o.nombre;
+        } }
+    } catch(e) {}
+    const r = await this._pedirOperador();
+    if (!r) return null;   // no bloquea: el log queda "operador SIN verificar"
+    this._operadorSesion = r.nombre; this._operadorCedula = r.cedula; this._operadorPin = r.pin;
+    try { sessionStorage.setItem('cbvi_oper', JSON.stringify(r)); } catch(e) {}
+    return r.nombre;
+  },
+
+  /* v6.02: el relevo de guardia firma de nuevo sin tener que cerrar la app.
+     Si no existiera esto, el turno entrante quedaría operando bajo la firma del
+     turno saliente — justo lo que el PIN vino a evitar. */
+  async cambiarOperador() {
+    this._operadorSesion = null; this._operadorCedula = null; this._operadorPin = null;
+    try { sessionStorage.removeItem('cbvi_oper'); } catch(e) {}
+    const nom = await this._obtenerOperador();
+    if (nom) this.toast('🪪 Ahora opera: ' + nom, 'exito');
+    const et = document.getElementById('operActualTxt');
+    if (et) et.textContent = nom || 'sin firmar';
+  },
+
+  // Autocompletado del modal de firma. Guarda la cédula en el dataset del input:
+  // el PIN se valida contra la CÉDULA, no contra el nombre escrito.
+  _buscarOperadorSug(q) {
+    const sug = document.getElementById('_operSug');
+    if (!sug) return;
+    if (!q || q.trim().length < 1) { sug.style.display = 'none'; return; }
+    clearTimeout(this._t_operSug);
+    this._t_operSug = setTimeout(async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'buscarPersonalCBVI', q: q.trim() }) });
+        const data = await resp.json();
+        if (!data.ok || !data.resultados.length) { sug.style.display = 'none'; return; }
+        sug.innerHTML = data.resultados.map(per =>
+          '<div data-n="'+app._esc(per.nombre||'')+'" data-c="'+app._esc(per.cedula||'')+'" '
+          + 'onclick="var i=document.getElementById(\'_operInput\');i.value=this.dataset.n;i.dataset.ced=this.dataset.c;'
+          + 'document.getElementById(\'_operSug\').style.display=\'none\';document.getElementById(\'_operPin\').focus();" '
+          + 'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">'+app._esc(per.nombre||'')
+          + '<span style="color:#999;font-size:11px;margin-left:6px;">CC:'+app._esc(per.cedula||'-')+'</span></div>'
+        ).join('');
+        sug.style.display = 'block';
+      } catch(e) { sug.style.display = 'none'; }
+    }, 350);
   },
 
   _pedirOperador() {
@@ -6449,23 +6566,51 @@ ${paginaFotos}
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
-        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">🪪 ¿Quién está operando?</div>'
-        + '<div style="font-size:11px;color:#666;margin-bottom:12px;text-align:center;line-height:1.45;">Este celular lo usa la guardia y el turno cambia. Tu nombre queda registrado junto a lo que hagas (sanciones, asistencias, ediciones).</div>'
+        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">🪪 ¿Quién está de guardia?</div>'
+        + '<div style="font-size:11px;color:#666;margin-bottom:12px;text-align:center;line-height:1.45;">Este celular lo usa la guardia y el turno cambia. Tu nombre queda registrado junto a lo que hagas: sanciones, asistencias y ediciones. Por eso hace falta <b>tu PIN</b> — así nadie puede firmar en tu nombre.</div>'
         + '<div style="position:relative;">'
-        + '<input id="_operInput" type="text" autocomplete="off" oninput="app._buscarAsistCampo(\'_operInput\',\'_operSug\',this.value)" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;" placeholder="Escribe tu nombre">'
+        + '<input id="_operInput" type="text" autocomplete="off" oninput="app._buscarOperadorSug(this.value)" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;" placeholder="Escribe tu nombre y tócalo">'
         + '<div id="_operSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.15);max-height:150px;overflow-y:auto;"></div>'
         + '</div>'
+        + '<input id="_operPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:20px;margin-top:10px;text-align:center;letter-spacing:8px;" placeholder="PIN">'
+        + '<div id="_operErr" style="display:none;color:#c00;font-size:12px;margin-top:8px;text-align:center;font-weight:600;"></div>'
         + '<div style="display:flex;gap:10px;margin-top:14px;">'
         + '<button id="_operSkip" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">Ahora no</button>'
-        + '<button id="_operOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Confirmar</button>'
-        + '</div></div>';
+        + '<button id="_operOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Firmar</button>'
+        + '</div>'
+        + '<div style="font-size:10px;color:#999;margin-top:10px;text-align:center;">¿No tienes PIN o lo olvidaste? Pídeselo al administrador.</div>'
+        + '</div>';
       document.body.appendChild(modal);
       const inp = modal.querySelector('#_operInput');
+      const pin = modal.querySelector('#_operPin');
+      const err = modal.querySelector('#_operErr');
+      const btn = modal.querySelector('#_operOk');
       setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
       const fin = (val) => { try { document.body.removeChild(modal); } catch(e){} resolve(val); };
+      const mostrarErr = (t) => { err.textContent = t; err.style.display = 'block'; };
+      const intentar = async () => {
+        const ced = inp.dataset.ced || '';
+        const p = (pin.value || '').trim();
+        if (!ced) { mostrarErr('Toca tu nombre en la lista que aparece al escribir.'); return; }
+        if (!/^\d{4}$/.test(p)) { mostrarErr('El PIN son 4 dígitos.'); return; }
+        btn.disabled = true; btn.style.opacity = '0.65'; btn.textContent = 'Verificando...';
+        try {
+          // Se valida ANTES de aceptar la firma, para avisar en el momento y no
+          // dejar que la guardia opere creyendo que quedó firmada cuando no.
+          const resp = await fetch(URL_BACKEND, { method:'POST',
+            headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body: JSON.stringify({ accion:'verificarOperador', cedula: ced, pin: p }) });
+          const d = await resp.json();
+          if (!d.ok) { mostrarErr(d.error || 'PIN incorrecto.'); btn.disabled = false; btn.style.opacity=''; btn.textContent='Firmar'; return; }
+          fin({ nombre: d.nombre, cedula: ced, pin: p });
+        } catch (e) {
+          mostrarErr('Sin conexión para verificar el PIN. Intenta de nuevo.');
+          btn.disabled = false; btn.style.opacity=''; btn.textContent='Firmar';
+        }
+      };
       modal.querySelector('#_operSkip').onclick = () => fin(null);
-      modal.querySelector('#_operOk').onclick = () => fin(inp.value || '');
-      inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') fin(inp.value || ''); });
+      btn.onclick = intentar;
+      pin.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') intentar(); });
     });
   },
 
