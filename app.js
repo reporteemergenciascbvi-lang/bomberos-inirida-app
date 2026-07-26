@@ -21,8 +21,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.00';
+const APP_VERSION = '6.01';
 const APP_VERSION_NOTAS = [
+  'v6.01: 🪪 El celular de la guardia lo usan distintas unidades, así que al entrar al Panel de Administrador la app ahora pregunta QUIÉN está operando. Ese nombre queda registrado junto a lo que se haga (descontar sanciones, registrar o editar asistencias). Se pregunta una sola vez por sesión.',
+  'v6.01: 🎖️ Borrar la asistencia de un domingo COMPLETO ahora pide la contraseña de comandancia, porque eso borra el registro de todas las unidades de ese día y recalcula las sanciones. Para corregir un domingo sin borrarlo sigue estando Editar (✏️), que no cambió y no pide nada nuevo.',
+  'v6.01: 🛟 Si se corta el internet justo al aprobar o descartar a alguien de la lista de "esperando alta", la app ya no muestra un error falso: revisa cómo quedó de verdad y te lo dice.',
+  'v6.01: 📋 En la lista de "esperando alta" hay un botón nuevo para ver la actividad donde apareció esa persona, y así corregirla si el nombre quedó mal escrito.',
   'v6.00: 👥 Nuevo en el Panel de Administrador: si alguien registra una actividad con un compañero que todavía no está en la base de personal, esa persona YA NO SE PIERDE. Queda en una lista de "esperando alta" arriba del Panel, y el administrador la aprueba (o la descarta) con un toque. Antes no entraba a la base y después no aparecía en el autocompletado ni la reconocía el aviso de "nombre desconocido".',
   'v6.00: 🪪 Las cédulas escritas con puntos o espacios ya no crean personas repetidas en la base de personal: "1.234.567" y "1234567" ahora se reconocen como la misma persona al registrarla, tanto desde Actividades como desde Asistencia.',
   'v6.00: 🛠️ Arreglo interno: dos administradores trabajando al mismo tiempo ya no pueden duplicar por accidente la misma persona en la base.',
@@ -523,6 +527,14 @@ const app = {
             // v5.51: pase de 8h (no depende del token de 1h de Google)
             const pase = (self.usuario && self.usuario.pase) || self._pase || '';
             if (pase && !obj.pase) { obj.pase = pase; cambio = true; }
+            /* v6.01: FIRMA DEL OPERADOR. El correo admin vive en el celular de la
+               guardia y la guardia rota, así que el correo no dice quién operó.
+               Acá se inyecta el nombre que la unidad declaró al entrar al Panel,
+               y el backend lo guarda en el log de auditoría. Va en el interceptor
+               a propósito: así viaja en TODA llamada sin tener que acordarse de
+               agregarlo en cada fetch (que es como se cuelan los olvidos). */
+            const oper = self._operadorSesion || '';
+            if (oper && !obj.operador) { obj.operador = oper; cambio = true; }
             if (cambio) opts = Object.assign({}, opts, { body: JSON.stringify(obj) });
           }
         }
@@ -3168,6 +3180,12 @@ const app = {
         const nom = app._esc(p.nombre || '(sin nombre)');
         const ced = app._esc(p.cedula || '');
         const quien = p.registradoPor ? `<div style="font-size:10px;color:#92400e;margin-top:2px;">Lo registró: ${app._esc(p.registradoPor)}${p.fecha ? ' · ' + app._esc(p.fecha) : ''}</div>` : '';
+        /* v6.01: enlace a la actividad donde apareció. Descartar NO borra la
+           participación (queda en Personal_Actividad y por eso la persona sigue
+           saliendo en Operatividad, marcada como "no cruza con la base"). Si el
+           nombre estaba mal escrito o la persona no debía estar, hay que ir a la
+           actividad y corregirla: este botón te lleva directo. */
+        const verAct = p.idActividad ? `<button data-act="${app._esc(p.idActividad)}" onclick="app.verDetalleActividad(this.dataset.act)" style="width:100%;margin-top:6px;padding:7px;background:#fff;color:#92400e;border:1px solid #f59e0b;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;">📋 Ver la actividad donde apareció</button>` : '';
         return `
           <div style="background:#fff;border:1px solid #fcd34d;border-radius:8px;padding:10px;margin-bottom:8px;">
             <div style="font-weight:700;font-size:14px;color:#1f2937;">${nom}</div>
@@ -3181,6 +3199,7 @@ const app = {
                       onclick="app.descartarPendienteRoster(this, this.dataset.ced, this.dataset.nom)"
                       style="flex:1;min-width:110px;padding:9px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">🗑️ Descartar</button>
             </div>
+            ${verAct}
           </div>`;
       }).join('');
       wrap.style.display = 'block';
@@ -3207,7 +3226,13 @@ const app = {
         this.toast('✅ ' + (data.mensaje || nombre + ' quedó en el roster'), 'exito');
         await this.cargarPersonalPendiente();
       } catch (e) {
-        this.toast('Error de red: ' + e.message, 'error');
+        /* v6.01: la orden PUDO haber llegado igual. Con la red de Inírida pasa:
+           el backend ejecuta y la respuesta se corta en el camino, así que el
+           teléfono muestra "Failed to fetch" sobre algo que sí funcionó. Antes
+           eso te empujaba a apretar de nuevo. Ahora se recarga la bandeja y ves
+           el estado REAL en vez de un error que miente. */
+        this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+        await this.cargarPersonalPendiente();
       }
     });
   },
@@ -3234,7 +3259,10 @@ const app = {
         this.toast('🗑️ ' + (data.mensaje || nombre + ' descartado'), 'info');
         await this.cargarPersonalPendiente();
       } catch (e) {
-        this.toast('Error de red: ' + e.message, 'error');
+        // v6.01: mismo caso que en aprobar — recargar en vez de mostrar un error
+        // sobre una orden que el backend probablemente ya ejecutó.
+        this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+        await this.cargarPersonalPendiente();
       }
     });
   },
@@ -6382,13 +6410,63 @@ ${paginaFotos}
 
   // v5.63: obtiene la contraseña admin de la sesión o la pide con modal (APK-safe)
   async _obtenerPwdAdmin(mensaje) {
-    if (this._adminPwdSession) return this._adminPwdSession;
-    try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; return s; } } catch(e) {}
+    if (this._adminPwdSession) { await this._obtenerOperador(); return this._adminPwdSession; }
+    try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; await this._obtenerOperador(); return s; } } catch(e) {}
     const pwd = await this._pedirPwdAdmin(mensaje);
     if (!pwd || !pwd.trim()) return null;
     this._adminPwdSession = pwd.trim();
     try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e) {}
+    // v6.01: la firma se pide acá, en el único portón por el que pasan TODAS las
+    // acciones de admin. Así no hay que acordarse de pedirla en cada pantalla.
+    await this._obtenerOperador();
     return this._adminPwdSession;
+  },
+
+  /* ═══════ v6.01: FIRMA DE QUIÉN ESTÁ OPERANDO ═══════
+     El celular de la guardia tiene la sesión de admin y la guardia ROTA. La
+     contraseña también es una sola para todos. O sea que ni el correo ni la
+     contraseña dicen quién hizo qué. Esto pide el nombre UNA VEZ por sesión y el
+     interceptor de fetch lo manda en cada llamada; el backend lo escribe en el
+     log de auditoría.
+
+     ES UNA FIRMA, NO UNA AUTENTICACIÓN: se puede poner otro nombre. Sirve para
+     (a) dejar constancia explícita, (b) el freno de tener que escribir un nombre
+     propio antes de tocar sanciones, y (c) cruzar contra el registro de guardia
+     del domingo, que la app ya guarda. NO bloquea: si se cancela, la acción sigue
+     y el log queda marcado como "operador NO declarado", que en sí es una señal. */
+  async _obtenerOperador() {
+    if (this._operadorSesion) return this._operadorSesion;
+    try { const s = sessionStorage.getItem('cbvi_operador'); if (s) { this._operadorSesion = s; return s; } } catch(e) {}
+    const nom = await this._pedirOperador();
+    if (!nom || !nom.trim()) return null;   // no bloquea: queda sin declarar
+    this._operadorSesion = nom.trim().toUpperCase();
+    try { sessionStorage.setItem('cbvi_operador', this._operadorSesion); } catch(e) {}
+    return this._operadorSesion;
+  },
+
+  _pedirOperador() {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">🪪 ¿Quién está operando?</div>'
+        + '<div style="font-size:11px;color:#666;margin-bottom:12px;text-align:center;line-height:1.45;">Este celular lo usa la guardia y el turno cambia. Tu nombre queda registrado junto a lo que hagas (sanciones, asistencias, ediciones).</div>'
+        + '<div style="position:relative;">'
+        + '<input id="_operInput" type="text" autocomplete="off" oninput="app._buscarAsistCampo(\'_operInput\',\'_operSug\',this.value)" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;" placeholder="Escribe tu nombre">'
+        + '<div id="_operSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.15);max-height:150px;overflow-y:auto;"></div>'
+        + '</div>'
+        + '<div style="display:flex;gap:10px;margin-top:14px;">'
+        + '<button id="_operSkip" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">Ahora no</button>'
+        + '<button id="_operOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Confirmar</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      const inp = modal.querySelector('#_operInput');
+      setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
+      const fin = (val) => { try { document.body.removeChild(modal); } catch(e){} resolve(val); };
+      modal.querySelector('#_operSkip').onclick = () => fin(null);
+      modal.querySelector('#_operOk').onclick = () => fin(inp.value || '');
+      inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') fin(inp.value || ''); });
+    });
   },
 
   _confirmarAccion(mensaje, onConfirmar) {
@@ -6433,9 +6511,18 @@ ${paginaFotos}
       try {
         const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
         if (!_pwd) return;
+        /* v6.01: CANDADO DE COMANDANCIA. Borrar un domingo completo arrasa la
+           asistencia de ~34 unidades y, al recalcular, altera las sanciones de
+           todos. Es lo más destructivo de la app y casi nunca es lo que hace
+           falta: para corregir un domingo se EDITA, y eso sigue libre.
+           La contraseña de comandancia NO se guarda en la sesión a propósito: se
+           pide cada vez. Si se cacheara, quedaría viva en el celular de la
+           guardia y el candado no serviría para nada. */
+        const _pwdCom = await this._pedirPwdAdmin('🎖️ Contraseña de COMANDANCIA<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Borrar un domingo completo borra la asistencia de todas las unidades de ese día y recalcula las sanciones. Para corregirlo sin borrarlo, usa Editar (✏️).</div>');
+        if (!_pwdCom || !_pwdCom.trim()) { this.toast('Cancelado — borrar un domingo lo autoriza solo la comandancia','info'); return; }
         this.toast('Eliminando...','info');
         const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body:JSON.stringify({accion:'eliminarDomingo',fecha,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+          body:JSON.stringify({accion:'eliminarDomingo',fecha,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession,pwdComandancia:_pwdCom.trim()})});
         const d=await r.json();
         if(!d.ok)throw new Error(d.error);
         this.toast('\u2705 Domingo eliminado','exito');
