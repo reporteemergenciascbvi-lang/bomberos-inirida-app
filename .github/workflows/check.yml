@@ -44,17 +44,26 @@ jobs:
 
       - name: 3) Versión cuadrada en app.js / sw.js / index.html
         run: |
+          # v6.00: la versión MAYOR ya no va hardcodeada. Antes esto buscaba
+          # "bomberos-inirida-v5-[0-9]+", así que al pasar de v5.99 a v6.00 el
+          # grep no encontraba nada, SWV quedaba vacío y el CI marcaba
+          # "DESCUADRADA" aunque las 3 versiones estuvieran bien. Ahora acepta
+          # cualquier mayor y sigue funcionando igual con las v5.x anteriores.
           APPV=$(grep -oE "APP_VERSION *= *'[0-9]+\.[0-9]+'" app.js | grep -oE "[0-9]+\.[0-9]+" | head -1)
-          SWV=$(grep -oE "bomberos-inirida-v5-[0-9]+" sw.js | grep -oE "[0-9]+$" | head -1)
+          SWV=$(grep -oE "bomberos-inirida-v[0-9]+-[0-9]+" sw.js | head -1 | sed -E 's/.*-v([0-9]+)-([0-9]+)/\1.\2/')
           IDXV=$(grep -oE "app\.js\?v=[0-9]+\.[0-9]+" index.html | grep -oE "[0-9]+\.[0-9]+" | head -1)
           echo "  app.js      = $APPV"
-          echo "  sw.js cache = 5.$SWV"
+          echo "  sw.js cache = $SWV"
           echo "  index.html  = $IDXV"
+          if [ -z "$APPV" ] || [ -z "$SWV" ] || [ -z "$IDXV" ]; then
+            echo "::error::No se pudo leer alguna versión (app.js=$APPV, sw.js=$SWV, index.html=$IDXV). Revisa el formato."
+            exit 1
+          fi
           APPNUM=$(echo "$APPV" | tr -d '.')
-          SWNUM="5$SWV"
+          SWNUM=$(echo "$SWV" | tr -d '.')
           IDXNUM=$(echo "$IDXV" | tr -d '.')
           if [ "$APPNUM" != "$SWNUM" ] || [ "$APPNUM" != "$IDXNUM" ]; then
-            echo "::error::Versión DESCUADRADA. app.js=$APPV, sw.js=5.$SWV, index.html=$IDXV. Cuadra los 3 antes de subir."
+            echo "::error::Versión DESCUADRADA. app.js=$APPV, sw.js=$SWV, index.html=$IDXV. Cuadra los 3 antes de subir."
             exit 1
           fi
           echo "  Versión cuadrada ✅"
