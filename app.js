@@ -21,8 +21,14 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.02';
+const APP_VERSION = '6.03';
 const APP_VERSION_NOTAS = [
+  'v6.03: 🔒 El PIN pasa a ser OBLIGATORIO para todo lo de administrador. Sin firmar no se puede descontar sanciones, ni registrar o editar asistencias, ni borrar nada. Reportar emergencias NO cambió: eso sigue funcionando sin PIN, como siempre.',
+  'v6.03: 🎖️ Si una unidad de guardia todavía no tiene PIN y el administrador principal no está disponible, existe una llave de comandancia para desbloquear en el momento. Cada uso queda registrado como excepción.',
+  'v6.03: 🛡️ El administrador principal ahora puede agregar y quitar administradores desde el Panel, sin depender de nadie. Su propio correo no se puede quitar, para que nunca quede la app sin administrador.',
+  'v6.03: 👤 Se puede dar acceso a personal administrativo que no es bombero (Secretaría, por ejemplo): firma y queda auditado igual, pero NO entra a la base de personal, así que no aparece en el llamado a lista de los domingos ni suma horas en Operatividad.',
+  'v6.03: 📧 El resumen de sanciones ahora también le llega al Sargento Eliodoro López Martínez.',
+
   'v6.02: 🔑 La firma de guardia ahora pide PIN. Antes bastaba escribir un nombre, así que cualquiera podía firmar con el nombre de otro compañero — y el registro habría culpado a quien no fue. Ahora cada unidad tiene su PIN de 4 dígitos y el sistema comprueba que coincida con la cédula: nadie puede registrar acciones a nombre ajeno.',
   'v6.02: 🔄 Botón "Cambiar (relevo)" arriba del Panel de Administrador, para que el turno que entra firme sin tener que cerrar la app. Arriba se ve siempre quién está operando.',
   'v6.02: 🛡️ El administrador asigna y cambia los PIN desde el Panel. Se guardan cifrados: ni abriendo la hoja de cálculo se pueden ver, solo reemplazar. Si alguien olvida el suyo, el administrador le pone uno nuevo.',
@@ -543,6 +549,9 @@ const app = {
               // nombre: valida el PIN y saca el nombre de Personal_CBVI por cédula.
               obj.operadorCedula = self._operadorCedula || '';
               obj.operadorPin = self._operadorPin || '';
+              // v6.03: si se firmó con la llave de comandancia, viaja la llave en
+              // vez del PIN, y el backend la registra como excepción.
+              if (self._operadorLlave) obj.llaveComandancia = self._operadorLlave;
               cambio = true;
             }
             if (cambio) opts = Object.assign({}, opts, { body: JSON.stringify(obj) });
@@ -3143,6 +3152,10 @@ const app = {
     // v6.02: mostrar quién quedó firmado (la firma se pidió en _obtenerPwdAdmin).
     const _et = document.getElementById('operActualTxt');
     if (_et) _et.textContent = this._operadorSesion || 'sin firmar';
+    // v6.03: la gestión de administradores solo se muestra al administrador
+    // principal. El backend valida igual — esto evita ofrecer botones que fallan.
+    const _aw = document.getElementById('adminsWrap');
+    if (_aw) _aw.style.display = this.esSuperAdmin() ? 'block' : 'none';
   },
 
   // v5.94: deja el Panel Admin en su estado inicial (lista visible, detalle y
@@ -3155,6 +3168,115 @@ const app = {
     if (editando) editando.style.display = 'none';
     if (wrap) wrap.style.display = 'block';
     this._reporteAdminViendo = null;
+  },
+
+  /* ═══════ v6.03: SUPERADMIN — gestión de administradores ═══════
+     El backend valida con _esSuperAdmin (identidad verificada + contraseña); esto
+     de acá solo decide si se muestran los botones, para no ofrecer lo que va a
+     fallar. Nadie gana permisos por editar el HTML: el servidor manda. */
+  esSuperAdmin() {
+    return String((this.usuario && this.usuario.email) || '').toLowerCase().trim() === 'gilrangeljeancarlosjeferson@gmail.com';
+  },
+
+  async cargarAdministradores() {
+    const cont = document.getElementById('listaAdmins');
+    if (!cont) return;
+    cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Cargando...</div>';
+    try {
+      const resp = await fetch(URL_BACKEND, { method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ accion:'listarAdministradores', adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+      const d = await resp.json();
+      if (!d.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
+      if (d.usandoRespaldo) {
+        // La hoja está vacía: la app corre con la lista del código. Hay que decirlo
+        // o parecería que no hay administradores.
+        cont.innerHTML = '<div style="font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:8px;line-height:1.5;">'
+          + 'Todavía no hay lista propia: la app está usando la lista de respaldo del código ('
+          + (d.respaldo||[]).length + ' correos). En cuanto agregues el primer administrador, '
+          + 'los de respaldo se copian solos y desde ahí gestionas todo desde acá.</div>';
+        return;
+      }
+      cont.innerHTML = (d.administradores||[]).map(a => {
+        const em = app._esc(a.email||'');
+        const activo = a.estado !== 'INACTIVO';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #fecaca;'+(activo?'':'opacity:0.5;')+'">'
+          + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:600;color:#1f2937;word-break:break-all;">'+em
+          + (a.esSuper ? ' <span style="font-size:9px;color:#991b1b;font-weight:700;">(TÚ — no se puede quitar)</span>' : '')
+          + (activo ? '' : ' <span style="font-size:9px;color:#666;">(inactivo)</span>') + '</div>'
+          + (a.nombre||a.cargo ? '<div style="font-size:10px;color:#94a3b8;">'+app._esc([a.nombre,a.cargo].filter(Boolean).join(' · '))+'</div>' : '')
+          + '</div>'
+          + (a.esSuper || !activo ? '' : '<button data-em="'+em+'" onclick="app.quitarAdmin(this, this.dataset.em)" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Quitar</button>')
+          + '</div>';
+      }).join('');
+    } catch (e) {
+      cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">Error de red: '+app._esc(e.message||'')+'</div>';
+    }
+  },
+
+  async agregarAdmin() {
+    const em = await this._pedirPwdAdmin('📧 Correo del nuevo administrador<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Tiene que ser la cuenta de Google con la que va a entrar a la app.</div>');
+    if (!em || !em.trim() || em.indexOf('@') < 1) { if (em !== null) this.toast('Correo inválido', 'error'); return; }
+    try {
+      const resp = await fetch(URL_BACKEND, { method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ accion:'agregarAdministrador', email: em.trim(),
+          adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+      const d = await resp.json();
+      if (!d.ok) { this.toast('Error: ' + (d.error||'?'), 'error'); return; }
+      this.toast('🛡️ ' + (d.mensaje||'Administrador agregado'), 'exito');
+      await this.cargarAdministradores();
+    } catch (e) {
+      this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+      await this.cargarAdministradores();
+    }
+  },
+
+  async quitarAdmin(btn, email) {
+    const ok = await this.confirmar('Quitar administrador',
+      `¿Quitarle el acceso de administrador a "${email}"? Va a poder seguir usando la app como bombero, pero no entrar al Panel.`);
+    if (!ok) return;
+    await this._conBloqueo(btn, 'Quitando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'quitarAdministrador', email: email,
+            adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+        const d = await resp.json();
+        if (!d.ok) { this.toast('Error: ' + (d.error||'?'), 'error'); return; }
+        this.toast('🛡️ ' + (d.mensaje||'Quitado'), 'info');
+        await this.cargarAdministradores();
+      } catch (e) {
+        this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+        await this.cargarAdministradores();
+      }
+    });
+  },
+
+  /* Operador administrativo: alguien con acceso de admin que NO es unidad
+     bomberil (la Secretaría General, por ejemplo). Va a una hoja aparte para que
+     no aparezca en el llamado a lista de los domingos, ni en Operatividad, ni en
+     el autocompletado de reportes: no es una unidad y no debe sumar horas. */
+  async agregarOperadorAdministrativo() {
+    const nombre = await this._pedirPwdAdmin('👤 Nombre completo<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Personal administrativo que NO es bombero pero necesita firmar lo que hace (Secretaría, Tesorería…).</div>');
+    if (!nombre || !nombre.trim()) return;
+    const ced = await this._pedirPwdAdmin('🪪 Cédula de ' + nombre.trim());
+    if (!ced || !ced.trim()) return;
+    const cargo = await this._pedirPwdAdmin('💼 Cargo (ej. SECRETARIA GENERAL)');
+    if (cargo === null) return;
+    try {
+      const resp = await fetch(URL_BACKEND, { method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ accion:'agregarOperadorAdmin', nombre: nombre.trim(), cedula: ced.trim(),
+          cargo: (cargo||'').trim(), adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+      const d = await resp.json();
+      if (!d.ok) { this.toast('Error: ' + (d.error||'?'), 'error'); return; }
+      this.toast('✅ ' + (d.mensaje||'Agregado'), 'exito');
+      await this.cargarEstadoPins();
+    } catch (e) {
+      this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+      await this.cargarEstadoPins();
+    }
   },
 
   /* ═══════ v6.02: GESTIÓN DE PIN DE LAS UNIDADES ═══════
@@ -6482,16 +6604,27 @@ ${paginaFotos}
 
   // v5.63: obtiene la contraseña admin de la sesión o la pide con modal (APK-safe)
   async _obtenerPwdAdmin(mensaje) {
-    if (this._adminPwdSession) { await this._obtenerOperador(); return this._adminPwdSession; }
-    try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; await this._obtenerOperador(); return s; } } catch(e) {}
+    /* v6.03: LA FIRMA ES OBLIGATORIA. Sin PIN no se ejerce como admin.
+       Se controla desde acá porque es el único portón por el que pasan TODAS las
+       acciones de administrador. Devolver null bloquea el flujo entero sin tener
+       que tocar las ~15 pantallas que llaman a esta función: todas ya hacen
+       `if (!pwd) return;`.
+       Reportar emergencias NO pasa por acá, así que eso sigue funcionando sin PIN. */
+    if (this._adminPwdSession) return (await this._exigirFirma()) ? this._adminPwdSession : null;
+    try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; return (await this._exigirFirma()) ? s : null; } } catch(e) {}
     const pwd = await this._pedirPwdAdmin(mensaje);
     if (!pwd || !pwd.trim()) return null;
     this._adminPwdSession = pwd.trim();
     try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e) {}
-    // v6.01: la firma se pide acá, en el único portón por el que pasan TODAS las
-    // acciones de admin. Así no hay que acordarse de pedirla en cada pantalla.
-    await this._obtenerOperador();
-    return this._adminPwdSession;
+    return (await this._exigirFirma()) ? this._adminPwdSession : null;
+  },
+
+  // Devuelve true solo si hay una firma verificada en esta sesión.
+  async _exigirFirma() {
+    const oper = await this._obtenerOperador();
+    if (oper) return true;
+    this.toast('Sin PIN no puedes hacer acciones de administrador. Pídele tu PIN al administrador principal.', 'error');
+    return false;
   },
 
   /* ═══════ v6.01: FIRMA DE QUIÉN ESTÁ OPERANDO ═══════
@@ -6517,9 +6650,14 @@ ${paginaFotos}
         } }
     } catch(e) {}
     const r = await this._pedirOperador();
-    if (!r) return null;   // no bloquea: el log queda "operador SIN verificar"
+    if (!r) return null;   // v6.03: ahora SÍ bloquea (ver _exigirFirma)
     this._operadorSesion = r.nombre; this._operadorCedula = r.cedula; this._operadorPin = r.pin;
-    try { sessionStorage.setItem('cbvi_oper', JSON.stringify(r)); } catch(e) {}
+    /* v6.03: la llave de comandancia vive SOLO en memoria, nunca en sessionStorage.
+       Es la contraseña del administrador principal: si se guardara, quedaría viva
+       en el celular de la guardia después de una recarga. Con esto, quien la usó
+       tiene que volver a ponerla si la app se reinicia. */
+    this._operadorLlave = r.llave || '';
+    if (!r.llave) { try { sessionStorage.setItem('cbvi_oper', JSON.stringify(r)); } catch(e) {} }
     return r.nombre;
   },
 
@@ -6527,7 +6665,7 @@ ${paginaFotos}
      Si no existiera esto, el turno entrante quedaría operando bajo la firma del
      turno saliente — justo lo que el PIN vino a evitar. */
   async cambiarOperador() {
-    this._operadorSesion = null; this._operadorCedula = null; this._operadorPin = null;
+    this._operadorSesion = null; this._operadorCedula = null; this._operadorPin = null; this._operadorLlave = null;
     try { sessionStorage.removeItem('cbvi_oper'); } catch(e) {}
     const nom = await this._obtenerOperador();
     if (nom) this.toast('🪪 Ahora opera: ' + nom, 'exito');
@@ -6575,10 +6713,11 @@ ${paginaFotos}
         + '<input id="_operPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:20px;margin-top:10px;text-align:center;letter-spacing:8px;" placeholder="PIN">'
         + '<div id="_operErr" style="display:none;color:#c00;font-size:12px;margin-top:8px;text-align:center;font-weight:600;"></div>'
         + '<div style="display:flex;gap:10px;margin-top:14px;">'
-        + '<button id="_operSkip" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">Ahora no</button>'
+        + '<button id="_operSkip" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">Cancelar</button>'
         + '<button id="_operOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Firmar</button>'
         + '</div>'
-        + '<div style="font-size:10px;color:#999;margin-top:10px;text-align:center;">¿No tienes PIN o lo olvidaste? Pídeselo al administrador.</div>'
+        + '<div style="font-size:10px;color:#999;margin-top:12px;text-align:center;line-height:1.5;">Sin PIN no puedes hacer acciones de administrador.<br>¿No tienes PIN o lo olvidaste? Pídeselo al administrador principal.</div>'
+        + '<div style="text-align:center;margin-top:10px;"><span id="_operLlave" style="font-size:11px;color:#92400e;text-decoration:underline;cursor:pointer;">🎖️ Usar llave de comandancia</span></div>'
         + '</div>';
       document.body.appendChild(modal);
       const inp = modal.querySelector('#_operInput');
@@ -6611,6 +6750,24 @@ ${paginaFotos}
       modal.querySelector('#_operSkip').onclick = () => fin(null);
       btn.onclick = intentar;
       pin.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') intentar(); });
+      /* v6.03 LLAVE DE COMANDANCIA — salida de emergencia para cuando una unidad
+         de guardia todavía no tiene PIN y el administrador principal no está.
+         Solo él tiene esta contraseña. Queda registrada como EXCEPCIÓN en el log,
+         así que si se empieza a usar seguido se ve. */
+      modal.querySelector('#_operLlave').onclick = async () => {
+        const llave = await this._pedirPwdAdmin('🎖️ Llave de comandancia<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Solo para cuando no tienes PIN asignado y el administrador principal no está disponible. Queda registrado como excepción.</div>');
+        if (!llave || !llave.trim()) return;
+        mostrarErr('');
+        err.style.display = 'none';
+        try {
+          const resp = await fetch(URL_BACKEND, { method:'POST',
+            headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body: JSON.stringify({ accion:'verificarOperador', llaveComandancia: llave.trim() }) });
+          const d = await resp.json();
+          if (!d.ok) { mostrarErr(d.error || 'Llave incorrecta.'); return; }
+          fin({ nombre: d.nombre, cedula: '', pin: '', llave: llave.trim() });
+        } catch (e) { mostrarErr('Sin conexión para verificar la llave.'); }
+      };
     });
   },
 

@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.02">
-<script src="vendor/leaflet/leaflet.js?v=6.02"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.03">
+<script src="vendor/leaflet/leaflet.js?v=6.03"></script>
 
 <style>
   :root {
@@ -1292,7 +1292,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.02</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.03</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1430,6 +1430,19 @@ button:active { transform: scale(.96); }
       </div>
       <div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.45;">Cada unidad necesita su PIN de 4 dígitos para firmar lo que hace de guardia. Sin PIN no puede firmar. Los PIN se guardan cifrados: acá nunca se muestran, solo se pueden reemplazar.</div>
       <div id="listaEstadoPins" style="margin-top:10px;"></div>
+      <button onclick="app.agregarOperadorAdministrativo()" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#475569;border:1px dashed #94a3b8;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">➕ Agregar operador administrativo (no bombero)</button>
+    </div>
+
+    <!-- v6.03: administradores. Solo lo ve el administrador principal; el backend
+         valida igual, esto es solo para no mostrar botones que no van a funcionar. -->
+    <div id="adminsWrap" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <div style="font-weight:700;font-size:13px;color:#7f1d1d;">🛡️ Administradores</div>
+        <button onclick="app.cargarAdministradores()" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Ver / cambiar</button>
+      </div>
+      <div style="font-size:11px;color:#991b1b;margin-top:5px;line-height:1.45;">Quién puede entrar al Panel de Administrador. Solo tú puedes cambiar esta lista. Tu propio correo no se puede quitar.</div>
+      <div id="listaAdmins" style="margin-top:10px;"></div>
+      <button onclick="app.agregarAdmin()" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#991b1b;border:1px dashed #fca5a5;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">➕ Agregar administrador</button>
     </div>
 
     <!-- v6.00: bandeja de altas pendientes al roster. Oculta mientras no haya
@@ -2204,8 +2217,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.02"></script>
-<script src="app.js?v=6.02"></script>
+<script src="logos.js?v=6.03"></script>
+<script src="app.js?v=6.03"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
