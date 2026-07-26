@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.03';
+const APP_VERSION = '6.04';
 const APP_VERSION_NOTAS = [
+  'v6.04: 🩹 Corregido: al agregar un operador administrativo o un administrador, la app pedía los datos en un cuadro de CONTRASEÑA — el nombre salía con puntitos y el botón decía \"Entrar\". Ahora cada dato se pide con su propio cuadro: el nombre se lee mientras lo escribes, la cédula abre el teclado numérico y el botón dice lo que realmente hace.',
+  'v6.04: 🔑 Al asignar un PIN ahora se ve mientras lo escribes (antes salía oculto), porque eres tú quien se lo tiene que dictar a esa unidad.',
+
   'v6.03: 🔒 El PIN pasa a ser OBLIGATORIO para todo lo de administrador. Sin firmar no se puede descontar sanciones, ni registrar o editar asistencias, ni borrar nada. Reportar emergencias NO cambió: eso sigue funcionando sin PIN, como siempre.',
   'v6.03: 🎖️ Si una unidad de guardia todavía no tiene PIN y el administrador principal no está disponible, existe una llave de comandancia para desbloquear en el momento. Cada uso queda registrado como excepción.',
   'v6.03: 🛡️ El administrador principal ahora puede agregar y quitar administradores desde el Panel, sin depender de nadie. Su propio correo no se puede quitar, para que nunca quede la app sin administrador.',
@@ -3215,7 +3218,8 @@ const app = {
   },
 
   async agregarAdmin() {
-    const em = await this._pedirPwdAdmin('📧 Correo del nuevo administrador<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Tiene que ser la cuenta de Google con la que va a entrar a la app.</div>');
+    const em = await this._pedirTexto('📧 Correo del nuevo administrador<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Tiene que ser la cuenta de Google con la que va a entrar a la app.</div>',
+      { tipo:'email', inputmode:'email', placeholder:'nombre@gmail.com', boton:'Agregar' });
     if (!em || !em.trim() || em.indexOf('@') < 1) { if (em !== null) this.toast('Correo inválido', 'error'); return; }
     try {
       const resp = await fetch(URL_BACKEND, { method:'POST',
@@ -3258,11 +3262,14 @@ const app = {
      no aparezca en el llamado a lista de los domingos, ni en Operatividad, ni en
      el autocompletado de reportes: no es una unidad y no debe sumar horas. */
   async agregarOperadorAdministrativo() {
-    const nombre = await this._pedirPwdAdmin('👤 Nombre completo<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Personal administrativo que NO es bombero pero necesita firmar lo que hace (Secretaría, Tesorería…).</div>');
+    const nombre = await this._pedirTexto('👤 Nombre completo<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Personal administrativo que NO es bombero pero necesita firmar lo que hace (Secretaría, Tesorería…).</div>',
+      { placeholder:'Nombres y apellidos', boton:'Siguiente' });
     if (!nombre || !nombre.trim()) return;
-    const ced = await this._pedirPwdAdmin('🪪 Cédula de ' + nombre.trim());
+    const ced = await this._pedirTexto('🪪 Cédula de ' + app._esc(nombre.trim()),
+      { inputmode:'numeric', placeholder:'Solo números', boton:'Siguiente' });
     if (!ced || !ced.trim()) return;
-    const cargo = await this._pedirPwdAdmin('💼 Cargo (ej. SECRETARIA GENERAL)');
+    const cargo = await this._pedirTexto('💼 Cargo<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Para qué está autorizada esta persona. Se ve en el registro de auditoría.</div>',
+      { placeholder:'Ej. SECRETARIA GENERAL', boton:'Agregar' });
     if (cargo === null) return;
     try {
       const resp = await fetch(URL_BACKEND, { method:'POST',
@@ -3317,7 +3324,10 @@ const app = {
   },
 
   async asignarPinUnidad(btn, cedula, nombre) {
-    const pin = await this._pedirPwdAdmin('🔑 PIN de 4 dígitos para ' + nombre + '<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Se lo tienes que decir a esa unidad. Déjalo vacío y cancela si no quieres cambiarlo.</div>');
+    // El PIN va como texto normal, NO oculto: sos vos solo en tu pantalla y se lo
+    // tenés que dictar a esa unidad. Con puntitos es fácil equivocarse y dictar mal.
+    const pin = await this._pedirTexto('🔑 PIN de 4 dígitos para ' + app._esc(nombre) + '<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Anótalo: se lo tienes que decir a esa unidad. Si cancelas, no se cambia nada.</div>',
+      { inputmode:'numeric', maxlength:4, centrado:true, placeholder:'0000', boton:'Guardar PIN' });
     if (pin === null) return;
     const p = String(pin || '').trim();
     if (!/^\d{4}$/.test(p)) { this.toast('El PIN son exactamente 4 dígitos', 'error'); return; }
@@ -6602,6 +6612,43 @@ ${paginaFotos}
     });
   },
 
+  /* v6.04: modal para pedir UN dato de texto. Lo reportó Jeferson: hasta v6.03 se
+     reusaba _pedirPwdAdmin para pedir nombres, cédulas y correos, así que al
+     agregar un operador salía un campo de CONTRASEÑA (con puntitos, sin poder leer
+     lo escrito) y un botón que decía "Entrar". Un modal de contraseña no sirve
+     para pedir un nombre; ahora cada cosa usa el suyo.
+     opts: { tipo, placeholder, boton, maxlength, inputmode, centrado, valor } */
+  _pedirTexto(titulo, opts) {
+    const o = opts || {};
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      const attrs = (o.maxlength ? ' maxlength="' + o.maxlength + '"' : '')
+                  + (o.inputmode ? ' inputmode="' + o.inputmode + '"' : '');
+      // El título va como HTML a propósito (los llamadores le pasan un <div> con
+      // la explicación), pero SIEMPRE es un literal del código, nunca texto de
+      // usuario. El valor y el placeholder sí pasan por _esc (I5).
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:12px;text-align:center;">' + (titulo || '') + '</div>'
+        + '<input id="_txtInput" type="' + (o.tipo || 'text') + '" autocomplete="off"' + attrs
+        +   ' value="' + app._esc(o.valor || '') + '"'
+        +   ' style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:14px;'
+        +   (o.centrado ? 'text-align:center;letter-spacing:6px;font-size:22px;' : '') + '"'
+        +   ' placeholder="' + app._esc(o.placeholder || '') + '">'
+        + '<div style="display:flex;gap:10px;">'
+        + '<button id="_txtCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
+        + '<button id="_txtOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">' + app._esc(o.boton || 'Guardar') + '</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      const inp = modal.querySelector('#_txtInput');
+      setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
+      const fin = (v) => { try { document.body.removeChild(modal); } catch(e){} resolve(v); };
+      modal.querySelector('#_txtCancel').onclick = () => fin(null);
+      modal.querySelector('#_txtOk').onclick = () => fin(inp.value || '');
+      inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') fin(inp.value || ''); });
+    });
+  },
+
   // v5.63: obtiene la contraseña admin de la sesión o la pide con modal (APK-safe)
   async _obtenerPwdAdmin(mensaje) {
     /* v6.03: LA FIRMA ES OBLIGATORIA. Sin PIN no se ejerce como admin.
@@ -6783,7 +6830,8 @@ ${paginaFotos}
          Solo él tiene esta contraseña. Queda registrada como EXCEPCIÓN en el log,
          así que si se empieza a usar seguido se ve. */
       modal.querySelector('#_operLlave').onclick = async () => {
-        const llave = await this._pedirPwdAdmin('🎖️ Llave de comandancia<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Solo para cuando no tienes PIN asignado y el administrador principal no está disponible. Queda registrado como excepción.</div>');
+        const llave = await this._pedirTexto('🎖️ Llave de comandancia<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Solo para cuando no tienes PIN asignado y el administrador principal no está disponible. Queda registrado como excepción.</div>',
+          { tipo:'password', placeholder:'Llave de comandancia', boton:'Desbloquear' });
         if (!llave || !llave.trim()) return;
         mostrarErr('');
         err.style.display = 'none';
@@ -6848,7 +6896,8 @@ ${paginaFotos}
            La contraseña de comandancia NO se guarda en la sesión a propósito: se
            pide cada vez. Si se cacheara, quedaría viva en el celular de la
            guardia y el candado no serviría para nada. */
-        const _pwdCom = await this._pedirPwdAdmin('🎖️ Contraseña de COMANDANCIA<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Borrar un domingo completo borra la asistencia de todas las unidades de ese día y recalcula las sanciones. Para corregirlo sin borrarlo, usa Editar (✏️).</div>');
+        const _pwdCom = await this._pedirTexto('🎖️ Contraseña de COMANDANCIA<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Borrar un domingo completo borra la asistencia de todas las unidades de ese día y recalcula las sanciones. Para corregirlo sin borrarlo, usa Editar (✏️).</div>',
+          { tipo:'password', placeholder:'Contraseña de comandancia', boton:'Borrar domingo' });
         if (!_pwdCom || !_pwdCom.trim()) { this.toast('Cancelado — borrar un domingo lo autoriza solo la comandancia','info'); return; }
         this.toast('Eliminando...','info');
         const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
