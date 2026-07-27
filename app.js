@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.04';
+const APP_VERSION = '6.05';
 const APP_VERSION_NOTAS = [
+  'v6.05: 🛡️ ARREGLADO lo importante: agregar o quitar un administrador ya surte efecto de verdad. Antes la app escribía el cambio en la base de datos pero seguía preguntándole a una lista fija escrita dentro del programa, así que a la persona agregada nunca se le habilitaba nada. Ahora quien manda es la lista del Panel. La persona lo ve la próxima vez que abra la app con señal.',
+  'v6.05: 🛡️ La caja de Administradores y la de PIN de las unidades ahora se llenan solas al abrir el Panel. Antes salían vacías y había que adivinar que tocaba presionar "Ver / cambiar": parecía un adorno.',
+  'v6.05: ⏳ Las siluetas animadas de carga ahora sí se ven en TODAS las listas, incluido el Panel de Administrador. Estaban puestas desde la v5.89 pero la app las borraba de inmediato y las cambiaba por un "Cargando..." quieto, así que casi nunca alcanzaban a verse.',
   'v6.04: 🩹 Corregido: al agregar un operador administrativo o un administrador, la app pedía los datos en un cuadro de CONTRASEÑA — el nombre salía con puntitos y el botón decía \"Entrar\". Ahora cada dato se pide con su propio cuadro: el nombre se lee mientras lo escribes, la cédula abre el teclado numérico y el botón dice lo que realmente hace.',
   'v6.04: 🔑 Al asignar un PIN ahora se ve mientras lo escribes (antes salía oculto), porque eres tú quien se lo tiene que dictar a esa unidad.',
 
@@ -668,6 +671,10 @@ const app = {
         if (dPase && dPase.ok && dPase.pase) {
           this._pase = dPase.pase;
           this.usuario.pase = dPase.pase;
+          // v6.05: el backend ya dice si es admin SEGÚN LA HOJA. Guardarlo es lo
+          // que hace que "Agregar administrador" sirva de algo: sin esta línea,
+          // la persona agregada nunca veía la zona de administrador.
+          if (typeof dPase.esAdmin === 'boolean') this.usuario.esAdminSrv = dPase.esAdmin;
           await DB.guardarConfig('sesion', this.usuario);
         }
       } catch (ePase) { console.warn('No se pudo obtener pase de 8h:', ePase); }
@@ -904,9 +911,23 @@ const app = {
     }
   },
 
+  /* v6.05: quién es administrador lo decide la HOJA, no el código.
+     Bug reportado por Jeferson ("Agregar administrador está de adorno"): el
+     backend YA respondía `esAdmin` en iniciarSesion (Codigo.gs:559, calculado con
+     _enAdmins sobre la hoja Administradores) y el front tiraba esa respuesta a la
+     basura: le preguntaba a ADMIN_EMAILS, la lista quemada en la línea 8. Por eso
+     agregar a alguien escribía la fila en la hoja y no le habilitaba NADA en su
+     celular: su app seguía consultando el código.
+     ADMIN_EMAILS queda SOLO como respaldo: primer arranque y sin señal (Inírida).
+     Sin red no se puede consultar la hoja, y dejar sin Panel al admin por estar
+     offline sería peor que el bug. El servidor valida igual en cada acción
+     (_enAdmins), así que esto decide únicamente qué se MUESTRA, nunca qué se
+     puede hacer: editar esto en el teléfono no otorga ningún permiso real. */
   esAdmin() {
     const email = (this.usuario && this.usuario.email || '').toLowerCase().trim();
-    return !!email && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email);
+    if (!email) return false;
+    if (this.usuario && typeof this.usuario.esAdminSrv === 'boolean') return this.usuario.esAdminSrv;
+    return ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email);
   },
 
   actualizarUIUsuario() {
@@ -1404,6 +1425,21 @@ const app = {
       if (data && data.ok && data.pase) {
         this._pase = data.pase;
         this.usuario.pase = data.pase;
+        // v6.05: se refresca el privilegio desde la hoja en CADA arranque con
+        // señal. Si cambió (te agregaron o te quitaron), la interfaz se redibuja
+        // sola; si no, el menú seguiría mostrando lo de antes indefinidamente.
+        if (typeof data.esAdmin === 'boolean') {
+          const antesEraAdmin = this.usuario.esAdminSrv;
+          this.usuario.esAdminSrv = data.esAdmin;
+          if (antesEraAdmin !== data.esAdmin) {
+            try {
+              this.actualizarUIUsuario();
+              // Si Ajustes está abierto en ese momento, la zona admin también.
+              const _za = document.getElementById('zonaAdmin');
+              if (_za) _za.style.display = this.esAdmin() ? 'block' : 'none';
+            } catch (e) { /* la UI se corrige sola al navegar */ }
+          }
+        }
         await DB.guardarConfig('sesion', this.usuario);
       }
     } catch (e) { /* silencioso: sin conexión no pasa nada */ }
@@ -3159,6 +3195,13 @@ const app = {
     // principal. El backend valida igual — esto evita ofrecer botones que fallan.
     const _aw = document.getElementById('adminsWrap');
     if (_aw) _aw.style.display = this.esSuperAdmin() ? 'block' : 'none';
+    // v6.05: las cajas se llenan SOLAS al abrir el Panel. Hasta v6.04 solo se
+    // hacían visibles y quedaban vacías: un título, un texto que hablaba de una
+    // lista, y ninguna lista. Por eso se veía "de adorno" (lo reportó Jeferson).
+    // Sin await a propósito: son datos secundarios y no deben demorar la apertura
+    // del Panel ni romperla si el servidor tarda o falla.
+    if (_aw && _aw.style.display === 'block') this.cargarAdministradores();
+    this.cargarEstadoPins();
   },
 
   // v5.94: deja el Panel Admin en su estado inicial (lista visible, detalle y
@@ -3184,7 +3227,7 @@ const app = {
   async cargarAdministradores() {
     const cont = document.getElementById('listaAdmins');
     if (!cont) return;
-    cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Cargando...</div>';
+    cont.innerHTML = this._skeleton(3, 'linea');
     try {
       const resp = await fetch(URL_BACKEND, { method:'POST',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -3294,7 +3337,7 @@ const app = {
   async cargarEstadoPins() {
     const cont = document.getElementById('listaEstadoPins');
     if (!cont) return;
-    cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Cargando...</div>';
+    cont.innerHTML = this._skeleton(4, 'linea');
     try {
       const resp = await fetch(URL_BACKEND, { method:'POST',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -3474,7 +3517,7 @@ const app = {
   async cargarReportesAdmin() {
     const cont = document.getElementById('listaReportesAdmin');
     if (!cont) return;
-    cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Cargando reportes del servidor...</div>';
+    cont.innerHTML = this._skeleton(4);
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
@@ -5127,6 +5170,21 @@ ${paginaFotos}
     }
   },
 
+  /* v6.05: silueta animada de carga, pintada DESDE EL JS.
+     Bug reportado por Jeferson ("las animaciones de carga no funcionan en el
+     panel de admin"). Hasta v6.04 las siluetas existían SOLO como HTML estático
+     en index.html y para 3 listas; el propio JS las borraba al escribir
+     "Cargando...", así que la animación se veía una sola vez —en el primer
+     pintado— y nunca más. En el Panel de Administrador no existía en absoluto.
+     Las clases .skeleton-* ya respetan "reducir movimiento" por CSS. */
+  _skeleton(n, tipo) {
+    const clase = (tipo === 'linea') ? 'skeleton-linea' : 'skeleton-tarjeta';
+    const cuantas = Math.max(1, n || 3);
+    let html = '<div aria-busy="true" aria-label="Cargando">';
+    for (let i = 0; i < cuantas; i++) html += '<div class="' + clase + '"></div>';
+    return html + '</div>';
+  },
+
   _flashAccion(texto) {
     const el = document.getElementById('navFeedback');
     if (!el) return;
@@ -5418,7 +5476,7 @@ ${paginaFotos}
   async cargarListaActividades() {
     const cont = document.getElementById('listaActividadesContenido');
     if (!cont) return;
-    cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Cargando...</div>';
+    cont.innerHTML = this._skeleton(3);
     const esAdm = this.esAdmin();
     let htmlAct = '', htmlDom = '';
 
@@ -6245,7 +6303,7 @@ ${paginaFotos}
       cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;">🔒</div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver esto</div></div>';
       return;
     }
-    cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Cargando...</div>';
+    cont.innerHTML = this._skeleton(3);
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -6334,7 +6392,7 @@ ${paginaFotos}
       cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;">🔒</div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver la operatividad</div></div>';
       return;
     }
-    cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Calculando ranking...</div>';
+    cont.innerHTML = this._skeleton(1) + this._skeleton(4, 'linea');
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
