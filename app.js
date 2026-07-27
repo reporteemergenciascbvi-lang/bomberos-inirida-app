@@ -21,8 +21,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.05';
+const APP_VERSION = '6.06';
 const APP_VERSION_NOTAS = [
+  'v6.06: 🪪 ARREGLADO: el personal administrativo (Secretaría) no podía firmar. Al escribir su nombre en "¿Quién está de guardia?" el buscador no lo encontraba —solo buscaba entre las unidades bomberiles— así que no podía tocarse a sí misma y quedaba trabada sin poder hacer nada, aunque ya tuviera su PIN. Ahora sí aparece.',
+  'v6.06: 🔎 Si escribes un nombre y no aparece nadie, ahora la app te lo DICE en vez de quedarse muda. Antes no se sabía si el nombre estaba mal escrito o si la app se había colgado.',
   'v6.05: 🛡️ ARREGLADO lo importante: agregar o quitar un administrador ya surte efecto de verdad. Antes la app escribía el cambio en la base de datos pero seguía preguntándole a una lista fija escrita dentro del programa, así que a la persona agregada nunca se le habilitaba nada. Ahora quien manda es la lista del Panel. La persona lo ve la próxima vez que abra la app con señal.',
   'v6.05: 🛡️ La caja de Administradores y la de PIN de las unidades ahora se llenan solas al abrir el Panel. Antes salían vacías y había que adivinar que tocaba presionar "Ver / cambiar": parecía un adorno.',
   'v6.05: ⏳ Las siluetas animadas de carga ahora sí se ven en TODAS las listas, incluido el Panel de Administrador. Estaban puestas desde la v5.89 pero la app las borraba de inmediato y las cambiaba por un "Cargando..." quieto, así que casi nunca alcanzaban a verse.',
@@ -6817,9 +6819,22 @@ ${paginaFotos}
       try {
         const resp = await fetch(URL_BACKEND, { method:'POST',
           headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body: JSON.stringify({ accion:'buscarPersonalCBVI', q: q.trim() }) });
+          // v6.06: `incluirAdministrativos` trae también a la Secretaría y demás
+          // operadores administrativos, que viven en otra hoja y no salían acá.
+          // Solo lo pide ESTE modal: en el autocompletado de reportes y
+          // actividades no deben aparecer (no son unidades bomberiles).
+          body: JSON.stringify({ accion:'buscarPersonalCBVI', q: q.trim(), incluirAdministrativos: true }) });
         const data = await resp.json();
-        if (!data.ok || !data.resultados.length) { sug.style.display = 'none'; return; }
+        if (!data.ok || !data.resultados.length) {
+          // v6.06: antes se ocultaba la lista y quedaba una pantalla muda: la
+          // persona escribía su nombre, no pasaba nada, y no había forma de saber
+          // si estaba mal escrito, si no tenía PIN o si la app estaba rota.
+          sug.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:#92400e;line-height:1.45;">'
+            + 'No encuentro ese nombre. Escríbelo como está registrado, o pídele al '
+            + 'administrador principal que te dé de alta y te asigne un PIN.</div>';
+          sug.style.display = 'block';
+          return;
+        }
         sug.innerHTML = data.resultados.map(per =>
           '<div data-n="'+app._esc(per.nombre||'')+'" data-c="'+app._esc(per.cedula||'')+'" '
           + 'onclick="var i=document.getElementById(\'_operInput\');i.value=this.dataset.n;i.dataset.ced=this.dataset.c;'
