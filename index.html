@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.06">
-<script src="vendor/leaflet/leaflet.js?v=6.06"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.07">
+<script src="vendor/leaflet/leaflet.js?v=6.07"></script>
 
 <style>
   :root {
@@ -697,7 +697,11 @@ try {
    SOLO opacidad — jamás transform en .pantalla, porque convertirla en
    "contenedor con transform" rompe position:fixed/sticky de sus hijos
    (acciones-flotantes, progreso-bar). */
-.pantalla.activa { animation: cbviFadeIn .18s ease-out; }
+/* v6.07: .18s → .30s. Solo opacidad, A PROPÓSITO: agregarle un transform a
+   .pantalla la convertiría en ancestro con transform y rompería el
+   posicionamiento de todo lo fixed que vive dentro (mapa, botones flotantes).
+   Ver la advertencia del bloque de micro-animación de botones más abajo. */
+.pantalla.activa { animation: cbviFadeIn .30s ease-out; }
 @keyframes cbviFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* Encabezado: vidrio esmerilado claro con texto oscuro */
@@ -1292,7 +1296,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.06</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.07</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1426,7 +1430,10 @@ button:active { transform: scale(.96); }
     <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <div style="font-weight:700;font-size:13px;color:#334155;">🔑 PIN de las unidades</div>
-        <button onclick="app.cargarEstadoPins()" style="padding:6px 10px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Ver / asignar</button>
+        <!-- v6.07: decía "Ver / asignar", pero desde v6.05 la lista ya se carga
+             sola al abrir el Panel: el botón solo la refresca. Ahora dice lo que
+             hace y pasa `this` para mostrar el spinner mientras trabaja. -->
+        <button onclick="app.cargarEstadoPins(this)" style="padding:6px 10px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">🔄 Actualizar</button>
       </div>
       <div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.45;">Cada unidad necesita su PIN de 4 dígitos para firmar lo que hace de guardia. Sin PIN no puede firmar. Los PIN se guardan cifrados: acá nunca se muestran, solo se pueden reemplazar.</div>
       <div id="listaEstadoPins" style="margin-top:10px;"></div>
@@ -1438,7 +1445,8 @@ button:active { transform: scale(.96); }
     <div id="adminsWrap" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <div style="font-weight:700;font-size:13px;color:#7f1d1d;">🛡️ Administradores</div>
-        <button onclick="app.cargarAdministradores()" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Ver / cambiar</button>
+        <!-- v6.07: mismo caso que el botón de PINes (la lista ya viene cargada). -->
+        <button onclick="app.cargarAdministradores(this)" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">🔄 Actualizar</button>
       </div>
       <div style="font-size:11px;color:#991b1b;margin-top:5px;line-height:1.45;">Quién puede entrar al Panel de Administrador. Solo tú puedes cambiar esta lista. Tu propio correo no se puede quitar.</div>
       <div id="listaAdmins" style="margin-top:10px;"></div>
@@ -2217,8 +2225,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.06"></script>
-<script src="app.js?v=6.06"></script>
+<script src="logos.js?v=6.07"></script>
+<script src="app.js?v=6.07"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

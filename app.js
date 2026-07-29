@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.06';
+const APP_VERSION = '6.07';
 const APP_VERSION_NOTAS = [
+  'v6.07: 🔑 La lista de PIN de las unidades ya no es un rollo interminable. Ahora tiene BUSCADOR (por nombre o cédula), las unidades que todavía NO tienen PIN salen de primeras, y la lista tiene su propio desplazamiento: ya no empuja el resto del Panel hacia abajo. Arriba se ve cuántas faltan.',
+  'v6.07: 🔄 Los botones "Ver / asignar" y "Ver / cambiar" del Panel ahora se llaman "Actualizar" y muestran la rueda de carga mientras trabajan. Antes no daban ninguna señal al tocarlos —la lista ya venía cargada— y parecía que estaban dañados.',
+  'v6.07: ⏳ El aviso de "Abriendo.../Cerrando..." al cambiar de pantalla ahora dura lo suficiente para alcanzar a leerlo, y la aparición de cada pantalla es un poco más notoria. Estaba tan rápido que pasaba desapercibido.',
   'v6.06: 🪪 ARREGLADO: el personal administrativo (Secretaría) no podía firmar. Al escribir su nombre en "¿Quién está de guardia?" el buscador no lo encontraba —solo buscaba entre las unidades bomberiles— así que no podía tocarse a sí misma y quedaba trabada sin poder hacer nada, aunque ya tuviera su PIN. Ahora sí aparece.',
   'v6.06: 🔎 Si escribes un nombre y no aparece nadie, ahora la app te lo DICE en vez de quedarse muda. Antes no se sabía si el nombre estaba mal escrito o si la app se había colgado.',
   'v6.05: 🛡️ ARREGLADO lo importante: agregar o quitar un administrador ya surte efecto de verdad. Antes la app escribía el cambio en la base de datos pero seguía preguntándole a una lista fija escrita dentro del programa, así que a la persona agregada nunca se le habilitaba nada. Ahora quien manda es la lista del Panel. La persona lo ve la próxima vez que abra la app con señal.',
@@ -3203,6 +3206,10 @@ const app = {
     // Sin await a propósito: son datos secundarios y no deben demorar la apertura
     // del Panel ni romperla si el servidor tarda o falla.
     if (_aw && _aw.style.display === 'block') this.cargarAdministradores();
+    // v6.07: el buscador arranca limpio en cada apertura. Sin esto, si habías
+    // filtrado antes de salir, al volver la lista aparecía recortada y parecía
+    // que faltaba personal.
+    this._pinsFiltro = '';
     this.cargarEstadoPins();
   },
 
@@ -3226,9 +3233,12 @@ const app = {
     return String((this.usuario && this.usuario.email) || '').toLowerCase().trim() === 'gilrangeljeancarlosjeferson@gmail.com';
   },
 
-  async cargarAdministradores() {
+  // v6.07: `btn` opcional, mismo criterio que cargarEstadoPins — el botón
+  // 🔄 Actualizar tiene que dar señal de que se tocó.
+  async cargarAdministradores(btn) {
     const cont = document.getElementById('listaAdmins');
     if (!cont) return;
+    if (btn) return this._conBloqueo(btn, 'Actualizando...', () => this.cargarAdministradores());
     cont.innerHTML = this._skeleton(3, 'linea');
     try {
       const resp = await fetch(URL_BACKEND, { method:'POST',
@@ -3336,36 +3346,98 @@ const app = {
      su hash, así que desde acá no hay forma de averiguar el de nadie: se puede
      reemplazar, no leer. Los que NO tienen PIN salen primero, porque son los que
      todavía no pueden firmar. */
-  async cargarEstadoPins() {
+  // v6.07: `btn` es opcional. Cuando viene (lo manda el botón 🔄 Actualizar) se
+  // usa _conBloqueo para que el botón muestre el spinner: hasta v6.06 tocarlo no
+  // producía NINGUNA señal visible, porque desde v6.05 la lista ya venía cargada
+  // al abrir el Panel. Se sentía muerto (lo reportó Jeferson).
+  async cargarEstadoPins(btn) {
     const cont = document.getElementById('listaEstadoPins');
     if (!cont) return;
-    cont.innerHTML = this._skeleton(4, 'linea');
-    try {
-      const resp = await fetch(URL_BACKEND, { method:'POST',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ accion:'listarEstadoPins', adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
-      const d = await resp.json();
-      if (!d.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
-      if (!d.personal || !d.personal.length) { cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Sin personal activo.</div>'; return; }
-      cont.innerHTML = '<div style="font-size:11px;color:#475569;margin-bottom:8px;font-weight:600;">'
-        + d.conPin + ' de ' + d.total + ' unidades ya tienen PIN</div>'
-        + d.personal.map(p => {
-          const ced = app._esc(p.cedula||'');
-          const nom = app._esc(p.nombre||'(sin nombre)');
-          const badge = p.tienePin
-            ? '<span style="font-size:10px;color:#065f46;font-weight:700;">✅ con PIN' + (p.desde ? ' · ' + app._esc(p.desde) : '') + '</span>'
-            : '<span style="font-size:10px;color:#b45309;font-weight:700;">⚠️ sin PIN</span>';
-          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #e2e8f0;">'
-            + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:600;color:#1f2937;">'+nom+'</div>'
-            + '<div style="font-size:10px;color:#94a3b8;">CC '+ced+' · '+badge+'</div></div>'
-            + '<button data-c="'+ced+'" data-n="'+nom+'" onclick="app.asignarPinUnidad(this, this.dataset.c, this.dataset.n)" '
-            + 'style="padding:6px 10px;background:'+(p.tienePin?'#64748b':'#b45309')+';color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;white-space:nowrap;">'
-            + (p.tienePin ? 'Cambiar' : 'Asignar') + '</button>'
-            + '</div>';
-        }).join('');
-    } catch (e) {
-      cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">Error de red: '+app._esc(e.message||'')+'</div>';
-    }
+    const traer = async () => {
+      cont.innerHTML = this._skeleton(4, 'linea');
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'listarEstadoPins', adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+        const d = await resp.json();
+        if (!d.ok) { this._pinsData = null; cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
+        if (!d.personal || !d.personal.length) { this._pinsData = null; cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Sin personal activo.</div>'; return; }
+        // Se guarda en memoria para poder filtrar SIN volver a pedirle al servidor:
+        // en Inírida cada consulta de más se paga en segundos de espera.
+        this._pinsData = d;
+        this._pintarEstadoPins();
+      } catch (e) {
+        this._pinsData = null;
+        cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">Error de red: '+app._esc(e.message||'')+'</div>';
+      }
+    };
+    if (btn) await this._conBloqueo(btn, 'Actualizando...', traer);
+    else await traer();
+  },
+
+  // v6.07: filtro del buscador de PINes. No toca la red, solo repinta.
+  _filtrarPins(valor) {
+    this._pinsFiltro = valor || '';
+    this._pintarEstadoPins();
+  },
+
+  /* v6.07: pinta la lista de PINes desde this._pinsData.
+     Separado de la descarga por tres motivos que reportó Jeferson:
+     - El roster son ~36 unidades: sin tope de altura la caja medía ~1.400px y
+       empujaba "Agregar operador administrativo" y toda la sección de
+       Administradores tan abajo que parecían no existir. Ahora la lista tiene
+       su propio scroll y el resto del Panel queda siempre a la vista.
+     - Sin buscador había que barrer 36 filas a ojo para encontrar a alguien.
+     - Las unidades SIN PIN van primero: son las únicas que exigen acción. */
+  _pintarEstadoPins() {
+    const cont = document.getElementById('listaEstadoPins');
+    const d = this._pinsData;
+    if (!cont || !d) return;
+    const q = String(this._pinsFiltro || '').trim();
+    const qNom = this._normNombre(q);
+    const qCed = this._cedKey(q);
+    const todas = (d.personal || []).slice().sort((a, b) => {
+      if (!!a.tienePin !== !!b.tienePin) return a.tienePin ? 1 : -1;   // sin PIN primero
+      return this._normNombre(a.nombre||'').localeCompare(this._normNombre(b.nombre||''));
+    });
+    const lista = !q ? todas : todas.filter(p =>
+      this._normNombre(p.nombre||'').indexOf(qNom) !== -1 ||
+      (qCed !== '' && this._cedKey(p.cedula||'').indexOf(qCed) !== -1));
+
+    const filas = lista.map(p => {
+      const ced = app._esc(p.cedula||'');
+      const nom = app._esc(p.nombre||'(sin nombre)');
+      const badge = p.tienePin
+        ? '<span style="font-size:10px;color:#065f46;font-weight:700;">✅ con PIN' + (p.desde ? ' · ' + app._esc(p.desde) : '') + '</span>'
+        : '<span style="font-size:10px;color:#b45309;font-weight:700;">⚠️ sin PIN</span>';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #e2e8f0;">'
+        + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:600;color:#1f2937;">'+nom+'</div>'
+        // Contraste subido de #94a3b8 a #475569: la línea de la cédula era
+        // casi ilegible bajo el sol.
+        + '<div style="font-size:10px;color:#475569;">CC '+ced+' · '+badge+'</div></div>'
+        + '<button data-c="'+ced+'" data-n="'+nom+'" onclick="app.asignarPinUnidad(this, this.dataset.c, this.dataset.n)" '
+        + 'style="padding:6px 10px;background:'+(p.tienePin?'#64748b':'#b45309')+';color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;white-space:nowrap;">'
+        + (p.tienePin ? 'Cambiar' : 'Asignar') + '</button>'
+        + '</div>';
+    }).join('');
+
+    const sinPin = todas.filter(p => !p.tienePin).length;
+    cont.innerHTML =
+        '<div style="font-size:11px;color:#475569;margin-bottom:8px;font-weight:600;">'
+      + d.conPin + ' de ' + d.total + ' unidades ya tienen PIN'
+      + (sinPin ? ' · <span style="color:#b45309;">faltan ' + sinPin + '</span>' : ' · <span style="color:#065f46;">todas al día</span>')
+      + '</div>'
+      + '<input type="text" id="_pinBuscar" oninput="app._filtrarPins(this.value)" '
+      + 'placeholder="🔍 Buscar por nombre o cédula..." '
+      + 'style="width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;">'
+      // Tope de altura: la lista hace su propio scroll en vez de estirar la caja.
+      + '<div style="max-height:290px;overflow-y:auto;-webkit-overflow-scrolling:touch;">'
+      + (filas || '<div style="font-size:12px;color:#999;padding:10px 2px;">Nadie coincide con esa búsqueda.</div>')
+      + '</div>';
+
+    // Se repone el texto y el cursor: innerHTML destruyó el input que se estaba usando.
+    const inp = document.getElementById('_pinBuscar');
+    if (inp && q) { inp.value = q; inp.focus(); inp.setSelectionRange(q.length, q.length); }
   },
 
   async asignarPinUnidad(btn, cedula, nombre) {
@@ -5193,7 +5265,10 @@ ${paginaFotos}
     clearTimeout(this._navFeedbackTimer);
     el.textContent = texto;
     el.classList.add('visible');
-    this._navFeedbackTimer = setTimeout(() => el.classList.remove('visible'), 500);
+    // v6.07: era 500ms, pero 150 se van en el fade de entrada y 150 en el de
+    // salida → quedaban ~200ms a opacidad plena. Jeferson reportó no verla nunca.
+    // 900ms deja ~600ms legibles, que sigue siendo un parpadeo pero se percibe.
+    this._navFeedbackTimer = setTimeout(() => el.classList.remove('visible'), 900);
   },
 
   confirmar(titulo, mensaje) {
