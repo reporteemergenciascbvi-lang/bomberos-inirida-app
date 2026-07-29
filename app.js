@@ -21,8 +21,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.07';
+const APP_VERSION = '6.08';
 const APP_VERSION_NOTAS = [
+  'v6.08: 🎬 Al tocar "volver" ahora se ve una transición: un oscurecido suave que cruza la pantalla y se va. Antes la pantalla anterior desaparecía de golpe, sin ningún aviso de que estabas saliendo. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no la muestra.',
   'v6.07: 🔑 La lista de PIN de las unidades ya no es un rollo interminable. Ahora tiene BUSCADOR (por nombre o cédula), las unidades que todavía NO tienen PIN salen de primeras, y la lista tiene su propio desplazamiento: ya no empuja el resto del Panel hacia abajo. Arriba se ve cuántas faltan.',
   'v6.07: 🔄 Los botones "Ver / asignar" y "Ver / cambiar" del Panel ahora se llaman "Actualizar" y muestran la rueda de carga mientras trabajan. Antes no daban ninguna señal al tocarlos —la lista ya venía cargada— y parecía que estaban dañados.',
   'v6.07: ⏳ El aviso de "Abriendo.../Cerrando..." al cambiar de pantalla ahora dura lo suficiente para alcanzar a leerlo, y la aparición de cada pantalla es un poco más notoria. Estaba tan rápido que pasaba desapercibido.',
@@ -1113,7 +1114,7 @@ const app = {
   irA(pantallaId, sinHistorial = false) {
     // v5.64 (BUG 3): pill "Abriendo.../Cerrando..." — atras() marca _yendoAtras
     // antes de llamar aquí, así distinguimos ir hacia adelante de volver.
-    if (this._yendoAtras) { this._flashAccion('Cerrando...'); this._yendoAtras = false; }
+    if (this._yendoAtras) { this._flashAccion('Cerrando...'); this._veloCierre(); this._yendoAtras = false; }
     else { this._flashAccion('Abriendo...'); }
 
     if (!sinHistorial && this.pantallaActual !== pantallaId) {
@@ -5257,6 +5258,26 @@ ${paginaFotos}
     let html = '<div aria-busy="true" aria-label="Cargando">';
     for (let i = 0; i < cuantas; i++) html += '<div class="' + clase + '"></div>';
     return html + '</div>';
+  },
+
+  /* v6.08: velo de cierre — la "animación de cerrando" que nunca existió.
+     Se dispara SOLO al volver atrás (desde irA, junto a la píldora).
+
+     El `void el.offsetWidth` NO es adorno: fuerza un reflow para reiniciar
+     la animación CSS. Sin eso, dos "volver" seguidos no la re-disparan —
+     el navegador ve que la clase ya estaba y no reproduce nada. Ese es
+     justo el "a veces no funciona" que costaría diagnosticar después.
+
+     Es puramente visual: si el elemento no existe, se sale sin romper nada
+     (misma defensa que _flashAccion). */
+  _veloCierre() {
+    const el = document.getElementById('veloCierre');
+    if (!el) return;
+    clearTimeout(this._veloTimer);
+    el.classList.remove('activo');
+    void el.offsetWidth;
+    el.classList.add('activo');
+    this._veloTimer = setTimeout(() => el.classList.remove('activo'), 320);
   },
 
   _flashAccion(texto) {

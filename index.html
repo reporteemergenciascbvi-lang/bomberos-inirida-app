@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.07">
-<script src="vendor/leaflet/leaflet.js?v=6.07"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.08">
+<script src="vendor/leaflet/leaflet.js?v=6.08"></script>
 
 <style>
   :root {
@@ -1070,12 +1070,39 @@ button:active { transform: scale(.96); }
 .skeleton-tarjeta { height: 72px; border-radius: var(--radio, 12px); margin-bottom: 10px; }
 @keyframes cbviShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
+/* v6.08: VELO DE CIERRE — la "animación de cerrando" que faltaba.
+   Solo al ir HACIA ATRÁS. Un oscurecido leve que cruza por encima y se va.
+
+   ⚠️ POR QUÉ UN ELEMENTO APARTE Y NO UNA ANIMACIÓN DE .pantalla:
+   la salida de una pantalla no se puede animar sin (a) ponerle transform,
+   que rompe los position:fixed hijos —acciones-flotantes, controles del
+   mapa— o (b) volver irA() asíncrona, y hay 42 sitios que la llaman y
+   varios trabajan justo después. Este velo vive FUERA de las pantallas
+   (hermano del toast), así que no es ancestro de nada y no puede romper
+   ningún posicionamiento.
+
+   z-index 999: por encima de todo el contenido (mapa a pantalla completa
+   150/151, modales 200) pero DEBAJO del toast (1000) y de la píldora
+   "Cerrando..." (1001), para que el aviso se lea sobre el velo.
+   pointer-events:none es obligatorio: sin eso taparía los toques 280ms. */
+.velo-cierre {
+  position: fixed; inset: 0; z-index: 999;
+  background: #000; opacity: 0; pointer-events: none;
+}
+.velo-cierre.activo { animation: cbviVelo .28s ease-out; }
+@keyframes cbviVelo {
+  0%   { opacity: 0; }
+  45%  { opacity: .18; }
+  100% { opacity: 0; }
+}
+
 /* Accesibilidad: si el sistema pide "reducir movimiento", no se anima nada */
 @media (prefers-reduced-motion: reduce) {
   .pantalla.activa { animation: none; }
   button { transition: none; }
   button:active { transform: none; }
   .skeleton-linea, .skeleton-tarjeta { animation: none; }
+  .velo-cierre.activo { animation: none; }
 }
 </style>
 </head>
@@ -1296,7 +1323,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.07</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.08</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -2190,6 +2217,9 @@ button:active { transform: scale(.96); }
 
 <div class="toast" id="toast"></div>
 <div class="nav-feedback" id="navFeedback"></div>
+<!-- v6.08: velo de cierre. Va acá, hermano del toast y FUERA de las
+     .pantalla, para no ser ancestro de ningún position:fixed. -->
+<div class="velo-cierre" id="veloCierre"></div>
 
 <div class="modal-fondo" id="modalConfirmar">
   <div class="modal">
@@ -2225,8 +2255,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.07"></script>
-<script src="app.js?v=6.07"></script>
+<script src="logos.js?v=6.08"></script>
+<script src="app.js?v=6.08"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
