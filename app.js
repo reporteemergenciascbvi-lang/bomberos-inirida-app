@@ -21,8 +21,15 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.08';
+const APP_VERSION = '6.09';
 const APP_VERSION_NOTAS = [
+  'v6.09: 🪪 Para anotar o corregir la asistencia de un domingo, y para descontar horas de sanción, ya NO se pide la contraseña de administrador: basta tu usuario y tu PIN. La guardia puede hacer su trabajo sin depender de la comandancia, y de paso queda registrado QUIÉN lo hizo (la contraseña es una sola para todos y no decía nada de eso). Borrar un domingo o una actividad sí sigue pidiendo contraseña.',
+  'v6.09: 🔐 Si escribes mal la contraseña de administrador, ahora te lo dice de una vez: el cuadro se sacude, marca el error en rojo y te deja intentar de nuevo ahí mismo. Antes seguía de largo sin avisar y el error aparecía mucho después, con un mensaje que no explicaba nada — y peor, la contraseña equivocada quedaba guardada y todo lo demás fallaba hasta cerrar la app.',
+  'v6.09: ⏱️ Tu firma ahora se cierra sola: al cerrar la aplicación y a los 30 minutos sin usarla. Si dejas el celular en la mesa, nadie puede seguir haciendo cambios a tu nombre. Mientras estés trabajando no se vence, porque cada acción reinicia el tiempo.',
+  'v6.09: ✏️ La ventana de editar una actividad quedó igual de completa que la de crearla: el tipo de vehículo se elige de la lista (antes se escribía a mano) y el maquinista tiene autocompletado.',
+  'v6.09: 🚒 Los vehículos de una ACTIVIDAD ya se guardan. Hasta ahora esa parte del formulario estaba desconectada por dentro: se podía escribir el vehículo y el maquinista, pero al registrar la actividad NO se guardaba nada y no había ningún aviso. Si revisas actividades viejas y no aparecen vehículos, es por esto — el dato no llegó a la base. De aquí en adelante sí queda, con su maquinista y su cédula.',
+  'v6.09: 🔎 El campo "Maquinista / Responsable" de las actividades ya autocompleta. Escribe la inicial y elige de la lista, igual que en Encargado y Comandante de guardia. Antes no salía nada por más que escribieras.',
+  'v6.09: ➕ El botón "Agregar vehículo" de las actividades ahora sí muestra el vehículo en pantalla, se puede quitar con la ✕, y no deja agregar dos veces la misma unidad.',
   'v6.08: 🎬 Al tocar "volver" ahora se ve una transición: un oscurecido suave que cruza la pantalla y se va. Antes la pantalla anterior desaparecía de golpe, sin ningún aviso de que estabas saliendo. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no la muestra.',
   'v6.07: 🔑 La lista de PIN de las unidades ya no es un rollo interminable. Ahora tiene BUSCADOR (por nombre o cédula), las unidades que todavía NO tienen PIN salen de primeras, y la lista tiene su propio desplazamiento: ya no empuja el resto del Panel hacia abajo. Arriba se ve cuántas faltan.',
   'v6.07: 🔄 Los botones "Ver / asignar" y "Ver / cambiar" del Panel ahora se llaman "Actualizar" y muestran la rueda de carga mientras trabajan. Antes no daban ninguna señal al tocarlos —la lista ya venía cargada— y parecía que estaban dañados.',
@@ -554,8 +561,14 @@ const app = {
                y el backend lo guarda en el log de auditoría. Va en el interceptor
                a propósito: así viaja en TODA llamada sin tener que acordarse de
                agregarlo en cada fetch (que es como se cuelan los olvidos). */
+            // v6.09: una firma vencida NO puede viajar. Se comprueba acá porque
+            // este es el único punto por el que pasan TODAS las llamadas.
+            if (self._firmaVencida && self._firmaVencida()) self._borrarFirma();
             const oper = self._operadorSesion || '';
             if (oper && !obj.operador) {
+              // Usar la app cuenta como actividad: el reloj de los 30 minutos se
+              // reinicia con cada llamada, así que a nadie trabajando se le vence.
+              if (self._tocarFirma) self._tocarFirma();
               obj.operador = oper;
               // v6.02: van también cédula y PIN porque el backend NO se cree el
               // nombre: valida el PIN y saca el nombre de Personal_CBVI por cédula.
@@ -581,6 +594,16 @@ const app = {
                 resp.clone().json().then(function (j) {
                   if (j && j.ok === false && /no autorizado/i.test(j.error || '')) {
                     self._avisarTokenSiExpirado();
+                    /* v6.09: si el servidor rechazó por CONTRASEÑA, hay que
+                       olvidarla en el acto o queda cacheada y todo lo demás
+                       falla en cadena sin volver a preguntarla nunca. Se hace
+                       acá, en el interceptor, porque el problema aparecía en las
+                       ~20 pantallas que mandan adminPassword y arreglarlas una
+                       por una es justo como se cuelan los olvidos.
+                       Se excluyen los rechazos por PIN (v6.00 los redacta
+                       diciendo "firma con tu usuario y PIN"): ahí la contraseña
+                       puede estar perfecta y borrarla sería molestar de gratis. */
+                    if (!/\bPIN\b/i.test(String(j.error || ''))) self._olvidarPwdAdmin();
                   }
                 }).catch(function () {});
               }
@@ -5365,10 +5388,12 @@ ${paginaFotos}
     this.irA('pantallaActividades');
     // reset form fields
     setTimeout(() => {
-      ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades'].forEach(id => {
+      ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades',
+       'actRecursoTipo','actRecursoCodigo','actRecursoResponsable'].forEach(id => {
         const el = document.getElementById(id); if(el) el.value='';
       });
       this._renderPersonalActividad();
+      this._renderRecursosActividad();   // v6.09: antes nadie pintaba #actRecursosLista
       ['prevFotoInicio','prevFotoMedio','prevFotoFin'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.innerHTML = '<span style="font-size:20px;">📷</span>';
@@ -5500,6 +5525,69 @@ ${paginaFotos}
     this._renderPersonalActividad();
   },
 
+  /* ═══════ v6.09: RECURSOS / VEHÍCULOS DE UNA ACTIVIDAD ═══════
+     Lo reportó Jeferson ("pongo Germán y no me aparece el autocompletado").
+     Al buscar la causa apareció algo más grande: la sección entera era
+     DECORADO. El HTML estaba completo (#actRecursoTipo, #actRecursoCodigo,
+     #actRecursoResponsable, #actRecursoSug, #actRecursosLista) pero NINGUNO
+     de esos cinco elementos se leía nunca desde app.js, y `_actRecursos` se
+     declaraba, se reseteaba y se enviaba al backend sin recibir jamás un
+     push. Encima el botón "➕ Agregar vehículo" llamaba a `agregarRecurso()`,
+     que pertenece al formulario de EMERGENCIA y escribe en #tablaRecursos:
+     la fila se agregaba a otra pantalla, invisible desde acá.
+     Consecuencia real: TODO vehículo y maquinista anotado en una actividad se
+     descartó en silencio. El backend siempre estuvo listo (crearActividad ya
+     escribía en Recursos_Actividad y obtenerActividad ya los leía de vuelta);
+     el único lado roto era este. */
+  agregarRecursoActividad() {
+    const elTipo = document.getElementById('actRecursoTipo');
+    const elCod  = document.getElementById('actRecursoCodigo');
+    const elResp = document.getElementById('actRecursoResponsable');
+    const tipo = (elTipo && elTipo.value || '').trim();
+    if (!tipo) { this.toast('Elige el tipo de vehículo', 'error'); return; }
+    const codigo = (elCod && elCod.value || '').trim();
+    const responsable = (elResp && elResp.value || '').toUpperCase().trim();
+    // La cédula sale del autocompletado (data-ced). Si el nombre se escribió a
+    // mano queda vacía, igual que antes: es un dato mejor cuando está, nunca un
+    // requisito (un maquinista de apoyo puede no estar en la base).
+    const responsableCedula = (elResp && elResp.dataset && elResp.dataset.ced || '').trim();
+    // Mismo vehículo dos veces en la misma actividad no aporta y ensucia el
+    // conteo. Se compara por tipo+código: la misma máquina puede ir con otra
+    // placa/código sólo si de verdad es otra unidad.
+    const yaEsta = this._actRecursos.some(r =>
+      String(r.tipo||'').toUpperCase() === tipo.toUpperCase() &&
+      String(r.codigo||'').toUpperCase() === codigo.toUpperCase());
+    if (yaEsta) { this.toast('Ese vehículo ya está en la lista', 'error'); return; }
+    this._actRecursos.push({ tipo, codigo, responsable, responsableCedula });
+    if (elTipo) elTipo.value = '';
+    if (elCod)  elCod.value = '';
+    if (elResp) { elResp.value = ''; elResp.dataset.ced = ''; }
+    const sug = document.getElementById('actRecursoSug');
+    if (sug) sug.style.display = 'none';
+    this._renderRecursosActividad();
+    this.toast('🚒 ' + tipo + ' agregado', 'exito');
+  },
+
+  _renderRecursosActividad() {
+    const cont = document.getElementById('actRecursosLista');
+    if (!cont) return;
+    if (!this._actRecursos.length) { cont.innerHTML = '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin vehículos aún</div>'; return; }
+    // I5: todo a innerHTML pasa por _esc. I10: data-* en vez de meter el índice
+    // dentro de una cadena con comillas.
+    cont.innerHTML = this._actRecursos.map((r,i) =>
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8f8f8;border-radius:8px;margin-bottom:6px;">'
+      +'<div><strong style="font-size:14px;">'+app._esc(r.tipo||'(sin tipo)')+'</strong>'+(r.codigo?' <span style="color:#666;font-size:12px;">('+app._esc(r.codigo)+')</span>':'')
+      +'<div style="font-size:12px;color:#666;">'+(r.responsable ? '👤 '+app._esc(r.responsable)+(r.responsableCedula?' · CC: '+app._esc(r.responsableCedula):'') : '<span style="color:#b98;">sin maquinista</span>')+'</div></div>'
+      +'<button data-i="'+i+'" onclick="app._quitarRecursoActividad(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:18px;cursor:pointer;">&#x2715;</button>'
+      +'</div>'
+    ).join('');
+  },
+
+  _quitarRecursoActividad(idx) {
+    this._actRecursos.splice(idx, 1);
+    this._renderRecursosActividad();
+  },
+
   async guardarActividad(btn) {
     // v5.63 (BUG doble click): bloqueo total mientras se envía
     if (this._guardandoActividad) return;
@@ -5558,11 +5646,15 @@ ${paginaFotos}
       this._actIdCliente = null; // ← próximo registro tendrá su propio id
       // Reset form
       this._actPersonal = [];
+      this._actRecursos = [];   // v6.09: faltaba — los vehículos quedaban pegados
+                                // al formulario y se repetían en la actividad siguiente
       this._actFotos = { inicio: null, medio: null, fin: null };
-      ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades'].forEach(id => {
+      ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades',
+       'actRecursoTipo','actRecursoCodigo','actRecursoResponsable'].forEach(id => {
         const el = document.getElementById(id); if(el) el.value = '';
       });
       this._renderPersonalActividad();
+      this._renderRecursosActividad();
       setTimeout(() => this.irA('pantallaListaActividades'), 1000);
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
     finally {
@@ -6166,9 +6258,15 @@ ${paginaFotos}
     if (!fecha) { this.toast('Selecciona la fecha', 'error'); return; }
     const registros = Object.values(this._asistRegistros);
     if (!registros.length) { this.toast('Agrega personal primero', 'error'); return; }
-    // Verificar sesión admin — pedir contraseña si no hay (modal APK-safe)
-    const _pwdOk = await this._obtenerPwdAdmin('🔐 Contraseña admin para guardar asistencia');
-    if (!_pwdOk) return;
+    /* v6.09: SOLO USUARIO + PIN, sin la contraseña de administrador.
+       El celular de la estación lo comparten los tres turnos y la contraseña es
+       de la comandancia: pedirla para anotar la asistencia de un domingo obligaba
+       a repartirla. Ahora firma quien está de turno con su PIN personal, que
+       además deja constancia de QUIÉN anotó (la contraseña, al ser una sola para
+       todos, no decía nada de eso). El backend lo exige de verdad: registrarAsistencia
+       pasó a _esGuardiaConPin en v6.00. */
+    const _firmaOk = await this._exigirFirma();
+    if (!_firmaOk) return;
     const tipoReunion = document.getElementById('asistTipoReunion') ? document.getElementById('asistTipoReunion').value : '';
     const tema = document.getElementById('asistTema') ? document.getElementById('asistTema').value : '';
     const lugarReunion = document.getElementById('asistLugar') ? document.getElementById('asistLugar').value : '';
@@ -6360,8 +6458,10 @@ ${paginaFotos}
       const datos = await this._pedirCumplimientoSancion(nombre, horasPendientes);
       if (!datos) return; // canceló → no se hace nada
       const horas = datos.horas, actividad = datos.actividad;
-      const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña admin para descontar horas');
-      if (!_pwd) return; // canceló → no se hace nada
+      // v6.09: solo usuario + PIN (ver guardarAsistencia). Queda registrado quién
+      // descontó, y si se descuenta horas a sí mismo el log lo marca aparte.
+      const _firmaOk = await this._exigirFirma();
+      if (!_firmaOk) return; // canceló o sin PIN → no se hace nada
       this._idCumplir = this._idCumplir || {};
       let reg = this._idCumplir[cedula];
       // El recibo se reusa SOLO si se reintenta exactamente lo mismo (horas Y
@@ -6751,9 +6851,12 @@ ${paginaFotos}
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+      modal.innerHTML = '<div id="_pwdAdmCaja" style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
         + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:12px;text-align:center;">'+(mensaje||'🔐 Contraseña de administrador')+'</div>'
-        + '<input id="_pwdAdmInput" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:14px;" placeholder="Contraseña">'
+        + '<input id="_pwdAdmInput" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:8px;" placeholder="Contraseña">'
+        // v6.09: acá se escribe el motivo exacto del rechazo. Nace oculto y su
+        // texto se pone con textContent, nunca con innerHTML (I5).
+        + '<div id="_pwdAdmErr" style="display:none;color:#c0392b;font-size:13px;font-weight:600;text-align:center;margin-bottom:10px;"></div>'
         + '<div style="display:flex;gap:10px;">'
         + '<button id="_pwdAdmCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
         + '<button id="_pwdAdmOk" style="flex:1;padding:12px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Entrar</button>'
@@ -6763,8 +6866,63 @@ ${paginaFotos}
       setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
       const fin = (val) => { try { document.body.removeChild(modal); } catch(e){} resolve(val); };
       modal.querySelector('#_pwdAdmCancel').onclick = () => fin(null);
-      modal.querySelector('#_pwdAdmOk').onclick = () => fin(inp.value || '');
-      inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') fin(inp.value || ''); });
+
+      /* ═══ v6.09: LA CONTRASEÑA SE COMPRUEBA ACÁ, NO DESPUÉS ═══
+         Lo reportó Jeferson: ponía una contraseña equivocada, no salía ningún
+         aviso, la app seguía de largo hasta el PIN y recién al final tiraba un
+         "No autorizado" seco. La causa: nadie validaba la contraseña en el
+         momento; se guardaba y el error aparecía mucho más tarde, en la acción
+         real y sin decir cuál de las tres cosas falló (contraseña, identidad o
+         pase). Ahora se pregunta al servidor antes de dejar pasar, y si está
+         mal el modal SE QUEDA ABIERTO para reintentar sin perder el camino. */
+      const caja  = modal.querySelector('#_pwdAdmCaja');
+      const err   = modal.querySelector('#_pwdAdmErr');
+      const btnOk = modal.querySelector('#_pwdAdmOk');
+      let ocupado = false;
+      const mostrarError = (txt) => {
+        err.textContent = txt;                 // textContent, no innerHTML (I5)
+        err.style.display = 'block';
+        inp.style.borderColor = '#c0392b';
+        caja.classList.remove('cbvi-sacudir');
+        void caja.offsetWidth;                 // reflow: sin esto, dos errores
+        caja.classList.add('cbvi-sacudir');    // seguidos no re-disparan la animación
+        try { inp.focus(); inp.select(); } catch(e) {}
+      };
+      const intentar = async () => {
+        if (ocupado) return;                   // anti doble toque dentro del modal
+        const val = inp.value || '';
+        if (!val.trim()) { mostrarError('Escribe la contraseña.'); return; }
+        ocupado = true;
+        const htmlPrev = btnOk.innerHTML;
+        btnOk.disabled = true; btnOk.style.opacity = '0.65';
+        btnOk.innerHTML = '<span class="spinner-cbvi"></span> Verificando...';
+        err.style.display = 'none';
+        try {
+          const r = await fetch(URL_BACKEND, { method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ accion: 'verificarPwdAdmin',
+              adminEmail: (this.usuario && this.usuario.email) || '', adminPassword: val }) });
+          const d = await r.json();
+          if (d && d.ok) { fin(val); return; }
+          /* ANTI-BLOQUEO, mismo criterio que _pinSoportado (v6.03): si el backend
+             desplegado es anterior a esta versión no conoce `verificarPwdAdmin`,
+             y si acá se rechazara, NADIE podría entrar al Panel nunca. En ese
+             caso se deja pasar y que valide la acción real, como hasta v6.08. */
+          if (/no reconocid/i.test(String((d && d.error) || ''))) { fin(val); return; }
+          mostrarError(String((d && d.error) || 'Contraseña incorrecta.'));
+        } catch (e) {
+          // Sin señal no se puede comprobar — y tampoco serviría de nada seguir,
+          // porque la acción de admin también viaja al servidor.
+          mostrarError('Sin conexión: no se pudo comprobar la contraseña.');
+        } finally {
+          ocupado = false;
+          btnOk.disabled = false; btnOk.style.opacity = '';
+          btnOk.innerHTML = htmlPrev;
+        }
+      };
+      btnOk.onclick = intentar;
+      inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') intentar(); });
+      inp.addEventListener('input', () => { inp.style.borderColor = '#ddd'; err.style.display = 'none'; });
     });
   },
 
@@ -6815,11 +6973,28 @@ ${paginaFotos}
        Reportar emergencias NO pasa por acá, así que eso sigue funcionando sin PIN. */
     if (this._adminPwdSession) return (await this._exigirFirma()) ? this._adminPwdSession : null;
     try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; return (await this._exigirFirma()) ? s : null; } } catch(e) {}
+    // v6.09: _pedirPwdAdmin ya NO devuelve lo que se tecleó sin más: solo
+    // devuelve una contraseña que el servidor confirmó. Por eso guardarla acá
+    // pasó a ser seguro; antes se guardaba una contraseña sin comprobar y
+    // quedaba pegada en el teléfono (ver _olvidarPwdAdmin).
     const pwd = await this._pedirPwdAdmin(mensaje);
     if (!pwd || !pwd.trim()) return null;
     this._adminPwdSession = pwd.trim();
     try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e) {}
     return (await this._exigirFirma()) ? this._adminPwdSession : null;
+  },
+
+  /* v6.09: OLVIDAR LA CONTRASEÑA — las DOS copias.
+     El bug que dejaba trancada la app: la contraseña vive en dos lados (memoria
+     y sessionStorage) y al fallar solo se limpiaba la de memoria
+     (`this._adminPwdSession = null`). En la siguiente vuelta se leía otra vez
+     desde sessionStorage y NUNCA se volvía a preguntar: bucle infinito de
+     "No autorizado" del que solo se salía cerrando la app.
+     En todo app.js el único removeItem que existía era el de 'cbvi_oper'; el de
+     la contraseña no estaba escrito en ninguna parte. */
+  _olvidarPwdAdmin() {
+    this._adminPwdSession = null;
+    try { sessionStorage.removeItem('cbvi_admin_pwd'); } catch(e) {}
   },
 
   // Devuelve true solo si hay una firma verificada en esta sesión.
@@ -6850,16 +7025,54 @@ ${paginaFotos}
      propio antes de tocar sanciones, y (c) cruzar contra el registro de guardia
      del domingo, que la app ya guarda. NO bloquea: si se cancela, la acción sigue
      y el log queda marcado como "operador NO declarado", que en sí es una señal. */
+  /* ═══════ v6.09: LA FIRMA CADUCA ═══════
+     Lo planteó Jeferson con el caso exacto: *"yo puedo estar de comandante de
+     guardia, tengo el celular, inicié sesión con usuario y PIN, lo dejé en la
+     mesa, y otra persona entró e hizo cambios a mi nombre."* Con la firma
+     pegada, el log culpa al que firmó, no al que operó — o sea que la auditoría
+     miente, que es peor que no tenerla.
+
+     DOS CANDADOS:
+     1. **Al cerrar la app.** La firma pasó a vivir SOLO EN MEMORIA. Antes se
+        guardaba `{nombre, cédula, PIN}` en sessionStorage EN TEXTO PLANO y
+        sobrevivía a recargas. El criterio correcto ya estaba escrito unas líneas
+        más abajo para la llave de comandancia ("si se guardara, quedaría viva en
+        el celular de la guardia después de una recarga") — solo que nunca se le
+        había aplicado al PIN, que es justamente lo que identifica a la persona.
+        De paso, el PIN deja de estar escrito en el teléfono.
+     2. **30 minutos sin usarla.** Se refresca sola con cada llamada al servidor
+        (ver el interceptor), así que a nadie trabajando se le vence en la mano;
+        vence cuando el celular quedó solo, que es el caso que preocupa.
+
+     Límite honesto: el reloj lo pone el teléfono y se puede cambiar a mano. Esto
+     es un control de orden interno —que el log diga la verdad—, no una barrera
+     contra alguien decidido. Ese ya es otro problema y no se resuelve acá. */
+  _FIRMA_MS: 30 * 60 * 1000,
+
+  _firmaVencida() {
+    if (!this._operadorSesion) return false;
+    if (!this._firmaTs) return false;
+    return (Date.now() - this._firmaTs) > this._FIRMA_MS;
+  },
+
+  _tocarFirma() { if (this._operadorSesion) this._firmaTs = Date.now(); },
+
+  _borrarFirma() {
+    this._operadorSesion = null; this._operadorCedula = null;
+    this._operadorPin = null; this._operadorLlave = null; this._firmaTs = 0;
+    try { sessionStorage.removeItem('cbvi_oper'); } catch(e) {}
+  },
+
   async _obtenerOperador() {
-    if (this._operadorSesion) return this._operadorSesion;
-    try {
-      const s = sessionStorage.getItem('cbvi_oper');
-      if (s) { const o = JSON.parse(s);
-        if (o && o.nombre && o.cedula && o.pin) {
-          this._operadorSesion = o.nombre; this._operadorCedula = o.cedula; this._operadorPin = o.pin;
-          return o.nombre;
-        } }
-    } catch(e) {}
+    if (this._firmaVencida()) {
+      this._borrarFirma();
+      this.toast('🔒 Pasaron 30 minutos sin actividad: vuelve a firmar con tu PIN.', 'info');
+    }
+    if (this._operadorSesion) { this._tocarFirma(); return this._operadorSesion; }
+    /* v6.09: ya NO se lee de sessionStorage. Se limpia lo que hubiera quedado
+       de una versión anterior, para que un PIN viejo guardado en texto plano no
+       siga dando firma después de actualizar. */
+    try { sessionStorage.removeItem('cbvi_oper'); } catch(e) {}
     /* v6.03 ANTI-BLOQUEO — comprobar que el backend sepa de PINes ANTES de exigirlos.
        Si el backend desplegado es anterior a v5.96 no conoce la acción
        `verificarOperador`, así que nadie podría firmar nunca... y como la firma es
@@ -6888,7 +7101,13 @@ ${paginaFotos}
        en el celular de la guardia después de una recarga. Con esto, quien la usó
        tiene que volver a ponerla si la app se reinicia. */
     this._operadorLlave = r.llave || '';
-    if (!r.llave) { try { sessionStorage.setItem('cbvi_oper', JSON.stringify(r)); } catch(e) {} }
+    /* v6.09: la firma tampoco se guarda ya. Antes acá iba
+       `sessionStorage.setItem('cbvi_oper', JSON.stringify(r))`, que dejaba el
+       PIN escrito en texto plano en el teléfono de la guardia y hacía que la
+       firma sobreviviera a cerrar la app. Ahora sigue exactamente el mismo
+       criterio que la llave de comandancia de la línea de arriba: memoria y
+       nada más. */
+    this._firmaTs = Date.now();
     return r.nombre;
   },
 
@@ -6896,8 +7115,7 @@ ${paginaFotos}
      Si no existiera esto, el turno entrante quedaría operando bajo la firma del
      turno saliente — justo lo que el PIN vino a evitar. */
   async cambiarOperador() {
-    this._operadorSesion = null; this._operadorCedula = null; this._operadorPin = null; this._operadorLlave = null;
-    try { sessionStorage.removeItem('cbvi_oper'); } catch(e) {}
+    this._borrarFirma();   // v6.09: una sola función limpia las 5 cosas
     const nom = await this._obtenerOperador();
     if (nom) this.toast('🪪 Ahora opera: ' + nom, 'exito');
     const et = document.getElementById('operActualTxt');
@@ -7432,6 +7650,16 @@ ${paginaFotos}
   // ── Autocomplete encargado/guardia en asistencia ─────────────────────────
   _buscarAsistCampo(inputId, sugId, q) {
     const sug = document.getElementById(sugId);
+    /* v6.09: al elegir una sugerencia se guarda también la CÉDULA en el dataset del
+       input (data-ced). Quien no la necesite simplemente la ignora —los dos usos que
+       ya existían (asistEncargado, asistComandanteGuardia) no cambian en nada—, pero
+       el maquinista de una actividad SÍ la necesita: la hoja Recursos_Actividad tiene
+       columna Cedula_Responsable y hasta ahora siempre se guardaba vacía, así que ese
+       responsable no cruzaba por cédula con nadie (roza I9 y la regla de _cedKey).
+       Se limpia en CADA tecleo: si se elige "GERMÁN" y después se corrige el texto a
+       mano, la cédula vieja no puede quedar pegada a otro nombre. */
+    const _inpAC = document.getElementById(inputId);
+    if (_inpAC) _inpAC.dataset.ced = '';
     if (!q || q.trim().length < 1) { if(sug) sug.style.display='none'; return; }
     clearTimeout(this['_t_'+sugId]);
     this['_t_'+sugId] = setTimeout(async () => {
@@ -7442,8 +7670,9 @@ ${paginaFotos}
         const data = await resp.json();
         if (!data.ok || !data.resultados.length) { sug.style.display='none'; return; }
         sug.innerHTML = data.resultados.map(per =>
-          '<div data-n="'+app._esc(per.nombre||'')+'" data-inp="'+inputId+'" data-sug="'+sugId+'" '
+          '<div data-n="'+app._esc(per.nombre||'')+'" data-c="'+app._esc(per.cedula||'')+'" data-inp="'+inputId+'" data-sug="'+sugId+'" '
           +'onclick="document.getElementById(this.dataset.inp).value=this.dataset.n;'
+          +'document.getElementById(this.dataset.inp).dataset.ced=this.dataset.c;'
           +'document.getElementById(this.dataset.sug).style.display=\'none\';" '
           +'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">'+app._esc(per.nombre||'')
           +'<span style="color:#999;font-size:11px;margin-left:6px;">CC:'+app._esc(per.cedula||'-')+'</span></div>'
@@ -7518,10 +7747,28 @@ ${paginaFotos}
         +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">🚒 Recursos / Vehículos</div>'
         +'<div id="_eaRecursosLista" style="margin-bottom:6px;"></div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">'
-        +'<input type="text" id="_eaRecTipo" placeholder="Tipo de vehículo" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
+        /* v6.09: era un campo de texto libre mientras que al CREAR la actividad
+           es una lista desplegable. Editar daba un formulario peor que crear, y
+           encima el tipo escrito a mano no cruzaba con el de la lista ("Ambulancia"
+           vs "ambulancia" vs "AMBULANCIA" = tres vehículos distintos en la hoja).
+           Misma lista que index.html, más el valor actual si viniera de antes. */
+        +'<select id="_eaRecTipo" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
+        +  '<option value="">Tipo de vehículo...</option>'
+        +  ['Máquina extintora 1','Máquina extintora 2','Carro tanque','Intervención rápida','Ambulancia','Otro']
+             .map(v => '<option value="'+app._esc(v)+'">'+app._esc(v)+'</option>').join('')
+        +'</select>'
         +'<input type="text" id="_eaRecCodigo" placeholder="Código/Placa" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
         +'</div>'
-        +'<input type="text" id="_eaRecResp" placeholder="Maquinista / Responsable" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;">'
+        /* v6.09: acá NO había autocompletado de ninguna clase (ni list= ni
+           oninput=), así que el maquinista se escribía a mano y su cédula se
+           guardaba siempre vacía. Mismo patrón que el resto: wrapper con
+           position:relative + caja de sugerencias + _buscarAsistCampo. */
+        +'<div style="position:relative;margin-bottom:6px;">'
+        +'<input type="text" id="_eaRecResp" placeholder="Maquinista / Responsable (escriba la inicial)" autocomplete="off"'
+        +' oninput="app._buscarAsistCampo(\'_eaRecResp\',\'_eaRecRespSug\',this.value)"'
+        +' style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_eaRecRespSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
+        +'</div>'
         +'<button onclick="app._eaAgregarRecurso()" style="width:100%;padding:9px;background:#eef5fb;color:#1a5276;border:1px dashed #1a5276;border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:14px;">+ Agregar vehículo</button>'
         // ── BOTONES ──
         +'<div style="display:flex;gap:10px;">'
@@ -7649,14 +7896,26 @@ ${paginaFotos}
   },
 
   _eaAgregarRecurso() {
-    const tipo = (document.getElementById('_eaRecTipo').value||'').trim();
-    const codigo = (document.getElementById('_eaRecCodigo').value||'').trim();
-    const resp = (document.getElementById('_eaRecResp').value||'').trim();
-    if (!tipo) { this.toast('Escribe el tipo de vehículo','error'); return; }
-    this._eaRecursos.push({ tipo, codigo, responsable:resp, responsableCedula:'' });
-    document.getElementById('_eaRecTipo').value='';
-    document.getElementById('_eaRecCodigo').value='';
-    document.getElementById('_eaRecResp').value='';
+    const elT = document.getElementById('_eaRecTipo');
+    const elC = document.getElementById('_eaRecCodigo');
+    const elR = document.getElementById('_eaRecResp');
+    const tipo = (elT && elT.value||'').trim();
+    const codigo = (elC && elC.value||'').trim();
+    const resp = (elR && elR.value||'').toUpperCase().trim();
+    if (!tipo) { this.toast('Elige el tipo de vehículo','error'); return; }
+    // v6.09: mismas dos mejoras que al crear — la cédula sale del autocompletado
+    // (antes iba SIEMPRE vacía) y no se deja meter dos veces la misma unidad.
+    const ced = (elR && elR.dataset && elR.dataset.ced || '').trim();
+    const yaEsta = this._eaRecursos.some(r =>
+      String(r.tipo||'').toUpperCase() === tipo.toUpperCase() &&
+      String(r.codigo||'').toUpperCase() === codigo.toUpperCase());
+    if (yaEsta) { this.toast('Ese vehículo ya está en la lista','error'); return; }
+    this._eaRecursos.push({ tipo, codigo, responsable:resp, responsableCedula:ced });
+    if (elT) elT.value='';
+    if (elC) elC.value='';
+    if (elR) { elR.value=''; elR.dataset.ced=''; }
+    const sug = document.getElementById('_eaRecRespSug');
+    if (sug) sug.style.display='none';
     this._eaRenderRecursos();
   },
 
@@ -7748,8 +8007,13 @@ ${paginaFotos}
       modal.querySelector('#_ednCancel').onclick=()=>document.body.removeChild(modal);
       modal.querySelector('#_ednGuard').onclick=async()=>{
         await this._conBloqueo(modal.querySelector('#_ednGuard'), 'Guardando...', async () => {
-        const _pwdDN = await this._obtenerPwdAdmin('🔐 Contraseña admin');
-        if(!_pwdDN) return;
+        /* v6.09: corregir un domingo mal anotado es trabajo de la guardia, así
+           que va con usuario + PIN, sin la contraseña de la comandancia. Esto
+           manda registrarAsistencia con replaceAll:true, la MISMA acción que
+           usa el registro, así que ambas quedan cubiertas por _esGuardiaConPin.
+           Borrar el domingo entero es otra cosa y SÍ sigue pidiendo contraseña. */
+        const _firmaDN = await this._exigirFirma();
+        if(!_firmaDN) return;
         // v6.00: volcar a memoria lo que está en pantalla (incluye las filas
         // agregadas en esta edición) y mandar eso.
         this._ednSync();
