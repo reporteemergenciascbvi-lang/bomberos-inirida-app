@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.09">
-<script src="vendor/leaflet/leaflet.js?v=6.09"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.10">
+<script src="vendor/leaflet/leaflet.js?v=6.10"></script>
 
 <style>
   :root {
@@ -1338,7 +1338,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.09</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.10</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -2270,8 +2270,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.09"></script>
-<script src="app.js?v=6.09"></script>
+<script src="logos.js?v=6.10"></script>
+<script src="app.js?v=6.10"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
@@ -2347,14 +2347,12 @@ button:active { transform: scale(.96); }
       <div style="font-weight:700;margin-bottom:10px;">🚒 Recursos / Vehículos (opcional)</div>
       <div id="actRecursosLista" style="margin-bottom:8px;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <!-- v6.10: las opciones se pintan desde app.js (poblarSelectVehiculos, en
+             app.init()), usando VEHICULOS_CBVI como única fuente — antes esta
+             lista, la del reporte de emergencia y la del editor de actividad
+             estaban escritas 3 veces por separado y ya se habían desalineado. -->
         <select id="actRecursoTipo" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
           <option value="">Tipo de vehículo...</option>
-          <option value="Máquina extintora 1">Máquina extintora 1</option>
-          <option value="Máquina extintora 2">Máquina extintora 2</option>
-          <option value="Carro tanque">Carro tanque</option>
-          <option value="Intervención rápida">Intervención rápida (camioneta)</option>
-          <option value="Ambulancia">Ambulancia</option>
-          <option value="Otro">Otro</option>
         </select>
         <input type="text" id="actRecursoCodigo" placeholder="Código/Placa ej: M#3" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
       </div>

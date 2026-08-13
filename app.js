@@ -21,8 +21,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.09';
+const APP_VERSION = '6.10';
 const APP_VERSION_NOTAS = [
+  'v6.10: 🚒 Los vehículos ya no se eligen por "Máquina extintora 1", "Máquina extintora 2"... ahora aparecen con su nombre real de estación: Móvil 1, Móvil 2, Móvil 3, Móvil 5, Móvil 6, Móvil 8, Motocarguero y Lancha/Voladora, cada uno con su tipo. Se usa igual al registrar una actividad, al editarla y al reportar una emergencia — es la misma lista en los tres lugares. Los reportes viejos no cambian: se siguen viendo con el nombre que tenían.',
   'v6.09: 🪪 Para anotar o corregir la asistencia de un domingo, y para descontar horas de sanción, ya NO se pide la contraseña de administrador: basta tu usuario y tu PIN. La guardia puede hacer su trabajo sin depender de la comandancia, y de paso queda registrado QUIÉN lo hizo (la contraseña es una sola para todos y no decía nada de eso). Borrar un domingo o una actividad sí sigue pidiendo contraseña.',
   'v6.09: 🔐 Si escribes mal la contraseña de administrador, ahora te lo dice de una vez: el cuadro se sacude, marca el error en rojo y te deja intentar de nuevo ahí mismo. Antes seguía de largo sin avisar y el error aparecía mucho después, con un mensaje que no explicaba nada — y peor, la contraseña equivocada quedaba guardada y todo lo demás fallaba hasta cerrar la app.',
   'v6.09: ⏱️ Tu firma ahora se cierra sola: al cerrar la aplicación y a los 30 minutos sin usarla. Si dejas el celular en la mesa, nadie puede seguir haciendo cambios a tu nombre. Mientras estés trabajando no se vence, porque cada acción reinicia el tiempo.',
@@ -229,6 +230,31 @@ const CAUSAS = [
   'En investigación', 'Otra'
 ];
 
+/* v6.10: FUENTE ÚNICA de los vehículos reales de la estación. Lo pidió Jeferson:
+   hasta hoy los tres formularios que preguntan "qué vehículo" usaban indicativos
+   genéricos ("Máquina extintora 1", "Carro tanque 2"...) — y para colmo las TRES
+   listas ya estaban desalineadas entre sí (una decía "Carro tanque", otra "Carro
+   tanque 1" y "Carro tanque 2"). Ahora los tres formularios pintan ESTA lista, así
+   que no se pueden volver a desalinear.
+   Backend: verificado que Codigo.gs NO valida ni usa este texto en ningún punto
+   (viaja y se guarda tal cual, como cualquier otro campo libre) — cambiar esta
+   lista es seguro, no exige tocar Apps Script ni redesplegar nada.
+   Compatibilidad: los reportes/actividades viejos guardaron el nombre genérico
+   anterior; como es texto libre, se siguen viendo igual que siempre (no se
+   reescribe el histórico). Solo lo nuevo que se registre de acá en adelante usa
+   los nombres reales. Sin Móvil 4 ni Móvil 7 a propósito: no existen en la
+   estación, no se inventan números. */
+const VEHICULOS_CBVI = [
+  'Móvil 1 — Máquina extintora',
+  'Móvil 2 — Carro tanque',
+  'Móvil 3 — Intervención rápida (camioneta)',
+  'Móvil 5 — Camión de carga',
+  'Móvil 6 — Intervención rápida',
+  'Móvil 8 — Carro tanque',
+  'Motocarguero',
+  'Lancha / Voladora (fibra de vidrio)',
+];
+
 // ==================== BASE DE DATOS LOCAL ====================
 const DB = {
   db: null,
@@ -355,6 +381,7 @@ const app = {
     this.escucharConexion();
     this.inicializarCheckboxes();
     this.poblarRosterBomberos();
+    this.poblarSelectVehiculos();
     this.inicializarFirmas();
     this.configurarFoto();
     this.configurarBotonAtrasMovil();
@@ -2124,13 +2151,7 @@ const app = {
         <label>Recurso</label>
         <select data-campo="recurso" onchange="app.cambioTipoRecurso(this)">
           <option value="">-- Seleccione --</option>
-          <option>Máquina extintora 1</option>
-          <option>Máquina extintora 2</option>
-          <option>Intervención rápida (camioneta)</option>
-          <option>Carro tanque 1</option>
-          <option>Carro tanque 2</option>
-          <option>Vehículo liviano</option>
-          <option>Ambulancia</option>
+          ${VEHICULOS_CBVI.map(v => `<option>${v}</option>`).join('')}
           <option>Personal</option>
           <option>Otro</option>
         </select>
@@ -2157,7 +2178,12 @@ const app = {
 
     if (datos) {
       const sel = div.querySelector('[data-campo="recurso"]');
-      const opciones = ['Máquina extintora 1', 'Máquina extintora 2', 'Intervención rápida (camioneta)', 'Carro tanque 1', 'Carro tanque 2', 'Vehículo liviano', 'Ambulancia', 'Personal', 'Otro'];
+      /* v6.10: la misma lista que arriba, no una copia aparte — así un reporte
+         VIEJO cuyo recurso ya no está en el catálogo (p. ej. "Carro tanque 1" de
+         antes de hoy) cae en "Otro" con el texto original visible, en vez de
+         desaparecer. Es exactamente el comportamiento que ya existía; solo se
+         corrige que estuviera duplicada y pudiera desalinearse con el select. */
+      const opciones = VEHICULOS_CBVI.concat(['Personal', 'Otro']);
       if (opciones.includes(datos.recurso)) {
         sel.value = datos.recurso;
       } else if (datos.recurso) {
@@ -2255,6 +2281,19 @@ const app = {
     const lista = this._rosterVigente();
     dl.innerHTML = lista
       .map(n => `<option value="${String(n).replace(/"/g, '&quot;')}"></option>`).join('');
+  },
+
+  /* v6.10: llena el <select> de "Nueva Actividad → Recursos / Vehículos" desde
+     VEHICULOS_CBVI (única fuente). El HTML solo trae el placeholder; el resto se
+     pinta acá, igual que inicializarCheckboxes() pinta TIPOS_EVENTO. Los otros
+     dos usos (reporte de emergencia, editor de actividad) mapean el mismo
+     arreglo directamente donde arman su HTML — no necesitan pasar por acá. */
+  poblarSelectVehiculos() {
+    const sel = document.getElementById('actRecursoTipo');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Tipo de vehículo...</option>'
+      + VEHICULOS_CBVI.map(v => `<option value="${app._esc(v)}">${app._esc(v)}</option>`).join('')
+      + '<option value="Otro">Otro</option>';
   },
 
   // v5.95: se eliminó una definición duplicada (débil, sin quitar tildes) de
@@ -7751,10 +7790,11 @@ ${paginaFotos}
            es una lista desplegable. Editar daba un formulario peor que crear, y
            encima el tipo escrito a mano no cruzaba con el de la lista ("Ambulancia"
            vs "ambulancia" vs "AMBULANCIA" = tres vehículos distintos en la hoja).
-           Misma lista que index.html, más el valor actual si viniera de antes. */
+           v6.10: la lista pasó a ser VEHICULOS_CBVI (única fuente, ver su
+           definición) en vez de repetir acá una tercera copia de las opciones. */
         +'<select id="_eaRecTipo" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
         +  '<option value="">Tipo de vehículo...</option>'
-        +  ['Máquina extintora 1','Máquina extintora 2','Carro tanque','Intervención rápida','Ambulancia','Otro']
+        +  VEHICULOS_CBVI.concat(['Otro'])
              .map(v => '<option value="'+app._esc(v)+'">'+app._esc(v)+'</option>').join('')
         +'</select>'
         +'<input type="text" id="_eaRecCodigo" placeholder="Código/Placa" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
