@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.10">
-<script src="vendor/leaflet/leaflet.js?v=6.10"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.11">
+<script src="vendor/leaflet/leaflet.js?v=6.11"></script>
 
 <style>
   :root {
@@ -1096,13 +1096,53 @@ button:active { transform: scale(.96); }
   100% { opacity: 0; }
 }
 
+/* v6.11: ANIMACIONES QUE FALTABAN. Lo reportó Jeferson: "hay animaciones que no
+   cargan dentro del panel de admin". Era cierto y la causa es que hasta v6.10
+   cbviFadeIn tenía UN SOLO consumidor: `.pantalla.activa`. O sea que solo corría
+   cuando irA() cambiaba de pantalla completa. El Panel de Admin nunca cambia de
+   pantalla —sus sub-vistas se prenden y apagan con style.display sobre divs
+   hermanos DENTRO de la misma pantalla, que ya tiene la clase 'activa'— así que
+   la animación no se re-disparaba nunca. Y los 11 modales que arma el JS no
+   llevaban NINGUNA clase (solo style.cssText), así que ninguna regla CSS podía
+   alcanzarlos: aparecían de golpe.
+
+   ⚠️ NADA DE ESTO USA transform SOBRE `.pantalla`. El veto escrito tres veces
+   más arriba en este mismo CSS queda intacto: `.cbvi-entra` es solo opacidad, y
+   el transform de `cbviPop` va sobre el CUADRO del modal, que no es `.pantalla`
+   ni ancestro de ningún position:fixed. */
+.cbvi-entra { animation: cbviFadeIn .22s ease-out; }
+
+/* Modales creados por JavaScript. El fondo entra con opacidad y el cuadro sube
+   apenas — mismo lenguaje que ya usa el resto de la app, sin estridencias. */
+.cbvi-modal-js { animation: cbviFadeIn .16s ease-out; }
+.cbvi-modal-js > div { animation: cbviPop .18s cubic-bezier(.2,.8,.3,1); }
+@keyframes cbviPop {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Los modales que SÍ están escritos en este HTML tampoco animaban: usan el
+   patrón display:none → .visible{display:flex}, y `display` no es animable.
+   Se resuelve sin tocar una línea de JavaScript. */
+.modal-fondo.visible { animation: cbviFadeIn .16s ease-out; }
+.modal-fondo.visible .modal { animation: cbviPop .18s cubic-bezier(.2,.8,.3,1); }
+.user-menu.visible { animation: cbviPop .16s ease-out; }
+.modal-foto-opciones.visible { animation: cbviFadeIn .16s ease-out; }
+
 /* v6.09: SACUDIDA DE ERROR. Lo reportó Jeferson: al poner una contraseña
    equivocada "no aparece ninguna animación de contraseña incorrecta ni nada por
    el estilo". Y era literal — hasta v6.08 la app tenía CUATRO animaciones en
    total (girocbvi, cbviFadeIn, cbviShimmer, cbviVelo) y NINGUNA era de error.
    El transform va sobre el cuadro del modal, que NO es `.pantalla` ni ancestro
    de ningún position:fixed, así que no toca el veto documentado más arriba. */
-.cbvi-sacudir { animation: cbviSacudir .4s; }
+/* ⚠️ La segunda mitad del selector NO es redundante. Al agregar en v6.11 la regla
+   `.cbvi-modal-js > div { animation: cbviPop }`, ese selector (0-1-1) le gana por
+   especificidad a `.cbvi-sacudir` a secas (0-1-0) sobre el MISMO elemento: el
+   cuadro del modal de contraseña. Sin esta línea, la sacudida de "contraseña
+   incorrecta" dejaría de verse — o sea que la animación nueva habría roto la
+   que se acababa de arreglar. */
+.cbvi-sacudir,
+.cbvi-modal-js > div.cbvi-sacudir { animation: cbviSacudir .4s; }
 @keyframes cbviSacudir {
   0%, 100% { transform: translateX(0); }
   15%, 45%, 75% { transform: translateX(-8px); }
@@ -1118,6 +1158,11 @@ button:active { transform: scale(.96); }
   .velo-cierre.activo { animation: none; }
   /* el mensaje de error en rojo se sigue viendo: solo se quita el movimiento */
   .cbvi-sacudir { animation: none; }
+  /* v6.11: lo nuevo también respeta "reducir movimiento". Los modales siguen
+     abriéndose y cerrándose igual: lo único que se va es la animación. */
+  .cbvi-entra, .cbvi-modal-js, .cbvi-modal-js > div,
+  .modal-fondo.visible, .modal-fondo.visible .modal,
+  .user-menu.visible, .modal-foto-opciones.visible { animation: none; }
 }
 </style>
 </head>
@@ -1338,7 +1383,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.10</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.11</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -2270,8 +2315,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.10"></script>
-<script src="app.js?v=6.10"></script>
+<script src="logos.js?v=6.11"></script>
+<script src="app.js?v=6.11"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

@@ -21,8 +21,11 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.10';
+const APP_VERSION = '6.11';
 const APP_VERSION_NOTAS = [
+  'v6.11: ✅ IMPORTANTE — Corregir una emergencia ya se guarda de verdad. Hasta ahora, cuando el autor editaba su propio reporte dentro de las 24 horas, el cambio se veía en el celular pero NO llegaba a la base de datos: la app decía que había guardado y no era cierto. Si alguna vez corregiste un reporte y después seguía apareciendo el dato viejo, era por esto. Ya quedó arreglado. Las fotos y las firmas nunca se tocan al editar.',
+  'v6.11: 🏷️ El campo "Otra clasificación" tampoco se guardaba al editar un reporte como administrador. Se descartaba en silencio por un error interno de nombres. Ya se guarda.',
+  'v6.11: 🎬 Las animaciones del Panel de Administrador ya funcionan. Al cambiar entre la lista de reportes, ver un reporte y editarlo, las secciones ahora aparecen con una transición en vez de saltar de golpe. Los cuadros de contraseña, PIN y confirmación también entran suavemente. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no muestra ninguna.',
   'v6.10: 🚒 Los vehículos ya no se eligen por "Máquina extintora 1", "Máquina extintora 2"... ahora aparecen con su nombre real de estación: Móvil 1, Móvil 2, Móvil 3, Móvil 5, Móvil 6, Móvil 8, Motocarguero y Lancha/Voladora, cada uno con su tipo. Se usa igual al registrar una actividad, al editarla y al reportar una emergencia — es la misma lista en los tres lugares. Los reportes viejos no cambian: se siguen viendo con el nombre que tenían.',
   'v6.09: 🪪 Para anotar o corregir la asistencia de un domingo, y para descontar horas de sanción, ya NO se pide la contraseña de administrador: basta tu usuario y tu PIN. La guardia puede hacer su trabajo sin depender de la comandancia, y de paso queda registrado QUIÉN lo hizo (la contraseña es una sola para todos y no decía nada de eso). Borrar un domingo o una actividad sí sigue pidiendo contraseña.',
   'v6.09: 🔐 Si escribes mal la contraseña de administrador, ahora te lo dice de una vez: el cuadro se sacude, marca el error en rojo y te deja intentar de nuevo ahí mismo. Antes seguía de largo sin avisar y el error aparecía mucho después, con un mensaje que no explicaba nada — y peor, la contraseña equivocada quedaba guardada y todo lo demás fallaba hasta cerrar la app.',
@@ -1175,7 +1178,13 @@ const app = {
     }
 
     document.querySelectorAll('.pantalla').forEach(p => p.classList.remove('activa'));
-    document.getElementById(pantallaId).classList.add('activa');
+    /* v6.11: el reflow que faltaba. El remove y el add ocurren en la MISMA tarea
+       síncrona, así que el navegador nunca recalcula el estilo con la clase
+       ausente: si el destino es la pantalla que YA estaba activa, cbviFadeIn no
+       se vuelve a reproducir. Mismo problema y misma solución que _veloCierre. */
+    const _pantallaDestino = document.getElementById(pantallaId);
+    void _pantallaDestino.offsetWidth;
+    _pantallaDestino.classList.add('activa');
     this.pantallaActual = pantallaId;
     window.scrollTo(0, 0);
     // v5.89: actualizar la barra inferior SIEMPRE (incluido el early-return
@@ -1444,6 +1453,7 @@ const app = {
       : '<div style="color:#777;font-style:italic;padding:8px 0;">No hay domingos sin excusa registrados para ti.</div>';
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
     modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
       + '<div style="font-size:16px;font-weight:800;color:#c00;text-align:center;margin-bottom:4px;">⚠️ Mi sanción</div>'
       + '<div style="text-align:center;font-size:14px;color:#333;margin-bottom:12px;">Debes <b style="color:#c00;">' + app._esc(String(s.horasPendientes)) + ' horas</b></div>'
@@ -2317,6 +2327,7 @@ const app = {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
         + '<div style="font-size:14px;color:#333;margin-bottom:16px;line-height:1.5;">'+mensajeHTML+'</div>'
         + '<div style="display:flex;gap:10px;">'
@@ -3284,7 +3295,7 @@ const app = {
     const wrap = document.getElementById('listaReportesAdminWrap');
     if (viendo) viendo.style.display = 'none';
     if (editando) editando.style.display = 'none';
-    if (wrap) wrap.style.display = 'block';
+    if (wrap) { wrap.style.display = 'block'; this._animarEntrada(wrap); }  // v6.11
     this._reporteAdminViendo = null;
   },
 
@@ -3796,6 +3807,7 @@ const app = {
     // Mostrar el panel de visualización
     document.getElementById('listaReportesAdminWrap').style.display = 'none';
     document.getElementById('panelAdminViendo').style.display = 'block';
+    this._animarEntrada(document.getElementById('panelAdminViendo'));   // v6.11
     const cont = document.getElementById('panelAdminViendoContenido');
     cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Cargando reporte completo desde el servidor...</div>';
 
@@ -3834,6 +3846,7 @@ const app = {
   cerrarVistaAdmin() {
     document.getElementById('panelAdminViendo').style.display = 'none';
     document.getElementById('listaReportesAdminWrap').style.display = 'block';
+    this._animarEntrada(document.getElementById('listaReportesAdminWrap'));   // v6.11
     this._reporteAdminViendo = null;
   },
 
@@ -4387,6 +4400,7 @@ const app = {
   cancelarEdicionAdmin() {
     document.getElementById('panelAdminEditando').style.display = 'none';
     document.getElementById('listaReportesAdminWrap').style.display = 'block';
+    this._animarEntrada(document.getElementById('listaReportesAdminWrap'));   // v6.11
     this._reporteAdminEditando = null;
   },
 
@@ -5342,6 +5356,21 @@ ${paginaFotos}
     this._veloTimer = setTimeout(() => el.classList.remove('activo'), 320);
   },
 
+  /* v6.11: anima la entrada de CUALQUIER contenedor, sin depender de `.pantalla`.
+     Es lo que faltaba para que el Panel de Admin animara: sus sub-vistas se
+     conmutan con style.display dentro de una pantalla que YA está activa, así que
+     cbviFadeIn (atada a `.pantalla.activa`) no se re-disparaba jamás.
+     El `void offsetWidth` NO es adorno: fuerza el reflow que reinicia la
+     animación. Sin él, entrar dos veces seguidas a la misma sub-vista no la
+     vuelve a disparar, porque el navegador ve que la clase ya estaba. Es el mismo
+     motivo —y el mismo patrón— que _veloCierre acá arriba. */
+  _animarEntrada(el) {
+    if (!el) return;
+    el.classList.remove('cbvi-entra');
+    void el.offsetWidth;
+    el.classList.add('cbvi-entra');
+  },
+
   _flashAccion(texto) {
     const el = document.getElementById('navFeedback');
     if (!el) return;
@@ -6267,6 +6296,7 @@ ${paginaFotos}
     const modal = document.createElement('div');
     modal.id = '_obsExcModal';
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
     modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
       + '<div style="font-size:15px;font-weight:700;color:#e65100;margin-bottom:4px;">📝 Excusa de ' + app._esc(e.nombre || '') + '</div>'
       + '<div style="font-size:12px;color:#777;margin-bottom:10px;">Escribe el motivo de la excusa (queda guardado con la asistencia).</div>'
@@ -6452,6 +6482,7 @@ ${paginaFotos}
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;';
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       const pend = Number(horasPendientes) || 0;
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
         + '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:4px;">✅ Registrar horas cumplidas</div>'
@@ -6890,6 +6921,7 @@ ${paginaFotos}
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div id="_pwdAdmCaja" style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
         + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:12px;text-align:center;">'+(mensaje||'🔐 Contraseña de administrador')+'</div>'
         + '<input id="_pwdAdmInput" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:8px;" placeholder="Contraseña">'
@@ -6976,6 +7008,7 @@ ${paginaFotos}
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       const attrs = (o.maxlength ? ' maxlength="' + o.maxlength + '"' : '')
                   + (o.inputmode ? ' inputmode="' + o.inputmode + '"' : '');
       // El título va como HTML a propósito (los llamadores le pasan un <div> con
@@ -7204,6 +7237,7 @@ ${paginaFotos}
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
         + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">🪪 ¿Quién está de guardia?</div>'
         + '<div style="font-size:11px;color:#666;margin-bottom:12px;text-align:center;line-height:1.45;">Este celular lo usa la guardia y el turno cambia. Tu nombre queda registrado junto a lo que hagas: sanciones, asistencias y ediciones. Por eso hace falta <b>tu PIN</b> — así nadie puede firmar en tu nombre.</div>'
@@ -7276,6 +7310,7 @@ ${paginaFotos}
   _confirmarAccion(mensaje, onConfirmar) {
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
     modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
       + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:16px;text-align:center;">'+mensaje+'</div>'
       + '<div style="display:flex;gap:10px;">'
@@ -7752,6 +7787,7 @@ ${paginaFotos}
       const modal = document.createElement('div');
       modal.id = '_editActModal';
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:440px;margin:auto;">'
         +'<div style="font-weight:700;font-size:16px;color:#1a5276;margin-bottom:14px;">✏️ Editar Actividad</div>'
         +'<label style="font-size:12px;font-weight:700;">Tipo</label>'
