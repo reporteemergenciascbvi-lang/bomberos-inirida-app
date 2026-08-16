@@ -21,8 +21,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.11';
+const APP_VERSION = '6.12';
 const APP_VERSION_NOTAS = [
+  'v6.12: 🖨️ Arreglada la impresión desde el navegador. En la app del celular funcionaba, pero al imprimir desde un navegador se abría una pestaña EN BLANCO: ya genera el informe correctamente. Además, el pie de los informes ya no muestra el correo ni el teléfono de contacto del autor.',
   'v6.11: ✅ IMPORTANTE — Corregir una emergencia ya se guarda de verdad. Hasta ahora, cuando el autor editaba su propio reporte dentro de las 24 horas, el cambio se veía en el celular pero NO llegaba a la base de datos: la app decía que había guardado y no era cierto. Si alguna vez corregiste un reporte y después seguía apareciendo el dato viejo, era por esto. Ya quedó arreglado. Las fotos y las firmas nunca se tocan al editar.',
   'v6.11: 🏷️ El campo "Otra clasificación" tampoco se guardaba al editar un reporte como administrador. Se descartaba en silencio por un error interno de nombres. Ya se guarda.',
   'v6.11: 🎬 Las animaciones del Panel de Administrador ya funcionan. Al cambiar entre la lista de reportes, ver un reporte y editarlo, las secciones ahora aparecen con una transición en vez de saltar de golpe. Los cuadros de contraseña, PIN y confirmación también entran suavemente. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no muestra ninguna.',
@@ -4571,14 +4572,17 @@ const app = {
   async _imprimirReporteEnVentanaNueva(r) {
     try {
       const html = this.generarHTMLImpresion(r);
-      // v5.86: noopener corta el enlace ventana.opener → esta pestaña de
-      // impresión (que solo escribe HTML propio) ya no tiene forma de tocar
-      // la app viva aunque algún dato inyectado lograra ejecutarse.
-      const ventana = window.open('', '_blank', 'width=900,height=1200,noopener');
+      // Seguridad: cortamos el enlace ventana.opener → esta pestaña de impresión
+      // (que solo escribe HTML propio, ya escapado con _esc) no puede tocar la app
+      // viva aunque algún dato lograra ejecutarse. OJO: NO usar 'noopener' en el 3er
+      // argumento de window.open — en Chrome/Chrome-móvil eso hace que devuelva null
+      // y la pestaña sale EN BLANCO. Nulamos opener a mano: misma protección, con handle.
+      const ventana = window.open('', '_blank', 'width=900,height=1200');
       if (!ventana) {
         this.toast('El navegador bloqueó la ventana emergente. Permita pop-ups e intente de nuevo.', 'error');
         return;
       }
+      try { ventana.opener = null; } catch (e) {}
       ventana.document.open();
       ventana.document.write(html);
       ventana.document.close();
@@ -4783,12 +4787,13 @@ const app = {
     const r = this.reporteActual;
     const html = this.generarHTMLImpresion(r);
 
-    // v5.86: noopener — ver nota en _imprimirReporteEnVentanaNueva.
-    const ventana = window.open('', '_blank', 'noopener');
+    // opener nulo, NO 'noopener' — ver nota en _imprimirReporteEnVentanaNueva.
+    const ventana = window.open('', '_blank', 'width=900,height=1200');
     if (!ventana) {
       this.toast('Bloqueador de ventanas activo. Permita ventanas emergentes.', 'error');
       return;
     }
+    try { ventana.opener = null; } catch (e) {}
     ventana.document.write(html);
     ventana.document.close();
     // v5.49: esperar a que carguen fotos/firmas antes de imprimir (antes: 500ms fijos)
@@ -5249,7 +5254,7 @@ const app = {
   <div class="pie-pagina">
     Documento bajo Ley 1575 de 2012 (Ley General de Bomberos de Colombia) | Ley 1581 de 2012 (Habeas Data)<br>
     Cuerpo de Bomberos Voluntarios Inírida – Guainía | "ABNEGACIÓN Y DISCIPLINA" | Calle 15 N° 5-07 Zona Indígena | Tel. ${TELEFONO_ESTACION}
-    <span class="credito">— App desarrollada por ${CREDITO_AUTOR.nombre} · ${CREDITO_AUTOR.cuerpo} · 📧 ${CREDITO_AUTOR.correo} · 📱 ${CREDITO_AUTOR.telefono} —</span>
+    <span class="credito">— App desarrollada por ${CREDITO_AUTOR.nombre} · ${CREDITO_AUTOR.cuerpo} —</span>
   </div>
 </div>
 
@@ -5836,8 +5841,10 @@ ${paginaFotos}
   imprimirActividad() {
     const a = this._detalleActividadData;
     if (!a) return;
-    // v5.86: noopener — ver nota en _imprimirReporteEnVentanaNueva.
-    const w = window.open('', '_blank', 'noopener');
+    // opener nulo, NO 'noopener' — ver nota en _imprimirReporteEnVentanaNueva.
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
+    try { w.opener = null; } catch (e) {}
     const logo = (typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '';
     const tel = (typeof TELEFONO_ESTACION !== 'undefined') ? TELEFONO_ESTACION : '314 531 1605';
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -7376,7 +7383,10 @@ ${paginaFotos}
     const d = this._operData;
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
     const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades+b.domingosPresente)-(a.emergencias*2+a.horasActividades+a.domingosPresente));
-    const w = window.open('','_blank','noopener');
+    // opener nulo, NO 'noopener' — ver nota en _imprimirReporteEnVentanaNueva.
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
+    try { w.opener = null; } catch (e) {}
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Informe General Operatividad — ${mesNombre} ${this._operAnio}</title>
       <style>
@@ -7420,7 +7430,10 @@ ${paginaFotos}
   _imprimirReportePorUnidad() {
     const d = [...this._operData].sort((a,b)=>String(a.nombre||'').localeCompare(String(b.nombre||'')));
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
-    const w = window.open('','_blank','noopener');
+    // opener nulo, NO 'noopener' — ver nota en _imprimirReporteEnVentanaNueva.
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
+    try { w.opener = null; } catch (e) {}
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
       <style>
