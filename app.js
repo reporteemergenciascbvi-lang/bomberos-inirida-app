@@ -21,8 +21,12 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.14';
+// Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
+// está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
+const URL_TUTORIAL_VIDEO = '';
+const APP_VERSION = '6.15';
 const APP_VERSION_NOTAS = [
+  'v6.15: 🎬 Recorrido de bienvenida. La primera vez que entra al inicio, la app ofrece un tour rápido de 6 pasos (se puede omitir). Después queda disponible en ℹ️ Acerca de, junto a un botón para el video con el paso a paso (estará pronto).',
   'v6.14: ℹ️ Nueva pantalla "Acerca de" (tarjeta en el Inicio, junto a Manual y Bases legales): muestra la versión de la app, el logo del cuerpo, la autoría y los derechos de autor.',
   'v6.13: 🎖️ Ya puede subir el escudo del cuerpo desde el Panel de Administrador. Reemplaza el logo en el encabezado, la pantalla de inicio y los informes en PDF. Si lo quita, vuelve el escudo por defecto de la estación. La imagen se reduce sola antes de guardarse.',
   'v6.12: 🖨️ Arreglada la impresión desde el navegador. En la app del celular funcionaba, pero al imprimir desde un navegador se abría una pestaña EN BLANCO: ya genera el informe correctamente. Además, el pie de los informes ya no muestra el correo ni el teléfono de contacto del autor.',
@@ -1225,6 +1229,7 @@ const app = {
       btnVolver.style.display = 'none';
       document.getElementById('headerTitulo').textContent = 'CBVI Reportes';
       this.actualizarHome();
+      this._ofrecerTour();   // v6.15: recorrido de bienvenida, una sola vez
     } else {
       btnVolver.style.display = 'inline-block';
       btnVolver.onclick = () => this.atras();
@@ -4683,6 +4688,85 @@ const app = {
       const esc = this._escudoActual() || ((typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '');
       cont.innerHTML = esc ? '<img src="' + esc + '" alt="" style="width:76px;height:76px;border-radius:16px;object-fit:contain;">' : '';
     }
+    const btn = document.getElementById('btnVideoTutorial');
+    if (btn) {
+      const hay = typeof URL_TUTORIAL_VIDEO !== 'undefined' && URL_TUTORIAL_VIDEO;
+      btn.textContent = hay ? '🎬 Ver tutorial en video' : '🎬 Video: próximamente';
+      btn.style.opacity = hay ? '' : '0.6';
+    }
+  },
+
+  abrirVideoTutorial() {
+    const url = (typeof URL_TUTORIAL_VIDEO !== 'undefined') ? URL_TUTORIAL_VIDEO : '';
+    if (!url) { this.toast('El video estará disponible pronto.', 'info'); return; }
+    try { window.open(url, '_blank', 'noopener'); } catch (e) { location.href = url; }
+  },
+
+  /* Ofrece el recorrido UNA sola vez, tras el primer Inicio. Guarda el flag apenas
+     lo ofrece (no cuando lo termina): así, si lo omite, no vuelve a molestar. */
+  _ofrecerTour() {
+    try { if (localStorage.getItem('app_tour_visto')) return; } catch (e) { return; }
+    try { localStorage.setItem('app_tour_visto', '1'); } catch (e) {}
+    setTimeout(() => { try { this._preguntarTour(); } catch (e) {} }, 700);
+  },
+
+  _preguntarTour() {
+    const m = document.createElement('div');
+    m.className = 'modal-js';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;';
+    m.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3);">'
+      + '<div style="font-size:40px;">🚒</div>'
+      + '<div style="font-size:17px;font-weight:800;color:var(--rojo);margin:8px 0 4px;">¡Bienvenido!</div>'
+      + '<div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:18px;">¿Quiere un recorrido rápido de la app? Toma menos de un minuto y lo puede saltar cuando quiera.</div>'
+      + '<button id="_tourVer" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:10px;padding:13px;font-weight:700;cursor:pointer;font-size:15px;margin-bottom:8px;">▶️ Ver recorrido</button>'
+      + '<button id="_tourNo" style="width:100%;background:#f5f5f5;color:#555;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer;font-size:13px;">Omitir</button>'
+      + '<div style="font-size:11px;color:#999;margin-top:12px;">Siempre puede verlo de nuevo en <b>ℹ️ Acerca de</b>.</div>'
+      + '</div>';
+    document.body.appendChild(m);
+    const cerrar = () => { try { document.body.removeChild(m); } catch (e) {} };
+    m.querySelector('#_tourNo').onclick = cerrar;
+    m.querySelector('#_tourVer').onclick = () => { cerrar(); this.mostrarTour(); };
+  },
+
+  /* Pasos del recorrido, con las pantallas REALES de Inírida. Texto por defecto;
+     Jeferson lo ajusta cuando quiera — es una sola lista, no toca la lógica. */
+  _PASOS_TOUR: [
+    { icono: '🚨', titulo: 'Nuevo reporte', texto: 'El botón rojo grande del inicio. Registra una emergencia con todos sus datos: clasificación, ubicación GPS, recursos, víctimas y firmas. Si no hay internet, queda pendiente y se envía solo cuando vuelve la señal.' },
+    { icono: '🎯', titulo: 'Actividades', texto: 'Capacitaciones, reuniones, mantenimientos. Cada actividad registra quién participó y cuántas horas, y eso alimenta la operatividad del personal.' },
+    { icono: '📅', titulo: 'Asistencia y sanciones', texto: 'La asistencia de los domingos y las sanciones por inasistencia. La guardia la registra con su PIN, sin depender de la contraseña de administrador, y queda anotado quién lo hizo.' },
+    { icono: '📊', titulo: 'Operatividad', texto: 'El ranking del personal: incidentes atendidos y horas de actividad, por persona. Solo lo ve el administrador.' },
+    { icono: '🛡️', titulo: 'Panel de Administrador', texto: 'El corazón de la app: ver, editar e imprimir todos los reportes, el escudo del cuerpo, los PIN de las unidades y quiénes son administradores.' },
+    { icono: 'ℹ️', titulo: 'Ayuda siempre a mano', texto: 'En el inicio, los botones Manual, Cómo funciona, Bases legales y Acerca de. Ahí puede volver a ver este recorrido y, pronto, un video con el paso a paso.' }
+  ],
+
+  mostrarTour(desdeAcerca) {
+    let i = 0;
+    const pasos = this._PASOS_TOUR;
+    const m = document.createElement('div');
+    m.className = 'modal-js';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    document.body.appendChild(m);
+    const cerrar = () => { try { document.body.removeChild(m); } catch (e) {} };
+    const pintar = () => {
+      const p = pasos[i];
+      const puntos = pasos.map((_, k) => '<span style="width:7px;height:7px;border-radius:50%;display:inline-block;margin:0 3px;background:' + (k === i ? 'var(--rojo)' : '#ddd') + ';"></span>').join('');
+      const ultimo = i === pasos.length - 1;
+      m.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:350px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.3);">'
+        + '<div style="text-align:right;"><span id="_tX" style="font-size:20px;color:#bbb;cursor:pointer;line-height:1;">✕</span></div>'
+        + '<div style="text-align:center;font-size:44px;margin-top:-6px;">' + p.icono + '</div>'
+        + '<div style="text-align:center;font-size:12px;color:#999;font-weight:700;">Paso ' + (i + 1) + ' de ' + pasos.length + '</div>'
+        + '<div style="text-align:center;font-size:18px;font-weight:800;color:var(--rojo);margin:6px 0 8px;">' + app._esc(p.titulo) + '</div>'
+        + '<div style="font-size:13px;color:#555;line-height:1.6;text-align:center;min-height:96px;">' + app._esc(p.texto) + '</div>'
+        + '<div style="text-align:center;margin:14px 0;">' + puntos + '</div>'
+        + '<div style="display:flex;gap:8px;">'
+        + (i > 0 ? '<button id="_tPrev" style="flex:1;background:#f5f5f5;color:#333;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;">← Atrás</button>' : '')
+        + '<button id="_tNext" style="flex:2;background:var(--rojo);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:15px;">' + (ultimo ? '¡Listo!' : 'Siguiente →') + '</button>'
+        + '</div></div>';
+      m.querySelector('#_tX').onclick = cerrar;
+      const prev = m.querySelector('#_tPrev'); if (prev) prev.onclick = () => { i--; pintar(); };
+      m.querySelector('#_tNext').onclick = () => { if (ultimo) cerrar(); else { i++; pintar(); } };
+    };
+    pintar();
   },
 
   async _imprimirReporteEnVentanaNueva(r) {

@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.14">
-<script src="vendor/leaflet/leaflet.js?v=6.14"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.15">
+<script src="vendor/leaflet/leaflet.js?v=6.15"></script>
 
 <style>
   :root {
@@ -1387,7 +1387,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.14</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.15</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1517,6 +1517,14 @@ button:active { transform: scale(.96); }
       <div style="font-size:17px;font-weight:800;color:var(--rojo);">CBVI Reportes</div>
       <div style="font-size:12px;color:#777;margin-top:2px;">Cuerpo de Bomberos Voluntarios de Inírida</div>
       <div style="font-size:11px;color:#999;margin-top:8px;">Versión <span id="acercaVersion">—</span></div>
+    </div>
+
+    <!-- Tutorial: recorrido + video (el link lo grabará Jeferson). -->
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid #eee;">
+      <div style="font-weight:700;color:#333;font-size:14px;margin-bottom:4px;">🎬 Tutorial</div>
+      <div style="font-size:12px;color:#666;line-height:1.5;margin-bottom:12px;">Un recorrido rápido por la app, y un video con el paso a paso.</div>
+      <button onclick="app.mostrarTour(true)" style="width:100%;background:#1a5276;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:8px;">▶️ Ver el recorrido de la app</button>
+      <button id="btnVideoTutorial" onclick="app.abrirVideoTutorial()" style="width:100%;background:#fff;color:#1a5276;border:2px solid #1a5276;border-radius:10px;padding:11px;font-weight:700;cursor:pointer;font-size:14px;">🎬 Ver tutorial en video</button>
     </div>
 
     <!-- Autor + derechos. El crédito y el © son de Jeferson. -->
@@ -2354,8 +2362,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.14"></script>
-<script src="app.js?v=6.14"></script>
+<script src="logos.js?v=6.15"></script>
+<script src="app.js?v=6.15"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
