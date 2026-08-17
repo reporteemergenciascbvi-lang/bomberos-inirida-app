@@ -21,8 +21,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.13';
+const APP_VERSION = '6.14';
 const APP_VERSION_NOTAS = [
+  'v6.14: ℹ️ Nueva pantalla "Acerca de" (tarjeta en el Inicio, junto a Manual y Bases legales): muestra la versión de la app, el logo del cuerpo, la autoría y los derechos de autor.',
   'v6.13: 🎖️ Ya puede subir el escudo del cuerpo desde el Panel de Administrador. Reemplaza el logo en el encabezado, la pantalla de inicio y los informes en PDF. Si lo quita, vuelve el escudo por defecto de la estación. La imagen se reduce sola antes de guardarse.',
   'v6.12: 🖨️ Arreglada la impresión desde el navegador. En la app del celular funcionaba, pero al imprimir desde un navegador se abría una pestaña EN BLANCO: ya genera el informe correctamente. Además, el pie de los informes ya no muestra el correo ni el teléfono de contacto del autor.',
   'v6.11: ✅ IMPORTANTE — Corregir una emergencia ya se guarda de verdad. Hasta ahora, cuando el autor editaba su propio reporte dentro de las 24 horas, el cambio se veía en el celular pero NO llegaba a la base de datos: la app decía que había guardado y no era cierto. Si alguna vez corregiste un reporte y después seguía apareciendo el dato viejo, era por esto. Ya quedó arreglado. Las fotos y las firmas nunca se tocan al editar.',
@@ -1209,6 +1210,7 @@ const app = {
     if (pantallaId === 'pantallaOperatividad') { this.cargarOperatividad(); }
     if (pantallaId === 'pantallaDeudores') { this.cargarPantallaDeudores(); }
     if (pantallaId === 'pantallaMapa') { this.cargarPantallaMapa(); }
+    if (pantallaId === 'pantallaAcercaDe') { this._pintarAcercaDe(); }
     if (pantallaId === 'pantallaConfig' && this.usuario) {
       document.getElementById('cfg_perfil_nombre').value = this.usuario.nombreCompleto || this.usuario.nombre || '';
       document.getElementById('cfg_perfil_grado').value = this.usuario.grado || '';
@@ -1236,7 +1238,8 @@ const app = {
         pantallaAsistencia: '📅 Asistencia',
         pantallaOperatividad: '📊 Operatividad',
         pantallaDeudores: '⚠️ Ver Deudores',
-        pantallaMapa: '🗺️ Mapa de Emergencias'
+        pantallaMapa: '🗺️ Mapa de Emergencias',
+        pantallaAcercaDe: 'ℹ️ Acerca de'
       };
       document.getElementById('headerTitulo').textContent = titulos[pantallaId] || 'CBVI Reportes';
     }
@@ -4667,6 +4670,19 @@ const app = {
     try { localStorage.setItem('cbvi_escudo', escudoUrl || ''); } catch (e) {}
     this._pintarLogos();
     this._pintarEscudoPanel();
+    if (this.pantallaActual === 'pantallaAcercaDe') this._pintarAcercaDe();
+  },
+
+  /* Pinta la pantalla Acerca de: la versión y el logo (el escudo subido si hay,
+     si no el LOGO_BIG por defecto de la estación). */
+  _pintarAcercaDe() {
+    const v = document.getElementById('acercaVersion');
+    if (v) v.textContent = (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '');
+    const cont = document.getElementById('acercaLogo');
+    if (cont) {
+      const esc = this._escudoActual() || ((typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '');
+      cont.innerHTML = esc ? '<img src="' + esc + '" alt="" style="width:76px;height:76px;border-radius:16px;object-fit:contain;">' : '';
+    }
   },
 
   async _imprimirReporteEnVentanaNueva(r) {

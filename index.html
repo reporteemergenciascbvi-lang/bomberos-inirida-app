@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.13">
-<script src="vendor/leaflet/leaflet.js?v=6.13"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.14">
+<script src="vendor/leaflet/leaflet.js?v=6.14"></script>
 
 <style>
   :root {
@@ -1321,18 +1321,22 @@ button:active { transform: scale(.96); }
   <div id="listaReportes"></div>
 
   <!-- Accesos rápidos a información -->
-  <div class="info-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0;">
-    <div onclick="app.irA('pantallaManual')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-      <div style="font-size:28px;">📖</div>
-      <div style="font-size:11px;font-weight:700;color:var(--rojo);margin-top:4px;">Manual</div>
+  <div class="info-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0;">
+    <div onclick="app.irA('pantallaManual')" style="background:#fff;padding:14px 6px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-size:26px;">📖</div>
+      <div style="font-size:10px;font-weight:700;color:var(--rojo);margin-top:4px;">Manual</div>
     </div>
-    <div onclick="app.irA('pantallaComoFunciona')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-      <div style="font-size:28px;">⚙️</div>
-      <div style="font-size:11px;font-weight:700;color:var(--rojo);margin-top:4px;">Cómo funciona</div>
+    <div onclick="app.irA('pantallaComoFunciona')" style="background:#fff;padding:14px 6px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-size:26px;">⚙️</div>
+      <div style="font-size:10px;font-weight:700;color:var(--rojo);margin-top:4px;">Cómo funciona</div>
     </div>
-    <div onclick="app.irA('pantallaLegal')" style="background:#fff;padding:14px 8px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-      <div style="font-size:28px;">⚖️</div>
-      <div style="font-size:11px;font-weight:700;color:var(--rojo);margin-top:4px;">Bases legales</div>
+    <div onclick="app.irA('pantallaLegal')" style="background:#fff;padding:14px 6px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-size:26px;">⚖️</div>
+      <div style="font-size:10px;font-weight:700;color:var(--rojo);margin-top:4px;">Bases legales</div>
+    </div>
+    <div onclick="app.irA('pantallaAcercaDe')" style="background:#fff;padding:14px 6px;border-radius:10px;text-align:center;cursor:pointer;border:1px solid #e5e5e5;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="font-size:26px;">ℹ️</div>
+      <div style="font-size:10px;font-weight:700;color:var(--rojo);margin-top:4px;">Acerca de</div>
     </div>
   </div>
 
@@ -1383,7 +1387,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.13</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.14</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1503,6 +1507,31 @@ button:active { transform: scale(.96); }
 </div>
 
 <!-- ========== PANTALLA: PANEL ADMIN ========== -->
+<!-- ========== PANTALLA: ACERCA DE ========== -->
+<div class="pantalla" id="pantallaAcercaDe">
+  <div style="padding:0 4px;">
+    <h2 style="color:var(--rojo);margin:10px 0;">ℹ️ Acerca de</h2>
+
+    <div style="background:#fff;border-radius:12px;padding:18px;text-align:center;margin-bottom:14px;border:1px solid #eee;">
+      <div id="acercaLogo" style="font-size:0;margin-bottom:10px;"></div>
+      <div style="font-size:17px;font-weight:800;color:var(--rojo);">CBVI Reportes</div>
+      <div style="font-size:12px;color:#777;margin-top:2px;">Cuerpo de Bomberos Voluntarios de Inírida</div>
+      <div style="font-size:11px;color:#999;margin-top:8px;">Versión <span id="acercaVersion">—</span></div>
+    </div>
+
+    <!-- Autor + derechos. El crédito y el © son de Jeferson. -->
+    <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid #eee;line-height:1.6;">
+      <div style="font-size:13px;color:#333;">App desarrollada por</div>
+      <div style="font-size:15px;font-weight:800;color:var(--rojo);margin:2px 0;">Bombero Jeferson Jeancarlos Rangel Gil</div>
+      <div style="border-top:1px solid #f0f0f0;margin:12px 0;"></div>
+      <div style="font-size:12px;color:#555;">© 2026 Jeferson Jeancarlos Rangel Gil.<br>Todos los derechos reservados.</div>
+      <div style="font-size:11px;color:#999;margin-top:6px;">Prohibida la reproducción o distribución del código sin autorización del autor.</div>
+    </div>
+
+    <button onclick="app.irA('pantallaHome')" style="width:100%;background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;font-weight:700;">← Volver al inicio</button>
+  </div>
+</div>
+
 <div class="pantalla" id="pantallaPanelAdmin">
   <div style="padding:0 4px;">
     <h2 style="color:var(--rojo);margin:10px 0;">🛡️ Panel de Administrador</h2>
@@ -2325,8 +2354,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.13"></script>
-<script src="app.js?v=6.13"></script>
+<script src="logos.js?v=6.14"></script>
+<script src="app.js?v=6.14"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
