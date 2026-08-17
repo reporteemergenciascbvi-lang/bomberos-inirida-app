@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.12">
-<script src="vendor/leaflet/leaflet.js?v=6.12"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.13">
+<script src="vendor/leaflet/leaflet.js?v=6.13"></script>
 
 <style>
   :root {
@@ -1383,7 +1383,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.12</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.13</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1506,6 +1506,16 @@ button:active { transform: scale(.96); }
 <div class="pantalla" id="pantallaPanelAdmin">
   <div style="padding:0 4px;">
     <h2 style="color:var(--rojo);margin:10px 0;">🛡️ Panel de Administrador</h2>
+
+    <!-- v6.13: ESCUDO DEL CUERPO. Reemplaza el logo por defecto por uno propio. -->
+    <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin-bottom:12px;text-align:center;">
+      <div style="font-weight:700;font-size:13px;color:#334155;margin-bottom:8px;">🎖️ Escudo del cuerpo</div>
+      <img id="escudoPreview" alt="Escudo" style="width:96px;height:96px;object-fit:contain;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:4px;">
+      <div style="font-size:11px;color:#64748b;margin:8px 0;line-height:1.45;">Aparece en el encabezado, la pantalla de inicio y los informes en PDF. Si no sube ninguno, se usa el escudo por defecto de la estación.</div>
+      <input type="file" id="escudoInput" accept="image/*" style="display:none;" onchange="app._procesarEscudo(this)">
+      <button onclick="document.getElementById('escudoInput').click()" style="width:100%;padding:9px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;">Subir / cambiar escudo</button>
+      <button id="btnQuitarEscudo" onclick="app.quitarEscudo()" style="display:none;width:100%;margin-top:6px;padding:8px;background:#fff;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Quitar escudo (volver al de la estación)</button>
+    </div>
 
     <!-- v6.02: quién está firmado + relevo de guardia -->
     <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -2315,8 +2325,8 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.12"></script>
-<script src="app.js?v=6.12"></script>
+<script src="logos.js?v=6.13"></script>
+<script src="app.js?v=6.13"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

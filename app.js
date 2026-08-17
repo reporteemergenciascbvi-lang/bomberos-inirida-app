@@ -21,8 +21,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-const APP_VERSION = '6.12';
+const APP_VERSION = '6.13';
 const APP_VERSION_NOTAS = [
+  'v6.13: 🎖️ Ya puede subir el escudo del cuerpo desde el Panel de Administrador. Reemplaza el logo en el encabezado, la pantalla de inicio y los informes en PDF. Si lo quita, vuelve el escudo por defecto de la estación. La imagen se reduce sola antes de guardarse.',
   'v6.12: 🖨️ Arreglada la impresión desde el navegador. En la app del celular funcionaba, pero al imprimir desde un navegador se abría una pestaña EN BLANCO: ya genera el informe correctamente. Además, el pie de los informes ya no muestra el correo ni el teléfono de contacto del autor.',
   'v6.11: ✅ IMPORTANTE — Corregir una emergencia ya se guarda de verdad. Hasta ahora, cuando el autor editaba su propio reporte dentro de las 24 horas, el cambio se veía en el celular pero NO llegaba a la base de datos: la app decía que había guardado y no era cierto. Si alguna vez corregiste un reporte y después seguía apareciendo el dato viejo, era por esto. Ya quedó arreglado. Las fotos y las firmas nunca se tocan al editar.',
   'v6.11: 🏷️ El campo "Otra clasificación" tampoco se guardaba al editar un reporte como administrador. Se descartaba en silencio por un error interno de nombres. Ya se guarda.',
@@ -372,10 +373,9 @@ const app = {
     // v5.88: aplica el diseño elegido (original | apple) antes de pintar la UI.
     this.aplicarTema(this._temaGuardado(), true);
 
-    if (typeof LOGO_SMALL !== 'undefined') {
-      document.getElementById('logoHeader').src = LOGO_SMALL;
-      document.getElementById('logoLogin').src = LOGO_SMALL;
-    }
+    // v6.13: el logo sale del escudo subido por el admin (si hay), si no del
+    // LOGO_SMALL por defecto. _pintarLogos lee el escudo cacheado en localStorage.
+    this._pintarLogos();
 
     // === Detectar nueva versión y mostrar banner por 10 min ===
     this._mostrarBannerSiHayNuevaVersion();
@@ -735,6 +735,8 @@ const app = {
           // que hace que "Agregar administrador" sirva de algo: sin esta línea,
           // la persona agregada nunca veía la zona de administrador.
           if (typeof dPase.esAdmin === 'boolean') this.usuario.esAdminSrv = dPase.esAdmin;
+          // v6.13: escudo del cuerpo → se cachea y repinta el logo al instante.
+          if (typeof dPase.escudoUrl === 'string') this._aplicarEscudo(dPase.escudoUrl);
           await DB.guardarConfig('sesion', this.usuario);
         }
       } catch (ePase) { console.warn('No se pudo obtener pase de 8h:', ePase); }
@@ -3260,6 +3262,7 @@ const app = {
     if (!pw) return;
     this._adminAutorizado = true;
     this.irA('pantallaPanelAdmin');
+    this._pintarEscudoPanel();
     // v5.94: si venías de "Ver reporte completo" (p. ej. desde el Mapa de
     // Emergencias), la vista de detalle quedaba abierta y al reentrar al Panel
     // se veía ese reporte (a veces vacío) en lugar de la lista. Reseteamos.
@@ -4569,6 +4572,103 @@ const app = {
     });
   },
 
+  /* ═══════════════ ESCUDO DEL CUERPO (subible desde el Panel) ═══════════════
+     Reemplaza el logo por defecto (LOGO_SMALL en header/login, LOGO_BIG en el
+     PDF) por uno que sube el admin. Se guarda en la hoja del cuerpo (Config_CBVI)
+     y se cachea en localStorage para pintarlo al instante y aun sin señal. */
+  _escudoActual() {
+    try { return localStorage.getItem('cbvi_escudo') || ''; } catch (e) { return ''; }
+  },
+
+  /* Pinta el logo del header y del login: el escudo subido si hay, si no el
+     LOGO_SMALL de siempre. Reutilizable para refrescar al instante. */
+  _pintarLogos() {
+    const escudo = this._escudoActual();
+    const def = (typeof LOGO_SMALL !== 'undefined') ? LOGO_SMALL : '';
+    ['logoHeader', 'logoLogin'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.src = escudo || def;
+    });
+  },
+
+  _pintarEscudoPanel() {
+    const escudo = this._escudoActual();
+    const def = (typeof LOGO_BIG !== 'undefined') ? LOGO_BIG
+              : ((typeof LOGO_SMALL !== 'undefined') ? LOGO_SMALL : '');
+    const prev = document.getElementById('escudoPreview');
+    if (prev) prev.src = escudo || def;
+    const btn = document.getElementById('btnQuitarEscudo');
+    if (btn) btn.style.display = escudo ? 'block' : 'none';
+  },
+
+  /* El logo que va en los PDF: el escudo subido si hay, si no LOGO_BIG. */
+  _logoImpresion() {
+    return this._escudoActual() || ((typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '');
+  },
+
+  /* Toma el archivo, lo REDUCE en el navegador a máx 180px y lo manda como PNG
+     (conserva transparencia). Reducir acá evita mandar 5MB y mantiene la imagen
+     chica para que quepa en una celda de la hoja (~50KB). */
+  _procesarEscudo(input) {
+    const file = input.files && input.files[0];
+    input.value = '';   // permite volver a elegir el mismo archivo
+    if (!file) return;
+    if (String(file.type).indexOf('image/') !== 0) { this.toast('Elija una imagen (PNG o JPG).', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 180;
+        let w = img.width, h = img.height;
+        if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        let dataUrl;
+        try { dataUrl = c.toDataURL('image/png'); } catch (err) { this.toast('No se pudo procesar la imagen.', 'error'); return; }
+        // Si el PNG sale muy grande (foto con muchos colores), se recomprime en JPEG.
+        if (dataUrl.length > 46000) { try { dataUrl = c.toDataURL('image/jpeg', 0.85); } catch (e2) {} }
+        if (dataUrl.length > 46000) { this.toast('La imagen es muy compleja. Use uno más simple o recórtelo.', 'error'); return; }
+        this._subirEscudo(dataUrl);
+      };
+      img.onerror = () => this.toast('No se pudo leer la imagen.', 'error');
+      img.src = e.target.result;
+    };
+    reader.onerror = () => this.toast('No se pudo leer el archivo.', 'error');
+    reader.readAsDataURL(file);
+  },
+
+  async _subirEscudo(dataUrl) {
+    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+    if (!pw) return;
+    this.toast('Guardando el escudo...', 'info');
+    try {
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'guardarEscudo', escudo: dataUrl, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const d = await r.json();
+      if (!d.ok) { this.toast(d.error || 'No se pudo guardar.', 'error'); return; }
+      this._aplicarEscudo(d.escudoUrl || '');
+      this.toast('✅ Escudo actualizado.', 'exito');
+    } catch (e) { this.toast('Sin conexión: no se pudo guardar el escudo.', 'error'); }
+  },
+
+  async quitarEscudo() {
+    const ok = await this.confirmar('Quitar escudo', '¿Volver al escudo por defecto de la estación?');
+    if (!ok) return;
+    this._subirEscudo('');   // vacío = quitar
+  },
+
+  /* Cachea el escudo y refresca la UI al instante — header, login y el preview
+     del Panel — sin recargar. */
+  _aplicarEscudo(escudoUrl) {
+    try { localStorage.setItem('cbvi_escudo', escudoUrl || ''); } catch (e) {}
+    this._pintarLogos();
+    this._pintarEscudoPanel();
+  },
+
   async _imprimirReporteEnVentanaNueva(r) {
     try {
       const html = this.generarHTMLImpresion(r);
@@ -4867,7 +4967,7 @@ const app = {
       return `
         <div class="pagina pagina-fotos">
           <div class="header-mini">
-            <img src="${typeof LOGO_BIG !== 'undefined' ? LOGO_BIG : ''}" alt="">
+            <img src="${app._logoImpresion()}" alt="">
             <div>
               <strong>CUERPO DE BOMBEROS VOLUNTARIOS — INÍRIDA, GUAINÍA</strong><br>
               <span style="font-size: 9pt;">Anexo fotográfico — Reporte ${r.consecutivo || ''} — Hoja ${etiquetaHoja}/${totalHojas}</span>
@@ -4897,7 +4997,7 @@ const app = {
 <meta charset="UTF-8">
 <title>${r.consecutivo}</title>
 <style>
-  :root { --logo-watermark: url("${typeof LOGO_BIG !== 'undefined' ? LOGO_BIG : ''}"); }
+  :root { --logo-watermark: url("${app._logoImpresion()}"); }
   @page { size: A4; margin: 10mm; }
   * {
     box-sizing: border-box;
@@ -5022,7 +5122,7 @@ const app = {
 
 <div class="pagina">
   <div class="header">
-    <img class="logo-h" src="${typeof LOGO_BIG !== 'undefined' ? LOGO_BIG : ''}" alt="">
+    <img class="logo-h" src="${app._logoImpresion()}" alt="">
     <div class="info">
       <h2>CUERPO DE BOMBEROS VOLUNTARIOS</h2>
       <div>INÍRIDA – GUAINÍA</div>
@@ -5845,7 +5945,7 @@ ${paginaFotos}
     const w = window.open('', '_blank', 'width=900,height=1200');
     if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
     try { w.opener = null; } catch (e) {}
-    const logo = (typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '';
+    const logo = app._logoImpresion();
     const tel = (typeof TELEFONO_ESTACION !== 'undefined') ? TELEFONO_ESTACION : '314 531 1605';
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Actividad ${a.id}</title>
