@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.17';
+const APP_VERSION = '6.18';
 const APP_VERSION_NOTAS = [
+  'v6.18: 🔤 Vocabulario alineado con el Sistema Comando de Incidentes (SCI, Res. 358/2014): el botón principal ahora dice "NUEVO INCIDENTE", y la app habla de "incidente" en vez de "emergencia" en las pantallas principales. El nombre de la app (CBVI Reportes) y las citas legales no cambian.',
   'v6.17: 📋 Vista "Ver para RUE". Al ver un reporte en el Panel de Administrador, un botón ordena sus datos en el MISMO orden del formulario oficial del RUE, con un botón Copiar por campo. Avisa qué datos exige el RUE y cuáles conviene verificar. No envía nada solo: el RUE se sigue llenando a mano en su plataforma.',
   'v6.16: 📥 Importar personal desde Excel. En el Panel de Administrador puede pegar las filas de su Excel (con la fila de títulos) y la app reconoce las columnas por el nombre y agrega solo a quien falte, sin borrar ni pisar a nadie. Muestra un resumen antes de confirmar.',
   'v6.15: 🎬 Recorrido de bienvenida. La primera vez que entra al inicio, la app ofrece un tour rápido de 6 pasos (se puede omitir). Después queda disponible en ℹ️ Acerca de, junto a un botón para el video con el paso a paso (estará pronto).',
@@ -1236,8 +1237,8 @@ const app = {
       btnVolver.style.display = 'inline-block';
       btnVolver.onclick = () => this.atras();
       const titulos = {
-        pantallaForm: 'Reporte de Emergencia',
-        pantallaDetalle: 'Detalle del Reporte',
+        pantallaForm: 'Registro de Incidente',
+        pantallaDetalle: 'Detalle del Incidente',
         pantallaConfig: 'Configuración',
         pantallaActividades: '🎯 Nueva Actividad',
         pantallaListaActividades: '📋 Actividades',
