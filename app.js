@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.15';
+const APP_VERSION = '6.16';
 const APP_VERSION_NOTAS = [
+  'v6.16: 📥 Importar personal desde Excel. En el Panel de Administrador puede pegar las filas de su Excel (con la fila de títulos) y la app reconoce las columnas por el nombre y agrega solo a quien falte, sin borrar ni pisar a nadie. Muestra un resumen antes de confirmar.',
   'v6.15: 🎬 Recorrido de bienvenida. La primera vez que entra al inicio, la app ofrece un tour rápido de 6 pasos (se puede omitir). Después queda disponible en ℹ️ Acerca de, junto a un botón para el video con el paso a paso (estará pronto).',
   'v6.14: ℹ️ Nueva pantalla "Acerca de" (tarjeta en el Inicio, junto a Manual y Bases legales): muestra la versión de la app, el logo del cuerpo, la autoría y los derechos de autor.',
   'v6.13: 🎖️ Ya puede subir el escudo del cuerpo desde el Panel de Administrador. Reemplaza el logo en el encabezado, la pantalla de inicio y los informes en PDF. Si lo quita, vuelve el escudo por defecto de la estación. La imagen se reduce sola antes de guardarse.',
@@ -4767,6 +4768,129 @@ const app = {
       m.querySelector('#_tNext').onclick = () => { if (ultimo) cerrar(); else { i++; pintar(); } };
     };
     pintar();
+  },
+
+  /* ═══════════════ IMPORTAR PERSONAL (pegar desde Excel) ═══════════════
+     No se sube archivo: leer .xlsx pesa ~500KB y el .csv de Excel en LATAM viene
+     en Windows-1252 y rompe tildes/ñ. Pegar entrega texto limpio, sin dependencias. */
+  _COLUMNAS_IMPORT: {
+    nombre:   ['nombre', 'nombres', 'nombre completo', 'apellidos y nombres', 'unidad', 'bombero'],
+    cedula:   ['cedula', 'cédula', 'cc', 'c.c', 'documento', 'identificacion', 'identificación', 'nit'],
+    rango:    ['rango', 'grado', 'jerarquia', 'jerarquía'],
+    telefono: ['telefono', 'teléfono', 'celular', 'movil', 'móvil', 'tel'],
+    email:    ['email', 'correo', 'e-mail', 'correo electronico', 'correo electrónico']
+  },
+
+  /* Normaliza un título de columna: sin tildes, minúsculas, sin puntuación.
+     Así "CÉDULA", "cedula" y "C.C." caen en la misma llave. */
+  _normTitulo(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  },
+
+  _parsearPegado(texto) {
+    const lineas = String(texto || '').split(/\r?\n/).filter((l) => l.trim());
+    if (lineas.length < 2) return { error: 'Pegue al menos la fila de títulos y una persona.' };
+
+    // Excel copia separando por TAB. El punto y coma o la coma son respaldo.
+    const sep = lineas[0].indexOf('\t') !== -1 ? '\t' : (lineas[0].indexOf(';') !== -1 ? ';' : ',');
+    const celdas = (l) => l.split(sep).map((c) => c.trim().replace(/^"|"$/g, ''));
+
+    const titulos = celdas(lineas[0]).map((t) => this._normTitulo(t));
+    const mapa = {};
+    Object.keys(this._COLUMNAS_IMPORT).forEach((campo) => {
+      const alias = this._COLUMNAS_IMPORT[campo];
+      const i = titulos.findIndex((t) => t && alias.indexOf(t) !== -1);
+      if (i !== -1) mapa[campo] = i;
+    });
+
+    if (mapa.nombre === undefined) {
+      return { error: 'No se encontró una columna de nombres. Títulos detectados: ' +
+                      (titulos.filter(Boolean).join(', ') || '(ninguno)') };
+    }
+
+    const filas = [];
+    for (let i = 1; i < lineas.length; i++) {
+      const c = celdas(lineas[i]);
+      const p = {};
+      Object.keys(mapa).forEach((campo) => { p[campo] = (c[mapa[campo]] || '').trim(); });
+      if (p.nombre) filas.push(p);
+    }
+    return { filas: filas, columnas: Object.keys(mapa) };
+  },
+
+  previsualizarImportacion() {
+    const cont = document.getElementById('impResumen');
+    const btn = document.getElementById('btnImportarConfirmar');
+    const r = this._parsearPegado(document.getElementById('impPegar').value);
+    this._filasImport = null;
+    btn.style.display = 'none';
+
+    if (r.error) {
+      cont.innerHTML = '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;font-size:13px;">'
+                     + this._esc(r.error) + '</div>';
+      return;
+    }
+
+    this._filasImport = r.filas;
+    const sinCedula = r.filas.filter((p) => !String(p.cedula || '').replace(/\D/g, '')).length;
+
+    let h = '<div style="background:#e8f5e9;padding:10px;border-radius:6px;font-size:13px;">'
+          + '<b>' + r.filas.length + ' personas</b> detectadas.<br>'
+          + 'Columnas reconocidas: <b>' + this._esc(r.columnas.join(', ')) + '</b></div>';
+
+    if (sinCedula) {
+      h += '<div style="background:#fff3e0;padding:10px;border-radius:6px;font-size:12px;margin-top:8px;">'
+         + '⚠️ <b>' + sinCedula + '</b> sin cédula. Entran igual, pero se identifican solo por el nombre: '
+         + 'si dos personas se llaman parecido, el sistema no las puede distinguir.</div>';
+    }
+
+    h += '<div style="margin-top:10px;font-size:12px;"><b>Primeras filas:</b><table style="width:100%;border-collapse:collapse;margin-top:4px;">';
+    r.filas.slice(0, 5).forEach((p) => {
+      h += '<tr><td style="border-bottom:1px solid #eee;padding:3px;">' + this._esc(p.nombre) + '</td>'
+         + '<td style="border-bottom:1px solid #eee;padding:3px;color:#666;">' + this._esc(p.cedula || '—') + '</td>'
+         + '<td style="border-bottom:1px solid #eee;padding:3px;color:#666;">' + this._esc(p.rango || 'BOMBERO') + '</td></tr>';
+    });
+    h += '</table></div>';
+    h += '<p style="font-size:11px;color:#666;margin-top:8px;">No se borra ni se pisa nada: '
+       + 'solo se agrega quien todavía no esté en el sistema.</p>';
+
+    cont.innerHTML = h;
+    btn.style.display = '';
+  },
+
+  async confirmarImportacion(btn) {
+    if (!this._filasImport || !this._filasImport.length) return;
+    await this._conBloqueo(btn, 'Importando...', async () => {
+      try {
+        const r = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'importarPersonal', filas: this._filasImport, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        });
+        const d = await r.json();
+        if (!d || !d.ok) return this.toast((d && d.error) || 'No se pudo importar', 'error');
+
+        let msg = d.agregados + ' agregadas';
+        if (d.duplicados.length) msg += ', ' + d.duplicados.length + ' ya estaban';
+        if (d.rechazados.length) msg += ', ' + d.rechazados.length + ' rechazadas';
+        this.toast(msg, 'exito');
+        this.cerrarModalImportar();
+        this._cargarRosterDesdeHoja().catch(() => {});
+      } catch (e) {
+        this.toast('Sin conexión: ' + e.message, 'error');
+      }
+    });
+  },
+
+  abrirModalImportar() {
+    document.getElementById('impPegar').value = '';
+    document.getElementById('impResumen').innerHTML = '';
+    document.getElementById('btnImportarConfirmar').style.display = 'none';
+    document.getElementById('modalImportar').classList.add('visible');
+  },
+
+  cerrarModalImportar() {
+    document.getElementById('modalImportar').classList.remove('visible');
   },
 
   async _imprimirReporteEnVentanaNueva(r) {

@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.15">
-<script src="vendor/leaflet/leaflet.js?v=6.15"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.16">
+<script src="vendor/leaflet/leaflet.js?v=6.16"></script>
 
 <style>
   :root {
@@ -1387,7 +1387,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.15</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.16</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1552,6 +1552,13 @@ button:active { transform: scale(.96); }
       <input type="file" id="escudoInput" accept="image/*" style="display:none;" onchange="app._procesarEscudo(this)">
       <button onclick="document.getElementById('escudoInput').click()" style="width:100%;padding:9px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;">Subir / cambiar escudo</button>
       <button id="btnQuitarEscudo" onclick="app.quitarEscudo()" style="display:none;width:100%;margin-top:6px;padding:8px;background:#fff;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Quitar escudo (volver al de la estación)</button>
+    </div>
+
+    <!-- v6.16: importar personal en lote (pegar desde Excel) -->
+    <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:12px;margin-bottom:12px;">
+      <div style="font-weight:700;font-size:13px;color:#1e40af;">📥 Importar personal</div>
+      <div style="font-size:11px;color:#3b5b8c;margin-top:5px;line-height:1.45;">Pegue las filas de su Excel (con la fila de títulos). Reconoce las columnas por el título y solo agrega a quien falte: no borra ni pisa a nadie.</div>
+      <button onclick="app.abrirModalImportar()" style="width:100%;margin-top:8px;padding:9px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;">📥 Importar desde Excel</button>
     </div>
 
     <!-- v6.02: quién está firmado + relevo de guardia -->
@@ -2362,8 +2369,32 @@ button:active { transform: scale(.96); }
 
 <div id="pdfContenedor"></div>
 
-<script src="logos.js?v=6.15"></script>
-<script src="app.js?v=6.15"></script>
+<!-- Importar personal: se pega directo desde Excel (Ctrl+C / Ctrl+V), sin subir archivo. -->
+<div class="modal-fondo" id="modalImportar">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">📥 Importar personal desde Excel</div>
+    <div class="modal-body" style="max-height:65vh;overflow-y:auto;padding:16px;">
+      <div class="ayuda-seccion">
+        <strong>Cómo hacerlo</strong><br>
+        1. Abra su Excel de personal<br>
+        2. Seleccione las filas (incluya la de títulos) y presione <b>Ctrl+C</b><br>
+        3. Haga clic abajo y presione <b>Ctrl+V</b>
+      </div>
+      <textarea id="impPegar" rows="7" style="width:100%;font-family:monospace;font-size:12px;box-sizing:border-box;"
+                placeholder="Pegue aquí las filas copiadas de Excel..."
+                oninput="app.previsualizarImportacion()"></textarea>
+      <div id="impResumen" style="margin-top:12px;"></div>
+    </div>
+    <div class="modal-acciones">
+      <button class="btn btn-secundario" onclick="app.cerrarModalImportar()">Cancelar</button>
+      <button class="btn btn-primary" id="btnImportarConfirmar" style="display:none;"
+              onclick="app.confirmarImportacion(this)">Importar</button>
+    </div>
+  </div>
+</div>
+
+<script src="logos.js?v=6.16"></script>
+<script src="app.js?v=6.16"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
