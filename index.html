@@ -40,8 +40,8 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.16">
-<script src="vendor/leaflet/leaflet.js?v=6.16"></script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.17">
+<script src="vendor/leaflet/leaflet.js?v=6.17"></script>
 
 <style>
   :root {
@@ -1387,7 +1387,7 @@ button:active { transform: scale(.96); }
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.16</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.17</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -1620,6 +1620,7 @@ button:active { transform: scale(.96); }
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
         <button onclick="app.cerrarVistaAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">← Volver</button>
         <button id="btnImprimirDesdeVista" style="flex:1;min-width:120px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Imprimir</button>
+        <button onclick="app.verVistaRUE(this)" style="flex:1;min-width:120px;padding:12px;background:#e65100;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">📋 Ver para RUE</button>
       </div>
     </div>
 
@@ -2393,8 +2394,19 @@ button:active { transform: scale(.96); }
   </div>
 </div>
 
-<script src="logos.js?v=6.16"></script>
-<script src="app.js?v=6.16"></script>
+<!-- Vista RUE: ordena un reporte como el formulario oficial, con Copiar por campo. -->
+<div class="modal-fondo" id="modalRUE">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">📋 Datos para el RUE</div>
+    <div class="modal-body" id="modalRUECuerpo" style="max-height:65vh;overflow-y:auto;padding:16px;"></div>
+    <div class="modal-acciones">
+      <button class="btn btn-secundario" onclick="app.cerrarModalRUE()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="logos.js?v=6.17"></script>
+<script src="app.js?v=6.17"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">

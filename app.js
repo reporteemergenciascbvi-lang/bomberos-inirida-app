@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.16';
+const APP_VERSION = '6.17';
 const APP_VERSION_NOTAS = [
+  'v6.17: 📋 Vista "Ver para RUE". Al ver un reporte en el Panel de Administrador, un botón ordena sus datos en el MISMO orden del formulario oficial del RUE, con un botón Copiar por campo. Avisa qué datos exige el RUE y cuáles conviene verificar. No envía nada solo: el RUE se sigue llenando a mano en su plataforma.',
   'v6.16: 📥 Importar personal desde Excel. En el Panel de Administrador puede pegar las filas de su Excel (con la fila de títulos) y la app reconoce las columnas por el nombre y agrega solo a quien falte, sin borrar ni pisar a nadie. Muestra un resumen antes de confirmar.',
   'v6.15: 🎬 Recorrido de bienvenida. La primera vez que entra al inicio, la app ofrece un tour rápido de 6 pasos (se puede omitir). Después queda disponible en ℹ️ Acerca de, junto a un botón para el video con el paso a paso (estará pronto).',
   'v6.14: ℹ️ Nueva pantalla "Acerca de" (tarjeta en el Inicio, junto a Manual y Bases legales): muestra la versión de la app, el logo del cuerpo, la autoría y los derechos de autor.',
@@ -4891,6 +4892,79 @@ const app = {
 
   cerrarModalImportar() {
     document.getElementById('modalImportar').classList.remove('visible');
+  },
+
+  /* ═══════════════ VISTA RUE (ordena un reporte como el formulario oficial) ═══════════════
+     No automatiza el envío al RUE (se llena a mano en su plataforma): solo acomoda los
+     datos del reporte en el orden del formulario, con un botón Copiar por campo. */
+  async verVistaRUE(btn) {
+    // Mismas fuentes que el botón Imprimir de al lado.
+    const r = this._reporteAdminViendo || this.reporteActual;
+    if (!r || !r.id) return this.toast('Abra primero un reporte', 'error');
+    await this._conBloqueo(btn, 'Preparando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'vistaRUE', id: r.id, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        });
+        const d = await resp.json();
+        if (!d || !d.ok) return this.toast((d && d.error) || 'No se pudo preparar la vista', 'error');
+        this._pintarVistaRUE(d);
+        document.getElementById('modalRUE').classList.add('visible');
+      } catch (e) {
+        this.toast('Sin conexión: ' + e.message, 'error');
+      }
+    });
+  },
+
+  _pintarVistaRUE(d) {
+    const esc = (v) => this._esc(v == null ? '' : String(v));
+    let h = '';
+    if (d.faltantes && d.faltantes.length) {
+      h += '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;margin-bottom:12px;font-size:13px;">'
+         + '<b>⚠️ Faltan datos que el RUE exige:</b><ul style="margin:6px 0 0 18px;">'
+         + d.faltantes.map((f) => '<li>' + esc(f) + '</li>').join('') + '</ul></div>';
+    }
+    h += '<div style="background:#fff3e0;border-left:4px solid #e65100;padding:8px 10px;border-radius:4px;font-size:12px;margin-bottom:14px;">' + esc(d.advertencia) + '</div>';
+    const bloque = (titulo, campos) => {
+      let s = '<div style="font-weight:700;margin:14px 0 6px;">' + esc(titulo) + '</div>';
+      campos.forEach((c) => {
+        const alerta = c.aproximado
+          ? '<div style="color:#92400e;font-size:11px;margin-top:3px;">⚠️ ' + esc(c.nota || 'Verifique este dato.') + '</div>'
+          : (c.nota ? '<div style="color:#666;font-size:11px;margin-top:3px;">' + esc(c.nota) + '</div>' : '');
+        s += '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #eee;">'
+           + '<div style="flex:0 0 40%;font-size:12px;color:#444;">' + esc(c.campo)
+           + (c.obligatorio ? ' <span style="color:#c00;">*</span>' : '') + '</div>'
+           + '<div style="flex:1;font-size:13px;"><b>' + (c.valor ? esc(c.valor) : '<span style="color:#999;">(vacío)</span>') + '</b>' + alerta + '</div>'
+           /* data-* en vez de meter el valor en el onclick: un texto con comillas o
+              caracteres raros no rompe el HTML (invariante I10). */
+           + '<button class="btn btn-secundario" style="padding:3px 8px;font-size:11px;" '
+           + 'data-copiar="' + esc(c.valor) + '" onclick="app._copiarCampoRUE(this)">Copiar</button>'
+           + '</div>';
+      });
+      return s;
+    };
+    h += bloque('1 · Nueva Emergencia', d.emergencia);
+    h += bloque('2 · Nuevo Detalle Emergencia', d.detalle);
+    document.getElementById('modalRUECuerpo').innerHTML = h;
+  },
+
+  _copiarCampoRUE(btn) {
+    const txt = btn.getAttribute('data-copiar') || '';
+    const listo = () => { const o = btn.textContent; btn.textContent = '✓ Copiado'; setTimeout(() => { btn.textContent = o; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(listo).catch(() => this.toast('No se pudo copiar', 'error'));
+    } else {
+      // Respaldo para WebView antiguo del APK, donde clipboard puede no existir.
+      const ta = document.createElement('textarea');
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); listo(); } catch (e) { this.toast('No se pudo copiar', 'error'); }
+      document.body.removeChild(ta);
+    }
+  },
+
+  cerrarModalRUE() {
+    document.getElementById('modalRUE').classList.remove('visible');
   },
 
   async _imprimirReporteEnVentanaNueva(r) {
