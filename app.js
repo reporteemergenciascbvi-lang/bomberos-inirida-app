@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.18';
+const APP_VERSION = '6.19';
 const APP_VERSION_NOTAS = [
+  'v6.19: 🚒 Vehículos editables. En el Panel de Administrador ahora puede registrar cada vehículo con su indicativo (Móvil 1, M-3…) y su clase (lo que entiende el RUE), sin tocar código. La lista arranca con la flota de siempre; edítela cuando quiera. El indicativo es lo que aparece al reportar. Si un vehículo no carga por falta de señal, el formulario sigue mostrando la lista de siempre.',
   'v6.18: 🔤 Vocabulario alineado con el Sistema Comando de Incidentes (SCI, Res. 358/2014): el botón principal ahora dice "NUEVO INCIDENTE", y la app habla de "incidente" en vez de "emergencia" en las pantallas principales. El nombre de la app (CBVI Reportes) y las citas legales no cambian.',
   'v6.17: 📋 Vista "Ver para RUE". Al ver un reporte en el Panel de Administrador, un botón ordena sus datos en el MISMO orden del formulario oficial del RUE, con un botón Copiar por campo. Avisa qué datos exige el RUE y cuáles conviene verificar. No envía nada solo: el RUE se sigue llenando a mano en su plataforma.',
   'v6.16: 📥 Importar personal desde Excel. En el Panel de Administrador puede pegar las filas de su Excel (con la fila de títulos) y la app reconoce las columnas por el nombre y agrega solo a quien falte, sin borrar ni pisar a nadie. Muestra un resumen antes de confirmar.',
@@ -418,6 +419,7 @@ const app = {
       // v5.98: refrescar el roster desde la hoja Personal_CBVI (caché primero,
       // red después). En segundo plano: no debe demorar el arranque de la app.
       this._cargarRosterDesdeHoja().catch(() => {});
+      this._cargarFlota().catch(() => {});   // v6.19: flota lista para el formulario
       this.actualizarUIUsuario();
       // Si ya completó registro complementario, ir a Home
       if (sesion.registroCompleto) {
@@ -754,6 +756,7 @@ const app = {
       // v5.98: tras un login NUEVO también se trae el roster de la hoja
       // (el arranque con sesión ya restaurada lo hace en su propia rama).
       this._cargarRosterDesdeHoja().catch(() => {});
+      this._cargarFlota().catch(() => {});   // v6.19: flota lista para el formulario
 
       if (usuario.registroCompleto) {
         this.actualizarUIUsuario();
@@ -2175,7 +2178,7 @@ const app = {
         <label>Recurso</label>
         <select data-campo="recurso" onchange="app.cambioTipoRecurso(this)">
           <option value="">-- Seleccione --</option>
-          ${VEHICULOS_CBVI.map(v => `<option>${v}</option>`).join('')}
+          ${app._flotaOpciones()}
           <option>Personal</option>
           <option>Otro</option>
         </select>
@@ -2207,7 +2210,7 @@ const app = {
          antes de hoy) cae en "Otro" con el texto original visible, en vez de
          desaparecer. Es exactamente el comportamiento que ya existía; solo se
          corrige que estuviera duplicada y pudiera desalinearse con el select. */
-      const opciones = VEHICULOS_CBVI.concat(['Personal', 'Otro']);
+      const opciones = this._flotaIndicativos().concat(['Personal', 'Otro']);
       if (opciones.includes(datos.recurso)) {
         sel.value = datos.recurso;
       } else if (datos.recurso) {
@@ -2316,7 +2319,7 @@ const app = {
     const sel = document.getElementById('actRecursoTipo');
     if (!sel) return;
     sel.innerHTML = '<option value="">Tipo de vehículo...</option>'
-      + VEHICULOS_CBVI.map(v => `<option value="${app._esc(v)}">${app._esc(v)}</option>`).join('')
+      + this._flotaOpciones()
       + '<option value="Otro">Otro</option>';
   },
 
@@ -3274,6 +3277,7 @@ const app = {
     this._adminAutorizado = true;
     this.irA('pantallaPanelAdmin');
     this._pintarEscudoPanel();
+    this._cargarFlota(true).then(() => this._renderFlotaAdmin()).catch(() => {});
     // v5.94: si venías de "Ver reporte completo" (p. ej. desde el Mapa de
     // Emergencias), la vista de detalle quedaba abierta y al reentrar al Panel
     // se veía ese reporte (a veces vacío) en lugar de la lista. Reseteamos.
@@ -4878,6 +4882,7 @@ const app = {
         this.toast(msg, 'exito');
         this.cerrarModalImportar();
         this._cargarRosterDesdeHoja().catch(() => {});
+      this._cargarFlota().catch(() => {});   // v6.19: flota lista para el formulario
       } catch (e) {
         this.toast('Sin conexión: ' + e.message, 'error');
       }
@@ -4893,6 +4898,167 @@ const app = {
 
   cerrarModalImportar() {
     document.getElementById('modalImportar').classList.remove('visible');
+  },
+
+  /* ═══════════════ FLOTA DEL CUERPO (vehículos editables) ═══════════════
+     Los vehículos viven en la hoja del cuerpo (indicativo + clase). Se cargan una vez
+     por sesión en this._flota; si NO cargan (sin señal), el formulario cae a la lista
+     fija VEHICULOS_CBVI, así nadie queda bloqueado para reportar una emergencia. */
+  async _cargarFlota(forzar) {
+    if (this._flota && !forzar) return this._flota;
+    try {
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarVehiculos', adminEmail: (this.usuario && this.usuario.email) || '', adminPassword: this._adminPwdSession || '' })
+      });
+      const d = await r.json();
+      this._flota = (d && d.ok && Array.isArray(d.vehiculos)) ? d.vehiculos : (this._flota || []);
+      if (d && d.ok && Array.isArray(d.clases)) this._flotaClases = d.clases;
+    } catch (e) {
+      this._flota = this._flota || [];
+    }
+    return this._flota;
+  },
+
+  _flotaDisponible() {
+    return (this._flota || []).filter((v) => v.estado !== 'DE BAJA' && v.estado !== 'FUERA DE SERVICIO');
+  },
+
+  /* Los indicativos elegibles hoy. Si la flota no cargó (o está vacía) cae a la lista
+     fija de siempre — el registro de una emergencia NUNCA se bloquea por esto. */
+  _flotaIndicativos() {
+    const lista = this._flotaDisponible();
+    return lista.length ? lista.map((v) => v.indicativo) : VEHICULOS_CBVI.slice();
+  },
+
+  /* <option> de la flota (value = indicativo; etiqueta = "indicativo — clase").
+     Fallback a la lista fija. Se usa en el <select> de recursos del formulario. */
+  _flotaOpciones() {
+    const lista = this._flotaDisponible();
+    if (!lista.length) return VEHICULOS_CBVI.map((v) => '<option>' + app._esc(v) + '</option>').join('');
+    return lista.map((v) => {
+      const et = v.indicativo + (v.clase ? ' — ' + v.clase.toLowerCase() : '');
+      return '<option value="' + app._esc(v.indicativo) + '">' + app._esc(et) + '</option>';
+    }).join('');
+  },
+
+  /* Modal para elegir UNA opción (I4: nada de prompt nativo). Devuelve el valor o null. */
+  _pedirOpcion(titulo, ayuda, opciones, valorActual) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.className = 'cbvi-modal-js';
+      const ops = (opciones || []).map((o) =>
+        '<option value="' + app._esc(o) + '"' + (o === valorActual ? ' selected' : '') + '>' + app._esc(o) + '</option>'
+      ).join('');
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">' + app._esc(titulo || '') + '</div>'
+        + (ayuda ? '<div style="font-size:12px;color:#666;margin-bottom:12px;text-align:center;">' + app._esc(ayuda) + '</div>' : '')
+        + '<select id="_opcSel" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:14px;">' + ops + '</select>'
+        + '<div style="display:flex;gap:10px;">'
+        + '<button id="_opcCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
+        + '<button id="_opcOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Continuar</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      const sel = modal.querySelector('#_opcSel');
+      const fin = (v) => { try { document.body.removeChild(modal); } catch (e) {} resolve(v); };
+      modal.querySelector('#_opcCancel').onclick = () => fin(null);
+      modal.querySelector('#_opcOk').onclick = () => fin(sel.value || '');
+    });
+  },
+
+  /* ── Administración de la flota (Panel de Admin) ── */
+  async cargarFlotaAdmin(btn) {
+    await this._conBloqueo(btn, 'Cargando...', async () => {
+      await this._cargarFlota(true);
+      this._renderFlotaAdmin();
+    });
+  },
+
+  _renderFlotaAdmin() {
+    const cont = document.getElementById('listaFlota');
+    if (!cont) return;
+    const lista = this._flota || [];
+    if (!lista.length) {
+      cont.innerHTML = '<div style="color:#166534;font-size:12px;text-align:center;padding:10px;opacity:.8;">Todavía no hay vehículos. Agregue el primero para que aparezca al reportar.</div>';
+      return;
+    }
+    // I5: todo texto por _esc. I10: data-* en vez de meter el indicativo en el onclick.
+    cont.innerHTML = lista.map((v) => {
+      const fuera = v.estado === 'DE BAJA' || v.estado === 'FUERA DE SERVICIO';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#fff;border-radius:8px;margin-bottom:6px;'
+        + (fuera ? 'opacity:.55;' : '') + '">'
+        + '<div style="min-width:0;">'
+        +   '<strong style="font-size:14px;">' + app._esc(v.indicativo) + '</strong>'
+        +   (fuera ? ' <span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:4px;">' + app._esc(v.estado) + '</span>' : '')
+        +   '<div style="font-size:11px;color:#666;">' + app._esc(v.clase || 'sin clase')
+        +     (v.capacidad ? ' · ' + app._esc(v.capacidad) : '')
+        +     (v.placa ? ' · ' + app._esc(v.placa) : '') + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:4px;flex-shrink:0;">'
+        +   '<button data-v="' + app._esc(v.indicativo) + '" onclick="app.agregarVehiculo(this.dataset.v)" title="Editar" style="background:none;border:none;font-size:16px;cursor:pointer;">&#9998;</button>'
+        +   '<button data-v="' + app._esc(v.indicativo) + '" onclick="app.quitarVehiculo(this.dataset.v)" title="Eliminar" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;">&#x2715;</button>'
+        + '</div></div>';
+    }).join('');
+  },
+
+  /* Alta y edición: si llega un indicativo, se precargan sus datos. El backend decide
+     por el indicativo si actualiza o agrega. */
+  async agregarVehiculo(indicativoExistente) {
+    const clases = (this._flotaClases && this._flotaClases.length) ? this._flotaClases : ['OTRO'];
+    const previo = (this._flota || []).find((v) => v.indicativo === indicativoExistente) || {};
+
+    const indicativo = await this._pedirTexto(
+      '<div style="text-align:left;font-weight:400;font-size:13px;">Indicativo del vehículo<div style="font-size:11px;color:#666;margin-top:3px;">Como lo nombran en la radio: Móvil 1, M-3, Tanque 2…</div></div>',
+      { placeholder: 'Móvil 1', maxlength: 40, boton: 'Siguiente', valor: previo.indicativo || '' });
+    if (!indicativo || !indicativo.trim()) return;
+
+    const clase = await this._pedirOpcion('Clase del vehículo',
+      'Es lo que entiende el RUE. Si ninguna encaja, elija OTRO.', clases, previo.clase || '');
+    if (clase === null) return;
+
+    const capacidad = await this._pedirTexto(
+      '<div style="text-align:left;font-weight:400;font-size:13px;">Capacidad (opcional)<div style="font-size:11px;color:#666;margin-top:3px;">Ej: 1.000 galones, 500 GPM.</div></div>',
+      { placeholder: 'Opcional', maxlength: 60, boton: 'Guardar', valor: previo.capacidad || '' });
+    if (capacidad === null) return;
+
+    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+    if (!pw) return;
+    try {
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'guardarVehiculo', indicativo: indicativo.trim(),
+          clase: clase, capacidad: capacidad, placa: previo.placa || '',
+          estado: previo.estado || 'DISPONIBLE',
+          adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'No se pudo guardar');
+      this.toast('🚒 ' + d.mensaje, 'exito');
+      await this._cargarFlota(true);
+      this._renderFlotaAdmin();
+    } catch (e) { this.toast('Error: ' + e.message, 'error'); }
+  },
+
+  quitarVehiculo(indicativo) {
+    this._confirmarAccion(
+      '¿Eliminar ' + app._esc(indicativo) + '?<div style="font-weight:400;font-size:12px;color:#666;margin-top:8px;">Dejará de aparecer al reportar. Los reportes anteriores que lo nombran NO cambian.</div>',
+      async () => {
+        const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+        if (!pw) return;
+        try {
+          const r = await fetch(URL_BACKEND, {
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ accion: 'eliminarVehiculo', indicativo: indicativo,
+              adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+          });
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error || 'No se pudo eliminar');
+          this.toast(d.mensaje, 'exito');
+          await this._cargarFlota(true);
+          this._renderFlotaAdmin();
+        } catch (e) { this.toast('Error: ' + e.message, 'error'); }
+      });
   },
 
   /* ═══════════════ VISTA RUE (ordena un reporte como el formulario oficial) ═══════════════
@@ -8242,7 +8408,7 @@ ${paginaFotos}
            definición) en vez de repetir acá una tercera copia de las opciones. */
         +'<select id="_eaRecTipo" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
         +  '<option value="">Tipo de vehículo...</option>'
-        +  VEHICULOS_CBVI.concat(['Otro'])
+        +  app._flotaIndicativos().concat(['Otro'])
              .map(v => '<option value="'+app._esc(v)+'">'+app._esc(v)+'</option>').join('')
         +'</select>'
         +'<input type="text" id="_eaRecCodigo" placeholder="Código/Placa" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
