@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.20';
+const APP_VERSION = '6.21';
 const APP_VERSION_NOTAS = [
+  'v6.21: ⚡ Nuevo tipo "Incendio en red eléctrica" (transformadores, loncheras, cables y redes del servicio público; en el RUE es FALLA ELÉCTRICA). El término "Incendio de interfaz" vuelve a su significado real: fuego donde el monte se junta con el pueblo.',
   'v6.20: 📋 La Vista RUE ahora muestra los recursos desplegados con su CLASE. Al ver un reporte y tocar "Ver para RUE", un tercer bloque cruza los vehículos que atendieron con la flota del cuerpo y muestra la clase de cada uno (lo que el RUE pide para categorizar). Si un vehículo no está registrado con clase, lo avisa.',
   'v6.19: 🚒 Vehículos editables. En el Panel de Administrador ahora puede registrar cada vehículo con su indicativo (Móvil 1, M-3…) y su clase (lo que entiende el RUE), sin tocar código. La lista arranca con la flota de siempre; edítela cuando quiera. El indicativo es lo que aparece al reportar. Si un vehículo no carga por falta de señal, el formulario sigue mostrando la lista de siempre.',
   'v6.18: 🔤 Vocabulario alineado con el Sistema Comando de Incidentes (SCI, Res. 358/2014): el botón principal ahora dice "NUEVO INCIDENTE", y la app habla de "incidente" en vez de "emergencia" en las pantallas principales. El nombre de la app (CBVI Reportes) y las citas legales no cambian.',
@@ -231,6 +232,11 @@ const CREDITO_AUTOR = {
 // mapa se pintan DESDE este arreglo; los reportes viejos no se afectan.
 const TIPOS_EVENTO = [
   'Incendio estructural', 'Incendio forestal', 'Incendio de interfaz', 'Incendio vehicular',
+  // v6.21: "Incendio en red eléctrica" = transformadores, loncheras, cables y redes del
+  // servicio público → en el RUE es FALLA ELÉCTRICA. Antes esto se marcaba como "Incendio
+  // de interfaz" (que en realidad es fuego monte-pueblo). migrarInterfazAElectrico() en
+  // Codigo.gs reetiqueta los reportes viejos una sola vez.
+  'Incendio en red eléctrica',
   'Rescate vehicular', 'Rescate en altura', 'Rescate acuático', 'Búsqueda y rescate',
   'Primeros auxilios', 'Traslado', 'Materiales peligrosos (MATPEL)',
   'Atención de árbol caído', 'Atención de abejas / avispas', 'Rescate animal',
@@ -8071,6 +8077,7 @@ ${paginaFotos}
     { tipo: 'Incendio estructural',              color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
     { tipo: 'Incendio forestal',                 color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
     { tipo: 'Incendio de interfaz',              color: '#bf360c', emoji: '🔥', etiqueta: 'Incendio de interfaz' },
+    { tipo: 'Incendio en red eléctrica',         color: '#f57f17', emoji: '⚡', etiqueta: 'Red eléctrica' },
     { tipo: 'Incendio vehicular',                color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
     { tipo: 'Búsqueda y rescate',                color: '#4527a0', emoji: '🔦', etiqueta: 'Búsqueda y rescate' },
     { tipo: 'Rescate vehicular',                 color: '#1565c0', emoji: '🚗', etiqueta: 'Rescate vehicular' },
