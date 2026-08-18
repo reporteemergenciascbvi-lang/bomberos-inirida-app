@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.21';
+const APP_VERSION = '6.22';
 const APP_VERSION_NOTAS = [
+  'v6.22: 📥 Importar personal, más robusto: reconoce cuando el nombre y el apellido vienen en columnas separadas (los une en el nombre completo) y detecta la cédula aunque el título diga "Cédula (CC)", "Documento" u otras variantes. Antes esas columnas se perdían.',
   'v6.21: ⚡ Nuevo tipo "Incendio en red eléctrica" (transformadores, loncheras, cables y redes del servicio público; en el RUE es FALLA ELÉCTRICA). El término "Incendio de interfaz" vuelve a su significado real: fuego donde el monte se junta con el pueblo.',
   'v6.20: 📋 La Vista RUE ahora muestra los recursos desplegados con su CLASE. Al ver un reporte y tocar "Ver para RUE", un tercer bloque cruza los vehículos que atendieron con la flota del cuerpo y muestra la clase de cada uno (lo que el RUE pide para categorizar). Si un vehículo no está registrado con clase, lo avisa.',
   'v6.19: 🚒 Vehículos editables. En el Panel de Administrador ahora puede registrar cada vehículo con su indicativo (Móvil 1, M-3…) y su clase (lo que entiende el RUE), sin tocar código. La lista arranca con la flota de siempre; edítela cuando quiera. El indicativo es lo que aparece al reportar. Si un vehículo no carga por falta de señal, el formulario sigue mostrando la lista de siempre.',
@@ -4787,11 +4788,12 @@ const app = {
      No se sube archivo: leer .xlsx pesa ~500KB y el .csv de Excel en LATAM viene
      en Windows-1252 y rompe tildes/ñ. Pegar entrega texto limpio, sin dependencias. */
   _COLUMNAS_IMPORT: {
-    nombre:   ['nombre', 'nombres', 'nombre completo', 'apellidos y nombres', 'unidad', 'bombero'],
-    cedula:   ['cedula', 'cédula', 'cc', 'c.c', 'documento', 'identificacion', 'identificación', 'nit'],
-    rango:    ['rango', 'grado', 'jerarquia', 'jerarquía'],
-    telefono: ['telefono', 'teléfono', 'celular', 'movil', 'móvil', 'tel'],
-    email:    ['email', 'correo', 'e-mail', 'correo electronico', 'correo electrónico']
+    nombre:   ['nombre', 'nombres', 'nombre completo', 'apellidos y nombres', 'nombres y apellidos', 'unidad', 'bombero'],
+    apellido: ['apellido', 'apellidos'],
+    cedula:   ['cedula', 'cc', 'documento', 'identificacion', 'nit', 'numero de cedula', 'documento de identidad'],
+    rango:    ['rango', 'grado', 'jerarquia'],
+    telefono: ['telefono', 'celular', 'movil', 'tel'],
+    email:    ['email', 'mail', 'correo', 'correo electronico']
   },
 
   /* Normaliza un título de columna: sin tildes, minúsculas, sin puntuación.
@@ -4799,6 +4801,17 @@ const app = {
   _normTitulo(s) {
     return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  },
+
+  /* Casa un título YA normalizado contra los alias de un campo. Alias de UNA
+     palabra: casa si aparece como token; de VARIAS: como subcadena. Antes se exigía
+     igualdad EXACTA del título completo, y por eso "Cédula (CC)" no casaba con
+     "cedula" y la cédula se perdía. */
+  _tituloCoincide(tituloNorm, alias) {
+    const tokens = tituloNorm.split(' ').filter(Boolean);
+    return alias.some((a) => a.indexOf(' ') !== -1
+      ? tituloNorm.indexOf(a) !== -1
+      : tokens.indexOf(a) !== -1);
   },
 
   _parsearPegado(texto) {
@@ -4813,9 +4826,12 @@ const app = {
     const mapa = {};
     Object.keys(this._COLUMNAS_IMPORT).forEach((campo) => {
       const alias = this._COLUMNAS_IMPORT[campo];
-      const i = titulos.findIndex((t) => t && alias.indexOf(t) !== -1);
+      const i = titulos.findIndex((t) => t && this._tituloCoincide(t, alias));
       if (i !== -1) mapa[campo] = i;
     });
+
+    // Si el roster trae "Apellidos" pero no "Nombres", esa columna ES el nombre.
+    if (mapa.nombre === undefined && mapa.apellido !== undefined) { mapa.nombre = mapa.apellido; delete mapa.apellido; }
 
     if (mapa.nombre === undefined) {
       return { error: 'No se encontró una columna de nombres. Títulos detectados: ' +
@@ -4827,6 +4843,11 @@ const app = {
       const c = celdas(lineas[i]);
       const p = {};
       Object.keys(mapa).forEach((campo) => { p[campo] = (c[mapa[campo]] || '').trim(); });
+      // "Nombres" + "Apellidos" en columnas DISTINTAS → se unen en el nombre completo.
+      if (p.apellido !== undefined) {
+        if (mapa.apellido !== mapa.nombre) p.nombre = (p.nombre + ' ' + p.apellido).trim().replace(/\s+/g, ' ');
+        delete p.apellido;
+      }
       if (p.nombre) filas.push(p);
     }
     return { filas: filas, columnas: Object.keys(mapa) };
