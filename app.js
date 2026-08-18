@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.19';
+const APP_VERSION = '6.20';
 const APP_VERSION_NOTAS = [
+  'v6.20: 📋 La Vista RUE ahora muestra los recursos desplegados con su CLASE. Al ver un reporte y tocar "Ver para RUE", un tercer bloque cruza los vehículos que atendieron con la flota del cuerpo y muestra la clase de cada uno (lo que el RUE pide para categorizar). Si un vehículo no está registrado con clase, lo avisa.',
   'v6.19: 🚒 Vehículos editables. En el Panel de Administrador ahora puede registrar cada vehículo con su indicativo (Móvil 1, M-3…) y su clase (lo que entiende el RUE), sin tocar código. La lista arranca con la flota de siempre; edítela cuando quiera. El indicativo es lo que aparece al reportar. Si un vehículo no carga por falta de señal, el formulario sigue mostrando la lista de siempre.',
   'v6.18: 🔤 Vocabulario alineado con el Sistema Comando de Incidentes (SCI, Res. 358/2014): el botón principal ahora dice "NUEVO INCIDENTE", y la app habla de "incidente" en vez de "emergencia" en las pantallas principales. El nombre de la app (CBVI Reportes) y las citas legales no cambian.',
   'v6.17: 📋 Vista "Ver para RUE". Al ver un reporte en el Panel de Administrador, un botón ordena sus datos en el MISMO orden del formulario oficial del RUE, con un botón Copiar por campo. Avisa qué datos exige el RUE y cuáles conviene verificar. No envía nada solo: el RUE se sigue llenando a mano en su plataforma.',
@@ -5113,6 +5114,8 @@ const app = {
     };
     h += bloque('1 · Nueva Emergencia', d.emergencia);
     h += bloque('2 · Nuevo Detalle Emergencia', d.detalle);
+    // v6.20: recursos desplegados con su clase del RUE (solo si el reporte trae vehículos).
+    if (d.recursos && d.recursos.length) h += bloque('3 · Recursos desplegados (clase para el RUE)', d.recursos);
     document.getElementById('modalRUECuerpo').innerHTML = h;
   },
 
