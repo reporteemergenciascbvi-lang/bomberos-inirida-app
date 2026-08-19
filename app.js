@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.22';
+const APP_VERSION = '6.23';
 const APP_VERSION_NOTAS = [
+  'v6.23: 🗺️ Mapa de Incidentes mejorado. Botones "✓ Todos" y "✕ Ninguno", y un "solo" en cada tipo para ver únicamente ese de un toque (antes había que apagar los demás uno por uno). Nueva capa 🛰️ Satélite (además de calles) y botón 📍 Mi ubicación.',
   'v6.22: 📥 Importar personal, más robusto: reconoce cuando el nombre y el apellido vienen en columnas separadas (los une en el nombre completo) y detecta la cédula aunque el título diga "Cédula (CC)", "Documento" u otras variantes. Antes esas columnas se perdían.',
   'v6.21: ⚡ Nuevo tipo "Incendio en red eléctrica" (transformadores, loncheras, cables y redes del servicio público; en el RUE es FALLA ELÉCTRICA). El término "Incendio de interfaz" vuelve a su significado real: fuego donde el monte se junta con el pueblo.',
   'v6.20: 📋 La Vista RUE ahora muestra los recursos desplegados con su CLASE. Al ver un reporte y tocar "Ver para RUE", un tercer bloque cruza los vehículos que atendieron con la flota del cuerpo y muestra la clase de cada uno (lo que el RUE pide para categorizar). Si un vehículo no está registrado con clase, lo avisa.',
@@ -8194,6 +8195,7 @@ ${paginaFotos}
           +   MESES.map((mn,i) => i ? '<option value="'+String(i).padStart(2,'0')+'">'+mn+'</option>' : '').join('')
           + '</select>'
           + '<button onclick="app._centrarMapaTodos()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a7a5e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🎯 Ver todas</button>'
+          + '<button onclick="app._mapaMiUbicacion()" style="padding:6px 10px;border:none;border-radius:8px;background:#1565c0;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">📍 Mi ubicación</button>'
           + '<button id="mapaBtnFullscreen" onclick="app._toggleMapaFullscreen()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a5276;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">⛶ Pantalla completa</button>'
           + '<span id="mapaContador" style="font-size:12px;color:#555;font-weight:700;"></span>'
           + '</div>';
@@ -8201,9 +8203,16 @@ ${paginaFotos}
 
       if (this._leafletMapa) { this._leafletMapa.remove(); this._leafletMapa = null; }
       this._leafletMapa = L.map(cont).setView([reportes[0].lat, reportes[0].lng], 12);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // v6.23: dos capas base con selector arriba a la derecha. El satélite (Esri)
+      // ayuda en zona rural/ríos donde el callejero (OSM) no marca calles.
+      const capaCalles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19, attribution: '© OpenStreetMap'
-      }).addTo(this._leafletMapa);
+      });
+      const capaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19, attribution: 'Imágenes © Esri'
+      });
+      capaCalles.addTo(this._leafletMapa);
+      L.control.layers({ '🗺️ Calles': capaCalles, '🛰️ Satélite': capaSatelite }, null, { position: 'topright', collapsed: false }).addTo(this._leafletMapa);
 
       // v5.82: cada marcador queda registrado con su etiqueta y fecha para
       // poder filtrar sin volver a pedir nada al servidor.
@@ -8250,13 +8259,23 @@ ${paginaFotos}
     // vayan en (0) — antes solo salían los tipos con al menos un reporte.
     this._MAPA_COLORES.forEach(r => { if (!vistas.has(r.etiqueta)) { vistas.add(r.etiqueta); reglas.push(r); } });
     if (conteo[this._REGLA_SIN_CLASIFICAR.etiqueta]) reglas.push(this._REGLA_SIN_CLASIFICAR);
-    leyenda.innerHTML = '<div style="font-size:11px;color:#666;margin:2px 0 4px;">👆 Toca un tipo para ocultar/mostrar sus pines:</div>'
+    // v6.23: botonera de acciones rápidas. Antes, para ver un SOLO tipo había que
+    // apagar todos los demás uno por uno. Ahora "Todos"/"Ninguno" y "solo" por chip.
+    const botonera = '<div style="display:flex;gap:6px;margin-bottom:6px;">'
+      + '<button onclick="app._mapaMostrarTodos()" style="flex:1;padding:5px 8px;border:1px solid #1a7a5e;background:#1a7a5e;color:#fff;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">✓ Todos</button>'
+      + '<button onclick="app._mapaOcultarTodos()" style="flex:1;padding:5px 8px;border:1px solid #bbb;background:#fff;color:#555;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">✕ Ninguno</button>'
+      + '</div>';
+    leyenda.innerHTML = botonera
+      + '<div style="font-size:11px;color:#666;margin:2px 0 4px;">👆 Toca un tipo para ocultar/mostrar · toca <b>solo</b> para ver únicamente ese:</div>'
       + reglas.map(r => {
         const off = this._mapaEtiquetasOff.has(r.etiqueta);
-        return '<span data-e="' + r.etiqueta.replace(/"/g,'&quot;') + '" onclick="app._toggleFiltroMapa(this.dataset.e)" '
-          + 'style="display:inline-flex;align-items:center;gap:4px;background:' + (off ? '#f0f0f0' : '#fff') + ';border-radius:12px;padding:3px 9px;margin:2px;font-size:11px;border:1.5px solid ' + (off ? '#ddd' : r.color) + ';cursor:pointer;' + (off ? 'opacity:.5;text-decoration:line-through;' : '') + '">'
-          + '<span style="width:10px;height:10px;border-radius:50%;background:' + r.color + ';display:inline-block;"></span>'
-          + r.emoji + ' ' + r.etiqueta + ' (' + (conteo[r.etiqueta] || 0) + ')</span>';
+        const e = r.etiqueta.replace(/"/g,'&quot;');
+        return '<span data-e="' + e + '" onclick="app._toggleFiltroMapa(this.dataset.e)" '
+          + 'style="display:inline-flex;align-items:center;gap:4px;background:' + (off ? '#f0f0f0' : '#fff') + ';border-radius:12px;padding:3px 9px;margin:2px;font-size:11px;border:1.5px solid ' + (off ? '#ddd' : r.color) + ';cursor:pointer;' + (off ? 'opacity:.5;' : '') + '">'
+          + '<span style="width:10px;height:10px;border-radius:50%;background:' + r.color + ';display:inline-block;' + (off ? 'opacity:.4;' : '') + '"></span>'
+          + '<span' + (off ? ' style="text-decoration:line-through;"' : '') + '>' + r.emoji + ' ' + r.etiqueta + ' (' + (conteo[r.etiqueta] || 0) + ')</span>'
+          + '<span data-e="' + e + '" onclick="event.stopPropagation();app._mapaSoloEtiqueta(this.dataset.e)" title="Ver solo este tipo" style="margin-left:2px;padding:1px 6px;border-radius:8px;background:rgba(0,0,0,.08);font-size:9px;font-weight:700;color:#333;">solo</span>'
+          + '</span>';
       }).join('');
   },
 
@@ -8266,6 +8285,44 @@ ${paginaFotos}
     else this._mapaEtiquetasOff.add(etiqueta);
     this._pintarLeyendaMapa();
     this._aplicarFiltroMapa();
+  },
+
+  // v6.23: todas las etiquetas posibles de la leyenda (para "Ninguno" y "solo").
+  _mapaTodasEtiquetas() {
+    const set = new Set();
+    this._MAPA_COLORES.forEach(r => set.add(r.etiqueta));
+    if (this._mapaMarkers && this._mapaMarkers.some(m => m.etiqueta === this._REGLA_SIN_CLASIFICAR.etiqueta)) {
+      set.add(this._REGLA_SIN_CLASIFICAR.etiqueta);
+    }
+    return set;
+  },
+  _mapaMostrarTodos() {
+    this._mapaEtiquetasOff = new Set();
+    this._pintarLeyendaMapa(); this._aplicarFiltroMapa();
+  },
+  _mapaOcultarTodos() {
+    this._mapaEtiquetasOff = this._mapaTodasEtiquetas();
+    this._pintarLeyendaMapa(); this._aplicarFiltroMapa();
+  },
+  _mapaSoloEtiqueta(etiqueta) {
+    const off = this._mapaTodasEtiquetas(); off.delete(etiqueta);
+    this._mapaEtiquetasOff = off;
+    this._pintarLeyendaMapa(); this._aplicarFiltroMapa();
+  },
+
+  // v6.23: centra el mapa en la ubicación GPS del dispositivo (útil en terreno).
+  _mapaMiUbicacion() {
+    if (!this._leafletMapa) return;
+    if (!navigator.geolocation) { this.toast('Tu dispositivo no permite ubicación', 'error'); return; }
+    this.toast('📍 Buscando tu ubicación…', 'info');
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      if (this._mapaMarcadorYo) { try { this._leafletMapa.removeLayer(this._mapaMarcadorYo); } catch (e) {} }
+      this._mapaMarcadorYo = L.circleMarker([lat, lng], { radius: 8, color: '#1565c0', fillColor: '#42a5f5', fillOpacity: 0.9, weight: 3 })
+        .addTo(this._leafletMapa).bindPopup('📍 Estás aquí');
+      this._leafletMapa.setView([lat, lng], 15);
+    }, () => { this.toast('No se pudo obtener tu ubicación (revisa el permiso)', 'error'); },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   },
 
   // v5.82: aplica leyenda + año + mes sobre los marcadores ya creados.
