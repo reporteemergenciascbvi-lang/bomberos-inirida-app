@@ -24,8 +24,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.23';
+const APP_VERSION = '6.25';
 const APP_VERSION_NOTAS = [
+  'v6.25: 🗺️ Mapa más ordenado: los controles ahora se despliegan en dos menús — "⚙️ Herramientas" (fechas y acciones) y "🏷️ Tipos" (la leyenda) — para no saturar la pantalla. Además, filtros rápidos de fecha: Últimos 30 días, Este mes, Este año.',
+  'v6.24: 🗺️ Ajustes al mapa: la capa 🛰️ Satélite ahora deja acercar más (antes salía "sin datos" al hacer zoom, porque el satélite de Inírida llega hasta cierto nivel), y el botón 📍 Mi ubicación dibuja un círculo con la precisión — en el celular con GPS es exacta; en el computador es aproximada (no tiene GPS).',
   'v6.23: 🗺️ Mapa de Incidentes mejorado. Botones "✓ Todos" y "✕ Ninguno", y un "solo" en cada tipo para ver únicamente ese de un toque (antes había que apagar los demás uno por uno). Nueva capa 🛰️ Satélite (además de calles) y botón 📍 Mi ubicación.',
   'v6.22: 📥 Importar personal, más robusto: reconoce cuando el nombre y el apellido vienen en columnas separadas (los une en el nombre completo) y detecta la cédula aunque el título diga "Cédula (CC)", "Documento" u otras variantes. Antes esas columnas se perdían.',
   'v6.21: ⚡ Nuevo tipo "Incendio en red eléctrica" (transformadores, loncheras, cables y redes del servicio público; en el RUE es FALLA ELÉCTRICA). El término "Incendio de interfaz" vuelve a su significado real: fuego donde el monte se junta con el pueblo.',
@@ -8184,20 +8186,38 @@ ${paginaFotos}
         reportes.forEach(r => { const a = String(r.fecha||'').substring(0,4); if (/^\d{4}$/.test(a)) anios.add(a); });
         const MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
         const estiloSel = 'padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12px;background:#fff;';
+        const estiloTog = 'padding:6px 10px;border:1px solid #b9c6d0;border-radius:8px;background:#eef0f2;color:#1a5276;font-size:12px;font-weight:700;cursor:pointer;';
+        const estiloChip = 'padding:5px 9px;border:1px solid #cfd6dc;border-radius:12px;background:#fff;font-size:11px;cursor:pointer;';
+        // v6.25: barra compacta; lo demás vive en menús que se despliegan (⚙️/🏷️) para no
+        // saturar la pantalla — antes eran ~6 botones + 16 chips siempre a la vista.
         filtros.innerHTML =
           '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
-          + '<select id="mapaFiltroAnio" onchange="app._aplicarFiltroMapa()" style="'+estiloSel+'">'
-          +   '<option value="">📅 Todos los años</option>'
-          +   Array.from(anios).sort().reverse().map(a => '<option value="'+a+'">'+a+'</option>').join('')
-          + '</select>'
-          + '<select id="mapaFiltroMes" onchange="app._aplicarFiltroMapa()" style="'+estiloSel+'">'
-          +   '<option value="">Todos los meses</option>'
-          +   MESES.map((mn,i) => i ? '<option value="'+String(i).padStart(2,'0')+'">'+mn+'</option>' : '').join('')
-          + '</select>'
-          + '<button onclick="app._centrarMapaTodos()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a7a5e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🎯 Ver todas</button>'
-          + '<button onclick="app._mapaMiUbicacion()" style="padding:6px 10px;border:none;border-radius:8px;background:#1565c0;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">📍 Mi ubicación</button>'
-          + '<button id="mapaBtnFullscreen" onclick="app._toggleMapaFullscreen()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a5276;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">⛶ Pantalla completa</button>'
-          + '<span id="mapaContador" style="font-size:12px;color:#555;font-weight:700;"></span>'
+          + '<span id="mapaContador" style="font-size:12px;color:#555;font-weight:700;margin-right:2px;"></span>'
+          + '<button id="mapaBtnHerr" onclick="app._mapaTogglePanel(\'herr\')" style="'+estiloTog+'">⚙️ Herramientas ▾</button>'
+          + '<button id="mapaBtnTipos" onclick="app._mapaTogglePanel(\'tipos\')" style="'+estiloTog+'">🏷️ Tipos ▾</button>'
+          + '</div>'
+          + '<div id="mapaPanelHerr" style="display:none;margin-top:6px;background:#f7f9fa;border:1px solid #e6eaed;border-radius:10px;padding:9px;">'
+          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin-bottom:5px;">📅 Fechas</div>'
+          +   '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">'
+          +     '<select id="mapaFiltroAnio" onchange="app._mapaSelectFecha()" style="'+estiloSel+'">'
+          +       '<option value="">Todos los años</option>'
+          +       Array.from(anios).sort().reverse().map(a => '<option value="'+a+'">'+a+'</option>').join('')
+          +     '</select>'
+          +     '<select id="mapaFiltroMes" onchange="app._mapaSelectFecha()" style="'+estiloSel+'">'
+          +       '<option value="">Todos los meses</option>'
+          +       MESES.map((mn,i) => i ? '<option value="'+String(i).padStart(2,'0')+'">'+mn+'</option>' : '').join('')
+          +     '</select>'
+          +     '<button onclick="app._mapaFechaRapida(\'30d\')" style="'+estiloChip+'">Últimos 30 días</button>'
+          +     '<button onclick="app._mapaFechaRapida(\'mes\')" style="'+estiloChip+'">Este mes</button>'
+          +     '<button onclick="app._mapaFechaRapida(\'anio\')" style="'+estiloChip+'">Este año</button>'
+          +     '<button onclick="app._mapaFechaRapida(\'todo\')" style="'+estiloChip+'">Todo</button>'
+          +   '</div>'
+          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin-bottom:5px;">🧭 Acciones</div>'
+          +   '<div style="display:flex;gap:5px;flex-wrap:wrap;">'
+          +     '<button onclick="app._centrarMapaTodos()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a7a5e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🎯 Ver todas</button>'
+          +     '<button onclick="app._mapaMiUbicacion()" style="padding:6px 10px;border:none;border-radius:8px;background:#1565c0;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">📍 Mi ubicación</button>'
+          +     '<button id="mapaBtnFullscreen" onclick="app._toggleMapaFullscreen()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a5276;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">⛶ Pantalla completa</button>'
+          +   '</div>'
           + '</div>';
       }
 
@@ -8209,7 +8229,10 @@ ${paginaFotos}
         maxZoom: 19, attribution: '© OpenStreetMap'
       });
       const capaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        maxZoom: 19, attribution: 'Imágenes © Esri'
+        // Esri no tiene imagen más allá del z17 en zonas remotas (verificado en Inírida:
+        // z18+ devuelve un tile gris "no data available"). maxNativeZoom hace que Leaflet
+        // ESTIRE la imagen del z17 al acercar más (borrosa pero visible) en vez del cartel.
+        maxZoom: 19, maxNativeZoom: 17, attribution: 'Imágenes © Esri'
       });
       capaCalles.addTo(this._leafletMapa);
       L.control.layers({ '🗺️ Calles': capaCalles, '🛰️ Satélite': capaSatelite }, null, { position: 'topright', collapsed: false }).addTo(this._leafletMapa);
@@ -8218,6 +8241,7 @@ ${paginaFotos}
       // poder filtrar sin volver a pedir nada al servidor.
       this._mapaMarkers = [];
       this._mapaEtiquetasOff = new Set();
+      this._mapaDesde = null;   // v6.25: corte para "últimos 30 días" (null = sin corte)
       reportes.forEach(r => {
         const regla = this._reglaPorClasificacion(r.clasificacion);
         const clas = (r.clasificacion || []).join(', ') || 'Sin clasificar';
@@ -8234,9 +8258,10 @@ ${paginaFotos}
           + '</div>';
         const marker = L.marker([r.lat, r.lng], { icon: this._iconoMapa(regla) }).bindPopup(popupHtml);
         marker.addTo(this._leafletMapa);
-        this._mapaMarkers.push({ marker: marker, etiqueta: regla.etiqueta, anio: f.substring(0,4), mes: f.substring(5,7) });
+        this._mapaMarkers.push({ marker: marker, etiqueta: regla.etiqueta, anio: f.substring(0,4), mes: f.substring(5,7), fecha: f.substring(0,10) });
       });
       this._pintarLeyendaMapa();
+      const _ley = document.getElementById('mapaLeyenda'); if (_ley) _ley.style.display = 'none';  // v6.25: cerrada por defecto
       this._aplicarFiltroMapa(true);
     } catch(e) {
       estado.style.display = 'block'; cont.style.display = 'none';
@@ -8317,13 +8342,59 @@ ${paginaFotos}
     this.toast('📍 Buscando tu ubicación…', 'info');
     navigator.geolocation.getCurrentPosition((pos) => {
       const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      if (this._mapaMarcadorYo) { try { this._leafletMapa.removeLayer(this._mapaMarcadorYo); } catch (e) {} }
-      this._mapaMarcadorYo = L.circleMarker([lat, lng], { radius: 8, color: '#1565c0', fillColor: '#42a5f5', fillOpacity: 0.9, weight: 3 })
-        .addTo(this._leafletMapa).bindPopup('📍 Estás aquí');
-      this._leafletMapa.setView([lat, lng], 15);
+      const prec = Math.round(pos.coords.accuracy || 0);   // radio de precisión en metros
+      // Limpiar la marca y el círculo anteriores (si tocó el botón otra vez).
+      if (this._mapaMarcadorYo)  { try { this._leafletMapa.removeLayer(this._mapaMarcadorYo);  } catch (e) {} }
+      if (this._mapaPrecisionYo) { try { this._leafletMapa.removeLayer(this._mapaPrecisionYo); } catch (e) {} }
+      // Círculo de precisión REAL: en PC sin GPS sale grande (WiFi/IP); con el GPS del
+      // teléfono sale chico. Deja claro qué tan aproximada es la ubicación.
+      if (prec > 0) {
+        this._mapaPrecisionYo = L.circle([lat, lng], { radius: prec, color: '#1565c0', weight: 1, fillColor: '#42a5f5', fillOpacity: 0.15 }).addTo(this._leafletMapa);
+      }
+      this._mapaMarcadorYo = L.circleMarker([lat, lng], { radius: 7, color: '#1565c0', fillColor: '#42a5f5', fillOpacity: 0.9, weight: 3 })
+        .addTo(this._leafletMapa).bindPopup('📍 Estás aquí' + (prec ? '<br><small>Precisión: ±' + prec + ' m</small>' : ''));
+      // Encuadrar para que se vea todo el círculo; maxZoom evita acercarse de más.
+      if (this._mapaPrecisionYo) this._leafletMapa.fitBounds(this._mapaPrecisionYo.getBounds(), { padding: [40, 40], maxZoom: 16 });
+      else this._leafletMapa.setView([lat, lng], 15);
+      if (prec > 150) this.toast('📍 Ubicación aproximada (±' + prec + ' m). En el celular con GPS es más precisa.', 'info');
     }, () => { this.toast('No se pudo obtener tu ubicación (revisa el permiso)', 'error'); },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   },
+
+  // v6.25: menús desplegables del mapa (para no saturar la pantalla con botones).
+  _mapaTogglePanel(cual) {
+    const cfg = { herr:  ['mapaPanelHerr', 'mapaBtnHerr',  '⚙️ Herramientas'],
+                  tipos: ['mapaLeyenda',   'mapaBtnTipos', '🏷️ Tipos'] }[cual];
+    if (!cfg) return;
+    const panel = document.getElementById(cfg[0]);
+    if (!panel) return;
+    const abrir = (panel.style.display === 'none' || !panel.style.display);
+    panel.style.display = abrir ? 'block' : 'none';
+    const boton = document.getElementById(cfg[1]);
+    if (boton) boton.innerHTML = cfg[2] + ' ' + (abrir ? '▲' : '▾');
+    // El layout de arriba cambió; Leaflet necesita remedir o queda en blanco.
+    setTimeout(() => { if (this._leafletMapa) this._leafletMapa.invalidateSize(); }, 60);
+  },
+
+  // v6.25: filtros rápidos de fecha. Usan un CORTE inferior (_mapaDesde); como no hay
+  // reportes futuros, "desde X" equivale al periodo pedido. '30d' es un rango rodante
+  // que los desplegables año/mes no pueden hacer.
+  _mapaFechaRapida(tipo) {
+    const selA = document.getElementById('mapaFiltroAnio');
+    const selM = document.getElementById('mapaFiltroMes');
+    if (selA) selA.value = '';
+    if (selM) selM.value = '';
+    const hoy = new Date();
+    const dosd = (n) => String(n).padStart(2, '0');
+    if (tipo === '30d') { const d = new Date(hoy.getTime() - 30 * 864e5); this._mapaDesde = d.getFullYear() + '-' + dosd(d.getMonth() + 1) + '-' + dosd(d.getDate()); }
+    else if (tipo === 'mes')  { this._mapaDesde = hoy.getFullYear() + '-' + dosd(hoy.getMonth() + 1) + '-01'; }
+    else if (tipo === 'anio') { this._mapaDesde = hoy.getFullYear() + '-01-01'; }
+    else { this._mapaDesde = null; }   // 'todo'
+    this._aplicarFiltroMapa();
+  },
+
+  // v6.25: elegir año/mes a mano anula el rango rodante de "últimos 30 días".
+  _mapaSelectFecha() { this._mapaDesde = null; this._aplicarFiltroMapa(); },
 
   // v5.82: aplica leyenda + año + mes sobre los marcadores ya creados.
   // ajustarVista=true solo en la carga inicial (no le mueve el zoom al admin
@@ -8338,7 +8409,8 @@ ${paginaFotos}
     this._mapaMarkers.forEach(m => {
       const pasa = !this._mapaEtiquetasOff.has(m.etiqueta)
         && (!anio || m.anio === anio)
-        && (!mes || m.mes === mes);
+        && (!mes || m.mes === mes)
+        && (!this._mapaDesde || (m.fecha && m.fecha >= this._mapaDesde));
       if (pasa) {
         if (!this._leafletMapa.hasLayer(m.marker)) m.marker.addTo(this._leafletMapa);
         const ll = m.marker.getLatLng(); bounds.push([ll.lat, ll.lng]); visibles++;
