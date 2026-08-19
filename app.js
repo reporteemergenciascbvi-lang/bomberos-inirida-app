@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.26';
+const APP_VERSION = '6.27';
 const APP_VERSION_NOTAS = [
+  'v6.27: 🔥 Mapa de calor. En ⚙️ Herramientas → ✨ Vistas, el botón "Mapa de calor" pinta en rojo las zonas donde más se repiten los incidentes. Respeta el filtro que tengas puesto (tipo y fecha).',
   'v6.26: 🚒 Estación en el mapa. En ⚙️ Herramientas → "Fijar estación (mi ubicación)" guardás dónde queda la estación (parado ahí, una sola vez). Después el mapa muestra un 🚒 y, en cada reporte, a cuántos km está de la estación.',
   'v6.25: 🗺️ Mapa más ordenado: los controles ahora se despliegan en dos menús — "⚙️ Herramientas" (fechas y acciones) y "🏷️ Tipos" (la leyenda) — para no saturar la pantalla. Además, filtros rápidos de fecha: Últimos 30 días, Este mes, Este año.',
   'v6.24: 🗺️ Ajustes al mapa: la capa 🛰️ Satélite ahora deja acercar más (antes salía "sin datos" al hacer zoom, porque el satélite de Inírida llega hasta cierto nivel), y el botón 📍 Mi ubicación dibuja un círculo con la precisión — en el celular con GPS es exacta; en el computador es aproximada (no tiene GPS).',
@@ -8226,6 +8227,10 @@ ${paginaFotos}
                   ? '<button onclick="app._mapaFijarEstacion()" style="'+estiloChip+'">🚒 Cambiar</button><button onclick="app._mapaQuitarEstacion()" style="'+estiloChip+'">Quitar</button>'
                   : '<button onclick="app._mapaFijarEstacion()" style="'+estiloChip+'">🚒 Fijar estación (mi ubicación)</button>')
           +   '</div>'
+          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin:9px 0 5px;">✨ Vistas</div>'
+          +   '<div style="display:flex;gap:5px;flex-wrap:wrap;">'
+          +     '<button id="mapaBtnCalor" onclick="app._mapaToggleCalor()" style="'+estiloChip+'">🔥 Mapa de calor</button>'
+          +   '</div>'
           + '</div>';
       }
 
@@ -8250,6 +8255,7 @@ ${paginaFotos}
       this._mapaMarkers = [];
       this._mapaEtiquetasOff = new Set();
       this._mapaDesde = null;   // v6.25: corte para "últimos 30 días" (null = sin corte)
+      this._mapaHeat = null;    // v6.27: capa de mapa de calor (null = apagada)
       reportes.forEach(r => {
         const regla = this._reglaPorClasificacion(r.clasificacion);
         const clas = (r.clasificacion || []).join(', ') || 'Sin clasificar';
@@ -8411,6 +8417,28 @@ ${paginaFotos}
   // v6.25: elegir año/mes a mano anula el rango rodante de "últimos 30 días".
   _mapaSelectFecha() { this._mapaDesde = null; this._aplicarFiltroMapa(); },
 
+  // v6.27: mapa de calor (leaflet.heat, incrustado en index.html). Pinta dónde se
+  // concentran los incidentes; respeta el filtro (solo cuentan los visibles).
+  _mapaToggleCalor() {
+    if (typeof L === 'undefined' || typeof L.heatLayer !== 'function') { this.toast('El mapa de calor no cargó', 'error'); return; }
+    const btn = document.getElementById('mapaBtnCalor');
+    if (this._mapaHeat) {
+      try { this._leafletMapa.removeLayer(this._mapaHeat); } catch (e) {}
+      this._mapaHeat = null;
+      if (btn) { btn.style.background = '#fff'; btn.style.color = '#333'; }
+    } else {
+      this._mapaConstruirCalor();
+      if (btn) { btn.style.background = '#c62828'; btn.style.color = '#fff'; }
+    }
+  },
+  _mapaConstruirCalor() {
+    if (!this._leafletMapa || typeof L.heatLayer !== 'function') return;
+    const pts = [];
+    this._mapaMarkers.forEach(m => { if (this._mapaMarcadorPasa(m)) { const ll = m.marker.getLatLng(); pts.push([ll.lat, ll.lng, 0.6]); } });
+    if (this._mapaHeat) { try { this._leafletMapa.removeLayer(this._mapaHeat); } catch (e) {} }
+    this._mapaHeat = L.heatLayer(pts, { radius: 25, blur: 18, maxZoom: 17 }).addTo(this._leafletMapa);
+  },
+
   // v6.26: estación de bomberos en el mapa. Se fija con el GPS (parado EN la estación)
   // y se guarda en el dispositivo (localStorage). Con eso el mapa muestra un 🚒 y, en
   // cada reporte, a cuántos km está de la estación. Sirve igual para Inírida y para
@@ -8449,19 +8477,24 @@ ${paginaFotos}
   // v5.82: aplica leyenda + año + mes sobre los marcadores ya creados.
   // ajustarVista=true solo en la carga inicial (no le mueve el zoom al admin
   // cada vez que cambia un filtro).
-  _aplicarFiltroMapa(ajustarVista) {
-    if (!this._leafletMapa || !this._mapaMarkers) return;
+  // v6.27: ¿este marcador pasa los filtros actuales? (tipo + año/mes + rango rodante).
+  // Extraído para que el mapa de calor use EXACTAMENTE el mismo criterio que los pines.
+  _mapaMarcadorPasa(m) {
     const selA = document.getElementById('mapaFiltroAnio');
     const selM = document.getElementById('mapaFiltroMes');
     const anio = selA ? selA.value : '';
     const mes = selM ? selM.value : '';
+    return !this._mapaEtiquetasOff.has(m.etiqueta)
+      && (!anio || m.anio === anio)
+      && (!mes || m.mes === mes)
+      && (!this._mapaDesde || (m.fecha && m.fecha >= this._mapaDesde));
+  },
+
+  _aplicarFiltroMapa(ajustarVista) {
+    if (!this._leafletMapa || !this._mapaMarkers) return;
     const bounds = []; let visibles = 0;
     this._mapaMarkers.forEach(m => {
-      const pasa = !this._mapaEtiquetasOff.has(m.etiqueta)
-        && (!anio || m.anio === anio)
-        && (!mes || m.mes === mes)
-        && (!this._mapaDesde || (m.fecha && m.fecha >= this._mapaDesde));
-      if (pasa) {
+      if (this._mapaMarcadorPasa(m)) {
         if (!this._leafletMapa.hasLayer(m.marker)) m.marker.addTo(this._leafletMapa);
         const ll = m.marker.getLatLng(); bounds.push([ll.lat, ll.lng]); visibles++;
       } else if (this._leafletMapa.hasLayer(m.marker)) {
@@ -8472,6 +8505,7 @@ ${paginaFotos}
     const contador = document.getElementById('mapaContador');
     if (contador) contador.textContent = '📍 ' + visibles + ' de ' + this._mapaMarkers.length;
     if (ajustarVista === true && bounds.length > 1) this._leafletMapa.fitBounds(bounds, { padding: [30, 30] });
+    if (this._mapaHeat) this._mapaConstruirCalor();   // v6.27: el calor sigue el filtro
   },
 
   // v5.82: reencuadra el mapa para ver todos los pines visibles.
