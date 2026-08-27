@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.30';
+const APP_VERSION = '6.31';
 const APP_VERSION_NOTAS = [
+  'v6.31: 🧭 Tour interactivo + 👥 Unidades vinculadas. El recorrido de ayuda ya no es una tarjeta de texto: ahora se mueve de verdad por la app y señala cada botón real, con uno para unidades y otro, más completo, para administradores (escudo, PIN, relevo, nómina, flota, Asistencia, Deudores, Operatividad, Mapa). Además, en el Panel de Administrador → "Unidades vinculadas" (solo el administrador principal), vea todo correo que ya usa la app y bloquéele el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.',
   'v6.30: 🎨 Rediseño visual "Acta Oficial" (el mismo de la app de Cruz de Malta). Tipografía de imprenta (Oswald + Barlow), el rojo institucional del CBVI usado con disciplina y un dorado de seguridad como acento. La app se ve como un instrumento oficial de bomberos. Cambia solo el aspecto: la lógica, la estructura y tus datos NO cambian. Los emojis siguen a color.',
   'v6.29: ✅ Arreglado "Registrar horas cumplidas" en Ver Deudores. Daba el error "_pwd is not defined" y no descontaba la sanción; ahora funciona con tu usuario y PIN, como el resto. (No afectaba a ninguna otra acción.)',
   'v6.28: ⭕ Los pines del mapa ahora se AGRUPAN cuando están amontonados: en vez de muchos marcadores encimados, ves un círculo con el número, y al acercar el zoom se abren. La estación (🚒) y el mapa de calor no se agrupan.',
@@ -1294,6 +1295,14 @@ const app = {
     // Manejar el botón Atrás del navegador y del celular
     history.pushState({ pantalla: 'inicio' }, '');
     window.addEventListener('popstate', (e) => {
+      // v6.31: el botón Atrás del celular cierra el tour antes que cualquier
+      // otra cosa (no tiene sentido navegar atrás de verdad con el tour
+      // encima tapando la app).
+      if (this._tourActivo) {
+        this._cerrarTour();
+        history.pushState({ pantalla: this.pantallaActual }, '');
+        return;
+      }
       // Cerrar menús/modales primero
       const userMenu = document.getElementById('userMenu');
       if (userMenu.classList.contains('visible')) {
@@ -3309,12 +3318,16 @@ const app = {
     // principal. El backend valida igual — esto evita ofrecer botones que fallan.
     const _aw = document.getElementById('adminsWrap');
     if (_aw) _aw.style.display = this.esSuperAdmin() ? 'block' : 'none';
+    // v6.31: unidades vinculadas — mismo criterio que Administradores.
+    const _uw = document.getElementById('unidadesWrap');
+    if (_uw) _uw.style.display = this.esSuperAdmin() ? 'block' : 'none';
     // v6.05: las cajas se llenan SOLAS al abrir el Panel. Hasta v6.04 solo se
     // hacían visibles y quedaban vacías: un título, un texto que hablaba de una
     // lista, y ninguna lista. Por eso se veía "de adorno" (lo reportó Jeferson).
     // Sin await a propósito: son datos secundarios y no deben demorar la apertura
     // del Panel ni romperla si el servidor tarda o falla.
     if (_aw && _aw.style.display === 'block') this.cargarAdministradores();
+    if (_uw && _uw.style.display === 'block') this.cargarUnidadesVinculadas();
     // v6.07: el buscador arranca limpio en cada apertura. Sin esto, si habías
     // filtrado antes de salir, al volver la lista aparecía recortada y parecía
     // que faltaba personal.
@@ -3417,6 +3430,95 @@ const app = {
       } catch (e) {
         this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
         await this.cargarAdministradores();
+      }
+    });
+  },
+
+  /* ═══ v6.31: UNIDADES VINCULADAS — quién usa la app, y bloquear/desbloquear ═══
+     Mismo patrón que Administradores (arriba): _conBloqueo anti-doble-click,
+     app.confirmar() en vez de confirm() nativo (I4), data-* en vez de IDs
+     escapados en el onclick (I10), _esc() en todo lo que viene del servidor (I5). */
+  async cargarUnidadesVinculadas(btn) {
+    const cont = document.getElementById('listaUnidadesVinculadas');
+    if (!cont) return;
+    if (btn) return this._conBloqueo(btn, 'Actualizando...', () => this.cargarUnidadesVinculadas());
+    cont.innerHTML = this._skeleton(3, 'linea');
+    try {
+      const resp = await fetch(URL_BACKEND, { method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ accion:'listarUnidadesVinculadas', adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+      const d = await resp.json();
+      if (!d.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
+      if (!d.unidades || !d.unidades.length) {
+        cont.innerHTML = '<div style="font-size:11px;color:#999;padding:8px;">Todavía nadie ha iniciado sesión en la app.</div>';
+        return;
+      }
+      const miCorreo = String((this.usuario&&this.usuario.email)||'').toLowerCase().trim();
+      cont.innerHTML = d.unidades.map(u => {
+        const correoCrudo = String(u.correo||'').toLowerCase().trim();
+        const correo = app._esc(u.correo||'');
+        const nombre = app._esc(u.nombre||'');
+        const visto = u.ultimoAcceso ? app._esc(new Date(u.ultimoAcceso).toLocaleString('es-CO', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})) : 'nunca entró';
+        const bloqueada = !!u.bloqueado;
+        let botones = '';
+        if (u.esSuper) {
+          botones = '<span style="font-size:9px;color:#991b1b;font-weight:700;">(TÚ — no se puede bloquear)</span>';
+        } else if (correoCrudo === miCorreo) {
+          botones = '<span style="font-size:9px;color:#666;">(no puede bloquearse a sí mismo)</span>';
+        } else if (bloqueada) {
+          botones = '<button data-co="'+correo+'" onclick="app.desbloquearUnidadApp(this, this.dataset.co)" style="padding:6px 10px;background:#166534;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Desbloquear</button>';
+        } else {
+          botones = '<button data-co="'+correo+'" onclick="app.bloquearUnidadApp(this, this.dataset.co)" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">Bloquear</button>';
+        }
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #fecaca;'+(bloqueada?'opacity:0.6;':'')+'">'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:12px;font-weight:600;color:#1f2937;word-break:break-all;">'+(nombre||correo)
+          + (u.esAdmin && !u.esSuper ? ' <span style="font-size:9px;color:#991b1b;font-weight:700;">(admin)</span>' : '')
+          + (bloqueada ? ' <span style="font-size:9px;color:#991b1b;font-weight:700;">(bloqueada)</span>' : '') + '</div>'
+          + (nombre ? '<div style="font-size:10px;color:#94a3b8;word-break:break-all;">'+correo+'</div>' : '')
+          + '<div style="font-size:10px;color:#94a3b8;">Última vez: '+visto+'</div>'
+          + '</div>' + botones + '</div>';
+      }).join('');
+    } catch (e) {
+      cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">Error de red: '+app._esc(e.message||'')+'</div>';
+    }
+  },
+
+  async bloquearUnidadApp(btn, correo) {
+    const ok = await this.confirmar('Bloquear acceso',
+      `¿Bloquear el acceso a la app de "${correo}"? No podrá volver a entrar hasta que lo desbloquee. No borra sus datos ni lo saca de Personal.`);
+    if (!ok) return;
+    await this._conBloqueo(btn, 'Bloqueando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'bloquearUnidad', correo: correo,
+            adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+        const d = await resp.json();
+        if (!d.ok) { this.toast('Error: ' + (d.error||'?'), 'error'); return; }
+        this.toast('🚫 ' + (d.mensaje||'Bloqueado'), 'info');
+        await this.cargarUnidadesVinculadas();
+      } catch (e) {
+        this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+        await this.cargarUnidadesVinculadas();
+      }
+    });
+  },
+
+  async desbloquearUnidadApp(btn, correo) {
+    await this._conBloqueo(btn, 'Restaurando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'desbloquearUnidad', correo: correo,
+            adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
+        const d = await resp.json();
+        if (!d.ok) { this.toast('Error: ' + (d.error||'?'), 'error'); return; }
+        this.toast('✅ ' + (d.mensaje||'Restaurado'), 'exito');
+        await this.cargarUnidadesVinculadas();
+      } catch (e) {
+        this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+        await this.cargarUnidadesVinculadas();
       }
     });
   },
@@ -4717,6 +4819,9 @@ const app = {
       btn.textContent = hay ? '🎬 Ver tutorial en video' : '🎬 Video: próximamente';
       btn.style.opacity = hay ? '' : '0.6';
     }
+    // v6.31: el tour de administrador solo se ofrece a quien lo es.
+    const btnTA = document.getElementById('btnTourAdmin');
+    if (btnTA) btnTA.style.display = this.esAdmin() ? 'block' : 'none';
   },
 
   abrirVideoTutorial() {
@@ -4725,71 +4830,234 @@ const app = {
     try { window.open(url, '_blank', 'noopener'); } catch (e) { location.href = url; }
   },
 
-  /* Ofrece el recorrido UNA sola vez, tras el primer Inicio. Guarda el flag apenas
-     lo ofrece (no cuando lo termina): así, si lo omite, no vuelve a molestar. */
+  /* ═══ Tour interactivo "Bitácora de Guardia" (v6.31, portado del Producto) ═══
+     La app navega de verdad con irA(); un anillo dorado (#tourAnillo) señala el
+     elemento real y un panel inferior (#tourPanel) narra cada paso, sin
+     oscurecer el resto de la pantalla. #tourCatcher absorbe los toques sobre la
+     app real mientras el tour está activo, para que ninguna acción real se
+     dispare por accidente (Regla 1).
+     Adaptado a lo que Inírida SÍ tiene y el Producto no (Asistencia, Deudores),
+     y SIN lo que el Producto sí tiene y acá no existe (invitar por link/QR,
+     solicitudes de ingreso: acá el personal se carga por Excel, no por
+     auto-registro). "Quién opera"/relevo SÍ mantiene el lenguaje de guardia:
+     acá es una estación real con turnos de guardia de verdad (a diferencia del
+     Producto, donde ese lenguaje no aplicaba). */
   _ofrecerTour() {
-    try { if (localStorage.getItem('app_tour_visto')) return; } catch (e) { return; }
-    try { localStorage.setItem('app_tour_visto', '1'); } catch (e) {}
-    setTimeout(() => { try { this._preguntarTour(); } catch (e) {} }, 700);
+    const esAdm = this.esAdmin();
+    // v6.31: dos tours separados con su propia bandera — quien entró como
+    // unidad y luego se volvió admin recibe la oferta del tour de admin una
+    // sola vez, sin repetirle el básico que ya vio.
+    const clave = esAdm ? 'app_tour_visto_admin' : 'app_tour_visto_operativo';
+    if (this._tourActivo) return;
+    try { if (localStorage.getItem(clave)) return; } catch (e) { return; }
+    try { localStorage.setItem(clave, '1'); } catch (e) {}
+    setTimeout(() => { try { this._preguntarTour(esAdm ? 'admin' : 'no_admin'); } catch (e) {} }, 700);
   },
 
-  _preguntarTour() {
+  _preguntarTour(rol) {
+    const esAdm = rol === 'admin';
     const m = document.createElement('div');
-    m.className = 'modal-js';
-    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;';
-    m.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3);">'
-      + '<div style="font-size:40px;">🚒</div>'
-      + '<div style="font-size:17px;font-weight:800;color:var(--rojo);margin:8px 0 4px;">¡Bienvenido!</div>'
-      + '<div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:18px;">¿Quiere un recorrido rápido de la app? Toma menos de un minuto y lo puede saltar cuando quiera.</div>'
-      + '<button id="_tourVer" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:10px;padding:13px;font-weight:700;cursor:pointer;font-size:15px;margin-bottom:8px;">▶️ Ver recorrido</button>'
-      + '<button id="_tourNo" style="width:100%;background:#f5f5f5;color:#555;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer;font-size:13px;">Omitir</button>'
+    m.className = 'cbvi-modal-js';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(26,21,18,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;';
+    m.innerHTML = '<div style="background:#fff;border-radius:var(--radio-lg);padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:var(--sombra-fuerte);border-top:4px solid var(--oro);">'
+      + '<div style="font-size:38px;">' + (esAdm ? '🛡️' : '🚒') + '</div>'
+      + '<div style="font-family:var(--disp);font-size:17px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;color:var(--rojo);margin:8px 0 4px;">¡Bienvenido' + (esAdm ? ', administrador' : '') + '!</div>'
+      + '<div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:18px;">¿Quiere un recorrido interactivo por la app' + (esAdm ? ', enfocado en lo que solo usted administra' : '') + '? Se mueve por las pantallas reales y lo puede saltar cuando quiera.</div>'
+      + '<button id="_tourVer" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:var(--radio);padding:13px;font-weight:700;cursor:pointer;font-size:15px;margin-bottom:8px;font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;">▶️ Ver recorrido</button>'
+      + '<button id="_tourNo" style="width:100%;background:#f5f5f5;color:#555;border:none;border-radius:var(--radio);padding:11px;font-weight:700;cursor:pointer;font-size:13px;">Omitir</button>'
       + '<div style="font-size:11px;color:#999;margin-top:12px;">Siempre puede verlo de nuevo en <b>ℹ️ Acerca de</b>.</div>'
       + '</div>';
     document.body.appendChild(m);
     const cerrar = () => { try { document.body.removeChild(m); } catch (e) {} };
     m.querySelector('#_tourNo').onclick = cerrar;
-    m.querySelector('#_tourVer').onclick = () => { cerrar(); this.mostrarTour(); };
+    m.querySelector('#_tourVer').onclick = () => { cerrar(); this.mostrarTour(rol); };
   },
 
-  /* Pasos del recorrido, con las pantallas REALES de Inírida. Texto por defecto;
-     Jeferson lo ajusta cuando quiera — es una sola lista, no toca la lógica. */
-  _PASOS_TOUR: [
-    { icono: '🚨', titulo: 'Nuevo reporte', texto: 'El botón rojo grande del inicio. Registra una emergencia con todos sus datos: clasificación, ubicación GPS, recursos, víctimas y firmas. Si no hay internet, queda pendiente y se envía solo cuando vuelve la señal.' },
-    { icono: '🎯', titulo: 'Actividades', texto: 'Capacitaciones, reuniones, mantenimientos. Cada actividad registra quién participó y cuántas horas, y eso alimenta la operatividad del personal.' },
-    { icono: '📅', titulo: 'Asistencia y sanciones', texto: 'La asistencia de los domingos y las sanciones por inasistencia. La guardia la registra con su PIN, sin depender de la contraseña de administrador, y queda anotado quién lo hizo.' },
-    { icono: '📊', titulo: 'Operatividad', texto: 'El ranking del personal: incidentes atendidos y horas de actividad, por persona. Solo lo ve el administrador.' },
-    { icono: '🛡️', titulo: 'Panel de Administrador', texto: 'El corazón de la app: ver, editar e imprimir todos los reportes, el escudo del cuerpo, los PIN de las unidades y quiénes son administradores.' },
-    { icono: 'ℹ️', titulo: 'Ayuda siempre a mano', texto: 'En el inicio, los botones Manual, Cómo funciona, Bases legales y Acerca de. Ahí puede volver a ver este recorrido y, pronto, un video con el paso a paso.' }
+  /* Guion del tour para unidades SIN permisos admin. Todo dentro de Inicio +
+     Configuración (ambas sin efectos reales): no navega a pantallaForm ni al
+     detalle de un incidente porque abrirlos de verdad exige efectos reales
+     (nuevoReporte() pide GPS, el detalle necesita un incidente real) que el
+     tour no debe disparar (Regla 1). */
+  _TOUR_NO_ADMIN: [
+    { id: 'nuevo-incidente', pantalla: 'pantallaHome', selector: '[data-tour="cta-nuevo-incidente"]', icono: '🚨', titulo: 'Nuevo incidente', texto: 'Registra un incidente oficial: clasificación, ubicación por GPS automático, recursos, víctimas y firmas en 13 secciones con barra de avance. Sin señal igual queda guardado y se envía solo cuando vuelva a tener señal.' },
+    { id: 'contadores', pantalla: 'pantallaHome', selector: '[data-tour="stats-home"]', icono: '🔢', titulo: 'Sus contadores', texto: 'Total es todo lo que usted ha registrado. Pendientes es lo que guardó sin señal — se envía solo, o lo puede forzar desde Configuración. Enviados ya quedó en el servidor.' },
+    { id: 'informes', pantalla: 'pantallaHome', selector: '[data-tour="informes-recientes"]', icono: '🧾', titulo: 'Incidentes recientes', texto: 'Toque cualquiera para ver su detalle: ahí imprime el PDF oficial, ve el resumen listo para copiar al RUE, o lo edita durante las primeras 24 horas. Cada quien ve solo sus propios incidentes.' },
+    { id: 'actividades', pantalla: 'pantallaHome', selector: '[data-tour="fila-registrar"]', icono: '🎯', titulo: 'Nueva actividad', texto: 'Acá registra lo que no es un incidente: capacitaciones, entrenamientos, jornadas. La asistencia de los domingos la registra el administrador, en 📅 Asistencia.' },
+    { id: 'config-perfil', pantalla: 'pantallaConfig', selector: '[data-tour="config-perfil"]', icono: '👤', titulo: 'Su perfil', texto: 'Por el avatar de arriba a la derecha llega aquí: corrija su nombre, grado, cédula y teléfono, elija el diseño de la app, y sincronice sus incidentes pendientes cuando quiera.' },
+    { id: 'ayuda', pantalla: 'pantallaHome', selector: '[data-tour="ayuda-home"]', icono: '📖', titulo: 'Manual y ayuda', texto: 'Manual explica cada pantalla paso a paso, Cómo funciona cuenta dónde viven sus datos, y Bases legales reúne la norma nacional que respalda cada informe.' },
+    { id: 'cierre', pantalla: 'pantallaHome', selector: '[data-tour="lema-home"]', icono: '🎖️', titulo: 'Listo para operar', texto: 'Operatividad, Deudores, Mapa, Asistencia y Panel de administrador quedan solo para su administrador. Ya conoce lo que necesita para trabajar.' }
   ],
 
-  mostrarTour(desdeAcerca) {
-    let i = 0;
-    const pasos = this._PASOS_TOUR;
-    const m = document.createElement('div');
-    m.className = 'modal-js';
-    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-    document.body.appendChild(m);
-    const cerrar = () => { try { document.body.removeChild(m); } catch (e) {} };
-    const pintar = () => {
-      const p = pasos[i];
-      const puntos = pasos.map((_, k) => '<span style="width:7px;height:7px;border-radius:50%;display:inline-block;margin:0 3px;background:' + (k === i ? 'var(--rojo)' : '#ddd') + ';"></span>').join('');
-      const ultimo = i === pasos.length - 1;
-      m.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:350px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.3);">'
-        + '<div style="text-align:right;"><span id="_tX" style="font-size:20px;color:#bbb;cursor:pointer;line-height:1;">✕</span></div>'
-        + '<div style="text-align:center;font-size:44px;margin-top:-6px;">' + p.icono + '</div>'
-        + '<div style="text-align:center;font-size:12px;color:#999;font-weight:700;">Paso ' + (i + 1) + ' de ' + pasos.length + '</div>'
-        + '<div style="text-align:center;font-size:18px;font-weight:800;color:var(--rojo);margin:6px 0 8px;">' + app._esc(p.titulo) + '</div>'
-        + '<div style="font-size:13px;color:#555;line-height:1.6;text-align:center;min-height:96px;">' + app._esc(p.texto) + '</div>'
-        + '<div style="text-align:center;margin:14px 0;">' + puntos + '</div>'
-        + '<div style="display:flex;gap:8px;">'
-        + (i > 0 ? '<button id="_tPrev" style="flex:1;background:#f5f5f5;color:#333;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;">← Atrás</button>' : '')
-        + '<button id="_tNext" style="flex:2;background:var(--rojo);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:15px;">' + (ultimo ? '¡Listo!' : 'Siguiente →') + '</button>'
-        + '</div></div>';
-      m.querySelector('#_tX').onclick = cerrar;
-      const prev = m.querySelector('#_tPrev'); if (prev) prev.onclick = () => { i--; pintar(); };
-      m.querySelector('#_tNext').onclick = () => { if (ultimo) cerrar(); else { i++; pintar(); } };
+  /* Guion del tour para administradores. Más largo a propósito: es quien
+     necesita entender TODO el sistema, incluido lo exclusivo de Inírida
+     (Asistencia de guardia, Deudores de sanción) que el Producto no tiene.
+     Entra al Panel Admin navegando directo (irA), SIN pedir la contraseña ni
+     firmar: eso es un candado real que el tour no debe destrabar por su
+     cuenta. Las tarjetas se ven vacías/con datos viejos hasta que se abre el
+     Panel de verdad — no rompe nada, solo no fuerza una apertura real. */
+  _TOUR_ADMIN: [
+    { id: 'bienvenida-admin', pantalla: 'pantallaHome', selector: '[data-tour="fila-consultar"]', icono: '🛡️', titulo: 'Bienvenido, administrador', texto: 'Ya conoce Nuevo Incidente y Actividades igual que cualquier unidad. Este recorrido es distinto: todo lo que solo ve un administrador, empezando por esta fila y siguiendo por el Panel de Administrador.' },
+    { id: 'datos', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-titulo"]', icono: '🗄️', titulo: 'Dónde viven sus datos', texto: 'Todo lo que se registra queda en el Google Sheets del CBVI, bajo la cuenta institucional — no es un servidor externo. Puede abrirlo y revisarlo, y se respalda solo todos los días.' },
+    { id: 'escudo', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-escudo"]', icono: '🎖️', titulo: 'Escudo del cuerpo', texto: 'Suba el escudo del CBVI: reemplaza el escudo por defecto en el encabezado, la pantalla de inicio y el PDF de cada informe.' },
+    { id: 'relevo', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-relevo"]', icono: '🪪', titulo: 'Quién opera', texto: 'Acá se ve qué unidad está firmando de guardia ahora mismo. Al cambiar de turno, toque "Cambiar (relevo)" para que quien entra firme con su propio PIN y no quede todo a nombre del turno anterior.' },
+    { id: 'llaves', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-pins"]', icono: '🔑', titulo: 'PIN de las unidades', texto: 'Cada unidad necesita un PIN de 4 dígitos para firmar lo que hace de guardia. Se guardan cifrados — ni usted los ve, solo los reemplaza.' },
+    { id: 'unidades-vinculadas', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-unidades"]', icono: '👥', titulo: 'Quién usa la app', texto: 'Solo si usted es el administrador principal: acá ve todo correo que ya inició sesión, cuándo fue su último ingreso, y puede bloquearle el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.' },
+    { id: 'importar', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-importar"]', icono: '📋', titulo: 'Cargar su nómina', texto: 'Pegue su lista completa desde el Excel que ya tiene. Reconoce las columnas por el título, no por el orden, y solo agrega a quien todavía no esté: no borra ni pisa nada.' },
+    { id: 'flota', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-vehiculos"]', icono: '🚒', titulo: 'Vehículos del cuerpo', texto: 'Registre cada vehículo con el indicativo que usan en la radio — Móvil 1, M-3 — y su clase, que es lo que entiende el RUE.' },
+    { id: 'operatividad', pantalla: 'pantallaOperatividad', selector: '[data-tour="operatividad-titulo"]', icono: '📊', titulo: 'El ranking', texto: 'El puntaje de cada unidad suma incidentes, horas de actividad y asistencia a domingos. Vea el ranking general o busque a una unidad puntual.' },
+    { id: 'asistencia', pantalla: 'pantallaAsistencia', selector: '[data-tour="asistencia-titulo"]', icono: '📅', titulo: 'Asistencia de domingos', texto: 'Registre quién asistió a la guardia dominical, con fecha y tipo de reunión. La unidad firma con su propio PIN — queda anotado quién lo hizo, sin depender de su contraseña.' },
+    { id: 'deudores', pantalla: 'pantallaDeudores', selector: '[data-tour="deudores-titulo"]', icono: '⚠️', titulo: 'Deudores de sanción', texto: 'Quién debe horas de sanción por inasistencia, y desde acá registra las horas que ya cumplió. El registro de la asistencia en sí se hace en 📅 Asistencia.' },
+    { id: 'mapa', pantalla: 'pantallaMapa', selector: '[data-tour="mapa-titulo"]', icono: '🗺️', titulo: 'Mapa de emergencias', texto: 'Cada incidente con coordenadas aparece como un pin con el emoji de su tipo, y la leyenda filtra lo que ve.' },
+    { id: 'zona-admin', pantalla: 'pantallaConfig', selector: '#zonaAdmin', icono: '⭐', titulo: 'Zona Administrador', texto: 'Defina el prefijo del consecutivo (por defecto "RE") — el servidor sigue asignando el número automático al enviar. Esta sección es solo para casos excepcionales.' },
+    { id: 'cierre-admin', pantalla: 'pantallaHome', selector: '[data-tour="lema-home"]', icono: '🎖️', titulo: 'Listo para administrar', texto: 'Ya conoce el escudo, el relevo, las llaves, quién usa la app, la nómina, la flota, el ranking, asistencia, deudores y el mapa. Puede volver a ver este recorrido cuando quiera desde Acerca de.' }
+  ],
+
+  mostrarTour(rol) {
+    if (this._tourActivo) return;
+    const esAdminRol = rol === 'admin' || (rol == null && this.esAdmin());
+    if (esAdminRol && !this.esAdmin()) { this.toast('Solo administradores pueden ver este recorrido', 'error'); return; }
+    // Marca el flag también cuando se abre a mano desde Acerca de (no solo
+    // cuando lo ofrece _ofrecerTour): si no, al volver a Inicio al cerrarlo
+    // _ofrecerTour() lo volvería a ofrecer como si fuera la primera vez.
+    try { localStorage.setItem(esAdminRol ? 'app_tour_visto_admin' : 'app_tour_visto_operativo', '1'); } catch (e) {}
+    this._tourActivo = true;
+    this._tourTransicionando = false;
+    this._tourOrigen = this.pantallaActual;
+    this._tourPasos = esAdminRol ? this._TOUR_ADMIN : this._TOUR_NO_ADMIN;
+    this._construirCapasTour();
+    this._pasoTour(0);
+  },
+
+  _construirCapasTour() {
+    if (!document.getElementById('tourCatcher')) {
+      const catcher = document.createElement('div');
+      catcher.id = 'tourCatcher';
+      catcher.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+      catcher.addEventListener('wheel', e => e.preventDefault(), { passive: false });
+      document.body.appendChild(catcher);
+    }
+    if (!document.getElementById('tourAnillo')) {
+      const anillo = document.createElement('div');
+      anillo.id = 'tourAnillo';
+      anillo.style.opacity = '0';
+      document.body.appendChild(anillo);
+    }
+    if (!document.getElementById('tourPanel')) {
+      document.body.appendChild(document.createElement('div')).id = 'tourPanel';
+    }
+  },
+
+  async _pasoTour(i) {
+    if (!this._tourActivo) return;
+    // v6.31: mientras se arma un paso (navegar + posicionar el anillo) el botón
+    // VIEJO de "Siguiente" sigue en pantalla y sigue respondiendo — un toque
+    // impaciente ahí disparaba OTRO _pasoTour() encimado al que ya estaba en
+    // curso. Mismo espíritu que _conBloqueo en el resto de la app.
+    if (this._tourTransicionando) return;
+    this._tourTransicionando = true;
+    const pasos = this._tourPasos;
+    if (!pasos || i < 0 || i >= pasos.length) { this._tourTransicionando = false; return; }
+    this._tourIndice = i;
+    const paso = pasos[i];
+    const anillo = document.getElementById('tourAnillo');
+    if (anillo) anillo.style.opacity = '0';
+    try {
+      if (paso.pantalla && this.pantallaActual !== paso.pantalla) {
+        this.irA(paso.pantalla, true);
+        await new Promise(r => setTimeout(r, 380));
+      }
+      if (!this._tourActivo) return; // se pudo cerrar mientras esperábamos
+      await this._posicionarAnillo(paso.selector);
+      if (!this._tourActivo) return;
+      this._pintarPanelTour(paso, i, pasos.length);
+    } catch (e) {
+      // Red de seguridad: un fallo del tour nunca debe tapar la app real.
+      this._cerrarTour();
+    } finally {
+      this._tourTransicionando = false;
+    }
+  },
+
+  async _posicionarAnillo(selector) {
+    const anillo = document.getElementById('tourAnillo');
+    if (!anillo) return;
+    if (!selector) { anillo.style.opacity = '0'; return; }
+    let el = null;
+    for (let intento = 0; intento < 10; intento++) {
+      el = document.querySelector(selector);
+      if (el && el.offsetParent !== null) break;
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    // Elemento no encontrado (p. ej. un atributo data-tour se borró en otra
+    // sesión): el panel se sigue viendo, solo sin anillo. Nunca se cuelga.
+    if (!el || el.offsetParent === null) { anillo.style.opacity = '0'; return; }
+    const panel = document.getElementById('tourPanel');
+    try { document.documentElement.style.scrollPaddingBottom = (panel ? panel.offsetHeight + 20 : 140) + 'px'; } catch (e) {}
+    // v6.31: salto instantáneo ('auto'), NO 'smooth'. Un scroll animado no se
+    // puede esperar de forma confiable con setTimeout/rAF (se probó en el
+    // Producto y siguió midiendo la posición VIEJA de forma reproducible, con
+    // el anillo sobre el elemento equivocado). El salto es menos vistoso, pero
+    // SIEMPRE cae en el lugar correcto.
+    try { el.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (e) {}
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    if (!this._tourActivo) return;
+    const r2 = el.getBoundingClientRect();
+    const PAD = 7;
+    anillo.style.top = (r2.top - PAD) + 'px';
+    anillo.style.left = (r2.left - PAD) + 'px';
+    anillo.style.width = (r2.width + PAD * 2) + 'px';
+    anillo.style.height = (r2.height + PAD * 2) + 'px';
+    anillo.style.opacity = '1';
+  },
+
+  _pintarPanelTour(paso, i, total) {
+    const panel = document.getElementById('tourPanel');
+    if (!panel) return;
+    const ultimo = i === total - 1;
+    panel.innerHTML = '<div class="tour-franja"></div>'
+      + '<div class="tour-cuerpo">'
+      + '<div class="tour-sello"><span class="icono">' + paso.icono + '</span><span class="paso">Paso ' + (i + 1) + ' de ' + total + '</span></div>'
+      + '<div class="tour-titulo">' + this._esc(paso.titulo) + '</div>'
+      + '<div class="tour-texto">' + this._esc(paso.texto) + '</div>'
+      + '<div class="tour-progreso-track"><div class="tour-progreso-fill" style="width:' + Math.round(((i + 1) / total) * 100) + '%;"></div></div>'
+      + '<div class="tour-acciones">'
+      + (i > 0 ? '<button class="tour-btn tour-btn-atras" id="_tAtras">← Atrás</button>' : '')
+      + '<button class="tour-btn tour-btn-siguiente" id="_tSiguiente">' + (ultimo ? '¡Listo! ✔' : 'Siguiente →') + '</button>'
+      + '</div>'
+      + '<div class="tour-fila-cierre">'
+      + '<button class="tour-saltar" id="_tSaltar">Saltar recorrido</button>'
+      + '<button class="tour-cerrar" id="_tCerrar" aria-label="Cerrar recorrido">✕</button>'
+      + '</div>'
+      + '</div>';
+    const bAtras = document.getElementById('_tAtras');
+    if (bAtras) bAtras.onclick = () => this._pasoTour(i - 1);
+    document.getElementById('_tSiguiente').onclick = () => { if (ultimo) this._cerrarTour(); else this._pasoTour(i + 1); };
+    document.getElementById('_tCerrar').onclick = () => this._cerrarTour();
+    document.getElementById('_tSaltar').onclick = async () => {
+      if (i === 0) { this._cerrarTour(); return; }
+      // El catcher (z-index 9490) queda por encima del modal de confirmar
+      // (.modal-fondo, z-index 200): sin bajarle pointer-events, se comería
+      // el toque en "Sí/No" y el modal se vería pero no respondería a nada.
+      const catcher = document.getElementById('tourCatcher');
+      if (catcher) catcher.style.pointerEvents = 'none';
+      const ok = await this.confirmar('Salir del recorrido', '¿Seguro? Puede volver a verlo cuando quiera desde ℹ️ Acerca de.');
+      if (catcher) catcher.style.pointerEvents = 'auto';
+      if (ok) this._cerrarTour();
     };
-    pintar();
+  },
+
+  _cerrarTour() {
+    if (!this._tourActivo) return;
+    this._tourActivo = false;
+    try { document.documentElement.style.scrollPaddingBottom = ''; } catch (e) {}
+    ['tourPanel', 'tourAnillo', 'tourCatcher'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
+    const origen = this._tourOrigen || 'pantallaHome';
+    this._tourOrigen = null;
+    this._tourPasos = null;
+    if (this.pantallaActual !== origen) this.irA(origen, true);
   },
 
   /* ═══════════════ IMPORTAR PERSONAL (pegar desde Excel) ═══════════════
