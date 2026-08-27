@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.31';
+const APP_VERSION = '6.32';
 const APP_VERSION_NOTAS = [
+  'v6.32: 🪪 Al entrar al Panel de Administrador, el PIN ahora pregunta "¿qué administrador entra?" en vez de "¿quién está de guardia?" — esa pregunta se queda donde sí aplica (sanciones, asistencia, etc.), porque a Panel Admin solo entran administradores. Además, si "🚒 Vehículos del cuerpo" no logra cargar (sin señal, servidor ocupado), ahora avisa "no se pudo cargar" en vez de decir "todavía no hay vehículos" como si se hubieran borrado.',
   'v6.31: 🧭 Tour interactivo + 👥 Unidades vinculadas. El recorrido de ayuda ya no es una tarjeta de texto: ahora se mueve de verdad por la app y señala cada botón real, con uno para unidades y otro, más completo, para administradores (escudo, PIN, relevo, nómina, flota, Asistencia, Deudores, Operatividad, Mapa). Además, en el Panel de Administrador → "Unidades vinculadas" (solo el administrador principal), vea todo correo que ya usa la app y bloquéele el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.',
   'v6.30: 🎨 Rediseño visual "Acta Oficial" (el mismo de la app de Cruz de Malta). Tipografía de imprenta (Oswald + Barlow), el rojo institucional del CBVI usado con disciplina y un dorado de seguridad como acento. La app se ve como un instrumento oficial de bomberos. Cambia solo el aspecto: la lógica, la estructura y tus datos NO cambian. Los emojis siguen a color.',
   'v6.29: ✅ Arreglado "Registrar horas cumplidas" en Ver Deudores. Daba el error "_pwd is not defined" y no descontaba la sanción; ahora funciona con tu usuario y PIN, como el resto. (No afectaba a ninguna otra acción.)',
@@ -3297,7 +3298,9 @@ const app = {
     }
     // Pedir contraseña — el backend valida, no el frontend
     // v5.63: modal propio (window.prompt está bloqueado en el APK)
-    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+    // v6.32: 'panelAdmin' → el modal de firma pregunta "qué administrador
+    // entra", no "quién está de guardia" (los guardias no llegan hasta acá).
+    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador', 'panelAdmin');
     if (!pw) return;
     this._adminAutorizado = true;
     this.irA('pantallaPanelAdmin');
@@ -5216,9 +5219,22 @@ const app = {
         body: JSON.stringify({ accion: 'listarVehiculos', adminEmail: (this.usuario && this.usuario.email) || '', adminPassword: this._adminPwdSession || '' })
       });
       const d = await r.json();
-      this._flota = (d && d.ok && Array.isArray(d.vehiculos)) ? d.vehiculos : (this._flota || []);
+      if (d && d.ok && Array.isArray(d.vehiculos)) {
+        this._flota = d.vehiculos;
+        this._flotaError = false;
+      } else {
+        // v6.32: el servidor respondió pero no trajo la lista (ok:false, sin
+        // red interna, etc.) — NO es lo mismo que "de verdad no hay vehículos".
+        // Antes esto se confundía con la flota vacía y la tarjeta decía
+        // "Todavía no hay vehículos" aunque sí los hubiera: parecía que se
+        // habían borrado. Se distingue para avisar "no se pudo cargar" en vez
+        // de mentir sobre el estado real.
+        this._flotaError = true;
+        this._flota = this._flota || [];
+      }
       if (d && d.ok && Array.isArray(d.clases)) this._flotaClases = d.clases;
     } catch (e) {
+      this._flotaError = true;   // sin red: tampoco es "vacío" (ver nota arriba)
       this._flota = this._flota || [];
     }
     return this._flota;
@@ -5284,7 +5300,12 @@ const app = {
     if (!cont) return;
     const lista = this._flota || [];
     if (!lista.length) {
-      cont.innerHTML = '<div style="color:#166534;font-size:12px;text-align:center;padding:10px;opacity:.8;">Todavía no hay vehículos. Agregue el primero para que aparezca al reportar.</div>';
+      // v6.32: distingue "no se pudo cargar" de "de verdad no hay vehículos"
+      // (ver _cargarFlota) — antes las dos se veían igual y una falla de red
+      // silenciosa parecía que la flota se había borrado.
+      cont.innerHTML = this._flotaError
+        ? '<div style="color:#c00;font-size:12px;text-align:center;padding:10px;">⚠️ No se pudo cargar la flota. Revise su conexión y toque "🔄 Actualizar".</div>'
+        : '<div style="color:#166534;font-size:12px;text-align:center;padding:10px;opacity:.8;">Todavía no hay vehículos. Agregue el primero para que aparezca al reportar.</div>';
       return;
     }
     // I5: todo texto por _esc. I10: data-* en vez de meter el indicativo en el onclick.
@@ -7914,15 +7935,20 @@ ${paginaFotos}
   },
 
   // v5.63: obtiene la contraseña admin de la sesión o la pide con modal (APK-safe)
-  async _obtenerPwdAdmin(mensaje) {
+  async _obtenerPwdAdmin(mensaje, contexto) {
     /* v6.03: LA FIRMA ES OBLIGATORIA. Sin PIN no se ejerce como admin.
        Se controla desde acá porque es el único portón por el que pasan TODAS las
        acciones de administrador. Devolver null bloquea el flujo entero sin tener
        que tocar las ~15 pantallas que llaman a esta función: todas ya hacen
        `if (!pwd) return;`.
-       Reportar emergencias NO pasa por acá, así que eso sigue funcionando sin PIN. */
-    if (this._adminPwdSession) return (await this._exigirFirma()) ? this._adminPwdSession : null;
-    try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; return (await this._exigirFirma()) ? s : null; } } catch(e) {}
+       Reportar emergencias NO pasa por acá, así que eso sigue funcionando sin PIN.
+       v6.32: `contexto` es opcional — solo lo pasa abrirPanelAdmin() (ver
+       _pedirOperador) para que el modal de firma pregunte "qué administrador
+       entra" en vez de "quién está de guardia": entrar al Panel es cosa de
+       administrador, no de guardia — ese lenguaje sí aplica en sanciones,
+       asistencia, etc. (los ~14 llamadores restantes, sin cambios). */
+    if (this._adminPwdSession) return (await this._exigirFirma(contexto)) ? this._adminPwdSession : null;
+    try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; return (await this._exigirFirma(contexto)) ? s : null; } } catch(e) {}
     // v6.09: _pedirPwdAdmin ya NO devuelve lo que se tecleó sin más: solo
     // devuelve una contraseña que el servidor confirmó. Por eso guardarla acá
     // pasó a ser seguro; antes se guardaba una contraseña sin comprobar y
@@ -7931,7 +7957,7 @@ ${paginaFotos}
     if (!pwd || !pwd.trim()) return null;
     this._adminPwdSession = pwd.trim();
     try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e) {}
-    return (await this._exigirFirma()) ? this._adminPwdSession : null;
+    return (await this._exigirFirma(contexto)) ? this._adminPwdSession : null;
   },
 
   /* v6.09: OLVIDAR LA CONTRASEÑA — las DOS copias.
@@ -7948,8 +7974,8 @@ ${paginaFotos}
   },
 
   // Devuelve true solo si hay una firma verificada en esta sesión.
-  async _exigirFirma() {
-    const oper = await this._obtenerOperador();
+  async _exigirFirma(contexto) {
+    const oper = await this._obtenerOperador(contexto);
     if (oper) {
       // Avisar una vez si se pasó sin firmar por backend antiguo, para que no
       // parezca que la firma está funcionando cuando en realidad no se aplicó.
@@ -8013,7 +8039,7 @@ ${paginaFotos}
     try { sessionStorage.removeItem('cbvi_oper'); } catch(e) {}
   },
 
-  async _obtenerOperador() {
+  async _obtenerOperador(contexto) {
     if (this._firmaVencida()) {
       this._borrarFirma();
       this.toast('🔒 Pasaron 30 minutos sin actividad: vuelve a firmar con tu PIN.', 'info');
@@ -8043,7 +8069,7 @@ ${paginaFotos}
       this._operadorSesion = '(sin verificar — backend sin PIN)';
       return this._operadorSesion;
     }
-    const r = await this._pedirOperador();
+    const r = await this._pedirOperador(contexto);
     if (!r) return null;   // v6.03: ahora SÍ bloquea (ver _exigirFirma)
     this._operadorSesion = r.nombre; this._operadorCedula = r.cedula; this._operadorPin = r.pin;
     /* v6.03: la llave de comandancia vive SOLO en memoria, nunca en sessionStorage.
@@ -8066,7 +8092,9 @@ ${paginaFotos}
      turno saliente — justo lo que el PIN vino a evitar. */
   async cambiarOperador() {
     this._borrarFirma();   // v6.09: una sola función limpia las 5 cosas
-    const nom = await this._obtenerOperador();
+    // v6.32: vive solo dentro del Panel Admin (relevo de QUIÉN ADMINISTRA
+    // este dispositivo, no de guardia) — mismo contexto que abrirPanelAdmin().
+    const nom = await this._obtenerOperador('panelAdmin');
     if (nom) this.toast('🪪 Ahora opera: ' + nom, 'exito');
     const et = document.getElementById('operActualTxt');
     if (et) et.textContent = nom || 'sin firmar';
@@ -8111,14 +8139,24 @@ ${paginaFotos}
     }, 350);
   },
 
-  _pedirOperador() {
+  _pedirOperador(contexto) {
     return new Promise((resolve) => {
+      // v6.32: entrar al Panel de Administrador es cosa de administrador, no
+      // de guardia — "¿quién está de guardia?" confundía porque los guardias
+      // (unidades sin permisos admin) nunca llegan a este modal desde acá. En
+      // sanciones, asistencia y demás SÍ es la guardia quien firma, así que
+      // ese texto (el de siempre) se queda para todo lo que no pase `contexto`.
+      const esPanel = contexto === 'panelAdmin';
+      const titulo = esPanel ? '🪪 ¿Qué administrador entra?' : '🪪 ¿Quién está de guardia?';
+      const cuerpo = esPanel
+        ? 'Este celular puede compartirse entre varios administradores. Tu nombre queda registrado junto a lo que hagas en el Panel. Por eso hace falta <b>tu PIN</b> — así nadie firma en tu nombre.'
+        : 'Este celular lo usa la guardia y el turno cambia. Tu nombre queda registrado junto a lo que hagas: sanciones, asistencias y ediciones. Por eso hace falta <b>tu PIN</b> — así nadie puede firmar en tu nombre.';
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
       modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
-        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">🪪 ¿Quién está de guardia?</div>'
-        + '<div style="font-size:11px;color:#666;margin-bottom:12px;text-align:center;line-height:1.45;">Este celular lo usa la guardia y el turno cambia. Tu nombre queda registrado junto a lo que hagas: sanciones, asistencias y ediciones. Por eso hace falta <b>tu PIN</b> — así nadie puede firmar en tu nombre.</div>'
+        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">' + titulo + '</div>'
+        + '<div style="font-size:11px;color:#666;margin-bottom:12px;text-align:center;line-height:1.45;">' + cuerpo + '</div>'
         + '<div style="position:relative;">'
         + '<input id="_operInput" type="text" autocomplete="off" oninput="app._buscarOperadorSug(this.value)" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;" placeholder="Escribe tu nombre y tócalo">'
         + '<div id="_operSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.15);max-height:150px;overflow-y:auto;"></div>'
