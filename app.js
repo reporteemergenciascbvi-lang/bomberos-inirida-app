@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.36';
+const APP_VERSION = '6.37';
 const APP_VERSION_NOTAS = [
+  'v6.37: 🎨 NUEVA IMAGEN. La app se rediseñó con los colores de tus DOS escudos: el azul marino del escudo Nacional como base (el header ahora es azul), el rojo bombero de tu escudo de Inírida como color de acción (más brillante, más parecido a tu escudo real que el rojo vino anterior) y el oro de seguridad como acento. Además, la pantalla de Operatividad ya NO sale morada (estaba fuera de tu marca, hasta en los PDF impresos): ahora va en tu rojo. Solo cambia el aspecto: la lógica y tus datos NO cambian.',
   'v6.36: ✨ Movimiento en el Panel de Administrador y más. Antes el Panel entraba sin animación; ahora las listas de reportes, de personal pendiente, de Operatividad y de Deudores entran escalonadas (una tarjeta tras otra) al abrirlas. Además, en Ver Deudores, la flechita ▼ de cada persona gira y el detalle de sus domingos se despliega con un suavizado. Todo liviano y respeta el modo "reducir movimiento".',
   'v6.35: ✨ Más movimiento (Fase 2). Ahora TODAS las ventanas emergentes se cierran con una animación suave (antes algunas desaparecían de golpe), el PIN muestra una rueda girando mientras verifica y SACUDE si te equivocás, el aviso verde de nueva versión baja y sube suave, y en el reporte la foto recién tomada y cada vehículo/víctima que agregás entran con una pequeña animación. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
   'v6.34: ✨ La app se siente más viva. Se agregó movimiento en las piezas que se usan en todos lados: las ventanas de confirmación y el menú ahora también se cierran con una animación suave (antes desaparecían de golpe), los avisos suben al aparecer, las listas de reportes y actividades entran escalonadas, los botones "ocupados" se atenúan suave, y los campos muestran mejor cuál está activo. Todo liviano para que no trabe, y respeta el modo "reducir movimiento" del celular. No cambia ningún dato ni cómo funciona: solo cómo se ve.',
@@ -1100,7 +1101,7 @@ const app = {
     document.documentElement.setAttribute('data-theme', t);
     // Color de la barra de estado del teléfono acorde al tema activo
     const metaTema = document.getElementById('metaThemeColor');
-    if (metaTema) metaTema.setAttribute('content', t === 'apple' ? '#f5f5f7' : '#7a1010');
+    if (metaTema) metaTema.setAttribute('content', t === 'apple' ? '#f5f5f7' : '#16223f');
     this._sincronizarUITema();
     if (!silencioso) {
       this.toast(t === 'apple' ? '🍎 Diseño Minimalista activado' : '🚒 Diseño Original activado', 'exito');
@@ -4056,7 +4057,7 @@ const app = {
         + '<div style="font-size:40px;">⚠️</div>'
         + '<div style="margin-top:8px;font-weight:700;">No se pudo cargar el reporte completo</div>'
         + '<div style="font-size:13px;color:#666;margin-top:6px;">Puede ser la conexión o que la sesión de administrador expiró. Intenta de nuevo.</div>'
-        + '<button data-id="' + _cid + '" onclick="app.verReporteAdmin(this.dataset.id)" style="margin-top:14px;padding:10px 18px;background:#6e2fa0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>'
+        + '<button data-id="' + _cid + '" onclick="app.verReporteAdmin(this.dataset.id)" style="margin-top:14px;padding:10px 18px;background:#d81f27;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>'
         + '</div>';
       this._reporteAdminViendo = null;
       return;
@@ -6893,17 +6894,17 @@ ${paginaFotos}
       <title>Actividad ${a.id}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:12pt;margin:15mm;color:#000;}
-        .header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #7A1010;padding-bottom:10px;}
+        .header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #d81f27;padding-bottom:10px;}
         .header img{width:80px;height:80px;object-fit:contain;}
         .header .info{flex:1;text-align:center;}
         .header h2{margin:0;font-size:14pt;}
         .header .info div{font-size:9pt;}
-        .titulo{text-align:center;font-size:15pt;font-weight:700;color:#7A1010;margin:10px 0 2px;}
+        .titulo{text-align:center;font-size:15pt;font-weight:700;color:#d81f27;margin:10px 0 2px;}
         .lema{text-align:center;font-style:italic;font-size:10pt;margin-bottom:12px;}
-        h2.sec{color:#7A1010;font-size:13pt;border-bottom:1px solid #ccc;margin-top:18px;}
+        h2.sec{color:#d81f27;font-size:13pt;border-bottom:1px solid #ccc;margin-top:18px;}
         table{width:100%;border-collapse:collapse;margin:8px 0;}
         th,td{border:1px solid #000;padding:6px 8px;font-size:10pt;}
-        th{background:#7A1010;color:#fff;}
+        th{background:#d81f27;color:#fff;}
         .fotos{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0;}
         .fotos img{width:100%;max-height:80mm;object-fit:contain;border:1px solid #ccc;}
         .pie{margin-top:24px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#666;text-align:center;}
@@ -7755,8 +7756,8 @@ ${paginaFotos}
     const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const filtros = '<div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
       + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
-      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
-      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
+      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
+      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
       + '</div>'
       + '<div style="display:flex;gap:8px;">'
       + '<select onchange="app._operMes=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
@@ -7773,7 +7774,7 @@ ${paginaFotos}
       const mesNom0 = this._operMes ? mesesN[parseInt(this._operMes)-1] : 'Todo el año';
       const card0 = (n,lbl,col) => '<div style="background:#fff;border-radius:10px;padding:14px;text-align:center;"><div style="font-size:28px;font-weight:700;color:'+col+';">'+n+'</div><div style="font-size:12px;color:#666;">'+lbl+'</div></div>';
       cont.innerHTML = filtros
-        + '<div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">'
+        + '<div style="background:#d81f27;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">'
         + '<div style="font-size:13px;opacity:.8;">Período</div>'
         + '<div style="font-size:18px;font-weight:700;">'+mesNom0+' '+this._operAnio+'</div>'
         + '<div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div></div>'
@@ -7817,7 +7818,7 @@ ${paginaFotos}
     const rankRow = (p,i,val,lbl) => '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
       + '<div><span style="font-size:15px;">'+(medallas[i]||('<span style="font-size:11px;color:#999;">#'+(i+1)+'</span>'))+'</span>'
       + '<strong style="margin-left:6px;font-size:13px;">'+app._esc(p.nombre||'')+'</strong></div>'
-      + '<span style="font-weight:700;color:#6e2fa0;">'+val+' '+lbl+'</span></div>';
+      + '<span style="font-weight:700;color:#d81f27;">'+val+' '+lbl+'</span></div>';
     const rankList = (lista, getId, getVal, lbl, color) => {
       if(!lista.length) return '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin datos en este período</div>';
       const top3 = lista.slice(0,3).map((p,i)=>rankRow(p,i,getVal(p),lbl)).join('');
@@ -7831,7 +7832,7 @@ ${paginaFotos}
     };
 
     cont.innerHTML = `
-      <div style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
+      <div style="background:#d81f27;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
         <div style="font-size:13px;opacity:.8;">Período</div>
         <div style="font-size:18px;font-weight:700;">${mesNombre} ${this._operAnio}</div>
         <div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div>
@@ -7879,7 +7880,7 @@ ${paginaFotos}
         <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
         ${rankList(topDomin,'rk_domin',p=>p.domingosPresente,'dom.','#e67e22')}
       </div>
-      <button onclick="app._imprimirReporteGeneral()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
+      <button onclick="app._imprimirReporteGeneral()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
   },
 
   _renderPorUnidad() {
@@ -7898,7 +7899,7 @@ ${paginaFotos}
       <div id="listaUnidades">
         ${d.map(p => this._cardUnidad(p, mesNombre)).join('')}
       </div>
-      <button onclick="app._imprimirReportePorUnidad()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:4px;">🖨️ Imprimir Informe por Unidad</button>
+      <button onclick="app._imprimirReportePorUnidad()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:4px;">🖨️ Imprimir Informe por Unidad</button>
       <button onclick="app._operVista='general';app.cargarOperatividad()" style="background:#f0f0f0;color:#333;border:none;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">← Ver Resumen General</button>`;
   },
 
@@ -7917,13 +7918,13 @@ ${paginaFotos}
     const colorAlerta = (p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#ff9800':null;
     const nom = String(p.nombre||'');
     const uid = 'u_'+nom.replace(/[^a-zA-Z]/g,'').substring(0,12);
-    return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
+    return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #d81f27;">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       +'<div><div style="font-weight:700;font-size:15px;">'+app._esc(nom||'(sin nombre)')+'</div>'
       +'<div style="font-size:12px;color:#666;">CC: '+app._esc(p.cedula||'-')+'</div>'
       +(p.enBase===false?'<div style="font-size:11px;background:#fff8e1;color:#8d6e00;border:1px solid #f9a825;border-radius:6px;padding:2px 6px;margin-top:3px;display:inline-block;">⚠️ No cruza con la base (revisar escritura)</div>':'')
       +'</div>'
-      +'<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">'+pts+' pts</div>'
+      +'<div style="text-align:right;"><div style="font-weight:700;color:#d81f27;font-size:16px;">'+pts+' pts</div>'
       +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
       +'</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
@@ -8469,14 +8470,14 @@ ${paginaFotos}
       <title>Informe General Operatividad — ${mesNombre} ${this._operAnio}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
-        h1{color:#6e2fa0;font-size:15pt;margin-bottom:4px;}
-        h2{color:#333;font-size:12pt;border-bottom:2px solid #6e2fa0;padding-bottom:4px;margin-top:16px;}
+        h1{color:#d81f27;font-size:15pt;margin-bottom:4px;}
+        h2{color:#333;font-size:12pt;border-bottom:2px solid #d81f27;padding-bottom:4px;margin-top:16px;}
         .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0;}
         .stat{border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center;}
-        .stat .num{font-size:20pt;font-weight:700;color:#6e2fa0;}
+        .stat .num{font-size:20pt;font-weight:700;color:#d81f27;}
         .stat .lbl{font-size:9pt;color:#666;}
         table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt;}
-        th{background:#6e2fa0;color:#fff;padding:7px 8px;text-align:left;}
+        th{background:#d81f27;color:#fff;padding:7px 8px;text-align:left;}
         td{padding:6px 8px;border-bottom:1px solid #eee;}
         tr:nth-child(even){background:#f9f9f9;}
         .alerta{background:#ffebee;color:#c00;padding:2px 6px;border-radius:4px;font-size:9pt;}
@@ -8496,7 +8497,7 @@ ${paginaFotos}
       <table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th><th>Sanciones</th></tr>
       ${top.map((p,i)=>{
         const pts=this._r1(p.emergencias*2+p.horasActividades+p.domingosPresente);
-        return `<tr><td>${i+1}</td><td><strong>${app._esc(p.nombre)}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${this._r1(p.horasActividades)}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
+        return `<tr><td>${i+1}</td><td><strong>${app._esc(p.nombre)}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${this._r1(p.horasActividades)}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#d81f27;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
       }).join('')}
       </table>
       <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
@@ -8516,11 +8517,11 @@ ${paginaFotos}
       <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
-        h1{color:#6e2fa0;font-size:14pt;}
+        h1{color:#d81f27;font-size:14pt;}
         .ficha{border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px;page-break-inside:avoid;}
-        .ficha-header{display:flex;justify-content:space-between;border-bottom:2px solid #6e2fa0;padding-bottom:8px;margin-bottom:10px;}
+        .ficha-header{display:flex;justify-content:space-between;border-bottom:2px solid #d81f27;padding-bottom:8px;margin-bottom:10px;}
         .nombre{font-size:13pt;font-weight:700;}
-        .pts{font-size:18pt;font-weight:700;color:#6e2fa0;}
+        .pts{font-size:18pt;font-weight:700;color:#d81f27;}
         .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0;}
         .item{border:1px solid #eee;border-radius:6px;padding:8px;text-align:center;}
         .item .num{font-size:16pt;font-weight:700;}
@@ -8756,7 +8757,7 @@ ${paginaFotos}
           + '<div><b>Dirección:</b> ' + app._esc(r.direccion || '-') + '</div>'
           + (estCoord && r.lat && r.lng ? '<div><b>🚒 A la estación:</b> ~' + this._distanciaKm(estCoord[0], estCoord[1], r.lat, r.lng).toFixed(1) + ' km</div>' : '')
           + '<div><b>Clasificación:</b> ' + app._esc(clas) + '</div>'
-          + '<button data-id="' + String(r.id||'').replace(/"/g,'&quot;') + '" onclick="app._verReporteDesdeMapa(this.dataset.id)" style="margin-top:8px;background:#6e2fa0;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
+          + '<button data-id="' + String(r.id||'').replace(/"/g,'&quot;') + '" onclick="app._verReporteDesdeMapa(this.dataset.id)" style="margin-top:8px;background:#d81f27;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
           + '</div>';
         const marker = L.marker([r.lat, r.lng], { icon: this._iconoMapa(regla) }).bindPopup(popupHtml);
         // v6.28: NO se agrega al mapa acá; _aplicarFiltroMapa lo mete en la capa de pines
