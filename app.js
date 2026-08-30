@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.32';
+const APP_VERSION = '6.33';
 const APP_VERSION_NOTAS = [
+  'v6.33: 🛟 Menos riesgo de perder trabajo. (1) Al salir de Asistencia o de una Actividad sin haber guardado, ahora la app avisa antes de descartar lo que marcaste (antes se perdía de un toque). (2) El reporte que estás llenando se autoguarda solo: si el celular cierra la app de golpe, no pierdes lo dictado. (3) Los reportes que quedaron "pendientes" por falta de señal ahora se envían solos al reabrir la app con internet, sin tener que forzarlos a mano. Además, un ajuste interno de seguridad al mostrar las fotos y firmas.',
   'v6.32: 🪪 Al entrar al Panel de Administrador, el PIN ahora pregunta "¿qué administrador entra?" en vez de "¿quién está de guardia?" — esa pregunta se queda donde sí aplica (sanciones, asistencia, etc.), porque a Panel Admin solo entran administradores. Además, si "🚒 Vehículos del cuerpo" no logra cargar (sin señal, servidor ocupado), ahora avisa "no se pudo cargar" en vez de decir "todavía no hay vehículos" como si se hubieran borrado.',
   'v6.31: 🧭 Tour interactivo + 👥 Unidades vinculadas. El recorrido de ayuda ya no es una tarjeta de texto: ahora se mueve de verdad por la app y señala cada botón real, con uno para unidades y otro, más completo, para administradores (escudo, PIN, relevo, nómina, flota, Asistencia, Deudores, Operatividad, Mapa). Además, en el Panel de Administrador → "Unidades vinculadas" (solo el administrador principal), vea todo correo que ya usa la app y bloquéele el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.',
   'v6.30: 🎨 Rediseño visual "Acta Oficial" (el mismo de la app de Cruz de Malta). Tipografía de imprenta (Oswald + Barlow), el rojo institucional del CBVI usado con disciplina y un dorado de seguridad como acento. La app se ve como un instrumento oficial de bomberos. Cambia solo el aspecto: la lógica, la estructura y tus datos NO cambian. Los emojis siguen a color.',
@@ -448,6 +449,12 @@ const app = {
         // Esto permite que un reporte hecho en otro dispositivo con el mismo
         // correo aparezca aquí al refrescar.
         this.sincronizarReportesDesdeServidor().catch(e => console.warn('Sincronización falló:', e));
+        /* v6.33: subir también lo que quedó PENDIENTE (creado sin señal). El evento
+           'online' solo dispara en la transición sin-señal→con-señal con la app viva;
+           si el celular mató el WebView y se reabre YA en línea, el pendiente se
+           quedaba pegado hasta forzarlo a mano. sincronizarReporte es idempotente
+           (v5.84) y tiene candado _syncEnCurso, así que subir al arranque no duplica. */
+        if (navigator.onLine) this.sincronizarPendientes(true).catch(() => {});
       } else {
         this.irA('pantallaRegistroComplemento');
       }
@@ -782,6 +789,8 @@ const app = {
         await this.actualizarHome();
         // Sincronizar reportes del servidor en segundo plano (tipo Gmail)
         this.sincronizarReportesDesdeServidor().catch(e => console.warn('Sincronización falló:', e));
+        // v6.33: subir lo pendiente también tras un login nuevo (ver init).
+        if (navigator.onLine) this.sincronizarPendientes(true).catch(() => {});
       } else {
         document.getElementById('saludoRegistro').textContent =
           `${usuario.email} — Complete sus datos para empezar`;
@@ -1031,17 +1040,17 @@ const app = {
     else avatar.classList.remove('admin');
 
     if (this.usuario.foto) {
-      avatar.innerHTML = `<img src="${this.usuario.foto}" alt="">`;
+      avatar.innerHTML = `<img src="${app._esc(this.usuario.foto)}" alt="">`;
     } else {
-      avatar.innerHTML = `<span>${inicial}</span>`;
+      avatar.innerHTML = `<span>${app._esc(inicial)}</span>`;
     }
 
     // Menú desplegable
     const avatarGrande = document.getElementById('avatarGrande');
     if (this.usuario.foto) {
-      avatarGrande.innerHTML = `<img src="${this.usuario.foto}" alt="">`;
+      avatarGrande.innerHTML = `<img src="${app._esc(this.usuario.foto)}" alt="">`;
     } else {
-      avatarGrande.innerHTML = `<span>${inicial}</span>`;
+      avatarGrande.innerHTML = `<span>${app._esc(inicial)}</span>`;
     }
     document.getElementById('menuNombreUsuario').textContent = this.usuario.nombreCompleto || this.usuario.nombre;
     document.getElementById('menuGradoUsuario').textContent =
@@ -1274,13 +1283,58 @@ const app = {
     }
   },
 
-  async atras() {
-    // Si estamos en formulario, preguntar si quiere guardar borrador
+  /* v6.33 — RED DE SEGURIDAD AL SALIR (pérdida de datos).
+     Antes SOLO el formulario de emergencia avisaba al salir. Asistencia y
+     Actividad —las tareas más repetidas— descartaban en silencio todo el
+     marcado/carga en memoria con un toque en "Volver" o el botón físico Atrás:
+     marcar 30 personas y salir sin querer = todo perdido. Estas pantallas viven
+     en memoria (_asistRegistros, _actPersonal…) y no se guardan hasta pulsar su
+     propio botón Guardar/Registrar. */
+  _hayCambiosSinGuardar() {
     if (this.pantallaActual === 'pantallaForm') {
-      const ok = await this.confirmar('Salir del reporte',
-        '¿Desea salir? Los cambios sin guardar se perderán. Use "Borrador" para guardar el progreso.');
-      if (!ok) return;
+      return { titulo: 'Salir del reporte',
+        mensaje: '¿Desea salir? Los cambios sin guardar se perderán. Use "Borrador" para guardar el progreso.' };
     }
+    if (this.pantallaActual === 'pantallaAsistencia' && this._asistDirty) {
+      return { titulo: 'Salir sin guardar',
+        mensaje: '¿Salir de Asistencia? Se perderá lo que marcaste. Usa "Guardar Asistencia" primero.' };
+    }
+    if (this.pantallaActual === 'pantallaActividades' && this._actividadTieneDatos()) {
+      return { titulo: 'Salir sin guardar',
+        mensaje: '¿Salir de la Actividad? Se perderá lo que registraste. Usa "Registrar Actividad" primero.' };
+    }
+    return null;
+  },
+
+  // Actividad "con datos" = contenido real sin guardar. Se calcula al salir (el
+  // formulario arranca vacío y se limpia al guardar), sin flag por cada cambio.
+  _actividadTieneDatos() {
+    if ((this._actPersonal || []).length || (this._actRecursos || []).length) return true;
+    const f = this._actFotos || {};
+    if (f.inicio || f.medio || f.fin) return true;
+    const desc = document.getElementById('actDescripcion');
+    const nov = document.getElementById('actNovedades');
+    return !!((desc && desc.value.trim()) || (nov && nov.value.trim()));
+  },
+
+  async _confirmarSalidaSiSucio() {
+    const g = this._hayCambiosSinGuardar();
+    if (!g) return true;
+    return await this.confirmar(g.titulo, g.mensaje);
+  },
+
+  /* Los botones "← Volver" de Asistencia/Actividad llaman a esto (antes iban
+     directo a irA('pantallaHome'), saltándose cualquier aviso). El "←" del
+     header y el botón físico Atrás ya pasan por atras(), que tiene el mismo guard. */
+  async volverDesde(destino) {
+    if (!(await this._confirmarSalidaSiSucio())) return;
+    this._yendoAtras = true;
+    this.irA(destino || 'pantallaHome', true);
+  },
+
+  async atras() {
+    // v6.33: red de seguridad unificada (formulario + asistencia + actividad).
+    if (!(await this._confirmarSalidaSiSucio())) return;
 
     if (this.pilaPantallas.length > 0) {
       const anterior = this.pilaPantallas.pop();
@@ -2736,7 +2790,7 @@ const app = {
         const slotEl = document.querySelector(`.foto-slot[data-foto="${i}"]`);
         if (slotEl) {
           slotEl.innerHTML = `
-            <img src="${this._imgDrive(f)}" alt="">
+            <img src="${app._esc(this._imgDrive(f))}" alt="">
             <button class="quitar" onclick="event.stopPropagation(); app.quitarFoto(${i})">×</button>
           `;
           slotEl.classList.add('con-foto');
@@ -2842,6 +2896,29 @@ const app = {
     this.toast('Borrador guardado', 'exito');
     if (navigator.vibrate) navigator.vibrate(50);
     this.irA('pantallaHome');
+  },
+
+  /* v6.33 — AUTOGUARDADO del reporte en curso (pérdida de datos).
+     El WebView de gama baja se muere solo (llamada entrante por radio, poca RAM)
+     y un reporte largo dictado por voz se perdía entero si no tocaban "Borrador"
+     a mano. Se guarda SILENCIOSO en el MISMO id del reporte en curso (leerFormulario
+     reusa this.reporteActual, así que NO acumula borradores basura), reusando el
+     pipeline durable de borrador (IndexedDB). El borrador queda visible en Inicio
+     como cualquier otro y se reabre desde ahí; al enviar con éxito se transforma
+     en 'enviado'/'pendiente'. NO corre en edición de admin (eso edita un reporte
+     ya existente del servidor, no un borrador local). */
+  _autoguardarBorrador() {
+    if (this.pantallaActual !== 'pantallaForm' || !this.reporteActual || this._modoEdicionAdmin) return;
+    try {
+      const r = this.leerFormulario();
+      r.estado = 'borrador';
+      DB.guardarReporte(r);   // fire-and-forget: un autoguardado no debe bloquear el llenado
+    } catch (e) { /* si el autoguardado falla, no molestar — el usuario sigue escribiendo */ }
+  },
+
+  _programarAutoguardado() {
+    clearTimeout(this._tAutoguardar);
+    this._tAutoguardar = setTimeout(() => this._autoguardarBorrador(), 2500);
   },
 
   async enviarReporte(btn) {
@@ -3998,15 +4075,15 @@ const app = {
       if (!v) return '—';
       try { return new Date(v).toLocaleString('es-CO'); } catch (e) { return String(v); }
     };
-    const lista = (arr) => (arr && arr.length) ? arr.join(', ') : '—';
+    const lista = (arr) => (arr && arr.length) ? arr.map(x => app._esc(x)).join(', ') : '—';
 
     const fotos = (r.fotos || []).map(u => this._imgDrive(u));
     const fotosHTML = fotos.length === 0
       ? '<div style="color:#999;font-style:italic;padding:8px;">Sin fotografías</div>'
       : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">${
           fotos.map((url, i) => `
-            <a href="${url}" target="_blank" style="display:block;border:1px solid #ccc;border-radius:6px;overflow:hidden;text-decoration:none;">
-              <img src="${url}" alt="Foto ${i+1}"
+            <a href="${app._esc(url)}" target="_blank" style="display:block;border:1px solid #ccc;border-radius:6px;overflow:hidden;text-decoration:none;">
+              <img src="${app._esc(url)}" alt="Foto ${i+1}"
                    style="width:100%;height:120px;object-fit:cover;background:#f0f0f0;display:block;"
                    onerror="this.style.display='none';this.parentNode.innerHTML+='<div style=&quot;padding:8px;color:#c00;font-size:11px;&quot;>No se pudo cargar la foto ${i+1}</div>';">
               <div style="padding:4px;font-size:11px;text-align:center;background:#f8f8f8;color:#333;">📷 Foto ${i+1}</div>
@@ -4027,8 +4104,8 @@ const app = {
       const esDrive = url.startsWith('http') && !url.startsWith('data:');
       return `<div style="border:1px solid #ccc;border-radius:6px;padding:6px;background:#fafafa;">
         <div style="font-size:11px;color:#666;margin-bottom:4px;">${etiqueta}</div>
-        <a href="${url}" target="_blank">
-          <img src="${src}" alt="${etiqueta}"
+        <a href="${app._esc(url)}" target="_blank">
+          <img src="${app._esc(src)}" alt="${app._esc(etiqueta)}"
                style="max-width:100%;max-height:80px;background:white;border:1px solid #eee;"
                onerror="this.style.display='none';this.parentNode.innerHTML='${esDrive ? '✍️ Ver firma en Drive' : '—'}';">
         </a>
@@ -4045,9 +4122,9 @@ const app = {
     const fila = (label, valor) => `<div><strong>${label}:</strong> ${fmt(valor)}</div>`;
 
     return `
-      <h3 style="color:var(--rojo);margin:0 0 12px 0;">📄 ${r.consecutivo || '(sin consecutivo)'}</h3>
+      <h3 style="color:var(--rojo);margin:0 0 12px 0;">📄 ${app._esc(r.consecutivo || '(sin consecutivo)')}</h3>
       <div style="font-size:12px;color:#666;margin-bottom:12px;">
-        ID: <code>${r.id}</code> · Estación: ${fmt(r.estacion)}
+        ID: <code>${app._esc(r.id)}</code> · Estación: ${fmt(r.estacion)}
       </div>
 
       ${card('🕐 Fechas y reportante', `
@@ -5532,7 +5609,7 @@ const app = {
     const fecha = new Date(r.fechaCreacion).toLocaleString('es-CO');
     const tipos = (r.clasificacion || []).join(', ') || '—';
     const fotosHTML = (r.fotos || []).map(f =>
-      `<img src="${f}" style="width:100%; max-width:200px; border-radius: 8px; margin: 4px;">`
+      `<img src="${app._esc(f)}" style="width:100%; max-width:200px; border-radius: 8px; margin: 4px;">`
     ).join('');
 
     const recursosHTML = (r.recursos || []).map(rec => {
@@ -5749,7 +5826,7 @@ const app = {
         if (fotos[i]) {
           slotsFotos.push(`
             <div class="foto-grande">
-              <img src="${fotos[i]}" alt="Foto ${i+1}">
+              <img src="${app._esc(fotos[i])}" alt="Foto ${i+1}">
               <div class="foto-pie">Fotografía ${i+1}</div>
             </div>
           `);
@@ -6057,7 +6134,7 @@ const app = {
         <td>${sn(r.afectadoNombre)}</td>
         <td>${sn(r.afectadoCC)}</td>
         <td>${sn(r.afectadoCel)}</td>
-        <td>${r.firmas?.afectado ? `<img src="${this._imgDrive(r.firmas.afectado)}" class="firma-img">` : '&nbsp;'}</td>
+        <td>${r.firmas?.afectado ? `<img src="${app._esc(this._imgDrive(r.firmas.afectado))}" class="firma-img">` : '&nbsp;'}</td>
       </tr>
     </table>
     <div class="aviso">⚠ Aviso Ley 1581 de 2012 (Habeas Data): Los datos personales recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos Voluntarios de Inírida.</div>
@@ -6131,7 +6208,7 @@ const app = {
       <tr>
         <td class="label">FIRMA:</td>
         <td colspan="3" style="height: 60px;">
-          ${r.firmas?.comandante ? `<img src="${this._imgDrive(r.firmas.comandante)}" class="firma-img" style="max-height: 55px;">` : '&nbsp;'}
+          ${r.firmas?.comandante ? `<img src="${app._esc(this._imgDrive(r.firmas.comandante))}" class="firma-img" style="max-height: 55px;">` : '&nbsp;'}
         </td>
       </tr>
     </table>
@@ -6722,9 +6799,9 @@ ${paginaFotos}
         <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
           <div style="font-weight:700;margin-bottom:8px;">📸 Fotos</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
-            ${a.fotoInicio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Inicio</div><img src="${this._imgDrive(a.fotoInicio)}" style="width:100%;border-radius:6px;"></div>` : ''}
-            ${a.fotoMedio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Intermedio</div><img src="${this._imgDrive(a.fotoMedio)}" style="width:100%;border-radius:6px;"></div>` : ''}
-            ${a.fotoFin ? `<div><div style="font-size:11px;color:#666;text-align:center;">Final</div><img src="${this._imgDrive(a.fotoFin)}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${a.fotoInicio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Inicio</div><img src="${app._esc(this._imgDrive(a.fotoInicio))}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${a.fotoMedio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Intermedio</div><img src="${app._esc(this._imgDrive(a.fotoMedio))}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${a.fotoFin ? `<div><div style="font-size:11px;color:#666;text-align:center;">Final</div><img src="${app._esc(this._imgDrive(a.fotoFin))}" style="width:100%;border-radius:6px;"></div>` : ''}
           </div>
         </div>` : ''}`;
     } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
@@ -6784,9 +6861,9 @@ ${paginaFotos}
       </table>
 
       ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `<h2 class="sec">Registro fotográfico</h2><div class="fotos">
-        ${a.fotoInicio ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Inicio</p><img src="${this._imgDrive(a.fotoInicio)}"></div>` : ''}
-        ${a.fotoMedio ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Intermedio</p><img src="${this._imgDrive(a.fotoMedio)}"></div>` : ''}
-        ${a.fotoFin ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Final</p><img src="${this._imgDrive(a.fotoFin)}"></div>` : ''}
+        ${a.fotoInicio ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Inicio</p><img src="${app._esc(this._imgDrive(a.fotoInicio))}"></div>` : ''}
+        ${a.fotoMedio ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Intermedio</p><img src="${app._esc(this._imgDrive(a.fotoMedio))}"></div>` : ''}
+        ${a.fotoFin ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Final</p><img src="${app._esc(this._imgDrive(a.fotoFin))}"></div>` : ''}
       </div>` : ''}
 
       <div class="pie">
@@ -6871,6 +6948,7 @@ ${paginaFotos}
     document.getElementById('btnGuardarAsistencia').style.display = 'block';
     const _nb=document.getElementById('btnMostrarNuevoBombero');if(_nb)_nb.style.display='block';
     this._asistRegistros = {};
+    this._asistDirty = false;   // v6.33: recién cargado desde el servidor, nada sin guardar
     try {
       const [r1,r2]=await Promise.all([
         fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'listarTodoPersonal'})}),
@@ -6984,6 +7062,7 @@ ${paginaFotos}
 
   _quitarAsistencia(key) {
     delete this._asistRegistros[key];
+    this._asistDirty = true;   // v6.33
     const fecha = document.getElementById('asistFecha').value;
     this._renderAsistencia(fecha);
   },
@@ -7031,6 +7110,7 @@ ${paginaFotos}
     // v5.81: conserva el rango (para el grupo correcto) y lo pone al final de
     // su categoría (orden alto = después de los que vienen de la hoja).
     this._asistRegistros[key] = { nombre: p.nombre, cedula: ced, rango: p.rango || 'BOMBERO', orden: this._sigOrdenAsist(), estado: 'PRESENTE' };
+    this._asistDirty = true;   // v6.33
     this._renderAsistencia(fecha);
     this._flashAsistItem(key);
   },
@@ -7168,6 +7248,7 @@ ${paginaFotos}
     const e = this._asistRegistros[key] || { nombre, cedula: key };
     e.estado = estado;
     this._asistRegistros[key] = e;
+    this._asistDirty = true;   // v6.33: hay marcado sin guardar (guard al salir)
     // cambiar color del select
     const fecha = document.getElementById('asistFecha') ? document.getElementById('asistFecha').value : '';
     const cont = document.getElementById('asistListaPersonal');
@@ -7213,6 +7294,7 @@ ${paginaFotos}
     modal.querySelector('#_obsExcOmitir').onclick = () => { cerrar(); this._renderAsistencia(fecha); this._flashAsistItem(key); };
     modal.querySelector('#_obsExcGuardar').onclick = () => {
       e.observacion = (txt.value || '').trim();
+      this._asistDirty = true;   // v6.33: la observación es un cambio sin guardar
       cerrar();
       this._renderAsistencia(fecha);
       this._flashAsistItem(key);
@@ -7264,6 +7346,7 @@ ${paginaFotos}
       }
       const ausentes = registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
       this._asistFotos = { inicio:null, medio:null, fin:null };
+      this._asistDirty = false;   // v6.33: ya quedó guardado en el servidor
       this.toast('✅ Asistencia guardada — ' + ausentes + ' ausentes sin excusa', 'exito');
       setTimeout(() => this.cargarPantallaAsistencia(), 1000);
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
@@ -9443,8 +9526,16 @@ document.addEventListener('click', (e) => {
 window.addEventListener('DOMContentLoaded', () => app.init());
 
 document.addEventListener('input', (e) => {
-  if (e.target.closest('#pantallaForm')) app.actualizarProgreso();
+  if (e.target.closest('#pantallaForm')) { app.actualizarProgreso(); app._programarAutoguardado(); }
 });
 document.addEventListener('change', (e) => {
-  if (e.target.closest('#pantallaForm')) app.actualizarProgreso();
+  if (e.target.closest('#pantallaForm')) { app.actualizarProgreso(); app._programarAutoguardado(); }
 });
+
+/* v6.33: red de seguridad extra del autoguardado — vaciar YA cuando la app pasa
+   a segundo plano o se está por cerrar (el WebView de gama baja mata la app sin
+   avisar). Mejor un guardado de más que perder un reporte a medio dictar. */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') app._autoguardarBorrador();
+});
+window.addEventListener('pagehide', () => app._autoguardarBorrador());
