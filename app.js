@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.34';
+const APP_VERSION = '6.35';
 const APP_VERSION_NOTAS = [
+  'v6.35: ✨ Más movimiento (Fase 2). Ahora TODAS las ventanas emergentes se cierran con una animación suave (antes algunas desaparecían de golpe), el PIN muestra una rueda girando mientras verifica y SACUDE si te equivocás, el aviso verde de nueva versión baja y sube suave, y en el reporte la foto recién tomada y cada vehículo/víctima que agregás entran con una pequeña animación. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
   'v6.34: ✨ La app se siente más viva. Se agregó movimiento en las piezas que se usan en todos lados: las ventanas de confirmación y el menú ahora también se cierran con una animación suave (antes desaparecían de golpe), los avisos suben al aparecer, las listas de reportes y actividades entran escalonadas, los botones "ocupados" se atenúan suave, y los campos muestran mejor cuál está activo. Todo liviano para que no trabe, y respeta el modo "reducir movimiento" del celular. No cambia ningún dato ni cómo funciona: solo cómo se ve.',
   'v6.33: 🛟 Menos riesgo de perder trabajo. (1) Al salir de Asistencia o de una Actividad sin haber guardado, ahora la app avisa antes de descartar lo que marcaste (antes se perdía de un toque). (2) El reporte que estás llenando se autoguarda solo: si el celular cierra la app de golpe, no pierdes lo dictado. (3) Los reportes que quedaron "pendientes" por falta de señal ahora se envían solos al reabrir la app con internet, sin tener que forzarlos a mano. Además, un ajuste interno de seguridad al mostrar las fotos y firmas.',
   'v6.32: 🪪 Al entrar al Panel de Administrador, el PIN ahora pregunta "¿qué administrador entra?" en vez de "¿quién está de guardia?" — esa pregunta se queda donde sí aplica (sanciones, asistencia, etc.), porque a Panel Admin solo entran administradores. Además, si "🚒 Vehículos del cuerpo" no logra cargar (sin señal, servidor ocupado), ahora avisa "no se pudo cargar" en vez de decir "todavía no hay vehículos" como si se hubieran borrado.',
@@ -521,28 +522,33 @@ const app = {
         <div style="font-size:12px;opacity:0.95;margin-bottom:4px;">Cambios:</div>
         <ul style="margin:0;padding-left:18px;font-size:12px;opacity:0.95;">${notasHTML}</ul>
       </div>
-      <button onclick="document.getElementById('bannerNuevaVersion').remove()"
+      <button onclick="app._cerrarBanner()"
               style="position:sticky;top:0;flex-shrink:0;background:rgba(255,255,255,0.25);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;align-self:flex-start;">
         ✕ Cerrar
       </button>
     `;
     if (document.body) {
       document.body.appendChild(banner);
-      // Auto-quitar a los 10 minutos
-      setTimeout(() => {
-        const el = document.getElementById('bannerNuevaVersion');
-        if (el) el.remove();
-      }, 10 * 60 * 1000);
+      // Auto-quitar a los 10 minutos (con la misma salida animada que el botón ✕).
+      setTimeout(() => this._cerrarBanner(), 10 * 60 * 1000);
     } else {
       // Por si el DOM no está aún listo
       document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(banner);
-        setTimeout(() => {
-          const el = document.getElementById('bannerNuevaVersion');
-          if (el) el.remove();
-        }, 10 * 60 * 1000);
+        setTimeout(() => this._cerrarBanner(), 10 * 60 * 1000);
       });
     }
+  },
+
+  /* v6.35: cierre animado del banner de nueva versión — sube y se va (antes hacía
+     un .remove() seco). NO se le quita el id: la animación de subida (CSS) depende
+     de él, y el banner es único (no se reabre), así que no hay colisión posible. */
+  _cerrarBanner() {
+    const el = document.getElementById('bannerNuevaVersion');
+    if (!el || el._cerrando) return;
+    el._cerrando = true;
+    el.classList.add('cbvi-subiendo');
+    setTimeout(() => { try { el.remove(); } catch (e) {} }, 320);
   },
 
   // ==================== LOGIN GOOGLE ====================
@@ -1568,7 +1574,7 @@ const app = {
       + '<button id="_miSancCerrar" style="margin-top:14px;width:100%;padding:12px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cerrar</button>'
       + '</div>';
     document.body.appendChild(modal);
-    const cerrar = () => { if (modal.parentNode) document.body.removeChild(modal); };
+    const cerrar = () => { if (modal.parentNode) app._cerrarModalJS(modal); };
     document.getElementById('_miSancCerrar').onclick = cerrar;
     modal.onclick = (ev) => { if (ev.target === modal) cerrar(); };
   },
@@ -2440,7 +2446,7 @@ const app = {
         + '<button id="_caOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">'+(txtOk||'Continuar')+'</button>'
         + '</div></div>';
       document.body.appendChild(modal);
-      const fin = (v) => { try { document.body.removeChild(modal); } catch(e){} resolve(v); };
+      const fin = (v) => { try { app._cerrarModalJS(modal); } catch(e){} resolve(v); };
       modal.querySelector('#_caCancel').onclick = () => fin(false);
       modal.querySelector('#_caOk').onclick = () => fin(true);
     });
@@ -4956,7 +4962,7 @@ const app = {
       + '<div style="font-size:11px;color:#999;margin-top:12px;">Siempre puede verlo de nuevo en <b>ℹ️ Acerca de</b>.</div>'
       + '</div>';
     document.body.appendChild(m);
-    const cerrar = () => { try { document.body.removeChild(m); } catch (e) {} };
+    const cerrar = () => { try { app._cerrarModalJS(m); } catch (e) {} };
     m.querySelector('#_tourNo').onclick = cerrar;
     m.querySelector('#_tourVer').onclick = () => { cerrar(); this.mostrarTour(rol); };
   },
@@ -5366,7 +5372,7 @@ const app = {
         + '</div></div>';
       document.body.appendChild(modal);
       const sel = modal.querySelector('#_opcSel');
-      const fin = (v) => { try { document.body.removeChild(modal); } catch (e) {} resolve(v); };
+      const fin = (v) => { try { app._cerrarModalJS(modal); } catch (e) {} resolve(v); };
       modal.querySelector('#_opcCancel').onclick = () => fin(null);
       modal.querySelector('#_opcOk').onclick = () => fin(sel.value || '');
     });
@@ -6415,6 +6421,23 @@ ${paginaFotos}
     }, 160);
   },
 
+  /* v6.35: cierre ANIMADO de los modales creados por JS (los que hacen removeChild).
+     Cada uno es un elemento NUEVO (createElement), así que no hay reuso del nodo; el
+     único riesgo es que el MISMO tipo de modal se reabra dentro de los 160ms del fade
+     y el getElementById encuentre el que se está yendo por su id fijo. Por eso se le
+     QUITAN los id al instante: queda inerte, mientras el CSS lo desvanece y se lo saca
+     del DOM. La lógica que sigue (resolve/callback) NO espera: corre ya. */
+  _cerrarModalJS(modal) {
+    if (!modal || modal._cerrando) return;
+    modal._cerrando = true;
+    try {
+      modal.removeAttribute('id');
+      modal.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    } catch (e) {}
+    modal.classList.add('cbvi-cerrando');
+    setTimeout(() => { try { if (modal.parentNode) modal.parentNode.removeChild(modal); } catch (e) {} }, 160);
+  },
+
   escucharConexion() {
     const actualizar = () => {
       const header = document.getElementById('header');
@@ -7322,7 +7345,7 @@ ${paginaFotos}
     const txt = modal.querySelector('#_obsExcTxt');
     txt.value = e.observacion || '';
     setTimeout(() => { try { txt.focus(); } catch (er) {} }, 50);
-    const cerrar = () => { try { document.body.removeChild(modal); } catch (er) {} };
+    const cerrar = () => { try { app._cerrarModalJS(modal); } catch (er) {} };
     const fecha = document.getElementById('asistFecha') ? document.getElementById('asistFecha').value : '';
     modal.querySelector('#_obsExcOmitir').onclick = () => { cerrar(); this._renderAsistencia(fecha); this._flashAsistItem(key); };
     modal.querySelector('#_obsExcGuardar').onclick = () => {
@@ -7517,7 +7540,7 @@ ${paginaFotos}
       const inpH = modal.querySelector('#_csHoras');
       const inpA = modal.querySelector('#_csAct');
       setTimeout(() => { try { inpH.focus(); } catch (e) {} }, 50);
-      const fin = (val) => { try { document.body.removeChild(modal); } catch (e) {} resolve(val); };
+      const fin = (val) => { try { app._cerrarModalJS(modal); } catch (e) {} resolve(val); };
       modal.querySelector('#_csCancel').onclick = () => fin(null);
       modal.querySelector('#_csOk').onclick = () => {
         const horas = Number(inpH.value);
@@ -7950,7 +7973,7 @@ ${paginaFotos}
       document.body.appendChild(modal);
       const inp = modal.querySelector('#_pwdAdmInput');
       setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
-      const fin = (val) => { try { document.body.removeChild(modal); } catch(e){} resolve(val); };
+      const fin = (val) => { try { app._cerrarModalJS(modal); } catch(e){} resolve(val); };
       modal.querySelector('#_pwdAdmCancel').onclick = () => fin(null);
 
       /* ═══ v6.09: LA CONTRASEÑA SE COMPRUEBA ACÁ, NO DESPUÉS ═══
@@ -8043,7 +8066,7 @@ ${paginaFotos}
       document.body.appendChild(modal);
       const inp = modal.querySelector('#_txtInput');
       setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
-      const fin = (v) => { try { document.body.removeChild(modal); } catch(e){} resolve(v); };
+      const fin = (v) => { try { app._cerrarModalJS(modal); } catch(e){} resolve(v); };
       modal.querySelector('#_txtCancel').onclick = () => fin(null);
       modal.querySelector('#_txtOk').onclick = () => fin(inp.value || '');
       inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') fin(inp.value || ''); });
@@ -8292,14 +8315,21 @@ ${paginaFotos}
       const err = modal.querySelector('#_operErr');
       const btn = modal.querySelector('#_operOk');
       setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
-      const fin = (val) => { try { document.body.removeChild(modal); } catch(e){} resolve(val); };
-      const mostrarErr = (t) => { err.textContent = t; err.style.display = 'block'; };
+      const fin = (val) => { try { app._cerrarModalJS(modal); } catch(e){} resolve(val); };
+      /* v6.35: el error ahora SACUDE la caja (como el modal de contraseña) además de
+         mostrar el texto — antes un PIN malo no daba ninguna señal de movimiento. */
+      const mostrarErr = (t) => {
+        err.textContent = t; err.style.display = 'block';
+        const caja = modal.querySelector('div');
+        if (caja) { caja.classList.remove('cbvi-sacudir'); void caja.offsetWidth; caja.classList.add('cbvi-sacudir'); }
+      };
       const intentar = async () => {
         const ced = inp.dataset.ced || '';
         const p = (pin.value || '').trim();
         if (!ced) { mostrarErr('Toca tu nombre en la lista que aparece al escribir.'); return; }
         if (!/^\d{4}$/.test(p)) { mostrarErr('El PIN son 4 dígitos.'); return; }
-        btn.disabled = true; btn.style.opacity = '0.65'; btn.textContent = 'Verificando...';
+        // v6.35: spinner girando en "Verificando..." (igual que _pedirPwdAdmin).
+        btn.disabled = true; btn.style.opacity = '0.65'; btn.innerHTML = '<span class="spinner-cbvi"></span> Verificando...';
         try {
           // Se valida ANTES de aceptar la firma, para avisar en el momento y no
           // dejar que la guardia opere creyendo que quedó firmada cuando no.
@@ -8350,8 +8380,8 @@ ${paginaFotos}
       + '<button id="_modConfirm" style="flex:1;padding:12px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Eliminar</button>'
       + '</div></div>';
     document.body.appendChild(modal);
-    document.getElementById('_modCancel').onclick = () => document.body.removeChild(modal);
-    document.getElementById('_modConfirm').onclick = () => { document.body.removeChild(modal); onConfirmar(); };
+    document.getElementById('_modCancel').onclick = () => app._cerrarModalJS(modal);
+    document.getElementById('_modConfirm').onclick = () => { app._cerrarModalJS(modal); onConfirmar(); };
   },
 
   async eliminarActividad(id, tipo) {
@@ -9113,7 +9143,7 @@ ${paginaFotos}
       this._eaRenderPersonal();
       this._eaRenderRecursos();
 
-      modal.querySelector('#_eaCancel').onclick = () => { document.body.removeChild(modal); this._eaLimpiar(); };
+      modal.querySelector('#_eaCancel').onclick = () => { app._cerrarModalJS(modal); this._eaLimpiar(); };
       modal.querySelector('#_eaGuard').onclick = async () => {
         await this._conBloqueo(modal.querySelector('#_eaGuard'), 'Guardando...', async () => {
         const _pwdEA = await this._obtenerPwdAdmin('🔐 Contraseña admin');
@@ -9138,7 +9168,7 @@ ${paginaFotos}
           const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
           const d=await r.json();
           if(!d.ok)throw new Error(d.error);
-          document.body.removeChild(modal);
+          app._cerrarModalJS(modal);
           this._eaLimpiar();
           this.toast('✅ Actividad actualizada','exito');
           setTimeout(()=>this.cargarListaActividades(),800);
@@ -9338,7 +9368,7 @@ ${paginaFotos}
         +'</div></div>';
       document.body.appendChild(modal);
       this._ednRenderFilas();
-      modal.querySelector('#_ednCancel').onclick=()=>document.body.removeChild(modal);
+      modal.querySelector('#_ednCancel').onclick=()=>app._cerrarModalJS(modal);
       modal.querySelector('#_ednGuard').onclick=async()=>{
         await this._conBloqueo(modal.querySelector('#_ednGuard'), 'Guardando...', async () => {
         /* v6.09: corregir un domingo mal anotado es trabajo de la guardia, así
@@ -9366,7 +9396,7 @@ ${paginaFotos}
               adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
           const d2=await r2.json();
           if(!d2.ok)throw new Error(d2.error);
-          document.body.removeChild(modal);
+          app._cerrarModalJS(modal);
           this.toast('✅ Domingo actualizado','exito');
           setTimeout(()=>this.cargarPantallaAsistencia(),800);
         }catch(e){this.toast('Error: '+e.message,'error');}
