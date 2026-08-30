@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.35';
+const APP_VERSION = '6.36';
 const APP_VERSION_NOTAS = [
+  'v6.36: ✨ Movimiento en el Panel de Administrador y más. Antes el Panel entraba sin animación; ahora las listas de reportes, de personal pendiente, de Operatividad y de Deudores entran escalonadas (una tarjeta tras otra) al abrirlas. Además, en Ver Deudores, la flechita ▼ de cada persona gira y el detalle de sus domingos se despliega con un suavizado. Todo liviano y respeta el modo "reducir movimiento".',
   'v6.35: ✨ Más movimiento (Fase 2). Ahora TODAS las ventanas emergentes se cierran con una animación suave (antes algunas desaparecían de golpe), el PIN muestra una rueda girando mientras verifica y SACUDE si te equivocás, el aviso verde de nueva versión baja y sube suave, y en el reporte la foto recién tomada y cada vehículo/víctima que agregás entran con una pequeña animación. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
   'v6.34: ✨ La app se siente más viva. Se agregó movimiento en las piezas que se usan en todos lados: las ventanas de confirmación y el menú ahora también se cierran con una animación suave (antes desaparecían de golpe), los avisos suben al aparecer, las listas de reportes y actividades entran escalonadas, los botones "ocupados" se atenúan suave, y los campos muestran mejor cuál está activo. Todo liviano para que no trabe, y respeta el modo "reducir movimiento" del celular. No cambia ningún dato ni cómo funciona: solo cómo se ve.',
   'v6.33: 🛟 Menos riesgo de perder trabajo. (1) Al salir de Asistencia o de una Actividad sin haber guardado, ahora la app avisa antes de descartar lo que marcaste (antes se perdía de un toque). (2) El reporte que estás llenando se autoguarda solo: si el celular cierra la app de golpe, no pierdes lo dictado. (3) Los reportes que quedaron "pendientes" por falta de señal ahora se envían solos al reabrir la app con internet, sin tener que forzarlos a mano. Además, un ajuste interno de seguridad al mostrar las fotos y firmas.',
@@ -3829,6 +3830,7 @@ const app = {
           </div>`;
       }).join('');
       wrap.style.display = 'block';
+      this._animarEntradaLista(cont);   // v6.36: las altas pendientes entran escalonadas
     } catch (e) {
       wrap.style.display = 'none';
     }
@@ -3925,6 +3927,7 @@ const app = {
         return;
       }
       this.renderizarListaAdmin();
+      this._animarEntradaLista(cont);   // v6.36: las tarjetas entran escalonadas al cargar (no al filtrar)
     } catch (e) {
       { const _d=document.createElement("div"); _d.style.cssText="padding:20px;color:#c00;"; _d.textContent="Error de red: "+(e.message||"")+". Verifica tu conexión."; cont.innerHTML=""; cont.appendChild(_d); }
     }
@@ -6438,6 +6441,20 @@ ${paginaFotos}
     setTimeout(() => { try { if (modal.parentNode) modal.parentNode.removeChild(modal); } catch (e) {} }, 160);
   },
 
+  /* v6.36: stagger de una lista UNA sola vez (al cargarse), no en cada tecla de un
+     filtro. Se llama DESPUÉS de pintar el innerHTML: agrega .cbvi-stagger (los hijos
+     entran escalonados por CSS) y quita la clase a los 700ms, así un re-render por
+     filtro posterior NO vuelve a escalonar. Sirve para las listas del Panel Admin,
+     Operatividad y Deudores, que se pintan por display/innerHTML dentro de una
+     pantalla que ya está activa (por eso cbviFadeIn no se re-dispara y quedaban sin
+     movimiento). */
+  _animarEntradaLista(cont) {
+    if (!cont) return;
+    cont.classList.add('cbvi-stagger');
+    clearTimeout(cont._tStagger);
+    cont._tStagger = setTimeout(() => cont.classList.remove('cbvi-stagger'), 700);
+  },
+
   escucharConexion() {
     const actualizar = () => {
       const header = document.getElementById('header');
@@ -7644,11 +7661,12 @@ ${paginaFotos}
         return '<div style="background:#fff;border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #c00;">'
           + '<div data-uid="'+uid+'" data-ced="'+app._esc(s.cedula||'')+'" data-nom="'+app._esc(s.nombre||'')+'" data-hp="'+app._esc(String(s.horasPendientes||''))+'" onclick="app._toggleDeudorAccordion(this.dataset.uid,this.dataset.ced,this.dataset.nom,this.dataset.hp)" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
           + '<div><strong>'+app._esc(s.nombre||'')+'</strong>'+badge(s)+'<div style="font-size:12px;color:#666;margin-top:2px;">CC: '+app._esc(s.cedula||'-')+'</div></div>'
-          + '<div style="text-align:right;"><div style="color:#c00;font-weight:700;">'+s.horasPendientes+'h</div><div style="font-size:11px;color:#999;">▼ ver domingos</div></div>'
+          + '<div style="text-align:right;"><div style="color:#c00;font-weight:700;">'+s.horasPendientes+'h</div><div style="font-size:11px;color:#999;"><span class="cbvi-caret" id="'+uid+'_car">▼</span> ver domingos</div></div>'
           + '</div>'
           + '<div id="'+uid+'_det" style="display:none;padding:0 14px 14px;border-top:1px solid #f5f5f5;"></div>'
           + '</div>';
       }).join('');
+      this._animarEntradaLista(cont);   // v6.36: las tarjetas de deudor entran escalonadas
     } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + e.message + '</div>'; }
   },
 
@@ -7657,9 +7675,13 @@ ${paginaFotos}
   async _toggleDeudorAccordion(uid, cedula, nom, hp) {
     const det = document.getElementById(uid + '_det');
     if (!det) return;
+    const car = document.getElementById(uid + '_car');   // v6.36: caret que gira
     const abierto = det.style.display !== 'none';
-    if (abierto) { det.style.display = 'none'; return; }
+    if (abierto) { det.style.display = 'none'; if (car) car.classList.remove('abierto'); return; }
     det.style.display = 'block';
+    if (car) car.classList.add('abierto');
+    // v6.36: el detalle aparece con un fade (reutiliza .cbvi-entra ya existente).
+    det.classList.remove('cbvi-entra'); void det.offsetWidth; det.classList.add('cbvi-entra');
     if (det.dataset.cargado === '1') return;
     det.innerHTML = '<div style="padding:10px 0;color:#999;font-size:13px;">Cargando domingos...</div>';
     try {
@@ -7713,6 +7735,7 @@ ${paginaFotos}
       this._operData = data.operatividad || [];
       this._operStats = data.stats || null;
       this._renderOperatividad();
+      this._animarEntradaLista(document.getElementById('operatividadContenido'));   // v6.36: entra escalonado
     } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
   }
 
