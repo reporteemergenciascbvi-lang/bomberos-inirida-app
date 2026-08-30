@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.37';
+const APP_VERSION = '6.38';
 const APP_VERSION_NOTAS = [
+  'v6.38: ✨ Animaciones que SE NOTAN. Ahora CADA botón, al tocarlo, hace una onda (ripple) que confirma el toque. Los números del Inicio (total, pendientes, enviados) SUBEN desde 0 al abrir. Y al enviar un reporte con un campo obligatorio vacío, ese campo se MARCA EN ROJO, se SACUDE, y la app te LLEVA directo a él (antes había que buscarlo en un formulario largo). Todo respeta el modo "reducir movimiento".',
   'v6.37: 🎨 NUEVA IMAGEN. La app se rediseñó con los colores de tus DOS escudos: el azul marino del escudo Nacional como base (el header ahora es azul), el rojo bombero de tu escudo de Inírida como color de acción (más brillante, más parecido a tu escudo real que el rojo vino anterior) y el oro de seguridad como acento. Además, la pantalla de Operatividad ya NO sale morada (estaba fuera de tu marca, hasta en los PDF impresos): ahora va en tu rojo. Solo cambia el aspecto: la lógica y tus datos NO cambian.',
   'v6.36: ✨ Movimiento en el Panel de Administrador y más. Antes el Panel entraba sin animación; ahora las listas de reportes, de personal pendiente, de Operatividad y de Deudores entran escalonadas (una tarjeta tras otra) al abrirlas. Además, en Ver Deudores, la flechita ▼ de cada persona gira y el detalle de sus domingos se despliega con un suavizado. Todo liviano y respeta el modo "reducir movimiento".',
   'v6.35: ✨ Más movimiento (Fase 2). Ahora TODAS las ventanas emergentes se cierran con una animación suave (antes algunas desaparecían de golpe), el PIN muestra una rueda girando mientras verifica y SACUDE si te equivocás, el aviso verde de nueva versión baja y sube suave, y en el reporte la foto recién tomada y cada vehículo/víctima que agregás entran con una pequeña animación. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
@@ -1440,11 +1441,10 @@ const app = {
         return r.operadorEmail.toLowerCase() === this.usuario.email.toLowerCase();
       });
     }
-    document.getElementById('statTotal').textContent = reportes.length;
-    document.getElementById('statPendientes').textContent =
-      reportes.filter(r => r.estado === 'pendiente').length;
-    document.getElementById('statEnviados').textContent =
-      reportes.filter(r => r.estado === 'enviado').length;
+    // v6.38: los totales SUBEN desde 0 (count-up) en vez de aparecer secos.
+    this._countUp(document.getElementById('statTotal'), reportes.length);
+    this._countUp(document.getElementById('statPendientes'), reportes.filter(r => r.estado === 'pendiente').length);
+    this._countUp(document.getElementById('statEnviados'), reportes.filter(r => r.estado === 'enviado').length);
 
     const lista = document.getElementById('listaReportes');
     if (reportes.length === 0) {
@@ -2942,7 +2942,21 @@ const app = {
     if (this._enviandoReporte) return;
     const r = this.leerFormulario();
     if (!r.narrativa || !r.direccion || !r.comandanteNombre || !r.fechaLlamada) {
-      this.toast('Faltan: fecha llamada, narrativa, dirección y comandante', 'error');
+      // v6.38: en vez de un aviso genérico, se MARCA y SACUDE cada campo que falta
+      // y la app te LLEVA al primero (antes había que buscarlo en un formulario largo).
+      const faltantes = [
+        ['f_fecha_llamada', !r.fechaLlamada, 'la fecha de la llamada'],
+        ['f_direccion', !r.direccion, 'la dirección'],
+        ['f_narrativa', !r.narrativa, 'la narrativa inicial'],
+        ['f_comandante_nombre', !r.comandanteNombre, 'el comandante en el lugar']
+      ].filter(x => x[1]);
+      faltantes.forEach(x => this._marcarCampoFalta(x[0]));
+      const primero = document.getElementById(faltantes[0][0]);
+      if (primero) {
+        try { primero.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+        setTimeout(() => { try { primero.focus(); } catch (e) {} }, 300);
+      }
+      this.toast('Falta ' + faltantes[0][2] + (faltantes.length > 1 ? ' (y ' + (faltantes.length - 1) + ' más marcados en rojo)' : ''), 'error');
       return;
     }
     // v5.63 (BUG anti-tontos): nombres que no están en la base → confirmar
@@ -6456,6 +6470,40 @@ ${paginaFotos}
     cont._tStagger = setTimeout(() => cont.classList.remove('cbvi-stagger'), 700);
   },
 
+  /* v6.38: un número que SUBE desde 0 hasta su valor (count-up), con un pop al llegar.
+     Dirige la mirada al dato. Respeta reducir movimiento (pone el valor directo). */
+  _countUp(el, to) {
+    if (!el) return;
+    to = Number(to) || 0;
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = to; return; }
+    const dur = 650;
+    let ini = null;
+    const paso = (ts) => {
+      if (ini === null) ini = ts;
+      const p = Math.min((ts - ini) / dur, 1);
+      el.textContent = Math.round(to * (0.5 - Math.cos(p * Math.PI) / 2));   // easing suave
+      if (p < 1) requestAnimationFrame(paso);
+      else { el.textContent = to; this._pop(el); }
+    };
+    requestAnimationFrame(paso);
+  },
+
+  /* v6.38: pop breve de un elemento (para resaltar un número o dato que cambió). */
+  _pop(el) {
+    if (!el) return;
+    el.classList.remove('cbvi-pop'); void el.offsetWidth; el.classList.add('cbvi-pop');
+  },
+
+  /* v6.38: marca un campo obligatorio vacío (rojo + sacudida) y limpia la marca en
+     cuanto el usuario empieza a escribir en él. */
+  _marcarCampoFalta(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('cbvi-campo-error'); void el.offsetWidth; el.classList.add('cbvi-campo-error');
+    const limpiar = () => { el.classList.remove('cbvi-campo-error'); el.removeEventListener('input', limpiar); };
+    el.addEventListener('input', limpiar);
+  },
+
   escucharConexion() {
     const actualizar = () => {
       const header = document.getElementById('header');
@@ -9611,6 +9659,26 @@ document.addEventListener('click', (e) => {
 });
 
 window.addEventListener('DOMContentLoaded', () => app.init());
+
+/* v6.38: RIPPLE global — una onda en el punto del toque sobre CUALQUIER botón.
+   Delegado en captura (funciona aunque el botón corte la propagación). No toca la
+   lógica: solo agrega/quita un <span> decorativo. Se respeta reduced-motion (el CSS
+   lo oculta). */
+document.addEventListener('pointerdown', (e) => {
+  const b = e.target.closest && e.target.closest('button');
+  if (!b || b.disabled) return;
+  try {
+    const r = b.getBoundingClientRect();
+    const s = document.createElement('span');
+    s.className = 'cbvi-ripple';
+    const size = Math.max(r.width, r.height);
+    s.style.width = s.style.height = size + 'px';
+    s.style.left = (e.clientX - r.left - size / 2) + 'px';
+    s.style.top = (e.clientY - r.top - size / 2) + 'px';
+    b.appendChild(s);
+    setTimeout(() => { try { s.remove(); } catch (er) {} }, 560);
+  } catch (er) {}
+}, true);
 
 document.addEventListener('input', (e) => {
   if (e.target.closest('#pantallaForm')) { app.actualizarProgreso(); app._programarAutoguardado(); }
