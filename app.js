@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.33';
+const APP_VERSION = '6.34';
 const APP_VERSION_NOTAS = [
+  'v6.34: ✨ La app se siente más viva. Se agregó movimiento en las piezas que se usan en todos lados: las ventanas de confirmación y el menú ahora también se cierran con una animación suave (antes desaparecían de golpe), los avisos suben al aparecer, las listas de reportes y actividades entran escalonadas, los botones "ocupados" se atenúan suave, y los campos muestran mejor cuál está activo. Todo liviano para que no trabe, y respeta el modo "reducir movimiento" del celular. No cambia ningún dato ni cómo funciona: solo cómo se ve.',
   'v6.33: 🛟 Menos riesgo de perder trabajo. (1) Al salir de Asistencia o de una Actividad sin haber guardado, ahora la app avisa antes de descartar lo que marcaste (antes se perdía de un toque). (2) El reporte que estás llenando se autoguarda solo: si el celular cierra la app de golpe, no pierdes lo dictado. (3) Los reportes que quedaron "pendientes" por falta de señal ahora se envían solos al reabrir la app con internet, sin tener que forzarlos a mano. Además, un ajuste interno de seguridad al mostrar las fotos y firmas.',
   'v6.32: 🪪 Al entrar al Panel de Administrador, el PIN ahora pregunta "¿qué administrador entra?" en vez de "¿quién está de guardia?" — esa pregunta se queda donde sí aplica (sanciones, asistencia, etc.), porque a Panel Admin solo entran administradores. Además, si "🚒 Vehículos del cuerpo" no logra cargar (sin señal, servidor ocupado), ahora avisa "no se pudo cargar" en vez de decir "todavía no hay vehículos" como si se hubieran borrado.',
   'v6.31: 🧭 Tour interactivo + 👥 Unidades vinculadas. El recorrido de ayuda ya no es una tarjeta de texto: ahora se mueve de verdad por la app y señala cada botón real, con uno para unidades y otro, más completo, para administradores (escudo, PIN, relevo, nómina, flota, Asistencia, Deudores, Operatividad, Mapa). Además, en el Panel de Administrador → "Unidades vinculadas" (solo el administrador principal), vea todo correo que ya usa la app y bloquéele el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.',
@@ -1060,11 +1061,18 @@ const app = {
   },
 
   toggleUserMenu() {
-    document.getElementById('userMenu').classList.toggle('visible');
+    const m = document.getElementById('userMenu');
+    if (m.classList.contains('visible')) { this.cerrarUserMenu(); return; }
+    // v6.34: al abrir, cancelar un cierre en curso y limpiar la clase de salida.
+    if (m._tCerrar) { clearTimeout(m._tCerrar); m._tCerrar = null; }
+    m.classList.remove('cbvi-cerrando');
+    m.classList.add('visible');
   },
 
   cerrarUserMenu() {
-    document.getElementById('userMenu').classList.remove('visible');
+    const m = document.getElementById('userMenu');
+    if (!m || !m.classList.contains('visible')) return;
+    this._animarCierre(m, () => m.classList.remove('visible'));   // v6.34: cierre animado
   },
 
   // ==================== TEMA DE DISEÑO (v5.88) ====================
@@ -6360,12 +6368,18 @@ ${paginaFotos}
   confirmar(titulo, mensaje) {
     document.getElementById('modalTitulo').textContent = titulo;
     document.getElementById('modalMensaje').textContent = mensaje;
-    document.getElementById('modalConfirmar').classList.add('visible');
+    const _mc = document.getElementById('modalConfirmar');
+    // v6.34: si venía cerrándose (fade en curso), cancelarlo para que no se
+    // oculte encima del modal nuevo que estamos abriendo.
+    if (_mc._tCerrar) { clearTimeout(_mc._tCerrar); _mc._tCerrar = null; }
+    _mc.classList.remove('cbvi-cerrando');
+    _mc.classList.add('visible');
     const btnConfirmar = document.getElementById('modalConfirmarBtn');
     return new Promise(resolve => {
       // Función única que resuelve y cierra (sin doble llamada)
       this._modalResolve = (valor) => {
-        document.getElementById('modalConfirmar').classList.remove('visible');
+        const el = document.getElementById('modalConfirmar');
+        this._animarCierre(el, () => el.classList.remove('visible'));   // v6.34: cierre animado
         const r = this._modalResolve;
         this._modalResolve = null;
         if (r) resolve(valor);
@@ -6378,8 +6392,27 @@ ${paginaFotos}
     if (this._modalResolve) {
       this._modalResolve(false);
     } else {
-      document.getElementById('modalConfirmar').classList.remove('visible');
+      const el = document.getElementById('modalConfirmar');
+      this._animarCierre(el, () => el.classList.remove('visible'));
     }
+  },
+
+  /* v6.34: cierre ANIMADO de un modal reutilizable. Agrega .cbvi-cerrando (fade +
+     pop-out por CSS) y recién a los 160ms hace el cierre real (quitar .visible o
+     removeChild). El timer se guarda en el propio elemento: si el modal se REABRE
+     antes de terminar el fade, quien reabre lo cancela para no cerrarse encima del
+     contenido nuevo. Respeta reduced-motion (ahí el CSS no anima; el cierre igual
+     ocurre a los 160ms, imperceptible). La lógica NO espera este tiempo: quien
+     llama resuelve/sigue de una; esto solo demora sacar el nodo del DOM. */
+  _animarCierre(el, hacer) {
+    if (!el) { if (hacer) hacer(); return; }
+    if (el._tCerrar) return;   // ya está cerrando
+    el.classList.add('cbvi-cerrando');
+    el._tCerrar = setTimeout(() => {
+      el._tCerrar = null;
+      el.classList.remove('cbvi-cerrando');
+      if (hacer) hacer();
+    }, 160);
   },
 
   escucharConexion() {
