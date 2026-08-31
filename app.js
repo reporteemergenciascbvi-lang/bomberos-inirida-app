@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.38';
+const APP_VERSION = '6.39';
 const APP_VERSION_NOTAS = [
+  'v6.39: ✨ Cierre de las animaciones. Los pines del Mapa de Emergencias ahora CAEN al aparecer, y las cifras de la pantalla de Operatividad (unidades, emergencias, domingos, asistencias) SUBEN desde 0 al abrir. Además, se corrigió el último morado fuera de marca (la tarjeta "Asistencias totales" quedó en azul). Todo respeta el modo "reducir movimiento".',
   'v6.38: ✨ Animaciones que SE NOTAN. Ahora CADA botón, al tocarlo, hace una onda (ripple) que confirma el toque. Los números del Inicio (total, pendientes, enviados) SUBEN desde 0 al abrir. Y al enviar un reporte con un campo obligatorio vacío, ese campo se MARCA EN ROJO, se SACUDE, y la app te LLEVA directo a él (antes había que buscarlo en un formulario largo). Todo respeta el modo "reducir movimiento".',
   'v6.37: 🎨 NUEVA IMAGEN. La app se rediseñó con los colores de tus DOS escudos: el azul marino del escudo Nacional como base (el header ahora es azul), el rojo bombero de tu escudo de Inírida como color de acción (más brillante, más parecido a tu escudo real que el rojo vino anterior) y el oro de seguridad como acento. Además, la pantalla de Operatividad ya NO sale morada (estaba fuera de tu marca, hasta en los PDF impresos): ahora va en tu rojo. Solo cambia el aspecto: la lógica y tus datos NO cambian.',
   'v6.36: ✨ Movimiento en el Panel de Administrador y más. Antes el Panel entraba sin animación; ahora las listas de reportes, de personal pendiente, de Operatividad y de Deudores entran escalonadas (una tarjeta tras otra) al abrirlas. Además, en Ver Deudores, la flechita ▼ de cada persona gira y el detalle de sus domingos se despliega con un suavizado. Todo liviano y respeta el modo "reducir movimiento".',
@@ -7888,12 +7889,12 @@ ${paginaFotos}
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
-          <div style="font-size:28px;font-weight:700;color:#1a5276;">${totalPersonas}</div>
+          <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#1a5276;">${totalPersonas}</div>
           <div style="font-size:12px;color:#666;">Unidades con registros</div>
           ${this._operStats && this._operStats.unidadesBase !== undefined ? '<div style="font-size:11px;color:#999;margin-top:2px;">Base activa: '+this._operStats.unidadesBase+'</div>' : ''}
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
-          <div style="font-size:28px;font-weight:700;color:#c0392b;">${this._operStats ? this._operStats.totalEmergenciasUnicas : totalEmerg}</div>
+          <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#c0392b;">${this._operStats ? this._operStats.totalEmergenciasUnicas : totalEmerg}</div>
           <div style="font-size:12px;color:#666;">Emergencias únicas</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
@@ -7901,13 +7902,13 @@ ${paginaFotos}
           <div style="font-size:12px;color:#666;">Horas en actividades</div>
         </div>
         <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
-          <div style="font-size:28px;font-weight:700;color:#e67e22;">${totalDomingos}</div>
+          <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#e67e22;">${totalDomingos}</div>
           <div style="font-size:12px;color:#666;">Domingos realizados</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;">
         <div style="background:#fff;border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:22px;font-weight:700;color:#8e44ad;">${this._operStats && this._operStats.asistenciasTotales !== undefined ? this._operStats.asistenciasTotales : d.reduce((s,p)=>s+(p.domingosPresente||0),0)}</div>
+          <div class="cbvi-num" style="font-size:22px;font-weight:700;color:var(--navy-2);">${this._operStats && this._operStats.asistenciasTotales !== undefined ? this._operStats.asistenciasTotales : d.reduce((s,p)=>s+(p.domingosPresente||0),0)}</div>
           <div style="font-size:12px;color:#666;">Asistencias totales (suma individual)</div>
         </div>
       </div>
@@ -7929,6 +7930,9 @@ ${paginaFotos}
         ${rankList(topDomin,'rk_domin',p=>p.domingosPresente,'dom.','#e67e22')}
       </div>
       <button onclick="app._imprimirReporteGeneral()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
+    // v6.39: las cifras de las tarjetas SUBEN desde 0 (el valor final ya está en el
+    // textContent; _countUp lo toma como destino y anima desde 0).
+    cont.querySelectorAll('.cbvi-num').forEach(el => this._countUp(el, el.textContent));
   },
 
   _renderPorUnidad() {
@@ -8662,7 +8666,7 @@ ${paginaFotos}
       + '<path d="M15 0C6.7 0 0 6.7 0 15c0 11.2 15 25 15 25s15-13.8 15-25C30 6.7 23.3 0 15 0z" fill="'+regla.color+'" stroke="#fff" stroke-width="2"/>'
       + '<circle cx="15" cy="15" r="10" fill="#fff"/>'
       + '</svg>';
-    const html = '<div style="position:relative;width:30px;height:40px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));">' + svg
+    const html = '<div class="cbvi-pin-cae" style="position:relative;width:30px;height:40px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));">' + svg
       + '<span style="position:absolute;top:5px;left:0;width:30px;text-align:center;font-size:13px;line-height:20px;">' + regla.emoji + '</span></div>';
     return L.divIcon({ html: html, className: '', iconSize: [30,40], iconAnchor: [15,40], popupAnchor: [0,-36] });
   },
