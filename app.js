@@ -24,8 +24,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.40';
+const APP_VERSION = '6.42';
 const APP_VERSION_NOTAS = [
+  'v6.42: 🚒 Reporte de incidente + Nueva Actividad mejorados. En el REPORTE ahora se registra la HORA DE SALIDA de la estación (además de llamada, llegada y cierre). En NUEVA ACTIVIDAD: ahora son 6 fotos (antes 3); se agregó el tipo "Pernotar" (servicio nocturno — las horas cuentan aunque el turno cruce la medianoche); podés indicar si la actividad fue VOLUNTARIA o PAGA (contratada); y una misma actividad puede registrar VARIAS ATENCIONES (p. ej. varios primeros auxilios en unos Juegos), cada una con sus datos y hasta 3 fotos propias. Todo sale en el detalle y el PDF. Nada de lo anterior se pierde.',
+  'v6.41: 🚨 Cargas con carácter. Los "girando…" genéricos se reemplazaron por animaciones del oficio, repartidas por toda la app: una SIRENA que parpadea, un DESPACHO de puntos que rebotan, y una barra de SINCRONIZANDO. Se ven al enviar un reporte, guardar asistencia, abrir un reporte, cargar el personal, verificar el PIN, etc. — cada acción muestra una distinta. Los skeletons (barras que brillan) siguen para las listas. Solo cambia el aspecto.',
   'v6.40: 🎨 Diseño "Minimalista" a tono. El otro diseño (el que se elige en el menú → Tema) ahora usa el AZUL MARINO de tus escudos en vez del azul genérico que traía, para que combine con la imagen nueva. Solo cambia el aspecto de ese tema; si usás el diseño Original, nada cambia.',
   'v6.39: ✨ Cierre de las animaciones. Los pines del Mapa de Emergencias ahora CAEN al aparecer, y las cifras de la pantalla de Operatividad (unidades, emergencias, domingos, asistencias) SUBEN desde 0 al abrir. Además, se corrigió el último morado fuera de marca (la tarjeta "Asistencias totales" quedó en azul). Todo respeta el modo "reducir movimiento".',
   'v6.38: ✨ Animaciones que SE NOTAN. Ahora CADA botón, al tocarlo, hace una onda (ripple) que confirma el toque. Los números del Inicio (total, pendientes, enviados) SUBEN desde 0 al abrir. Y al enviar un reporte con un campo obligatorio vacío, ese campo se MARCA EN ROJO, se SACUDE, y la app te LLEVA directo a él (antes había que buscarlo en un formulario largo). Todo respeta el modo "reducir movimiento".',
@@ -2489,7 +2491,7 @@ const app = {
       htmlOrig = btn.innerHTML;
       btn.disabled = true;
       btn.style.opacity = '0.65';
-      btn.innerHTML = '<span class="spinner-cbvi"></span> ' + (textoCargando || 'Cargando...');
+      btn.innerHTML = '<span class="ld-despacho"><i></i><i></i><i></i></span> ' + (textoCargando || 'Cargando...');
     }
     try {
       await fn();
@@ -2627,6 +2629,7 @@ const app = {
     r.fechaModificacion = new Date().toISOString();
     r.estacion = NOMBRE_ESTACION;
     r.fechaLlamada = document.getElementById('f_fecha_llamada').value;
+    r.fechaSalida = document.getElementById('f_fecha_salida').value;
     r.fechaLlegada = document.getElementById('f_fecha_llegada').value;
     r.fechaCierre = document.getElementById('f_fecha_cierre').value;
     r.reportaNombre = document.getElementById('f_reporta_nombre').value;
@@ -2774,6 +2777,7 @@ const app = {
   cargarEnFormulario(r) {
     document.getElementById('f_consecutivo').value = r.consecutivo || 'Se asigna al enviar';
     document.getElementById('f_fecha_llamada').value = this._isoADatetimeLocal(r.fechaLlamada);
+    document.getElementById('f_fecha_salida').value = this._isoADatetimeLocal(r.fechaSalida);
     document.getElementById('f_fecha_llegada').value = this._isoADatetimeLocal(r.fechaLlegada);
     document.getElementById('f_fecha_cierre').value = this._isoADatetimeLocal(r.fechaCierre);
     document.getElementById('f_reporta_nombre').value = r.reportaNombre || '';
@@ -2974,7 +2978,7 @@ const app = {
       }
     } catch(eV) { /* validación nunca debe romper el envío */ }
     this._enviandoReporte = true;
-    if (btn) { btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="spinner-cbvi"></span> Enviando...'; }
+    if (btn) { btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="ld-sirena"></span> Enviando...'; }
     try {
       await this._enviarReporteInterno(r);
     } finally {
@@ -4060,7 +4064,7 @@ const app = {
     document.getElementById('panelAdminViendo').style.display = 'block';
     this._animarEntrada(document.getElementById('panelAdminViendo'));   // v6.11
     const cont = document.getElementById('panelAdminViendoContenido');
-    cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">Cargando reporte completo desde el servidor...</div>';
+    cont.innerHTML = app._cargador('Cargando el reporte completo…');
 
     // Descargar reporte completo. v5.94: si la descarga falla (auth intermitente
     // o red caída en Inírida) NO mostramos el stub pobre del mapa como si fuera
@@ -4164,6 +4168,7 @@ const app = {
       ${card('🕐 Fechas y reportante', `
         ${fila('Creación', fecha(r.fechaCreacion))}
         ${fila('Llamada', fecha(r.fechaLlamada))}
+        ${fila('Salida de la estación', fecha(r.fechaSalida))}
         ${fila('Llegada', fecha(r.fechaLlegada))}
         ${fila('Cierre', fecha(r.fechaCierre))}
         ${fila('Reporta nombre', r.reportaNombre)}
@@ -4530,6 +4535,7 @@ const app = {
     // Construir payload de cambios (todos los campos del reporte)
     const cambios = {
       fechaLlamada: r.fechaLlamada || '',
+      fechaSalida: r.fechaSalida || '',
       fechaLlegada: r.fechaLlegada || '',
       fechaCierre: r.fechaCierre || '',
       reportaNombre: r.reportaNombre || '',
@@ -6047,11 +6053,15 @@ const app = {
       </tr>
       <tr>
         <td class="label">FECHA Y HORA DE LLAMADA:</td><td>${sn(fecha(r.fechaLlamada))}</td>
-        <td class="label">FECHA/HORA DE LLEGADA:</td><td>${sn(fecha(r.fechaLlegada))}</td>
+        <td class="label">FECHA/HORA DE SALIDA:</td><td>${sn(fecha(r.fechaSalida))}</td>
       </tr>
       <tr>
+        <td class="label">FECHA/HORA DE LLEGADA:</td><td>${sn(fecha(r.fechaLlegada))}</td>
         <td class="label">FECHA/HORA DE CIERRE:</td><td>${sn(fecha(r.fechaCierre))}</td>
+      </tr>
+      <tr>
         <td class="label">TURNO / GUARDIA:</td><td>${sn(r.turno)}</td>
+        <td class="label"></td><td></td>
       </tr>
       <tr>
         <td class="label">QUIÉN REPORTA:</td><td>${sn(r.reportaNombre)}</td>
@@ -6506,6 +6516,19 @@ ${paginaFotos}
     el.addEventListener('input', limpiar);
   },
 
+  /* v6.41: loader "con carácter" para el centro de una pantalla/sección que carga.
+     Reparte SOLO entre sirena / despacho / sincronizando (rota en cada llamada si no
+     se fija el tipo), así distintos puntos de carga muestran loaders distintos. Los
+     skeletons (shimmer) siguen siendo el 4º tipo donde ya se usan. */
+  _cargador(texto, tipo) {
+    const tipos = ['sirena', 'despacho', 'sincro'];
+    if (!tipo) { this._ldSeq = (this._ldSeq || 0) + 1; tipo = tipos[this._ldSeq % 3]; }
+    const graf = tipo === 'sirena' ? '<div class="ld-sirena-g"></div>'
+      : tipo === 'despacho' ? '<div class="ld-despacho-g"><i></i><i></i><i></i></div>'
+      : '<div class="ld-sincro-g"></div>';
+    return '<div class="ld-caja">' + graf + '<div>' + app._esc(texto || 'Cargando…') + '</div></div>';
+  },
+
   escucharConexion() {
     const actualizar = () => {
       const header = document.getElementById('header');
@@ -6550,7 +6573,9 @@ ${paginaFotos}
   iniciarNuevaActividad() {
     this._actPersonal = [];
     this._actRecursos = [];
-    this._actFotos = { inicio: null, medio: null, fin: null };
+    this._actAtenciones = [];
+    this._actIdCliente = null; // v6.42: nueva actividad = nuevo recibo de idempotencia (evita reusar el de un intento anterior)
+    this._actFotos = { inicio: null, medio: null, fin: null, f4: null, f5: null, f6: null };
     this.irA('pantallaActividades');
     // reset form fields
     setTimeout(() => {
@@ -6558,18 +6583,21 @@ ${paginaFotos}
        'actRecursoTipo','actRecursoCodigo','actRecursoResponsable'].forEach(id => {
         const el = document.getElementById(id); if(el) el.value='';
       });
+      const rv = document.querySelector('input[name="actModalidad"][value="Voluntaria"]'); if (rv) rv.checked = true;
       this._renderPersonalActividad();
       this._renderRecursosActividad();   // v6.09: antes nadie pintaba #actRecursosLista
-      ['prevFotoInicio','prevFotoMedio','prevFotoFin'].forEach(id => {
+      this._renderAtenciones();
+      ['prevFotoInicio','prevFotoMedio','prevFotoFin','prevFotoF4','prevFotoF5','prevFotoF6'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.innerHTML = '<span style="font-size:20px;">📷</span>';
       });
     }, 50);
   },
 
-  _actFotos: { inicio: null, medio: null, fin: null },
+  _actFotos: { inicio: null, medio: null, fin: null, f4: null, f5: null, f6: null },
   _actPersonal: [],
   _actRecursos: [],
+  _actAtenciones: [],
 
   async cargarFotoActividad(tipo, input) {
     const file = input.files[0];
@@ -6587,6 +6615,91 @@ ${paginaFotos}
       if (prev) prev.innerHTML = '<span style="font-size:11px;color:#c00;">Error</span>';
       this.toast('No se pudo procesar la foto', 'error');
     }
+  },
+
+  // ═══ v6.42: ATENCIONES MÚLTIPLES dentro de una actividad ═══
+  // Cada atención lleva datos básicos + hasta 3 fotos propias (aparte de las 6 de la
+  // actividad). Viven en this._actAtenciones y viajan como JSON al backend. Los inputs de
+  // texto actualizan el modelo EN EL SITIO (sin re-render) para no perder el foco al escribir;
+  // solo agregar/quitar atención o foto vuelve a pintar la lista.
+  _actAtencionTipos: ['Primeros auxilios','Traslado a centro médico','Valoración','Otro'],
+
+  agregarAtencion() {
+    if (!Array.isArray(this._actAtenciones)) this._actAtenciones = [];
+    if (this._actAtenciones.length >= 20) { this.toast('Máximo 20 atenciones por actividad', 'error'); return; }
+    this._actAtenciones.push({ tipo: '', paciente: '', documento: '', hora: '', descripcion: '', fotos: [] });
+    this._renderAtenciones();
+  },
+
+  quitarAtencion(i) {
+    if (!this._actAtenciones) return;
+    this._actAtenciones.splice(i, 1);
+    this._renderAtenciones();
+  },
+
+  _setAtencionCampo(i, campo, valor) {
+    if (this._actAtenciones && this._actAtenciones[i]) this._actAtenciones[i][campo] = valor;
+  },
+
+  async cargarFotoAtencion(i, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const at = this._actAtenciones && this._actAtenciones[i];
+    if (!at) return;
+    if (!Array.isArray(at.fotos)) at.fotos = [];
+    if (at.fotos.length >= 3) { this.toast('Máximo 3 fotos por atención', 'error'); input.value = ''; return; }
+    try {
+      const dataUrl = await this.comprimirImagen(file, 1280, 0.7);
+      at.fotos.push(dataUrl);
+      this._renderAtenciones();
+    } catch (e) { this.toast('No se pudo procesar la foto', 'error'); }
+    input.value = '';
+  },
+
+  quitarFotoAtencion(i, j) {
+    const at = this._actAtenciones && this._actAtenciones[i];
+    if (!at || !Array.isArray(at.fotos)) return;
+    at.fotos.splice(j, 1);
+    this._renderAtenciones();
+  },
+
+  // Solo las atenciones con algún dato (evita mandar tarjetas vacías que el usuario abrió y no llenó).
+  _atencionesParaEnviar() {
+    return (this._actAtenciones || []).filter(a => a && (a.tipo || a.paciente || a.documento || a.hora || a.descripcion || (a.fotos && a.fotos.length)));
+  },
+
+  _renderAtenciones() {
+    const cont = document.getElementById('actAtencionesLista');
+    if (!cont) return;
+    const ats = this._actAtenciones || [];
+    if (!ats.length) { cont.innerHTML = ''; return; }
+    cont.innerHTML = ats.map((a, i) => {
+      const ops = this._actAtencionTipos.map(t => `<option${a.tipo===t?' selected':''}>${app._esc(t)}</option>`).join('');
+      const fotos = (a.fotos || []).map((f, j) =>
+        `<div style="position:relative;width:60px;height:60px;">
+           <img src="${f}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">
+           <button type="button" onclick="app.quitarFotoAtencion(${i},${j})" style="position:absolute;top:-6px;right:-6px;background:#d81f27;color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:1;cursor:pointer;font-size:12px;">×</button>
+         </div>`).join('');
+      const btnFoto = (a.fotos || []).length < 3
+        ? `<label style="width:60px;height:60px;background:#f5f5f5;border:2px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+             <span style="font-size:18px;">📷</span>
+             <input type="file" accept="image/*" style="display:none" onchange="app.cargarFotoAtencion(${i},this)">
+           </label>` : '';
+      return `<div style="border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:10px;background:#fafafa;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <b style="font-size:13px;color:#1a5276;">🩹 Atención ${i+1}</b>
+          <button type="button" onclick="app.quitarAtencion(${i})" style="background:#fdecea;color:#c0392b;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:700;">Quitar</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <select onchange="app._setAtencionCampo(${i},'tipo',this.value)" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;"><option value="">Tipo de atención...</option>${ops}</select>
+          <input type="time" value="${app._esc(a.hora||'')}" onchange="app._setAtencionCampo(${i},'hora',this.value)" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <input type="text" value="${app._esc(a.paciente||'')}" placeholder="Nombre del paciente" oninput="app._setAtencionCampo(${i},'paciente',this.value)" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+          <input type="text" value="${app._esc(a.documento||'')}" placeholder="Documento (opcional)" oninput="app._setAtencionCampo(${i},'documento',this.value)" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+        </div>
+        <textarea rows="2" placeholder="Descripción de la atención" oninput="app._setAtencionCampo(${i},'descripcion',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;resize:none;margin-bottom:8px;">${app._esc(a.descripcion||'')}</textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">${fotos}${btnFoto}</div>
+      </div>`;
+    }).join('');
   },
 
   _buscarTimer: null,
@@ -6765,7 +6878,7 @@ ${paginaFotos}
     if (!this._actPersonal.length) { this.toast('Agrega al menos una persona', 'error'); return; }
     this._guardandoActividad = true;
     let htmlBtn = '';
-    if (btn) { htmlBtn = btn.innerHTML; btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="spinner-cbvi"></span> Guardando actividad...'; }
+    if (btn) { htmlBtn = btn.innerHTML; btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="ld-despacho"><i></i><i></i><i></i></span> Guardando actividad...'; }
     this.toast('⏳ Guardando actividad...', 'info');
     // v5.63: idCliente estable por intento — el backend lo usa para ignorar
     // envíos repetidos del mismo formulario (anti-duplicado de red).
@@ -6784,9 +6897,14 @@ ${paginaFotos}
         registradoPor: this.usuario.nombre,
         emailRegistrador: this.usuario.email,
         comandante: (this._actPersonal.find(p=>p.esEncargado)||{}).nombre || this.usuario.nombre,
+        modalidad: (document.querySelector('input[name="actModalidad"]:checked')||{}).value || 'Voluntaria',
+        atenciones: this._atencionesParaEnviar(),
         fotoInicio: this._actFotos.inicio,
         fotoMedio: this._actFotos.medio,
-        fotoFin: this._actFotos.fin
+        fotoFin: this._actFotos.fin,
+        foto4: this._actFotos.f4,
+        foto5: this._actFotos.f5,
+        foto6: this._actFotos.f6
       };
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -6798,14 +6916,15 @@ ${paginaFotos}
       if (data._diagFotos) {
         const df = data._diagFotos;
         console.log('DIAG FOTOS:', df);
-        const fallo = ['inicio','medio','fin'].some(k => df.recibidas[k] && !df.subidas[k]);
+        const claves = ['inicio','medio','fin','f4','f5','f6'];
+        const fallo = claves.some(k => df.recibidas[k] && !df.subidas[k]);
         if (fallo) {
           const linea = (k) => 'Foto ' + k + ': recibida=' + (df.recibidas[k]?'SÍ':'NO')
             + ' | Drive=' + (df.subidas[k]?'SÍ ✅':'NO ❌')
             + ((df.errores && df.errores[k]) ? (' (' + df.errores[k] + ')') : '');
           // alert() nativo NO se ve en el APK/WebView → modal propio de la app.
           this.confirmar('⚠️ Foto no guardada',
-            'Una foto no se subió al servidor.  ·  ' + linea('inicio') + '  ·  ' + linea('medio') + '  ·  ' + linea('fin'));
+            'Una foto no se subió al servidor.  ·  ' + claves.filter(k => df.recibidas[k]).map(linea).join('  ·  '));
         }
       }
       this.toast('✅ Actividad registrada', 'exito');
@@ -6814,13 +6933,19 @@ ${paginaFotos}
       this._actPersonal = [];
       this._actRecursos = [];   // v6.09: faltaba — los vehículos quedaban pegados
                                 // al formulario y se repetían en la actividad siguiente
-      this._actFotos = { inicio: null, medio: null, fin: null };
+      this._actAtenciones = [];
+      this._actFotos = { inicio: null, medio: null, fin: null, f4: null, f5: null, f6: null };
       ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades',
        'actRecursoTipo','actRecursoCodigo','actRecursoResponsable'].forEach(id => {
         const el = document.getElementById(id); if(el) el.value = '';
       });
+      const rv2 = document.querySelector('input[name="actModalidad"][value="Voluntaria"]'); if (rv2) rv2.checked = true;
+      ['prevFotoInicio','prevFotoMedio','prevFotoFin','prevFotoF4','prevFotoF5','prevFotoF6'].forEach(id => {
+        const el = document.getElementById(id); if(el) el.innerHTML = '<span style="font-size:20px;">📷</span>';
+      });
       this._renderPersonalActividad();
       this._renderRecursosActividad();
+      this._renderAtenciones();
       setTimeout(() => this.irA('pantallaListaActividades'), 1000);
     } catch(e) { this.toast('Error: ' + e.message, 'error'); }
     finally {
@@ -6893,7 +7018,7 @@ ${paginaFotos}
     this._actividadActual = id;
     this.irA('pantallaDetalleActividad');
     const cont = document.getElementById('detalleActividadContenido');
-    cont.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">Cargando...</div>';
+    cont.innerHTML = app._cargador('Cargando…');
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -6905,7 +7030,11 @@ ${paginaFotos}
       this._detalleActividadData = a;
       cont.innerHTML = `
         <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-          <div style="font-size:18px;font-weight:700;color:#1a5276;margin-bottom:8px;">${a.tipo}</div>
+          <div style="font-size:18px;font-weight:700;color:#1a5276;margin-bottom:8px;">${app._esc(a.tipo)}
+            ${a.modalidad === 'Paga'
+              ? '<span style="font-size:11px;font-weight:700;background:#fef3c7;color:#92600a;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle;">💵 PAGA</span>'
+              : '<span style="font-size:11px;font-weight:700;background:#e7f3e7;color:#1e6b2f;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle;">🙋 VOLUNTARIA</span>'}
+          </div>
           <div style="color:#333;margin-bottom:6px;">${app._esc(a.descripcion)}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;color:#555;">
             <div>📅 ${app._esc(a.fecha)}</div><div>📍 ${app._esc(a.lugar||'-')}</div>
@@ -6919,16 +7048,48 @@ ${paginaFotos}
             <strong>${app._esc(p.nombre)}</strong> — ${app._esc(p.rango)}<div style="font-size:12px;color:#666;">CC: ${app._esc(p.cedula)}</div>
           </div>`).join('')}
         </div>
-        ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `
+        ${(a.fotoInicio||a.fotoMedio||a.fotoFin||a.fotoF4||a.fotoF5||a.fotoF6) ? `
         <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
           <div style="font-weight:700;margin-bottom:8px;">📸 Fotos</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
-            ${a.fotoInicio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Inicio</div><img src="${app._esc(this._imgDrive(a.fotoInicio))}" style="width:100%;border-radius:6px;"></div>` : ''}
-            ${a.fotoMedio ? `<div><div style="font-size:11px;color:#666;text-align:center;">Intermedio</div><img src="${app._esc(this._imgDrive(a.fotoMedio))}" style="width:100%;border-radius:6px;"></div>` : ''}
-            ${a.fotoFin ? `<div><div style="font-size:11px;color:#666;text-align:center;">Final</div><img src="${app._esc(this._imgDrive(a.fotoFin))}" style="width:100%;border-radius:6px;"></div>` : ''}
+            ${[a.fotoInicio,a.fotoMedio,a.fotoFin,a.fotoF4,a.fotoF5,a.fotoF6].map((f,idx) => f ? `<div><div style="font-size:11px;color:#666;text-align:center;">Foto ${idx+1}</div><img src="${app._esc(this._imgDrive(f))}" style="width:100%;border-radius:6px;"></div>` : '').join('')}
           </div>
-        </div>` : ''}`;
+        </div>` : ''}
+        ${this._atencionesDetalleHTML(a.atenciones)}`;
     } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
+  },
+
+  // v6.42: tarjetas de atenciones para el detalle en pantalla (fotos como URL de Drive).
+  _atencionesDetalleHTML(ats) {
+    if (!Array.isArray(ats) || !ats.length) return '';
+    const cards = ats.map((a, i) => {
+      const fotos = (a.fotos || []).map(f => `<img src="${app._esc(this._imgDrive(f))}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;">`).join('');
+      const meta = [a.paciente ? '👤 ' + app._esc(a.paciente) : '', a.documento ? 'CC ' + app._esc(a.documento) : '', a.hora ? '🕐 ' + app._esc(a.hora) : ''].filter(Boolean).join(' · ');
+      return `<div style="border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:8px;background:#fafafa;">
+        <div style="font-weight:700;color:#1a5276;font-size:13px;">🩹 Atención ${i+1}${a.tipo ? ' — ' + app._esc(a.tipo) : ''}</div>
+        ${meta ? `<div style="font-size:12px;color:#555;margin-top:2px;">${meta}</div>` : ''}
+        ${a.descripcion ? `<div style="font-size:13px;color:#333;margin-top:4px;">${app._esc(a.descripcion)}</div>` : ''}
+        ${fotos ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">${fotos}</div>` : ''}
+      </div>`;
+    }).join('');
+    return `<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:8px;">🩹 Atenciones (${ats.length})</div>${cards}</div>`;
+  },
+
+  // v6.42: mismas atenciones para el PDF (estilo de impresión).
+  _atencionesPDFHTML(ats) {
+    if (!Array.isArray(ats) || !ats.length) return '';
+    const bloques = ats.map((a, i) => {
+      const fotos = (a.fotos || []).map(f => `<img src="${app._esc(this._imgDrive(f))}" style="width:120px;height:120px;object-fit:cover;margin:2px;border:1px solid #ccc;">`).join('');
+      const meta = [a.paciente ? 'Paciente: ' + app._esc(a.paciente) : '', a.documento ? 'Doc: ' + app._esc(a.documento) : '', a.hora ? 'Hora: ' + app._esc(a.hora) : ''].filter(Boolean).join(' | ');
+      return `<div style="margin-bottom:8px;border:1px solid #ddd;border-radius:4px;padding:8px;">
+        <p style="margin:0;font-weight:700;">Atención ${i+1}${a.tipo ? ' — ' + app._esc(a.tipo) : ''}</p>
+        ${meta ? `<p style="margin:2px 0;font-size:10pt;">${meta}</p>` : ''}
+        ${a.descripcion ? `<p style="margin:2px 0;font-size:10pt;">${app._esc(a.descripcion)}</p>` : ''}
+        ${fotos ? `<div>${fotos}</div>` : ''}
+      </div>`;
+    }).join('');
+    return `<h2 class="sec">Atenciones durante la actividad (${ats.length})</h2>${bloques}`;
   },
 
   imprimirActividad() {
@@ -6973,7 +7134,7 @@ ${paginaFotos}
       <div class="titulo">REGISTRO OFICIAL DE ACTIVIDAD</div>
       <div class="lema">"ABNEGACIÓN Y DISCIPLINA"</div>
 
-      <h2 class="sec">${a.tipo}</h2>
+      <h2 class="sec">${app._esc(a.tipo)} <span style="font-size:10pt;font-weight:700;">· ${a.modalidad === 'Paga' ? 'PAGA (contratada)' : 'VOLUNTARIA'}</span></h2>
       <p><strong>Descripción:</strong> ${app._esc(a.descripcion)}</p>
       <table><tr><th>Fecha</th><th>Lugar</th><th>Hora inicio</th><th>Hora fin</th><th>Duración</th></tr>
       <tr><td>${app._esc(String(a.fecha||'').substring(0,10))}</td><td>${app._esc(a.lugar||'-')}</td><td>${app._esc(a.horaInicio||'-')}</td><td>${app._esc(a.horaFin||'-')}</td><td>${app._esc(a.duracion)}h</td></tr></table>
@@ -6984,11 +7145,11 @@ ${paginaFotos}
       ${a.personal.map((p,i) => `<tr><td>${i+1}</td><td>${app._esc(p.nombre)}</td><td>${app._esc(p.cedula)}</td><td>${app._esc(p.rango)}</td><td>${app._esc(p.horas)}h</td></tr>`).join('')}
       </table>
 
-      ${(a.fotoInicio||a.fotoMedio||a.fotoFin) ? `<h2 class="sec">Registro fotográfico</h2><div class="fotos">
-        ${a.fotoInicio ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Inicio</p><img src="${app._esc(this._imgDrive(a.fotoInicio))}"></div>` : ''}
-        ${a.fotoMedio ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Intermedio</p><img src="${app._esc(this._imgDrive(a.fotoMedio))}"></div>` : ''}
-        ${a.fotoFin ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Final</p><img src="${app._esc(this._imgDrive(a.fotoFin))}"></div>` : ''}
+      ${(a.fotoInicio||a.fotoMedio||a.fotoFin||a.fotoF4||a.fotoF5||a.fotoF6) ? `<h2 class="sec">Registro fotográfico</h2><div class="fotos">
+        ${[a.fotoInicio,a.fotoMedio,a.fotoFin,a.fotoF4,a.fotoF5,a.fotoF6].map((f,idx) => f ? `<div><p style="text-align:center;font-weight:700;font-size:9pt;">Foto ${idx+1}</p><img src="${app._esc(this._imgDrive(f))}"></div>` : '').join('')}
       </div>` : ''}
+
+      ${this._atencionesPDFHTML(a.atenciones)}
 
       <div class="pie">
         Registrado por: ${a.registradoPor||'-'}<br>
@@ -7068,7 +7229,7 @@ ${paginaFotos}
     const fecha = document.getElementById('asistFecha').value;
     if (!fecha) return;
     const cont = document.getElementById('asistListaPersonal');
-    cont.innerHTML = '<div style="text-align:center;padding:16px;color:#999;">Cargando personal...</div>';
+    cont.innerHTML = app._cargador('Cargando el personal…');
     document.getElementById('btnGuardarAsistencia').style.display = 'block';
     const _nb=document.getElementById('btnMostrarNuevoBombero');if(_nb)_nb.style.display='block';
     this._asistRegistros = {};
@@ -7446,7 +7607,7 @@ ${paginaFotos}
     const lugarReunion = document.getElementById('asistLugar') ? document.getElementById('asistLugar').value : '';
     this._guardandoAsistencia = true;
     let _htmlBtnAsist = '';
-    if (btn) { _htmlBtnAsist = btn.innerHTML; btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="spinner-cbvi"></span> Guardando asistencia...'; }
+    if (btn) { _htmlBtnAsist = btn.innerHTML; btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="ld-sirena"></span> Guardando asistencia...'; }
     this.toast('⏳ Guardando asistencia...', 'info');
     try {
       const resp = await fetch(URL_BACKEND, {
@@ -7494,8 +7655,8 @@ ${paginaFotos}
     m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;overflow-y:auto;padding:14px;';
     m.innerHTML =
       '<div style="background:#fff;border-radius:16px;padding:26px 18px;max-width:460px;margin:auto;text-align:center;">'
-      + '<span style="display:inline-block;width:26px;height:26px;border:3px solid #cde7d8;border-top-color:#1e8449;border-radius:50%;animation:girocbvi .7s linear infinite;"></span>'
-      + '<div style="margin-top:10px;font-weight:700;color:#1e8449;font-size:14px;">⏳ Abriendo asistencia del ' + app._esc(fecha) + '...</div>'
+      + '<div class="ld-sirena-g" style="margin:0 auto;"></div>'
+      + '<div style="margin-top:12px;font-weight:700;color:var(--navy);font-size:14px;">Abriendo asistencia del ' + app._esc(fecha) + '…</div>'
       + '<div style="font-size:12px;color:#999;margin-top:4px;">Espera un momento</div>'
       + '</div>';
     document.body.appendChild(m);
@@ -7734,7 +7895,7 @@ ${paginaFotos}
     // v6.36: el detalle aparece con un fade (reutiliza .cbvi-entra ya existente).
     det.classList.remove('cbvi-entra'); void det.offsetWidth; det.classList.add('cbvi-entra');
     if (det.dataset.cargado === '1') return;
-    det.innerHTML = '<div style="padding:10px 0;color:#999;font-size:13px;">Cargando domingos...</div>';
+    det.innerHTML = app._cargador('Cargando los domingos…');
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -8003,7 +8164,7 @@ ${paginaFotos}
     if (!cont) return;
     if (cont.style.display!=='none' && cont.dataset.tipo===tipo) { cont.style.display='none'; return; }
     cont.style.display='block'; cont.dataset.tipo=tipo;
-    cont.innerHTML='<div style="font-size:12px;color:#999;padding:6px;">Cargando...</div>';
+    cont.innerHTML = app._cargador('Cargando…');
     const accion = tipo==='emerg'?'obtenerEmergenciasPersona':tipo==='activ'?'obtenerActividadesPersona':'obtenerDomingosPersona';
     try {
       const resp=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -8081,7 +8242,7 @@ ${paginaFotos}
         ocupado = true;
         const htmlPrev = btnOk.innerHTML;
         btnOk.disabled = true; btnOk.style.opacity = '0.65';
-        btnOk.innerHTML = '<span class="spinner-cbvi"></span> Verificando...';
+        btnOk.innerHTML = '<span class="ld-sincro"></span> Verificando...';
         err.style.display = 'none';
         try {
           const r = await fetch(URL_BACKEND, { method: 'POST',
@@ -8406,7 +8567,7 @@ ${paginaFotos}
         if (!ced) { mostrarErr('Toca tu nombre en la lista que aparece al escribir.'); return; }
         if (!/^\d{4}$/.test(p)) { mostrarErr('El PIN son 4 dígitos.'); return; }
         // v6.35: spinner girando en "Verificando..." (igual que _pedirPwdAdmin).
-        btn.disabled = true; btn.style.opacity = '0.65'; btn.innerHTML = '<span class="spinner-cbvi"></span> Verificando...';
+        btn.disabled = true; btn.style.opacity = '0.65'; btn.innerHTML = '<span class="ld-sincro"></span> Verificando...';
         try {
           // Se valida ANTES de aceptar la firma, para avisar en el momento y no
           // dejar que la guardia opere creyendo que quedó firmada cuando no.
@@ -9135,9 +9296,9 @@ ${paginaFotos}
       this._eaId = id;
       this._eaPersonal = (a.personal||[]).map(p => ({ nombre:p.nombre, cedula:p.cedula||'', rango:p.rango||'BOMBERO', telefono:p.telefono||'', esEncargado:!!p.esEncargado }));
       this._eaRecursos = (a.recursos||[]).map(r => ({ tipo:r.tipo||'', codigo:r.codigo||'', responsable:r.responsable||'', responsableCedula:r.responsableCedula||'' }));
-      this._eaFotosNuevas = { inicio:null, medio:null, fin:null };  // null = no cambiada
-      this._eaFotosActuales = { inicio:a.fotoInicio||'', medio:a.fotoMedio||'', fin:a.fotoFin||'' };
-      const tipos = ['Acompañamiento','Capacitación','Entrenamiento','Simulacro','Inspección','Jornada comunitaria','Bomberitos Junior','Arreglos / Reparaciones (institución)','Mantenimiento','Otra'];
+      this._eaFotosNuevas = { inicio:null, medio:null, fin:null, f4:null, f5:null, f6:null };  // null = no cambiada
+      this._eaFotosActuales = { inicio:a.fotoInicio||'', medio:a.fotoMedio||'', fin:a.fotoFin||'', f4:a.fotoF4||'', f5:a.fotoF5||'', f6:a.fotoF6||'' };
+      const tipos = ['Acompañamiento','Capacitación','Entrenamiento','Simulacro','Inspección','Jornada comunitaria','Pernotar','Bomberitos Junior','Arreglos / Reparaciones (institución)','Mantenimiento','Otra'];
       const esc = (s) => app._esc(s);
       const fotoSlot = (k, lbl, src) =>
         '<div style="text-align:center;">'
@@ -9167,8 +9328,13 @@ ${paginaFotos}
         +'</div>'
         +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
         +'<input type="text" id="_eaL" value="'+esc(a.lugar)+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<label style="font-size:12px;font-weight:700;">Modalidad</label>'
+        +'<select id="_eaMod" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
+        +  '<option value="Voluntaria"'+(a.modalidad!=='Paga'?' selected':'')+'>🙋 Voluntaria</option>'
+        +  '<option value="Paga"'+(a.modalidad==='Paga'?' selected':'')+'>💵 Paga (contratada)</option>'
+        +'</select>'
         +'<label style="font-size:12px;font-weight:700;">Novedades</label>'
-        +'<textarea id="_eaN" rows="2" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">'+(a.novedades||"")+'</textarea>'
+        +'<textarea id="_eaN" rows="2" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">'+esc(a.novedades||"")+'</textarea>'
         // ── PERSONAL ──
         +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">👥 Personal asistente</div>'
         +'<div id="_eaPersonalLista" style="margin-bottom:6px;"></div>'
@@ -9177,11 +9343,14 @@ ${paginaFotos}
         +'<div id="_eaSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;"></div>'
         +'</div>'
         // ── FOTOS ──
-        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">📸 Fotos</div>'
-        +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:space-around;">'
-        + fotoSlot('inicio','Inicio',a.fotoInicio||'')
-        + fotoSlot('medio','Intermedio',a.fotoMedio||'')
-        + fotoSlot('fin','Final',a.fotoFin||'')
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">📸 Fotos (hasta 6)</div>'
+        +'<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;justify-content:center;">'
+        + fotoSlot('inicio','Foto 1',a.fotoInicio||'')
+        + fotoSlot('medio','Foto 2',a.fotoMedio||'')
+        + fotoSlot('fin','Foto 3',a.fotoFin||'')
+        + fotoSlot('f4','Foto 4',a.fotoF4||'')
+        + fotoSlot('f5','Foto 5',a.fotoF5||'')
+        + fotoSlot('f6','Foto 6',a.fotoF6||'')
         +'</div>'
         // ── RECURSOS ──
         +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">🚒 Recursos / Vehículos</div>'
@@ -9235,6 +9404,7 @@ ${paginaFotos}
             horaFin:document.getElementById('_eaHF').value,
             lugar:document.getElementById('_eaL').value,
             novedades:document.getElementById('_eaN').value,
+            modalidad:document.getElementById('_eaMod').value,
             personal:this._eaPersonal,
             recursos:this._eaRecursos,
             adminEmail:this.usuario.email, adminPassword:this._adminPwdSession };
@@ -9242,6 +9412,9 @@ ${paginaFotos}
           if (this._eaFotosNuevas.inicio) payload.fotoInicioNueva = this._eaFotosNuevas.inicio;
           if (this._eaFotosNuevas.medio)  payload.fotoMedioNueva  = this._eaFotosNuevas.medio;
           if (this._eaFotosNuevas.fin)    payload.fotoFinNueva    = this._eaFotosNuevas.fin;
+          if (this._eaFotosNuevas.f4)     payload.fotoF4Nueva     = this._eaFotosNuevas.f4;
+          if (this._eaFotosNuevas.f5)     payload.fotoF5Nueva     = this._eaFotosNuevas.f5;
+          if (this._eaFotosNuevas.f6)     payload.fotoF6Nueva     = this._eaFotosNuevas.f6;
           const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
           const d=await r.json();
           if(!d.ok)throw new Error(d.error);
