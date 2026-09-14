@@ -24,8 +24,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.42';
+const APP_VERSION = '6.44';
 const APP_VERSION_NOTAS = [
+  'v6.44: 🛡️ Blindaje de seguridad. El prefijo del consecutivo (Configuración) ahora solo acepta letras y números, y todos los números de reporte se muestran de forma segura en la app y en el PDF. No cambia cómo trabajas ni tus datos.',
+  'v6.43: 🚒 Inicio operativo renovado. Nuevo incidente destaca como acción principal. Registrar actividades, asistencia y consultar están ahora antes del historial, con textos más legibles y los colores del CBVI. Se conservan las funciones, los permisos y tus datos.',
   'v6.42: 🚒 Reporte de incidente + Nueva Actividad mejorados. En el REPORTE ahora se registra la HORA DE SALIDA de la estación (además de llamada, llegada y cierre). En NUEVA ACTIVIDAD: ahora son 6 fotos (antes 3); se agregó el tipo "Pernotar" (servicio nocturno — las horas cuentan aunque el turno cruce la medianoche); podés indicar si la actividad fue VOLUNTARIA o PAGA (contratada); y una misma actividad puede registrar VARIAS ATENCIONES (p. ej. varios primeros auxilios en unos Juegos), cada una con sus datos y hasta 3 fotos propias. Todo sale en el detalle y el PDF. Nada de lo anterior se pierde.',
   'v6.41: 🚨 Cargas con carácter. Los "girando…" genéricos se reemplazaron por animaciones del oficio, repartidas por toda la app: una SIRENA que parpadea, un DESPACHO de puntos que rebotan, y una barra de SINCRONIZANDO. Se ven al enviar un reporte, guardar asistencia, abrir un reporte, cargar el personal, verificar el PIN, etc. — cada acción muestra una distinta. Los skeletons (barras que brillan) siguen para las listas. Solo cambia el aspecto.',
   'v6.40: 🎨 Diseño "Minimalista" a tono. El otro diseño (el que se elige en el menú → Tema) ahora usa el AZUL MARINO de tus escudos en vez del azul genérico que traía, para que combine con la imagen nueva. Solo cambia el aspecto de ese tema; si usás el diseño Original, nada cambia.',
@@ -1218,7 +1220,8 @@ const app = {
     // Solo admin puede cambiar consecutivo
     if (this.esAdmin()) {
       this.config.proximoNumero = +document.getElementById('cfg_proximo_numero').value || 1;
-      this.config.prefijo = document.getElementById('cfg_prefijo').value.trim().toUpperCase() || 'RE';
+      // v6.44: mismo filtro que el backend (_prefijoSeguro) — solo letras/dígitos, máx 6.
+      this.config.prefijo = document.getElementById('cfg_prefijo').value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'RE';
     }
 
     await DB.guardarConfig('app', this.config);
@@ -1465,20 +1468,23 @@ const app = {
       const fecha = new Date(r.fechaCreacion).toLocaleString('es-CO', {
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
       });
+      // v6.44 (I5): consecutivo y clasificación llegan del servidor (listarMisReportes) —
+      // el consecutivo lo arma el backend con un prefijo que MANDA EL CLIENTE. Nada
+      // que venga de otra persona va crudo a innerHTML.
       return `
-        <div class="reporte-item ${r.estado}" data-id="${app._esc(r.id)}" onclick="app.verDetalle(this.dataset.id)">
+        <div class="reporte-item ${this._esc(r.estado)}" data-id="${app._esc(r.id)}" onclick="app.verDetalle(this.dataset.id)">
           <div class="info">
-            <div class="consec">${r.consecutivo || 'Sin asignar'}</div>
-            <div class="desc">${tipos}</div>
+            <div class="consec">${this._esc(r.consecutivo || 'Sin asignar')}</div>
+            <div class="desc">${this._esc(tipos)}</div>
             <div class="fecha">${fecha}</div>
           </div>
-          <span class="badge ${r.estado}">${this.etiquetaEstado(r.estado)}</span>
+          <span class="badge ${this._esc(r.estado)}">${this.etiquetaEstado(r.estado)}</span>
         </div>`;
     }).join('');
   },
 
   etiquetaEstado(estado) {
-    return { borrador: 'Borrador', pendiente: 'Pendiente', enviado: 'Enviado' }[estado] || estado;
+    return { borrador: 'Borrador', pendiente: 'Pendiente', enviado: 'Enviado' }[estado] || this._esc(estado);
   },
 
   // ═══ v5.63 (BUG 10): widget "Sanciones pendientes" en el Home (solo admin) ═══
@@ -3314,8 +3320,8 @@ const app = {
           return `
             <tr>
               <td style="padding:6px;font-size:12px;">${fecha}</td>
-              <td style="padding:6px;font-size:12px;color:#999;text-decoration:line-through;">${p.consecutivoAnterior}</td>
-              <td style="padding:6px;font-size:12px;color:#15803d;font-weight:700;">→ ${p.consecutivoNuevo}</td>
+              <td style="padding:6px;font-size:12px;color:#999;text-decoration:line-through;">${app._esc(p.consecutivoAnterior)}</td>
+              <td style="padding:6px;font-size:12px;color:#15803d;font-weight:700;">→ ${app._esc(p.consecutivoNuevo)}</td>
             </tr>`;
         }).join('');
 
@@ -3969,7 +3975,7 @@ const app = {
 
     cont.innerHTML = reportes.map(r => `
       <div class="reporte-card" style="margin-bottom:10px;padding:12px;border-left:4px solid var(--rojo);background:#fff;border-radius:6px;">
-        <div style="font-weight:bold;color:var(--rojo);font-size:15px;">${r.consecutivo || '(sin consecutivo)'}</div>
+        <div style="font-weight:bold;color:var(--rojo);font-size:15px;">${app._esc(r.consecutivo || '(sin consecutivo)')}</div>
         <div style="font-size:13px;color:#333;margin-top:2px;">${app._esc(r.direccion || 'Sin dirección')}</div>
         <div style="font-size:11px;color:#888;margin-top:4px;">
           ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
@@ -4461,7 +4467,7 @@ const app = {
         barra.style.cssText = 'position:sticky;bottom:0;left:0;right:0;background:var(--rojo);color:#fff;padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;z-index:50;box-shadow:0 -2px 8px rgba(0,0,0,0.25);';
         barra.innerHTML = `
           <div style="flex:1 1 100%;font-size:13px;font-weight:700;margin-bottom:4px;">
-            🛡️ Editando como administrador — ${ (r && r.consecutivo) || '' }
+            🛡️ Editando como administrador — ${ app._esc((r && r.consecutivo) || '') }
           </div>
           <div style="flex:1 1 100%;margin-bottom:6px;font-size:11px;opacity:0.85;">
             📍 Para corregir coordenadas GPS, edítalas en la sección <strong>3 — Ubicación del Incidente</strong> arriba.
@@ -5660,9 +5666,9 @@ const app = {
 
     cont.innerHTML = `
       <div class="config-card">
-        <h3>${r.consecutivo || 'Sin consecutivo'}</h3>
+        <h3>${this._esc(r.consecutivo || 'Sin consecutivo')}</h3>
         <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 12px;">
-          <span class="badge ${r.estado}">${this.etiquetaEstado(r.estado)}</span>
+          <span class="badge ${this._esc(r.estado)}">${this.etiquetaEstado(r.estado)}</span>
           ${fecha}
         </p>
         <p><strong>Tipo:</strong> ${app._esc(tipos)}</p>
@@ -5879,7 +5885,7 @@ const app = {
             <img src="${app._logoImpresion()}" alt="">
             <div>
               <strong>CUERPO DE BOMBEROS VOLUNTARIOS — INÍRIDA, GUAINÍA</strong><br>
-              <span style="font-size: 9pt;">Anexo fotográfico — Reporte ${r.consecutivo || ''} — Hoja ${etiquetaHoja}/${totalHojas}</span>
+              <span style="font-size: 9pt;">Anexo fotográfico — Reporte ${app._esc(r.consecutivo || '')} — Hoja ${etiquetaHoja}/${totalHojas}</span>
             </div>
           </div>
           <div class="fotos-grid-pdf">
@@ -5904,7 +5910,7 @@ const app = {
 <html>
 <head>
 <meta charset="UTF-8">
-<title>${r.consecutivo}</title>
+<title>${app._esc(r.consecutivo || '')}</title>
 <style>
   :root { --logo-watermark: url("${app._logoImpresion()}"); }
   @page { size: A4; margin: 10mm; }
