@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.45';
+const APP_VERSION = '6.46';
 const APP_VERSION_NOTAS = [
+  'v6.46: 🧾 Formulario más simple: en Recursos ya no se piden "Cantidad" ni "Placa" — la placa y la clase del vehículo salen del catálogo de la estación y van al PDF solas. Se aclaró quién es el afectado que firma y quiénes son las víctimas. Tus reportes anteriores no cambian.',
   'v6.45: 🚒 Diseño operativo en toda la app: formularios, asistencia, administración, consultas, ayuda y ventanas más legibles; controles cómodos y una sirena visible al navegar. Conserva tus datos y la forma de trabajar.',
   'v6.44: 🛡️ Blindaje de seguridad. El prefijo del consecutivo (Configuración) ahora solo acepta letras y números, y todos los números de reporte se muestran de forma segura en la app y en el PDF. No cambia cómo trabajas ni tus datos.',
   'v6.43: 🚒 Inicio operativo renovado. Nuevo incidente destaca como acción principal. Registrar actividades, asistencia y consultar están ahora antes del historial, con textos más legibles y los colores del CBVI. Se conservan las funciones, los permisos y tus datos.',
@@ -2291,10 +2292,6 @@ const app = {
         </select>
         <input type="text" data-campo="recurso_otro" placeholder="Especifique" style="display:none; margin-top: 6px;">
       </div>
-      <div class="campo-fila">
-        <div class="campo"><label>Cantidad</label><input type="number" data-campo="cantidad" min="0" value="1"></div>
-        <div class="campo"><label>Placa/Código</label><input type="text" data-campo="codigo"></div>
-      </div>
       <div class="campo">
         <label>Responsable / Maquinista</label>
         <div class="nombre-con-ci">
@@ -2326,8 +2323,10 @@ const app = {
         div.querySelector('[data-campo="recurso_otro"]').style.display = 'block';
       }
       this.cambioTipoRecurso(sel);
-      div.querySelector('[data-campo="cantidad"]').value = datos.cantidad || 1;
-      div.querySelector('[data-campo="codigo"]').value = datos.codigo || '';
+      // v6.46 (PLAN-20260915-01): cantidad y código ya no se piden. Los de reportes VIEJOS se conservan
+      // en el dataset de la fila para no perderlos al re-guardar (leerRecursos los lee de ahí).
+      div.dataset.cantidad = datos.cantidad != null ? String(datos.cantidad) : '';
+      div.dataset.codigo = datos.codigo || '';
       div.querySelector('[data-campo="responsable"]').value = datos.responsable || '';
       if (datos.personal && Array.isArray(datos.personal)) {
         datos.personal.forEach(nombre => this.agregarBomberoConNombre(div, nombre));
@@ -2740,11 +2739,14 @@ const app = {
       }
       const personal = Array.from(fila.querySelectorAll('[data-personal] input'))
         .map(i => i.value.trim()).filter(v => v);
+      const responsable = fila.querySelector('[data-campo="responsable"]').value;
       return {
         recurso,
-        cantidad: fila.querySelector('[data-campo="cantidad"]').value,
-        codigo: fila.querySelector('[data-campo="codigo"]').value,
-        responsable: fila.querySelector('[data-campo="responsable"]').value,
+        // cantidad derivada: vehículo/otro = 1; Personal = nombres (responsable + tripulantes). Un reporte viejo
+        // conserva la suya (dataset). Así la columna "Cantidad" de la hoja sigue teniendo sentido sin digitarla.
+        cantidad: fila.dataset.cantidad || (recurso === 'Personal' ? String(personal.length + (responsable.trim() ? 1 : 0)) : '1'),
+        codigo: fila.dataset.codigo || '',
+        responsable,
         personal
       };
     });
@@ -5364,6 +5366,19 @@ const app = {
     return this._flota;
   },
 
+  /* v6.46 (PLAN-20260915-01): el PDF saca CLASE y PLACA del catálogo (hoja Vehiculos) por indicativo —
+     dato maestro, no se vuelve a digitar en cada reporte. Cruce exacto y, si no, por prefijo
+     ("Móvil 3 — máquina extintora" → "Móvil 3"; NO confunde Móvil 1 con Móvil 10 porque exige espacio
+     tras el indicativo). Sin flota cargada (sin señal) devuelve null: el PDF nunca se bloquea. */
+  _vehiculoDeRecurso(nombre) {
+    const n = String(nombre || '').trim().toUpperCase();
+    if (!n) return null;
+    const flota = this._flota || [];
+    const exacto = flota.find(v => String(v.indicativo || '').trim().toUpperCase() === n);
+    if (exacto) return exacto;
+    return flota.find(v => { const ind = String(v.indicativo || '').trim().toUpperCase(); return ind && n.indexOf(ind + ' ') === 0; }) || null;
+  },
+
   _flotaDisponible() {
     return (this._flota || []).filter((v) => v.estado !== 'DE BAJA' && v.estado !== 'FUERA DE SERVICIO');
   },
@@ -5662,7 +5677,8 @@ const app = {
     const recursosHTML = (r.recursos || []).map(rec => {
       const personalStr = (rec.personal && rec.personal.length)
         ? `<br><small>👥 ${app._esc(rec.personal.join(', '))}</small>` : '';
-      return `<li><strong>${app._esc(rec.recurso)}</strong> (cant: ${rec.cantidad}) ${rec.codigo ? '— ' + app._esc(rec.codigo) : ''} ${rec.responsable ? '— ' + app._esc(rec.responsable) : ''}${personalStr}</li>`;
+      const cantStr = rec.cantidad && String(rec.cantidad) !== '1' ? ` (x${app._esc(rec.cantidad)})` : '';
+      return `<li><strong>${app._esc(rec.recurso)}</strong>${cantStr} ${rec.codigo ? '— ' + app._esc(rec.codigo) : ''} ${rec.responsable ? '— ' + app._esc(rec.responsable) : ''}${personalStr}</li>`;
     }).join('');
 
     cont.innerHTML = `
@@ -5828,14 +5844,16 @@ const app = {
     // ventana.document.write() en una pestaña del MISMO origen que la app
     // (window.open sin noopener) — sin _esc(), un nombre con <script> o
     // <img onerror=...> se ejecutaba con acceso a window.opener (la app viva).
-    const recursosFilas = (r.recursos || []).map(rec => `
+    const recursosFilas = (r.recursos || []).map(rec => {
+      const veh = app._vehiculoDeRecurso(rec.recurso);
+      return `
       <tr>
         <td>${app._esc(rec.recurso || '')}</td>
-        <td style="text-align:center;">${app._esc(rec.cantidad || '')}</td>
-        <td>${app._esc(rec.codigo || '')}</td>
+        <td>${app._esc((veh && veh.clase) || '')}</td>
+        <td style="text-align:center;">${app._esc((veh && veh.placa) || rec.codigo || '')}</td>
         <td>${app._esc(rec.responsable || '')}${rec.personal && rec.personal.length ? '<br><small>' + app._esc(rec.personal.join(', ')) + '</small>' : ''}</td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
 
     const _resPdf = this.resumenPersonalDeReporte(r);
     const _totalPersPdf = (typeof r.totalPersonal === 'number') ? r.totalPersonal : _resPdf.total;
@@ -6121,10 +6139,10 @@ const app = {
     <div class="seccion-titulo">5. RECURSOS DESPLEGADOS</div>
     <table class="tabla-datos">
       <tr>
-        <td class="label" style="width:30%;">RECURSO</td>
-        <td class="label" style="width:15%;">CANTIDAD</td>
-        <td class="label" style="width:25%;">PLACA / CÓDIGO</td>
-        <td class="label" style="width:30%;">RESPONSABLE</td>
+        <td class="label" style="width:28%;">RECURSO</td>
+        <td class="label" style="width:24%;">CLASE (catálogo)</td>
+        <td class="label" style="width:14%;">PLACA</td>
+        <td class="label" style="width:34%;">RESPONSABLE / TRIPULACIÓN</td>
       </tr>
       ${recursosFilas || filaVacia + filaVacia + filaVacia}
     </table>
