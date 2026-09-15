@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.47';
+const APP_VERSION = '6.48';
 const APP_VERSION_NOTAS = [
+  'v6.48: 📟 Mesa de operaciones más clara. Actividades y asistencias se leen como una bitácora; los detalles parecen expedientes; la asistencia resalta la fila en uso; Operatividad organiza mejor filtros, cifras y rankings; y el mapa reúne sus controles en un panel más limpio. También se ampliaron a 44 px los botones pequeños de firma. No cambia datos ni permisos.',
   'v6.47: 🧭 Reportar un incidente ahora es más fácil de recorrer: las 13 secciones están agrupadas en tres fases (aviso, respuesta y cierre), la sección abierta se distingue mejor y las filas, fotos, firmas y botones son más cómodos en el celular. No cambia tus datos ni la forma de guardarlos.',
   'v6.46: 🧾 Formulario más simple: en Recursos ya no se piden "Cantidad" ni "Placa" — la placa y la clase del vehículo salen del catálogo de la estación y van al PDF solas. Se aclaró quién es el afectado que firma y quiénes son las víctimas. Tus reportes anteriores no cambian.',
   'v6.45: 🚒 Diseño operativo en toda la app: formularios, asistencia, administración, consultas, ayuda y ventanas más legibles; controles cómodos y una sirena visible al navegar. Conserva tus datos y la forma de trabajar.',
@@ -6997,7 +6998,7 @@ ${paginaFotos}
       if (data.ok && data.actividades && data.actividades.length) {
         this._listaActividades = data.actividades;
         htmlAct = data.actividades.map((a) =>
-          '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1a5276;">'
+          '<div class="ops-log-item ops-log-activity" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1a5276;">'
           +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
           +'<div style="flex:1;cursor:pointer;" data-actid="'+a.id+'" onclick="app.verDetalleActividad(this.dataset.actid)">'
           +'<div style="font-weight:700;color:#1a5276;">'+app._esc(a.tipo)+' - '+app._esc(String(a.descripcion||'').substring(0,50))+'</div>'
@@ -7021,7 +7022,7 @@ ${paginaFotos}
       const dD = await rD.json();
       if (dD.ok && dD.domingos && dD.domingos.length) {
         htmlDom = dD.domingos.map(d =>
-          '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1e8449;cursor:pointer;" data-f="'+d.fecha+'" onclick="app.verAsistenciaDomingo(this.dataset.f)">'
+          '<div class="ops-log-item ops-log-attendance" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1e8449;cursor:pointer;" data-f="'+d.fecha+'" onclick="app.verAsistenciaDomingo(this.dataset.f)">'
           +'<div style="font-weight:700;color:#1e8449;">📅 '+d.fecha+(d.tipo?' — '+d.tipo:'')+'</div>'
           +(d.tema?'<div style="font-size:12px;color:#666;margin:2px 0;">'+app._esc(d.tema)+'</div>':'')
           +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
@@ -7036,8 +7037,8 @@ ${paginaFotos}
     } catch(e) { htmlDom = '<div style="color:#c00;padding:14px;">Error cargando domingos</div>'; }
 
     cont.innerHTML =
-      '<div style="font-size:13px;font-weight:700;color:#1a5276;margin:4px 0 8px;letter-spacing:.5px;">📋 ACTIVIDADES</div>' + htmlAct
-      + '<div style="font-size:13px;font-weight:700;color:#1e8449;margin:18px 0 8px;letter-spacing:.5px;">📅 ASISTENCIA DE DOMINGOS</div>' + htmlDom;
+      '<div class="ops-section-label" style="font-size:13px;font-weight:700;color:#1a5276;margin:4px 0 8px;letter-spacing:.5px;">📋 Actividades</div>' + htmlAct
+      + '<div class="ops-section-label ops-section-attendance" style="font-size:13px;font-weight:700;color:#1e8449;margin:18px 0 8px;letter-spacing:.5px;">📅 Asistencia de domingos</div>' + htmlDom;
   },
 
   async verDetalleActividad(id) {
@@ -7055,8 +7056,8 @@ ${paginaFotos}
       const a = data.actividad;
       this._detalleActividadData = a;
       cont.innerHTML = `
-        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-          <div style="font-size:18px;font-weight:700;color:#1a5276;margin-bottom:8px;">${app._esc(a.tipo)}
+        <div class="ops-dossier-card" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+          <div class="ops-dossier-title" style="font-size:18px;font-weight:700;color:#1a5276;margin-bottom:8px;">${app._esc(a.tipo)}
             ${a.modalidad === 'Paga'
               ? '<span style="font-size:11px;font-weight:700;background:#fef3c7;color:#92600a;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle;">💵 PAGA</span>'
               : '<span style="font-size:11px;font-weight:700;background:#e7f3e7;color:#1e6b2f;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle;">🙋 VOLUNTARIA</span>'}
@@ -7068,14 +7069,14 @@ ${paginaFotos}
           </div>
           ${a.novedades ? `<div style="margin-top:8px;padding:8px;background:#f5f5f5;border-radius:6px;font-size:13px;">${app._esc(a.novedades)}</div>` : ''}
         </div>
-        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+        <div class="ops-dossier-card" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
           <div style="font-weight:700;margin-bottom:8px;">👥 Personal (${a.personal.length})</div>
           ${a.personal.map(p => `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px;">
             <strong>${app._esc(p.nombre)}</strong> — ${app._esc(p.rango)}<div style="font-size:12px;color:#666;">CC: ${app._esc(p.cedula)}</div>
           </div>`).join('')}
         </div>
         ${(a.fotoInicio||a.fotoMedio||a.fotoFin||a.fotoF4||a.fotoF5||a.fotoF6) ? `
-        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+        <div class="ops-dossier-card" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
           <div style="font-weight:700;margin-bottom:8px;">📸 Fotos</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
             ${[a.fotoInicio,a.fotoMedio,a.fotoFin,a.fotoF4,a.fotoF5,a.fotoF6].map((f,idx) => f ? `<div><div style="font-size:11px;color:#666;text-align:center;">Foto ${idx+1}</div><img src="${app._esc(this._imgDrive(f))}" style="width:100%;border-radius:6px;"></div>` : '').join('')}
@@ -7098,7 +7099,7 @@ ${paginaFotos}
         ${fotos ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">${fotos}</div>` : ''}
       </div>`;
     }).join('');
-    return `<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
+    return `<div class="ops-dossier-card" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
       <div style="font-weight:700;margin-bottom:8px;">🩹 Atenciones (${ats.length})</div>${cards}</div>`;
   },
 
@@ -7215,7 +7216,7 @@ ${paginaFotos}
         const tipo = typeof d === 'object' ? (d.tipo||'') : '';
         const tema = typeof d === 'object' ? (d.tema||'') : '';
         const esAdmH = this.esAdmin();
-        return '<div style="padding:10px;border-bottom:1px solid #f0f0f0;">'
+        return '<div class="ops-history-row" style="padding:10px;border-bottom:1px solid #f0f0f0;">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
           + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;">📅 '+f+(tipo?' — '+app._esc(tipo):'')+'</span>'
           + (esAdmH
@@ -7324,7 +7325,7 @@ ${paginaFotos}
     const filaHTML = (p) => {
       const key = String(p.cedula || p.nombre || '').replace(/"/g, '&quot;');
       const conExcusa = p.estado === 'AUSENTE_EXCUSA';
-      return '<div data-row="'+key+'" style="padding:8px;border-bottom:1px solid #f0f0f0;">'
+      return '<div class="ops-attendance-row" data-row="'+key+'" style="padding:8px;border-bottom:1px solid #f0f0f0;">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;">'
         + '<div style="flex:1;"><div style="font-size:14px;font-weight:600;">'+app._esc(p.nombre||'(sin nombre)')+'</div>'
         + '<div style="font-size:11px;color:#999;">CC: '+app._esc(p.cedula||'-')+'</div></div>'
@@ -7354,7 +7355,7 @@ ${paginaFotos}
       for (const p of lista) {
         const c = this._catRango(p.rango);
         if (c !== catPrev) {
-          cuerpo += '<div style="margin:12px 0 4px;padding:6px 10px;background:#1e8449;color:#fff;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.5px;">'
+          cuerpo += '<div class="ops-roster-heading" style="margin:12px 0 4px;padding:6px 10px;background:#1e8449;color:#fff;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.5px;">'
             + this._ROTULOS_CAT[c] + ' (' + conteo[c] + ')</div>';
           catPrev = c;
         }
@@ -7991,7 +7992,7 @@ ${paginaFotos}
     // NO resetear _operMes — '' significa "Todo el año"
     if (!this._operAnio) this._operAnio = anioActual;
     const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    const filtros = '<div style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
+    const filtros = '<div class="ops-filterbar" style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
       + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
       + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
       + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
@@ -8009,9 +8010,9 @@ ${paginaFotos}
     if (!this._operData.length) {
       const mesesN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
       const mesNom0 = this._operMes ? mesesN[parseInt(this._operMes)-1] : 'Todo el año';
-      const card0 = (n,lbl,col) => '<div style="background:#fff;border-radius:10px;padding:14px;text-align:center;"><div style="font-size:28px;font-weight:700;color:'+col+';">'+n+'</div><div style="font-size:12px;color:#666;">'+lbl+'</div></div>';
+      const card0 = (n,lbl,col) => '<div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;"><div style="font-size:28px;font-weight:700;color:'+col+';">'+n+'</div><div style="font-size:12px;color:#666;">'+lbl+'</div></div>';
       cont.innerHTML = filtros
-        + '<div style="background:#d81f27;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">'
+        + '<div class="ops-period" style="background:#d81f27;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">'
         + '<div style="font-size:13px;opacity:.8;">Período</div>'
         + '<div style="font-size:18px;font-weight:700;">'+mesNom0+' '+this._operAnio+'</div>'
         + '<div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div></div>'
@@ -8069,33 +8070,33 @@ ${paginaFotos}
     };
 
     cont.innerHTML = `
-      <div style="background:#d81f27;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
+      <div class="ops-period" style="background:#d81f27;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
         <div style="font-size:13px;opacity:.8;">Período</div>
         <div style="font-size:18px;font-weight:700;">${mesNombre} ${this._operAnio}</div>
         <div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+        <div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#1a5276;">${totalPersonas}</div>
           <div style="font-size:12px;color:#666;">Unidades con registros</div>
           ${this._operStats && this._operStats.unidadesBase !== undefined ? '<div style="font-size:11px;color:#999;margin-top:2px;">Base activa: '+this._operStats.unidadesBase+'</div>' : ''}
         </div>
-        <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+        <div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#c0392b;">${this._operStats ? this._operStats.totalEmergenciasUnicas : totalEmerg}</div>
           <div style="font-size:12px;color:#666;">Emergencias únicas</div>
         </div>
-        <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+        <div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div style="font-size:28px;font-weight:700;color:#1e8449;">${this._r1((this._operStats && this._operStats.totalHorasActividades !== undefined) ? this._operStats.totalHorasActividades : totalHoras)}h</div>
           <div style="font-size:12px;color:#666;">Horas en actividades</div>
         </div>
-        <div style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+        <div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#e67e22;">${totalDomingos}</div>
           <div style="font-size:12px;color:#666;">Domingos realizados</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;">
-        <div style="background:#fff;border-radius:10px;padding:12px;text-align:center;">
+        <div class="ops-metric" style="background:#fff;border-radius:10px;padding:12px;text-align:center;">
           <div class="cbvi-num" style="font-size:22px;font-weight:700;color:var(--navy-2);">${this._operStats && this._operStats.asistenciasTotales !== undefined ? this._operStats.asistenciasTotales : d.reduce((s,p)=>s+(p.domingosPresente||0),0)}</div>
           <div style="font-size:12px;color:#666;">Asistencias totales (suma individual)</div>
         </div>
@@ -8105,15 +8106,15 @@ ${paginaFotos}
 
       ${totalSancion > 0 ? '<div style="background:#ffebee;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #c00;"><div style="font-weight:700;color:#c00;">⚠️ '+totalSancion+' unidad(es) con sanciones pendientes</div></div>' : ''}
 
-      <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div class="ops-rank ops-rank-emergency" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#c0392b;margin-bottom:8px;">🚨 Ranking Emergencias</div>
         ${rankList(topEmerg,'rk_emerg',p=>p.emergencias,'emerg.','#c0392b')}
       </div>
-      <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div class="ops-rank ops-rank-activity" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#1e8449;margin-bottom:8px;">🎯 Ranking Actividades</div>
         ${rankList(topActiv,'rk_activ',p=>this._r1(p.horasActividades)+'h','activ.','#1e8449')}
       </div>
-      <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div class="ops-rank ops-rank-attendance" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
         ${rankList(topDomin,'rk_domin',p=>p.domingosPresente,'dom.','#e67e22')}
       </div>
@@ -8158,7 +8159,7 @@ ${paginaFotos}
     const colorAlerta = (p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#ff9800':null;
     const nom = String(p.nombre||'');
     const uid = 'u_'+nom.replace(/[^a-zA-Z]/g,'').substring(0,12);
-    return '<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #d81f27;">'
+    return '<div class="ops-unit" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #d81f27;">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       +'<div><div style="font-weight:700;font-size:15px;">'+app._esc(nom||'(sin nombre)')+'</div>'
       +'<div style="font-size:12px;color:#666;">CC: '+app._esc(p.cedula||'-')+'</div>'
@@ -8168,13 +8169,13 @@ ${paginaFotos}
       +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
       +'</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
-      +'<div style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
+      +'<div class="ops-unit-metric" style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
       +'<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
-      +'<div style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
+      +'<div class="ops-unit-metric" style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#1e8449;">'+this._r1(p.horasActividades)+'h</div>'
       +'<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
-      +'<div style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
+      +'<div class="ops-unit-metric" style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
       +'<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div></div>'
       +'</div>'
