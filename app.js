@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.44';
+const APP_VERSION = '6.45';
 const APP_VERSION_NOTAS = [
+  'v6.45: 🚒 Diseño operativo en toda la app: formularios, asistencia, administración, consultas, ayuda y ventanas más legibles; controles cómodos y una sirena visible al navegar. Conserva tus datos y la forma de trabajar.',
   'v6.44: 🛡️ Blindaje de seguridad. El prefijo del consecutivo (Configuración) ahora solo acepta letras y números, y todos los números de reporte se muestran de forma segura en la app y en el PDF. No cambia cómo trabajas ni tus datos.',
   'v6.43: 🚒 Inicio operativo renovado. Nuevo incidente destaca como acción principal. Registrar actividades, asistencia y consultar están ahora antes del historial, con textos más legibles y los colores del CBVI. Se conservan las funciones, los permisos y tus datos.',
   'v6.42: 🚒 Reporte de incidente + Nueva Actividad mejorados. En el REPORTE ahora se registra la HORA DE SALIDA de la estación (además de llamada, llegada y cierre). En NUEVA ACTIVIDAD: ahora son 6 fotos (antes 3); se agregó el tipo "Pernotar" (servicio nocturno — las horas cuentan aunque el turno cruce la medianoche); podés indicar si la actividad fue VOLUNTARIA o PAGA (contratada); y una misma actividad puede registrar VARIAS ATENCIONES (p. ej. varios primeros auxilios en unos Juegos), cada una con sus datos y hasta 3 fotos propias. Todo sale en el detalle y el PDF. Nada de lo anterior se pierde.',
