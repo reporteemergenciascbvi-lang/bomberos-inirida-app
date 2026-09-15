@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.46';
+const APP_VERSION = '6.47';
 const APP_VERSION_NOTAS = [
+  'v6.47: 🧭 Reportar un incidente ahora es más fácil de recorrer: las 13 secciones están agrupadas en tres fases (aviso, respuesta y cierre), la sección abierta se distingue mejor y las filas, fotos, firmas y botones son más cómodos en el celular. No cambia tus datos ni la forma de guardarlos.',
   'v6.46: 🧾 Formulario más simple: en Recursos ya no se piden "Cantidad" ni "Placa" — la placa y la clase del vehículo salen del catálogo de la estación y van al PDF solas. Se aclaró quién es el afectado que firma y quiénes son las víctimas. Tus reportes anteriores no cambian.',
   'v6.45: 🚒 Diseño operativo en toda la app: formularios, asistencia, administración, consultas, ayuda y ventanas más legibles; controles cómodos y una sirena visible al navegar. Conserva tus datos y la forma de trabajar.',
   'v6.44: 🛡️ Blindaje de seguridad. El prefijo del consecutivo (Configuración) ahora solo acepta letras y números, y todos los números de reporte se muestran de forma segura en la app y en el PDF. No cambia cómo trabajas ni tus datos.',
