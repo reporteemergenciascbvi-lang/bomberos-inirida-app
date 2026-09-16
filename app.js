@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.48';
+const APP_VERSION = '6.49';
 const APP_VERSION_NOTAS = [
+  'v6.49: 🛡️ La última tanda visual convierte acceso, ayuda, configuración y administración en un puesto de mando más claro. Los vacíos, errores, cargas y ventanas tienen señales operativas consistentes; los cuatro accesos de ayuda ahora funcionan correctamente con teclado. No cambia datos, permisos ni servidor.',
   'v6.48: 📟 Mesa de operaciones más clara. Actividades y asistencias se leen como una bitácora; los detalles parecen expedientes; la asistencia resalta la fila en uso; Operatividad organiza mejor filtros, cifras y rankings; y el mapa reúne sus controles en un panel más limpio. También se ampliaron a 44 px los botones pequeños de firma. No cambia datos ni permisos.',
   'v6.47: 🧭 Reportar un incidente ahora es más fácil de recorrer: las 13 secciones están agrupadas en tres fases (aviso, respuesta y cierre), la sección abierta se distingue mejor y las filas, fotos, firmas y botones son más cómodos en el celular. No cambia tus datos ni la forma de guardarlos.',
   'v6.46: 🧾 Formulario más simple: en Recursos ya no se piden "Cantidad" ni "Placa" — la placa y la clase del vehículo salen del catálogo de la estación y van al PDF solas. Se aclaró quién es el afectado que firma y quiénes son las víctimas. Tus reportes anteriores no cambian.',
@@ -1463,7 +1464,7 @@ const app = {
         <div class="vacio-estado">
           <div class="icono">📋</div>
           <div>No hay reportes aún</div>
-          <div style="font-size: 12px; margin-top: 4px;">Toque "Nueva emergencia" para empezar</div>
+          <div style="font-size: 12px; margin-top: 4px;">Toque "Nuevo incidente" para empezar</div>
         </div>`;
       return;
     }
