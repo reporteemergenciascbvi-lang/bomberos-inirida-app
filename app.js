@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.50';
+const APP_VERSION = '6.51';
 const APP_VERSION_NOTAS = [
+  'v6.51: 👆 Los botones de las ventanas de confirmación tienen un área táctil mínima de 44 px para facilitar su uso en el teléfono.',
   'v6.50: ✅ Si falta un dato obligatorio en una sección cerrada del formulario, la app la abre y muestra el campo que debe completar. Sus datos y las demás funciones no cambian.',
   'v6.49: 🛡️ La última tanda visual convierte acceso, ayuda, configuración y administración en un puesto de mando más claro. Los vacíos, errores, cargas y ventanas tienen señales operativas consistentes; los cuatro accesos de ayuda ahora funcionan correctamente con teclado. No cambia datos, permisos ni servidor.',
   'v6.48: 📟 Mesa de operaciones más clara. Actividades y asistencias se leen como una bitácora; los detalles parecen expedientes; la asistencia resalta la fila en uso; Operatividad organiza mejor filtros, cifras y rankings; y el mapa reúne sus controles en un panel más limpio. También se ampliaron a 44 px los botones pequeños de firma. No cambia datos ni permisos.',
