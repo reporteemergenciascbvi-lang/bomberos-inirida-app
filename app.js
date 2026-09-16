@@ -1,173 +1,253 @@
 /* ============================================================
-   REPORTES DE BOMBEROS — App de gestión operativa multi-cuerpo
-   Login con Google · Panel de administrador · GPS · offline-first
-
-   © 2026 Jeferson Jeancarlos Rangel Gil. Todos los derechos reservados.
-   Prohibida la reproducción o distribución de este código sin autorización
-   escrita del autor.
+   APP DE REPORTE DE EMERGENCIAS - BOMBEROS INÍRIDA v4
+   Login con Google, Sistema de administrador, Auto-completado GPS
    ============================================================ */
 
-/* El tutorial en video lo graba el autor; hasta que exista, esta constante va vacía
-   y la pantalla "Acerca de" muestra "próximamente" en vez de abrir una página rota.
-   Cuando esté, se pega acá el enlace (YouTube, Drive, lo que sea) y listo. */
-const URL_TUTORIAL_VIDEO = '';
-
-// ==================== CONFIGURACIÓN ====================
-/* ⚠️⚠️ ACOPLAMIENTO PENDIENTE DE ROMPER — ya es el Client ID del producto.
-   Un solo Client ID = un solo proyecto de Google Cloud = una sola cuota y un solo
-   estado de verificación. Si el producto genera tráfico sospechoso en pruebas, o
-   toca el tope de ~100 usuarios sin verificar (ver T7 en ESTADO_PRODUCTO.md),
-   Google puede limitar el Client ID COMPLETO — y eso apagaría el login de la estación de origen
-   el mismo día, sin que ella haya hecho nada.
-   Jeferson debe crear un proyecto de Google Cloud NUEVO y separado para el
-   producto (ver ESTADO_PRODUCTO.md) y reemplazar este valor antes de dar acceso
-   a cualquier cuerpo externo. NO desplegar a un cliente real con este ID. */
-const GOOGLE_CLIENT_ID = '938285517928-k50ohvdskleg4vt8hkklnc7ul2bi2044.apps.googleusercontent.com';
-
-/* ⚠️ T1 — VACÍO A PROPÓSITO. Antes acá vivían los 4 correos de administrador de
-   de una estación, QUEMADOS EN EL FRONTEND, que se publica abierto en GitHub Pages.
-   Mandar el producto así le daba privilegio de admin a 4 personas ajenas sobre
-   los datos de cualquier cuerpo que lo instalara.
-
-   Y era la SEGUNDA fuente de verdad sobre quién es admin: el front decidía por su
-   cuenta e ignoraba la lista del backend. Ese bug ya mordió antes.
-
-   AHORA: quién es admin lo dice SOLO el servidor, en la respuesta de iniciarSesion
-   (`esAdmin`). El front no vota. */
-const ADMIN_EMAILS = [];
-const ADMIN_EMAIL = '';
+// ==================== CONFIGURACIÓN HARDCODED ====================
+const GOOGLE_CLIENT_ID = '1091938050057-ccvp04hm6mg5m1aao1j3lv2cqn474vs5.apps.googleusercontent.com';
+const ADMIN_EMAILS = [
+  'gilrangeljeancarlosjeferson@gmail.com',
+  'bomberosinirida@gmail.com',
+  'reporteemergenciascbvi@gmail.com',
+  'tesoreria.bomberosinirida@gmail.com'
+];
+const ADMIN_EMAIL = ADMIN_EMAILS[0]; // compatibilidad
 const ADMIN_PASSWORD = ''; // La contraseña NO está en el código — el admin la escribe al entrar al panel.
-
-/* Datos de la institución: los entrega el backend en iniciarSesion (`institucion`).
-   Vacíos hasta que el asistente de arranque los llene. */
-let TELEFONO_ESTACION = '';
-let NOMBRE_ESTACION = '';
-
-/* ⚠️⚠️ URL DEL BACKEND — VACÍA A PROPÓSITO, Y ES LO MÁS IMPORTANTE DE ESTE ARCHIVO.
-   Antes apuntaba al Apps Script de la estación de origen. Si el producto saliera así, CADA cuerpo
-   que lo instalara estaría escribiendo dentro de la base de datos de otro cuerpo:
-   sus emergencias, su personal y sus sanciones mezclados con los de otra institución.
-
-   No es una fuga de datos: es corrupción de datos en las dos direcciones.
-
-   Se llena con la URL del despliegue del PRODUCTO cuando exista. Mientras esté
-   vacía, `_exigirBackend()` corta con un mensaje claro en vez de fallar raro.
-   El invariante I1 protege también la URL de la estación de origen, que vive aparte.
-
-   14/08/2026 — YA EXISTE. Desplegada desde la cuenta monitoreojean@gmail.com,
-   con `executeAs: USER_ACCESSING` (ver appsscript.json): el script corre como
-   QUIEN ENTRA, así que la hoja de cálculo se crea en el Drive de cada cuerpo y
-   no en el de nadie más. Ese ajuste es el que sostiene el modelo entero.
-
-   🔴 DESDE HOY ESTA URL TIENE EL MISMO ESTATUS QUE LA DE LA ESTACIÓN DE ORIGEN (invariante I1):
-   NO se cambia. Para publicar un backend nuevo: Implementar → Administrar
-   implementaciones → ✏️ Editar → Nueva versión, SOBRE LA MISMA implementación.
-   Crear una implementación nueva genera otra URL y deja ciega a toda app ya
-   instalada — que para entonces será la de otro cuerpo de bomberos, no la tuya. */
-const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbz2jTdG0iDudW1phC8IyEMOyWmzkZs7kgOx3zCMxgqE7IlRn5y1IaGVhx8h_mGufg4/exec';
-
-function _exigirBackend() {
-  if (!URL_BACKEND) {
-    throw new Error('Esta copia todavía no tiene servidor configurado. ' +
-                    'Falta publicar el backend del producto y poner su URL en URL_BACKEND.');
-  }
-  return URL_BACKEND;
-}
+const TELEFONO_ESTACION = '314 531 1605';
+const NOMBRE_ESTACION = 'CBVI';
+const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15oz-U1jpkR0-L56cxEwby8tMi2mVJi5A5D74XMi25WKdod6wn2QA/exec';
 
 // ===== VERSIONADO DE LA APP =====
 // Subir este número cada vez que se despliegue una versión nueva.
 // Cuando un dispositivo detecta versión distinta a la guardada,
 // muestra el banner verde por 10 min con la lista de cambios.
-/* Versión del PRODUCTO. Arranca en 1.00 a propósito: heredó el número de la
-   app de una estación (iba en 6.08) y eso no significa nada para un cuerpo que
-   la instala hoy por primera vez. El historial de esa estación tampoco está —
-   ver APP_VERSION_NOTAS. */
-const APP_VERSION = '1.50';
-/* Novedades que ve el usuario. ARRANCA VACÍO A PROPÓSITO.
-   Antes heredaba las 133 notas de la estación de origen: un cuerpo nuevo instalaba la app y
-   leía el diario de otra estación —sus cuentas, su regla de sanciones, sus
-   arreglos internos—. Eso no solo confunde: filtra cómo opera un tercero.
-   Cada nota nueva describe un cambio DEL PRODUCTO, no de una estación. */
+// Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
+// está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
+const URL_TUTORIAL_VIDEO = '';
+const APP_VERSION = '6.49';
 const APP_VERSION_NOTAS = [
-  'v1.50: 🛡️ La última tanda visual convierte acceso, ayuda, configuración y administración en un puesto de mando más claro. Los vacíos, errores, cargas y ventanas tienen señales operativas consistentes; los cuatro accesos de ayuda ahora funcionan correctamente con teclado. No cambia datos, permisos ni servidor.',
-  'v1.49: 📟 Mesa de operaciones más clara. Las actividades se leen como una bitácora; los detalles parecen expedientes; Operatividad organiza mejor filtros, cifras y rankings; y el mapa reúne sus controles en un panel más limpio. También se ampliaron a 44 px los botones pequeños de firma. No cambia datos ni permisos.',
-  'v1.48: 🧭 Reportar un incidente ahora es más fácil de recorrer: las 13 secciones están agrupadas en tres fases (aviso, respuesta y cierre), la sección abierta se distingue mejor y las filas, fotos, firmas y botones son más cómodos en el celular. No cambia tus datos ni la forma de guardarlos.',
-  'v1.47: 🧾 Formulario más simple: en Recursos ya no se piden "Cantidad" ni "Placa" — la placa y la clase del vehículo salen del catálogo del cuerpo y van al PDF solas. Se aclaró quién es el afectado que firma y quiénes son las víctimas. Tus reportes anteriores no cambian.',
-  'v1.46: 🛡️ Blindaje de seguridad. El prefijo del consecutivo (Configuración) ahora solo acepta letras y números, y todos los números de reporte se muestran de forma segura en la app y en el PDF. No cambia cómo trabajas ni tus datos.',
-  'v1.45: 🆕 Más completo el registro. En un INCIDENTE se agregó la “Fecha y hora de salida de la estación” (entre la llamada y la llegada). En una ACTIVIDAD ahora se puede: marcar si fue VOLUNTARIA o PAGA (contratada), elegir el tipo “Pernotar” (servicio nocturno, cuyas horas cuentan aunque el turno cruce la medianoche), adjuntar hasta 6 fotos, y registrar VARIAS ATENCIONES (primeros auxilios, traslados, etc.), cada una con sus datos y hasta 3 fotos propias. Todo se ve en el detalle y en el PDF. Las columnas nuevas van al final de las hojas: los datos viejos no se tocan.',
-  'v1.44: 🚨 Cargas con carácter. Los “girando…” genéricos se reemplazaron por animaciones del oficio, repartidas por toda la app: una SIRENA que parpadea, un DESPACHO de puntos que rebotan y una barra de SINCRONIZANDO. Se ven al enviar un reporte, al verificar el PIN, al guardar una actividad y al abrir cualquier lista que carga. Livianas y respetan el modo “reducir movimiento”. No cambian datos ni cómo funciona.',
-  'v1.43: ✨ Cierre de las animaciones. Los pines del Mapa de Emergencias ahora CAEN al aparecer, y las cifras de la pantalla de Operatividad (unidades, emergencias) SUBEN desde 0 al abrir. Todo respeta el modo "reducir movimiento".',
-  'v1.42: ✨ Animaciones que SE NOTAN. Ahora CADA botón, al tocarlo, hace una onda (ripple) que confirma el toque. Los números del Inicio (total, pendientes, enviados) SUBEN desde 0 al abrir. Y al enviar un reporte con un campo obligatorio vacío, ese campo se MARCA EN ROJO, se SACUDE, y la app te LLEVA directo a él. Todo respeta el modo "reducir movimiento".',
-  'v1.41: ✨ Movimiento en el Panel de Administrador. Antes el Panel entraba sin animación; ahora las listas de reportes, de personal pendiente y de Operatividad entran escalonadas (una tarjeta tras otra) al abrirlas. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
-  'v1.40: ✨ Más movimiento (Fase 2). Ahora TODAS las ventanas emergentes se cierran con una animación suave (antes algunas desaparecían de golpe), el PIN muestra una rueda girando mientras verifica y SACUDE si te equivocás, el aviso verde de nueva versión baja y sube suave, y en el reporte la foto recién tomada y cada vehículo/víctima que agregás entran con una pequeña animación. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
-  'v1.39: ✨ La app se siente más viva. Se agregó movimiento en las piezas que se usan en todos lados: las ventanas de confirmación y el menú ahora también se cierran con una animación suave (antes desaparecían de golpe), los avisos suben al aparecer, las listas de reportes y actividades entran escalonadas, los botones "ocupados" se atenúan suave, y los campos muestran mejor cuál está activo. Todo liviano para que no trabe, y respeta el modo "reducir movimiento" del celular. No cambia ningún dato ni cómo funciona: solo cómo se ve.',
-  'v1.38: 🛟 Menos riesgo de perder trabajo. (1) Al salir de una Actividad que estabas registrando sin haber guardado, la app ahora avisa antes de descartar lo que cargaste (antes se perdía de un toque). (2) El reporte que estás llenando se autoguarda solo: si el celular cierra la app de golpe, no pierdes lo dictado. (3) Los reportes que quedaron "pendientes" por falta de señal ahora se envían solos al reabrir la app con internet, sin forzarlos a mano. Además, un ajuste interno de seguridad al mostrar fotos y firmas.',
-  'v1.37: 🪪 Ajustes reportados en producción. Al entrar al Panel de Administrador, ahora pregunta "qué administrador entra" (antes decía "quién está de guardia", que ahí no aplicaba — los guardias no llegan a ese modal). En sanciones, asistencia y demás sigue preguntando por la guardia, sin cambios. Además, "🚒 Vehículos del cuerpo" ahora distingue un error de carga (revise su conexión) de una flota genuinamente vacía, para no mostrar un mensaje que confunda a otro administrador.',
-  'v1.36: 📋 Vista RUE más completa y más exacta. Nuevo bloque "Recursos desplegados" que cruza los vehículos del incidente con la clase que pide el RUE. Además, "Quien Reporta" ahora muestra el nombre completo de quien avisó (antes solo mostraba la relación), y se corrigió un caso donde un incidente con varias clasificaciones podía dejar mal marcado ese tipo en informes futuros.',
-  'v1.35: 👥 Unidades vinculadas. En el Panel de Administrador → "Unidades vinculadas" (solo el administrador principal), vea todo correo que ya usa la app y cuándo entró por última vez, y bloquéele el acceso a quien haga falta — sin borrar sus datos, y siempre reversible. Además: el tour explica dónde vive su base de datos (el Google Sheets del cuerpo), la explicación de "Quién opera" en el Panel Admin ahora habla de qué administrador firma (no de guardia, que ahí no aplica), y se corrigieron un par de palabras ambiguas ("emergencia" → "incidente", "cobertura" → "señal").',
-  'v1.34: 🧭 Tour más completo. El de unidades (antes "para bomberos") ahora también recorre su perfil en Configuración. El de administrador creció bastante: ahora explica el escudo/logo del cuerpo, el relevo de guardia, invitar unidades e importar personal por separado, y el ranking y el mapa con más detalle.',
-  'v1.33: 🧭 Tour interactivo renovado. El recorrido de ayuda ya no es una tarjeta de texto: ahora se mueve de verdad por la app y señala cada botón real. Hay uno para bomberos y otro, distinto, para administradores (Panel Admin, Operatividad, Mapa, Zona Administrador). Se abre desde ℹ️ Acerca de.',
-  'v1.32: 🌈 Los emojis vuelven a color. Se probó ponerlos en gris/silueta, pero se ven mejor a color. El resto del nuevo diseño se mantiene.',
-  'v1.31: 🩶 Emojis más legibles. Algunos quedaban como cuadrado negro o no se veían sobre los botones de color. Ahora van en escala de grises: conservan su forma y se ven bien en todos lados.',
-  'v1.30: 🖼️ Panel de administrador y ventanas al estilo "Acta Oficial". Las tarjetas del panel pasan a fondo blanco con una franja de color a la izquierda (aire de documento) y las ventanas de confirmación llevan borde dorado y título de imprenta. Solo cambia el aspecto.',
-  'v1.29: 🎯 Emojis en monocromo. Los emojis de colores se convierten en siluetas tipo ícono (oscuras sobre fondo claro, blancas sobre el rojo) para que peguen con el diseño institucional y no se vean como "stickers". Solo cambia el aspecto.',
-  'v1.28: 🎨 Rediseño visual "Acta Oficial". Tipografía de imprenta (Oswald + Barlow), el rojo institucional usado con disciplina y un dorado de seguridad como acento. La app se ve como un instrumento oficial de bomberos, no una plantilla genérica. Cambia solo el aspecto: la lógica, la estructura y tus datos NO cambian.',
-  'v1.27: ✅ Aprobación de ingreso. Ahora, cuando alguien abre el link o el QR, NO entra solo: queda como una SOLICITUD (con su nombre y una descripción de quién es). Cualquier administrador la aprueba o la descarta desde el Panel → "📥 Solicitudes de ingreso", y queda registrado quién decidió. Así, si a una unidad se le filtra el link a un tercero, ese tercero no entra sin permiso.',
-  'v1.26: 📷 Código QR para invitar. Al generar el link de invitación ahora sale también un QR: tus unidades lo escanean con la cámara del celular y entran, sin copiar ni pegar nada. Y cuando una unidad se une, ve un aviso claro de a qué cuerpo pertenece.',
-  'v1.25: 🔗 Invitar unidades por link. En el Panel de Administrador → "🔗 Invitar unidades", generás un link y lo compartís con tus bomberos: al abrirlo y entrar con Google quedan enlazados a tu cuerpo, sin configurar nada. Si un link se filtra, generás uno nuevo (invalida los anteriores).',
-  'v1.24: ⭕ Los pines del mapa ahora se AGRUPAN cuando están amontonados: en vez de muchos marcadores encimados, ves un círculo con el número, y al acercar el zoom se abren. La estación (🚒) y el mapa de calor no se agrupan.',
-  'v1.23: 🔥 Mapa de calor. En ⚙️ Herramientas → ✨ Vistas, el botón "Mapa de calor" pinta en rojo las zonas donde más se repiten los incidentes. Respeta el filtro que tengas puesto (tipo y fecha).',
-  'v1.22: 🚒 Estación en el mapa. En ⚙️ Herramientas → "Fijar estación (mi ubicación)" guardás dónde queda la estación de su cuerpo (parado ahí, una sola vez). Después el mapa muestra un 🚒 y, en cada reporte, a cuántos km está de la estación.',
-  'v1.21: 🗺️ Mapa más ordenado: los controles ahora se despliegan en dos menús — "⚙️ Herramientas" (fechas y acciones) y "🏷️ Tipos" (la leyenda) — para no saturar la pantalla. Además, filtros rápidos de fecha: Últimos 30 días, Este mes, Este año.',
-  'v1.20: 🗺️ Ajustes al mapa: la capa 🛰️ Satélite ahora deja acercar más (antes salía "sin datos" al hacer zoom, según la zona), y el botón 📍 Mi ubicación dibuja un círculo con la precisión — en el celular con GPS es exacta; en el computador es aproximada (no tiene GPS).',
-  'v1.19: 🗺️ Mapa de Incidentes mejorado. Botones "✓ Todos" y "✕ Ninguno", y un "solo" en cada tipo para ver únicamente ese de un toque (antes había que apagar los demás uno por uno). Nueva capa 🛰️ Satélite (además de calles) y botón 📍 Mi ubicación.',
-  'v1.18: 📥 Importar personal, más robusto: reconoce cuando el nombre y el apellido vienen en columnas separadas (los une en el nombre completo) y detecta la cédula aunque el título diga "Cédula (CC)", "Documento" u otras variantes. Antes esas columnas se perdían.',
-  'v1.17: ⚡ Nuevo tipo "Incendio en red eléctrica" (transformadores, loncheras, cables y redes del servicio público; en el RUE es FALLA ELÉCTRICA), separado de "Incendio de interfaz", que queda para el fuego en la franja donde el monte se junta con el pueblo.',
-  'v1.16: 🖨️ Se depuró el pie de página de los informes impresos: ya no incluye datos de contacto del autor.',
-  'v1.15: 🖨️ Arreglada la impresión: antes el botón abría una pestaña EN BLANCO. Ahora el informe se genera y sale listo para imprimir o guardar como PDF. Además, el escudo que usted sube en el Panel de Administrador ya aparece en el encabezado y como marca de agua de los informes; si no subió ninguno, se usa la cruz de bombero por defecto.',
-  'v1.05: 🔑 El asistente de instalación ahora le pide su contraseña de administrador. Con eso el fundador queda habilitado para NOMBRAR Y QUITAR administradores, que antes era imposible: la app exigía una contraseña que ninguna pantalla creaba, y quien instalaba quedaba como único admin para siempre.',
-  'v1.04: 🧹 Se retiró del servidor todo lo que quedó del módulo dominical: 54 funciones y 14 rutas. Las rutas importan aunque no se vean: la dirección del servidor es pública, así que una ruta abierta se puede llamar desde afuera aunque ninguna pantalla la use. Nada cambia en el uso diario.',
-  'v1.03: 🧹 Se terminó de sacar todo lo que ataba la app a una sola estación: ícono propio (cruz de Malta, el símbolo del bombero en todo el mundo), nombres internos, comentarios y datos de personas. El Manual, Cómo funciona y Bases legales se reescribieron: ahora describen la app que usted tiene y citan solo norma nacional. Y se retiró el código muerto del módulo dominical: 1.480 líneas menos.',
-  'v1.02: 🧹 La app dejó de hablar como una estación y empezó a hablar como el gremio. Salen la asistencia de domingos y las sanciones por horas: son el régimen interno de UN cuerpo, no una norma nacional, y no tenían por qué venir puestas. El vocabulario pasa a INCIDENTE (Sistema Comando de Incidentes, Res. 358/2014). Y se corrigió el fallo que impedía iniciar sesión: el servidor rechazaba TODAS las credenciales.',
-  'v1.01: 🔌 La app ya se comunica con su servidor. Con esto se puede crear la base de datos del cuerpo, iniciar sesión y guardar información. Antes la pantalla cargaba pero no podía guardar nada.',
-  'v1.00: 🚒 Primera versión. La app arranca vacía: al entrar por primera vez, quien lo haga queda como administrador y se crea la base de datos en su propio Google Drive. Nadie más ve esos datos.',
+  'v6.49: 🛡️ La última tanda visual convierte acceso, ayuda, configuración y administración en un puesto de mando más claro. Los vacíos, errores, cargas y ventanas tienen señales operativas consistentes; los cuatro accesos de ayuda ahora funcionan correctamente con teclado. No cambia datos, permisos ni servidor.',
+  'v6.48: 📟 Mesa de operaciones más clara. Actividades y asistencias se leen como una bitácora; los detalles parecen expedientes; la asistencia resalta la fila en uso; Operatividad organiza mejor filtros, cifras y rankings; y el mapa reúne sus controles en un panel más limpio. También se ampliaron a 44 px los botones pequeños de firma. No cambia datos ni permisos.',
+  'v6.47: 🧭 Reportar un incidente ahora es más fácil de recorrer: las 13 secciones están agrupadas en tres fases (aviso, respuesta y cierre), la sección abierta se distingue mejor y las filas, fotos, firmas y botones son más cómodos en el celular. No cambia tus datos ni la forma de guardarlos.',
+  'v6.46: 🧾 Formulario más simple: en Recursos ya no se piden "Cantidad" ni "Placa" — la placa y la clase del vehículo salen del catálogo de la estación y van al PDF solas. Se aclaró quién es el afectado que firma y quiénes son las víctimas. Tus reportes anteriores no cambian.',
+  'v6.45: 🚒 Diseño operativo en toda la app: formularios, asistencia, administración, consultas, ayuda y ventanas más legibles; controles cómodos y una sirena visible al navegar. Conserva tus datos y la forma de trabajar.',
+  'v6.44: 🛡️ Blindaje de seguridad. El prefijo del consecutivo (Configuración) ahora solo acepta letras y números, y todos los números de reporte se muestran de forma segura en la app y en el PDF. No cambia cómo trabajas ni tus datos.',
+  'v6.43: 🚒 Inicio operativo renovado. Nuevo incidente destaca como acción principal. Registrar actividades, asistencia y consultar están ahora antes del historial, con textos más legibles y los colores del CBVI. Se conservan las funciones, los permisos y tus datos.',
+  'v6.42: 🚒 Reporte de incidente + Nueva Actividad mejorados. En el REPORTE ahora se registra la HORA DE SALIDA de la estación (además de llamada, llegada y cierre). En NUEVA ACTIVIDAD: ahora son 6 fotos (antes 3); se agregó el tipo "Pernotar" (servicio nocturno — las horas cuentan aunque el turno cruce la medianoche); podés indicar si la actividad fue VOLUNTARIA o PAGA (contratada); y una misma actividad puede registrar VARIAS ATENCIONES (p. ej. varios primeros auxilios en unos Juegos), cada una con sus datos y hasta 3 fotos propias. Todo sale en el detalle y el PDF. Nada de lo anterior se pierde.',
+  'v6.41: 🚨 Cargas con carácter. Los "girando…" genéricos se reemplazaron por animaciones del oficio, repartidas por toda la app: una SIRENA que parpadea, un DESPACHO de puntos que rebotan, y una barra de SINCRONIZANDO. Se ven al enviar un reporte, guardar asistencia, abrir un reporte, cargar el personal, verificar el PIN, etc. — cada acción muestra una distinta. Los skeletons (barras que brillan) siguen para las listas. Solo cambia el aspecto.',
+  'v6.40: 🎨 Diseño "Minimalista" a tono. El otro diseño (el que se elige en el menú → Tema) ahora usa el AZUL MARINO de tus escudos en vez del azul genérico que traía, para que combine con la imagen nueva. Solo cambia el aspecto de ese tema; si usás el diseño Original, nada cambia.',
+  'v6.39: ✨ Cierre de las animaciones. Los pines del Mapa de Emergencias ahora CAEN al aparecer, y las cifras de la pantalla de Operatividad (unidades, emergencias, domingos, asistencias) SUBEN desde 0 al abrir. Además, se corrigió el último morado fuera de marca (la tarjeta "Asistencias totales" quedó en azul). Todo respeta el modo "reducir movimiento".',
+  'v6.38: ✨ Animaciones que SE NOTAN. Ahora CADA botón, al tocarlo, hace una onda (ripple) que confirma el toque. Los números del Inicio (total, pendientes, enviados) SUBEN desde 0 al abrir. Y al enviar un reporte con un campo obligatorio vacío, ese campo se MARCA EN ROJO, se SACUDE, y la app te LLEVA directo a él (antes había que buscarlo en un formulario largo). Todo respeta el modo "reducir movimiento".',
+  'v6.37: 🎨 NUEVA IMAGEN. La app se rediseñó con los colores de tus DOS escudos: el azul marino del escudo Nacional como base (el header ahora es azul), el rojo bombero de tu escudo de Inírida como color de acción (más brillante, más parecido a tu escudo real que el rojo vino anterior) y el oro de seguridad como acento. Además, la pantalla de Operatividad ya NO sale morada (estaba fuera de tu marca, hasta en los PDF impresos): ahora va en tu rojo. Solo cambia el aspecto: la lógica y tus datos NO cambian.',
+  'v6.36: ✨ Movimiento en el Panel de Administrador y más. Antes el Panel entraba sin animación; ahora las listas de reportes, de personal pendiente, de Operatividad y de Deudores entran escalonadas (una tarjeta tras otra) al abrirlas. Además, en Ver Deudores, la flechita ▼ de cada persona gira y el detalle de sus domingos se despliega con un suavizado. Todo liviano y respeta el modo "reducir movimiento".',
+  'v6.35: ✨ Más movimiento (Fase 2). Ahora TODAS las ventanas emergentes se cierran con una animación suave (antes algunas desaparecían de golpe), el PIN muestra una rueda girando mientras verifica y SACUDE si te equivocás, el aviso verde de nueva versión baja y sube suave, y en el reporte la foto recién tomada y cada vehículo/víctima que agregás entran con una pequeña animación. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
+  'v6.34: ✨ La app se siente más viva. Se agregó movimiento en las piezas que se usan en todos lados: las ventanas de confirmación y el menú ahora también se cierran con una animación suave (antes desaparecían de golpe), los avisos suben al aparecer, las listas de reportes y actividades entran escalonadas, los botones "ocupados" se atenúan suave, y los campos muestran mejor cuál está activo. Todo liviano para que no trabe, y respeta el modo "reducir movimiento" del celular. No cambia ningún dato ni cómo funciona: solo cómo se ve.',
+  'v6.33: 🛟 Menos riesgo de perder trabajo. (1) Al salir de Asistencia o de una Actividad sin haber guardado, ahora la app avisa antes de descartar lo que marcaste (antes se perdía de un toque). (2) El reporte que estás llenando se autoguarda solo: si el celular cierra la app de golpe, no pierdes lo dictado. (3) Los reportes que quedaron "pendientes" por falta de señal ahora se envían solos al reabrir la app con internet, sin tener que forzarlos a mano. Además, un ajuste interno de seguridad al mostrar las fotos y firmas.',
+  'v6.32: 🪪 Al entrar al Panel de Administrador, el PIN ahora pregunta "¿qué administrador entra?" en vez de "¿quién está de guardia?" — esa pregunta se queda donde sí aplica (sanciones, asistencia, etc.), porque a Panel Admin solo entran administradores. Además, si "🚒 Vehículos del cuerpo" no logra cargar (sin señal, servidor ocupado), ahora avisa "no se pudo cargar" en vez de decir "todavía no hay vehículos" como si se hubieran borrado.',
+  'v6.31: 🧭 Tour interactivo + 👥 Unidades vinculadas. El recorrido de ayuda ya no es una tarjeta de texto: ahora se mueve de verdad por la app y señala cada botón real, con uno para unidades y otro, más completo, para administradores (escudo, PIN, relevo, nómina, flota, Asistencia, Deudores, Operatividad, Mapa). Además, en el Panel de Administrador → "Unidades vinculadas" (solo el administrador principal), vea todo correo que ya usa la app y bloquéele el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.',
+  'v6.30: 🎨 Rediseño visual "Acta Oficial" (el mismo de la app de Cruz de Malta). Tipografía de imprenta (Oswald + Barlow), el rojo institucional del CBVI usado con disciplina y un dorado de seguridad como acento. La app se ve como un instrumento oficial de bomberos. Cambia solo el aspecto: la lógica, la estructura y tus datos NO cambian. Los emojis siguen a color.',
+  'v6.29: ✅ Arreglado "Registrar horas cumplidas" en Ver Deudores. Daba el error "_pwd is not defined" y no descontaba la sanción; ahora funciona con tu usuario y PIN, como el resto. (No afectaba a ninguna otra acción.)',
+  'v6.28: ⭕ Los pines del mapa ahora se AGRUPAN cuando están amontonados: en vez de muchos marcadores encimados, ves un círculo con el número, y al acercar el zoom se abren. La estación (🚒) y el mapa de calor no se agrupan.',
+  'v6.27: 🔥 Mapa de calor. En ⚙️ Herramientas → ✨ Vistas, el botón "Mapa de calor" pinta en rojo las zonas donde más se repiten los incidentes. Respeta el filtro que tengas puesto (tipo y fecha).',
+  'v6.26: 🚒 Estación en el mapa. En ⚙️ Herramientas → "Fijar estación (mi ubicación)" guardás dónde queda la estación (parado ahí, una sola vez). Después el mapa muestra un 🚒 y, en cada reporte, a cuántos km está de la estación.',
+  'v6.25: 🗺️ Mapa más ordenado: los controles ahora se despliegan en dos menús — "⚙️ Herramientas" (fechas y acciones) y "🏷️ Tipos" (la leyenda) — para no saturar la pantalla. Además, filtros rápidos de fecha: Últimos 30 días, Este mes, Este año.',
+  'v6.24: 🗺️ Ajustes al mapa: la capa 🛰️ Satélite ahora deja acercar más (antes salía "sin datos" al hacer zoom, porque el satélite de Inírida llega hasta cierto nivel), y el botón 📍 Mi ubicación dibuja un círculo con la precisión — en el celular con GPS es exacta; en el computador es aproximada (no tiene GPS).',
+  'v6.23: 🗺️ Mapa de Incidentes mejorado. Botones "✓ Todos" y "✕ Ninguno", y un "solo" en cada tipo para ver únicamente ese de un toque (antes había que apagar los demás uno por uno). Nueva capa 🛰️ Satélite (además de calles) y botón 📍 Mi ubicación.',
+  'v6.22: 📥 Importar personal, más robusto: reconoce cuando el nombre y el apellido vienen en columnas separadas (los une en el nombre completo) y detecta la cédula aunque el título diga "Cédula (CC)", "Documento" u otras variantes. Antes esas columnas se perdían.',
+  'v6.21: ⚡ Nuevo tipo "Incendio en red eléctrica" (transformadores, loncheras, cables y redes del servicio público; en el RUE es FALLA ELÉCTRICA). El término "Incendio de interfaz" vuelve a su significado real: fuego donde el monte se junta con el pueblo.',
+  'v6.20: 📋 La Vista RUE ahora muestra los recursos desplegados con su CLASE. Al ver un reporte y tocar "Ver para RUE", un tercer bloque cruza los vehículos que atendieron con la flota del cuerpo y muestra la clase de cada uno (lo que el RUE pide para categorizar). Si un vehículo no está registrado con clase, lo avisa.',
+  'v6.19: 🚒 Vehículos editables. En el Panel de Administrador ahora puede registrar cada vehículo con su indicativo (Móvil 1, M-3…) y su clase (lo que entiende el RUE), sin tocar código. La lista arranca con la flota de siempre; edítela cuando quiera. El indicativo es lo que aparece al reportar. Si un vehículo no carga por falta de señal, el formulario sigue mostrando la lista de siempre.',
+  'v6.18: 🔤 Vocabulario alineado con el Sistema Comando de Incidentes (SCI, Res. 358/2014): el botón principal ahora dice "NUEVO INCIDENTE", y la app habla de "incidente" en vez de "emergencia" en las pantallas principales. El nombre de la app (CBVI Reportes) y las citas legales no cambian.',
+  'v6.17: 📋 Vista "Ver para RUE". Al ver un reporte en el Panel de Administrador, un botón ordena sus datos en el MISMO orden del formulario oficial del RUE, con un botón Copiar por campo. Avisa qué datos exige el RUE y cuáles conviene verificar. No envía nada solo: el RUE se sigue llenando a mano en su plataforma.',
+  'v6.16: 📥 Importar personal desde Excel. En el Panel de Administrador puede pegar las filas de su Excel (con la fila de títulos) y la app reconoce las columnas por el nombre y agrega solo a quien falte, sin borrar ni pisar a nadie. Muestra un resumen antes de confirmar.',
+  'v6.15: 🎬 Recorrido de bienvenida. La primera vez que entra al inicio, la app ofrece un tour rápido de 6 pasos (se puede omitir). Después queda disponible en ℹ️ Acerca de, junto a un botón para el video con el paso a paso (estará pronto).',
+  'v6.14: ℹ️ Nueva pantalla "Acerca de" (tarjeta en el Inicio, junto a Manual y Bases legales): muestra la versión de la app, el logo del cuerpo, la autoría y los derechos de autor.',
+  'v6.13: 🎖️ Ya puede subir el escudo del cuerpo desde el Panel de Administrador. Reemplaza el logo en el encabezado, la pantalla de inicio y los informes en PDF. Si lo quita, vuelve el escudo por defecto de la estación. La imagen se reduce sola antes de guardarse.',
+  'v6.12: 🖨️ Arreglada la impresión desde el navegador. En la app del celular funcionaba, pero al imprimir desde un navegador se abría una pestaña EN BLANCO: ya genera el informe correctamente. Además, el pie de los informes ya no muestra el correo ni el teléfono de contacto del autor.',
+  'v6.11: ✅ IMPORTANTE — Corregir una emergencia ya se guarda de verdad. Hasta ahora, cuando el autor editaba su propio reporte dentro de las 24 horas, el cambio se veía en el celular pero NO llegaba a la base de datos: la app decía que había guardado y no era cierto. Si alguna vez corregiste un reporte y después seguía apareciendo el dato viejo, era por esto. Ya quedó arreglado. Las fotos y las firmas nunca se tocan al editar.',
+  'v6.11: 🏷️ El campo "Otra clasificación" tampoco se guardaba al editar un reporte como administrador. Se descartaba en silencio por un error interno de nombres. Ya se guarda.',
+  'v6.11: 🎬 Las animaciones del Panel de Administrador ya funcionan. Al cambiar entre la lista de reportes, ver un reporte y editarlo, las secciones ahora aparecen con una transición en vez de saltar de golpe. Los cuadros de contraseña, PIN y confirmación también entran suavemente. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no muestra ninguna.',
+  'v6.10: 🚒 Los vehículos ya no se eligen por "Máquina extintora 1", "Máquina extintora 2"... ahora aparecen con su nombre real de estación: Móvil 1, Móvil 2, Móvil 3, Móvil 5, Móvil 6, Móvil 8, Motocarguero y Lancha/Voladora, cada uno con su tipo. Se usa igual al registrar una actividad, al editarla y al reportar una emergencia — es la misma lista en los tres lugares. Los reportes viejos no cambian: se siguen viendo con el nombre que tenían.',
+  'v6.09: 🪪 Para anotar o corregir la asistencia de un domingo, y para descontar horas de sanción, ya NO se pide la contraseña de administrador: basta tu usuario y tu PIN. La guardia puede hacer su trabajo sin depender de la comandancia, y de paso queda registrado QUIÉN lo hizo (la contraseña es una sola para todos y no decía nada de eso). Borrar un domingo o una actividad sí sigue pidiendo contraseña.',
+  'v6.09: 🔐 Si escribes mal la contraseña de administrador, ahora te lo dice de una vez: el cuadro se sacude, marca el error en rojo y te deja intentar de nuevo ahí mismo. Antes seguía de largo sin avisar y el error aparecía mucho después, con un mensaje que no explicaba nada — y peor, la contraseña equivocada quedaba guardada y todo lo demás fallaba hasta cerrar la app.',
+  'v6.09: ⏱️ Tu firma ahora se cierra sola: al cerrar la aplicación y a los 30 minutos sin usarla. Si dejas el celular en la mesa, nadie puede seguir haciendo cambios a tu nombre. Mientras estés trabajando no se vence, porque cada acción reinicia el tiempo.',
+  'v6.09: ✏️ La ventana de editar una actividad quedó igual de completa que la de crearla: el tipo de vehículo se elige de la lista (antes se escribía a mano) y el maquinista tiene autocompletado.',
+  'v6.09: 🚒 Los vehículos de una ACTIVIDAD ya se guardan. Hasta ahora esa parte del formulario estaba desconectada por dentro: se podía escribir el vehículo y el maquinista, pero al registrar la actividad NO se guardaba nada y no había ningún aviso. Si revisas actividades viejas y no aparecen vehículos, es por esto — el dato no llegó a la base. De aquí en adelante sí queda, con su maquinista y su cédula.',
+  'v6.09: 🔎 El campo "Maquinista / Responsable" de las actividades ya autocompleta. Escribe la inicial y elige de la lista, igual que en Encargado y Comandante de guardia. Antes no salía nada por más que escribieras.',
+  'v6.09: ➕ El botón "Agregar vehículo" de las actividades ahora sí muestra el vehículo en pantalla, se puede quitar con la ✕, y no deja agregar dos veces la misma unidad.',
+  'v6.08: 🎬 Al tocar "volver" ahora se ve una transición: un oscurecido suave que cruza la pantalla y se va. Antes la pantalla anterior desaparecía de golpe, sin ningún aviso de que estabas saliendo. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no la muestra.',
+  'v6.07: 🔑 La lista de PIN de las unidades ya no es un rollo interminable. Ahora tiene BUSCADOR (por nombre o cédula), las unidades que todavía NO tienen PIN salen de primeras, y la lista tiene su propio desplazamiento: ya no empuja el resto del Panel hacia abajo. Arriba se ve cuántas faltan.',
+  'v6.07: 🔄 Los botones "Ver / asignar" y "Ver / cambiar" del Panel ahora se llaman "Actualizar" y muestran la rueda de carga mientras trabajan. Antes no daban ninguna señal al tocarlos —la lista ya venía cargada— y parecía que estaban dañados.',
+  'v6.07: ⏳ El aviso de "Abriendo.../Cerrando..." al cambiar de pantalla ahora dura lo suficiente para alcanzar a leerlo, y la aparición de cada pantalla es un poco más notoria. Estaba tan rápido que pasaba desapercibido.',
+  'v6.06: 🪪 ARREGLADO: el personal administrativo (Secretaría) no podía firmar. Al escribir su nombre en "¿Quién está de guardia?" el buscador no lo encontraba —solo buscaba entre las unidades bomberiles— así que no podía tocarse a sí misma y quedaba trabada sin poder hacer nada, aunque ya tuviera su PIN. Ahora sí aparece.',
+  'v6.06: 🔎 Si escribes un nombre y no aparece nadie, ahora la app te lo DICE en vez de quedarse muda. Antes no se sabía si el nombre estaba mal escrito o si la app se había colgado.',
+  'v6.05: 🛡️ ARREGLADO lo importante: agregar o quitar un administrador ya surte efecto de verdad. Antes la app escribía el cambio en la base de datos pero seguía preguntándole a una lista fija escrita dentro del programa, así que a la persona agregada nunca se le habilitaba nada. Ahora quien manda es la lista del Panel. La persona lo ve la próxima vez que abra la app con señal.',
+  'v6.05: 🛡️ La caja de Administradores y la de PIN de las unidades ahora se llenan solas al abrir el Panel. Antes salían vacías y había que adivinar que tocaba presionar "Ver / cambiar": parecía un adorno.',
+  'v6.05: ⏳ Las siluetas animadas de carga ahora sí se ven en TODAS las listas, incluido el Panel de Administrador. Estaban puestas desde la v5.89 pero la app las borraba de inmediato y las cambiaba por un "Cargando..." quieto, así que casi nunca alcanzaban a verse.',
+  'v6.04: 🩹 Corregido: al agregar un operador administrativo o un administrador, la app pedía los datos en un cuadro de CONTRASEÑA — el nombre salía con puntitos y el botón decía \"Entrar\". Ahora cada dato se pide con su propio cuadro: el nombre se lee mientras lo escribes, la cédula abre el teclado numérico y el botón dice lo que realmente hace.',
+  'v6.04: 🔑 Al asignar un PIN ahora se ve mientras lo escribes (antes salía oculto), porque eres tú quien se lo tiene que dictar a esa unidad.',
+
+  'v6.03: 🔒 El PIN pasa a ser OBLIGATORIO para todo lo de administrador. Sin firmar no se puede descontar sanciones, ni registrar o editar asistencias, ni borrar nada. Reportar emergencias NO cambió: eso sigue funcionando sin PIN, como siempre.',
+  'v6.03: 🎖️ Si una unidad de guardia todavía no tiene PIN y el administrador principal no está disponible, existe una llave de comandancia para desbloquear en el momento. Cada uso queda registrado como excepción.',
+  'v6.03: 🛡️ El administrador principal ahora puede agregar y quitar administradores desde el Panel, sin depender de nadie. Su propio correo no se puede quitar, para que nunca quede la app sin administrador.',
+  'v6.03: 👤 Se puede dar acceso a personal administrativo que no es bombero (Secretaría, por ejemplo): firma y queda auditado igual, pero NO entra a la base de personal, así que no aparece en el llamado a lista de los domingos ni suma horas en Operatividad.',
+  'v6.03: 📧 El resumen de sanciones ahora también le llega al Sargento Eliodoro López Martínez.',
+
+  'v6.02: 🔑 La firma de guardia ahora pide PIN. Antes bastaba escribir un nombre, así que cualquiera podía firmar con el nombre de otro compañero — y el registro habría culpado a quien no fue. Ahora cada unidad tiene su PIN de 4 dígitos y el sistema comprueba que coincida con la cédula: nadie puede registrar acciones a nombre ajeno.',
+  'v6.02: 🔄 Botón "Cambiar (relevo)" arriba del Panel de Administrador, para que el turno que entra firme sin tener que cerrar la app. Arriba se ve siempre quién está operando.',
+  'v6.02: 🛡️ El administrador asigna y cambia los PIN desde el Panel. Se guardan cifrados: ni abriendo la hoja de cálculo se pueden ver, solo reemplazar. Si alguien olvida el suyo, el administrador le pone uno nuevo.',
+  'v6.01: 🪪 El celular de la guardia lo usan distintas unidades, así que al entrar al Panel de Administrador la app ahora pregunta QUIÉN está operando. Ese nombre queda registrado junto a lo que se haga (descontar sanciones, registrar o editar asistencias). Se pregunta una sola vez por sesión.',
+  'v6.01: 🎖️ Borrar la asistencia de un domingo COMPLETO ahora pide la contraseña de comandancia, porque eso borra el registro de todas las unidades de ese día y recalcula las sanciones. Para corregir un domingo sin borrarlo sigue estando Editar (✏️), que no cambió y no pide nada nuevo.',
+  'v6.01: 🛟 Si se corta el internet justo al aprobar o descartar a alguien de la lista de "esperando alta", la app ya no muestra un error falso: revisa cómo quedó de verdad y te lo dice.',
+  'v6.01: 📋 En la lista de "esperando alta" hay un botón nuevo para ver la actividad donde apareció esa persona, y así corregirla si el nombre quedó mal escrito.',
+  'v6.00: 👥 Nuevo en el Panel de Administrador: si alguien registra una actividad con un compañero que todavía no está en la base de personal, esa persona YA NO SE PIERDE. Queda en una lista de "esperando alta" arriba del Panel, y el administrador la aprueba (o la descarta) con un toque. Antes no entraba a la base y después no aparecía en el autocompletado ni la reconocía el aviso de "nombre desconocido".',
+  'v6.00: 🪪 Las cédulas escritas con puntos o espacios ya no crean personas repetidas en la base de personal: "1.234.567" y "1234567" ahora se reconocen como la misma persona al registrarla, tanto desde Actividades como desde Asistencia.',
+  'v6.00: 🛠️ Arreglo interno: dos administradores trabajando al mismo tiempo ya no pueden duplicar por accidente la misma persona en la base.',
+  'v6.00: 🗓️ Al editar un domingo ya guardado (botón ✏️) ahora se puede AGREGAR a alguien que quedó fuera de la lista: buscas el nombre, entra como "Presente" y le cambias el estado si hace falta. Antes tocaba borrar el domingo entero y volver a registrarlo persona por persona.',
+  'v6.00: 🛟 Corregido un problema serio: si abrías un domingo YA guardado desde la pantalla de Asistencia y volvías a guardar, se BORRABAN el tipo de reunión, el tema, el lugar, el encargado y el comandante de guardia. Ahora esos datos se cargan solos y se conservan.',
+  'v5.99: 🗺️ El mapa ahora carga desde la propia app y no desde un servidor de terceros. Es más seguro y arranca más rápido; el mapa ya no depende de que ese servidor externo esté disponible.',
+  'v5.99: 🔒 Refuerzo de seguridad: se quitó el permiso que la app le daba a ese servidor externo para ejecutar código.',
+  'v5.98: 👥 La lista de nombres que sale al escribir (en reportes, actividades y asistencia) ahora se toma DIRECTO de la hoja del personal. Antes venía de una lista fija dentro de la app: por eso seguían apareciendo compañeros que ya no están y NO aparecían los que se agregaron después. Ahora se actualiza sola.',
+  'v5.98: ✅ El aviso de "nombre desconocido" al enviar un reporte ya no se equivoca: dejó de alertar con personal que sí está en la hoja, y dejó de dejar pasar en silencio a quien ya no está.',
+  'v5.98: 📴 Sigue funcionando sin señal: la lista queda guardada en el teléfono y se usa igual cuando no hay internet.',
+  'v5.97: 🛡️ Ajustes internos de seguridad y de configuración del sitio. No cambia nada de lo que ves, ni cómo inicias sesión, ni cómo se usa la app.',
+  'v5.96: 🗺️ La leyenda del Mapa de Emergencias ahora muestra TODAS las clasificaciones con su emoji, aunque vayan en cero — antes solo salían los tipos que ya tenían reportes.',
+  'v5.96: 🏷️ Corregido: los reportes con VARIAS clasificaciones marcadas salían como "Sin clasificar" en el mapa (solo cruzaba bien cuando era una sola). Ahora se leen todas y el pin toma su color/emoji correcto. Al editar un reporte, las casillas de clasificación ya aparecen marcadas como corresponde.',
+  'v5.96: 📊 En Operatividad, las cédulas escritas con puntos o espacios ya no crean tarjetas duplicadas de la misma persona. La tarjeta grande ahora dice "Unidades con registros" y muestra aparte cuántas unidades tiene la base activa; los registros con el nombre escrito distinto salen marcados en ámbar para poder corregirlos.',
+  'v5.96: 📸 Corregido: algunos reportes viejos no mostraban sus fotos (el enlace quedó guardado en un formato antiguo). Ahora se leen también esos formatos. Y si al ENVIAR un reporte alguna foto no se puede subir, la app lo avisa de inmediato en vez de callar.',
+  'v5.95: 📊 Corregido en Operatividad: al tocar "Ver emerg. / Ver activ. / Ver dom." de una unidad, el detalle ahora muestra TODO lo que suma el total, aunque el nombre esté escrito distinto en registros viejos (ahora se cruza también por cédula). Antes el total podía decir 6.3h y el detalle mostrar menos.',
+  'v5.95: ✏️ Al EDITAR la asistencia de un domingo, los campos 👤 Encargado y 🛡️ Guardia ahora AUTOCOMPLETAN buscando en el personal (escribe las iniciales y toca el nombre), igual que al registrar.',
+  'v5.95: 🧾 Al agregar personal a la asistencia ya no se cuela una persona repetida por tener la cédula escrita con puntos o espacios (ej: 1.234.567 y 1234567 ya se reconocen como la misma).',
+  'v5.95: 🏅 En las bonificaciones, los nombres con tilde o Ñ ya no se duplican ("JOSÉ" y "JOSE" son la misma persona) y el botón de quitar elimina bien ambas formas.',
+  'v5.95: 🛡️ Refuerzos internos de seguridad y estabilidad en varias pantallas y en el servidor.',
+  'v5.94: 🏷️ Nuevos tipos de emergencia en la Clasificación: Incendio de interfaz, Búsqueda y rescate, Traslado, Atención de árbol caído y Atención de abejas / avispas. Si marcas "Búsqueda y rescate", escribe en "Otra" la modalidad exacta (extraviado, acuática, colapso, etc.). En el Mapa de Emergencias cada uno tiene su propio pin (las abejas van con 🐝).',
+  'v5.94: ⚠️ Ahora cada unidad ve en su Inicio ÚNICAMENTE su propia sanción pendiente (antes solo el admin veía la lista). Toca el aviso para ver de qué domingos viene tu deuda. Nadie ve la de los demás.',
+  'v5.94: 🗺️ Corregido: al abrir "Ver reporte completo" desde el Mapa a veces salía el reporte vacío o pedía la contraseña sin cargar. Ahora la sesión se valida mejor, y si la descarga falla se muestra un aviso con botón de reintentar en vez de un reporte en blanco. Al reentrar al Panel ya no queda abierto el reporte anterior.',
+  'v5.93: 🧾 Corregido (sanciones): al descontar horas cumplidas, ahora el pago SIEMPRE se cruza con la deuda aunque la cédula esté escrita distinto (con puntos, espacios o como número) en la asistencia y en el registro. Antes, en esos casos, salía "✅ registrado" pero la deuda no bajaba. Ya no hay que corregir la cédula a mano.',
+  'v5.92: 👁️ NUEVO: al escribir las coordenadas a mano aparece una VISTA PREVIA EN VIVO debajo de los campos que muestra cómo quedará el pin (en decimal y en grados) o te avisa si algo está mal — así lo confirmas antes de enviar el reporte, sin depender de tener señal.',
+  'v5.92: 📍 Corregido: al escribir las coordenadas A MANO ahora se aceptan con COMA o con punto decimal (ej: 3,8650 o 3.8650). Antes, si se escribía con coma, la app las guardaba mal y el pin caía en el lugar equivocado del Mapa de Emergencias. También reconoce si pegas las dos coordenadas juntas en un solo campo y el formato de grados (3°51\'54"N). Al guardar, muestra cómo quedaron interpretadas para que las revises.',
+  'v5.91: ⚠️ CAMBIO IMPORTANTE EN LAS SANCIONES. Por cada domingo que pase sin que cumplas tus horas, la deuda se DUPLICA (2h → 4h → 8h → 16h...), con un tope de 32 horas. Asistir NO detiene la duplicación y presentar excusa TAMPOCO: la excusa justifica que no viniste, no que dejaste de cumplir lo que ya debías. Lo único que la detiene es cumplir las horas antes del próximo domingo.',
+  'v5.91: 🤝 Ajuste por única vez: como antes el sistema no aplicaba bien esta regla, a quienes les habría subido de golpe se les dejó la deuda en el valor que ya venían viendo duplicado una sola vez, y no en el total que les correspondía. De aquí en adelante la regla corre normal para todos.',
+  'v5.91: 📋 Las alertas quedan igual: 3 domingos seguidos = llamado de atención verbal · 4 = llamado escrito con copia a la hoja de vida · 5 = deserción, con retiro de las actividades bomberiles y a consideración del Capitán el reingreso.',
+  'v5.91: ✉️ El correo de sanción ahora explica cómo crece la deuda y hasta qué tope, además de los domingos que faltaste.',
+  'v5.90: 🧭 Se QUITÓ la barra de navegación inferior que se agregó en la v5.89. Devolvía accesos que ya estaban en el Inicio y quitaba espacio de pantalla. Todo se navega igual que antes desde el Inicio.',
+  'v5.90: 🎨 Diseño renovado del tema 🚒 Original: encabezado con más profundidad y filo dorado, tarjetas con relieve suave, botones con volumen, campos que se iluminan en rojo al escribir y esquinas más redondeadas. El tema 🍎 Minimalista quedó exactamente igual.',
+  'v5.90: ✅ Al descontar horas de sanción en "Ver Deudores" ahora se abre un cuadro que pide LA ACTIVIDAD QUE REALIZÓ la unidad (aseo, mantenimiento, apoyo, etc.). Queda como constancia permanente junto con las horas.',
+  'v5.90: ✉️ Los correos de sanción que le llegan a cada unidad ahora DICEN EXACTAMENTE qué domingos faltó (fecha y tema de cada uno), no solo el total de horas. Si una fecha está mal, ya se puede reclamar con el dato en la mano.',
+  'v5.90: 📱 El ícono al abrir la app ya no sale dentro de un cuadro blanco: el escudo se ve recortado sobre el fondo rojo institucional.',
+  'v5.89: 🧭 NUEVO: barra de navegación inferior con acceso directo a 🏠 Inicio, 🎯 Nueva Actividad, 🚨 Nuevo Reporte (botón central), 📋 Registros y ⚙️ Ajustes. Ya no hay que devolverse al Inicio para cambiar de sección.',
+  'v5.89: ✨ Animaciones suaves al cambiar de pantalla y al tocar botones (estilo app profesional). Si tu teléfono tiene activada la opción "reducir movimiento" (accesibilidad), la app la respeta y no anima.',
+  'v5.89: ⏳ Mientras cargan los Registros, la Operatividad o los Deudores ahora se ve una "silueta" animada en vez del texto "Cargando..." — se nota que la app está trabajando.',
+  'v5.89: 💻 Mejorado en pantallas grandes (PC y tabletas): la barra inferior se centra y no se estira a todo lo ancho.',
+  'v5.88: 🎨 NUEVO: ahora puedes elegir el DISEÑO de la app — 🚒 Original o 🍎 Minimalista (estilo limpio tipo Apple). Está en el menú de tu avatar (arriba a la derecha) y en Configuración → Diseño de la app. Tu elección se guarda solo en este dispositivo.',
+  'v5.88: ✨ Diseño Minimalista: fondo claro, tarjetas con bordes redondeados, sombras suaves, encabezado translúcido y transiciones suaves. TODO funciona exactamente igual — solo cambia el aspecto.',
+  'v5.87: ✅ Los avisos de éxito (actividad guardada, asistencia registrada, foto cargada...) ahora salen en VERDE como corresponde — antes salían en negro neutro.',
+  'v5.87: 🗺️ Si el Mapa de Emergencias falla por falta de señal, ahora aparece un botón 🔄 Reintentar en vez de quedarse pegado en el error.',
+  'v5.87: 🛡️ Blindaje interno: la pantalla de Operatividad "Por Unidad" ya no puede romperse completa si llega un registro sin nombre, y se reforzó el escape de texto en más listas (sanciones, deudores, personal).',
+  'v5.86: 🔳 El Mapa de Emergencias ahora se puede ampliar a pantalla completa (botón ⛶) para ver mejor los pines, con botón ✕ para regresar al tamaño normal.',
+  'v5.86: 🛡️ Refuerzos internos de seguridad: se reforzó el escape de texto libre (nombres, víctimas, recursos) en varias vistas y en el PDF del reporte.',
+  'v5.85: 🗺️ Corregido: una coordenada GPS mal escrita (sin punto decimal) podía "romper" el Mapa de Emergencias y dejar TODOS los pines fuera de la vista. Ahora se valida el rango y se avisa si el dato es inválido.',
+  'v5.84: 📤 Corregido (importante): reenviar un reporte "Pendiente" ya NO lo duplica en la base — el servidor ahora reconoce los reintentos aunque lleguen varios toques seguidos.',
+  'v5.84: ⏳ El botón "Enviar" del reporte pendiente ahora muestra "Enviando..." y se bloquea mientras trabaja — se acabó tocar varias veces "porque no pasaba nada".',
+  'v5.84: ➕ Los botones "+ Agregar recurso / víctima / organización" del formulario ahora se ven claros y grandes (antes quedaban casi invisibles).',
+  'v5.83: 🛡️ Refuerzos internos de seguridad en el servidor.',
+  'v5.82: 🗺️ Mapa de Emergencias renovado: cada pin lleva el EMOJI de su tipo (🔥 incendio, 🚑 primeros auxilios, 🚗 rescate vehicular...) con colores más fáciles de distinguir.',
+  'v5.82: 🗺️ La leyenda ahora FILTRA: toca un tipo para ocultar/mostrar sus pines. Nuevos filtros por año y mes, contador de emergencias visibles y botón 🎯 para reencuadrar el mapa.',
+  'v5.82: 🗺️ Corregido: la fecha en los pines del mapa se veía en formato técnico feo — ahora sale como día normal (2026-07-13).',
+  'v5.82: 📨 El resumen general de sancionados ahora llega también a un tercer correo administrativo autorizado.',
+  'v5.81: ⏳ Al abrir una asistencia de domingo (desde Mis Actividades o el historial) ahora aparece DE INMEDIATO la ventana "Abriendo asistencia..." con animación — antes parecía que el toque no hacía nada.',
+  'v5.81: 🎖️ El llamado a lista ahora va por rangos: OFICIALES (Capitán, Teniente, Subteniente) → SUBOFICIALES (Sargento, Cabo) → BOMBEROS → ASPIRANTES. Dentro de cada rango se respeta el orden de las filas de la hoja Personal_CBVI (1, 2, 3...): ordena la hoja y la app llama a lista en ese orden.',
+  'v5.81: 📝 Al marcar a alguien "C/excusa" se abre al instante el cuadro para escribir la observación (motivo de la excusa) — ya no toca guardar y luego editar el domingo. La observación queda visible bajo el nombre y se corrige tocándola.',
+  'v5.81: ➕ Nuevos rangos disponibles al registrar bombero: Subteniente y Cabo.',
+  'v5.76: 📨 NUEVO: alerta de sanciones por correo. Cada viernes 9:30 AM la estación recibe el resumen de unidades que deben horas y cada deudor su recordatorio personal. El admin también puede enviarla al instante desde Configuración → Zona Administrador.',
+  'v5.76: 🛡️ El servidor ahora deja registro permanente de seguridad (intentos no autorizados y acciones administrativas) y avisa por correo a la estación si detecta actividad sospechosa.',
+  'v5.75: 👥 Nueva cuenta de administración habilitada (Tesorería CBVI) para apoyar la gestión de la estación.',
+  'v5.74: 📨 Corregido (importante): si el servidor rechazaba un reporte (mala señal, mantenimiento…), la app lo marcaba como "Enviado" igual y el reporte se perdía en silencio. Ahora queda "Pendiente" y se reenvía solo al volver la señal — sin duplicarse.',
+  'v5.74: 🔐 Blindaje del servidor: enviar, actualizar o eliminar reportes y consultar la base de personal ahora exige sesión válida. Si un día te pide volver a iniciar sesión, es normal — tu reporte no se pierde.',
+  'v5.74: 🧹 Corregido: al entrar con OTRA cuenta de Google en el mismo teléfono ya no se mezclan las sesiones (antes podía quedar activa la identidad anterior).',
+  'v5.74: 🖥️ Los mensajes de error del servidor ahora se muestran de forma segura en pantalla.',
+  'v5.73: 🪪 Ahora, si dos bomberos quedaron con la misma cédula, la app te avisa con claridad (te dice con quién choca) en vez de un confuso “ya está”. Corrige la cédula repetida en la base y listo.',
+  'v5.72: 🧩 Corregido en Asistencia: al agregar un bombero que ya estaba, la app te lleva a su fila y la resalta (se acabó el “ya está pero no lo veo”). Búsqueda de duplicados más precisa (por cédula o nombre).',
+  'v5.71: 🛡️ Blindaje profesional: descontar horas de sanción ahora es a prueba de fallos de red. Si se cae el internet justo al guardar y reintentas, ya NUNCA se descuenta dos veces.',
+  'v5.70: 🔧 Corregido: al marcar horas de sanción cumplidas en "Ver Deudores" ya no sale "No autorizado". Ahora pide la contraseña de administrador si hace falta, y se evita cualquier doble descuento por doble toque.',
+  'v5.69: 🔐 Seguridad del servidor reforzada: ahora solo tú puedes editar tu propio perfil, y agregar personal a la base es exclusivo del administrador. Registrar actividades exige sesión válida.',
+  'v5.69: 🎫 Tu sesión ahora dura más sin pedirte iniciar sesión tan seguido. Si una vez te pide volver a entrar, es normal por esta mejora.',
+  'v5.68: 🔐 Seguridad reforzada: los textos que se escriben (temas, lugares, novedades, narrativa, dirección) ahora se muestran de forma segura en toda la app.',
+  'v5.68: 🔤 Corregido el inicio de sesión con Google para nombres con tildes o Ñ (antes podía fallar o mostrarse con símbolos raros).',
+  'v5.68: 📱 Avisos que no se veían en el APK (cerrar la app, aviso de foto no guardada) ahora usan las ventanas propias de la app.',
+  'v5.68: ⚡ Mejora de estabilidad sin conexión.',
+  'v5.67: 📍 Corregido: las coordenadas GPS ahora se editan SOLO desde la sección 3 (Ubicación) al usar ✏️ Editar — ya se guardan correctamente y se reflejan en el Mapa.',
+  'v5.67: 👁️ La vista "Ver" de bonificaciones ahora es solo lectura — para agregar o quitar bomberos usa ✏️ Editar.',
+  'v5.66: 📸 Fotos del domingo AHORA editables (Inicio/Intermedio/Final) — antes no aparecían al editar. También Tipo de reunión, Tema, Lugar y Observación por persona.',
+  'v5.66: 📍 Admin puede corregir las coordenadas GPS de un reporte si quedaron mal capturadas (aparece al editar en el Panel Admin).',
+  'v5.66: 🎨 Mapa de Emergencias: cada pin tiene el color según el tipo de emergencia (incendio, primeros auxilios, rescate...) + leyenda con la tabla de colores.',
+  'v5.65: 🗺️ Arreglado: el Mapa de Emergencias no cargaba (la política de seguridad del sitio bloqueaba la librería del mapa). Ya carga con internet normal.',
+  'v5.65: 🆕 Aviso de "nueva versión" corregido: ya no tapa el botón de cerrar (antes crecía con TODO el historial; ahora solo muestra lo nuevo de esta versión, y tiene scroll si hace falta).',
+  'v5.65: ⏳ Mensaje breve "Abriendo.../Cerrando..." al navegar entre pantallas, además de "Cargando.../Guardando..." que ya existían.',
+  'v5.65: 🔄 Si ves pantallas viejas en la PC (ej. deudores dentro de Asistencia), es caché del navegador — Ctrl+Shift+R para forzar la versión nueva.',
+  'v5.64: ⚠️ NUEVA pantalla "Ver Deudores": toca un nombre y mira EXACTAMENTE qué domingos (fecha + tema) generaron la deuda.',
+  'v5.64: 🗺️ NUEVO "Mapa de Emergencias" (solo admin): ubica en un mapa cada emergencia con GPS registrado.',
+  'v5.64: 🚫 Doble click corregido en TODAS las acciones (antes solo 3): eliminar, editar, sanciones, cierre de mes, bonificaciones, etc.',
+  'v5.64: 📊 Corregido: los totales de Emergencias y Horas en Operatividad ya no se inflaban al multiplicarse por el número de asistentes.',
+  'v5.64: 📅 Ahora se muestran por separado "Domingos realizados" y "Asistencias totales" (antes se mezclaban).',
+  'v5.64: 🔐 3 ventanas de confirmación que fallaban en silencio en el APK (cerrar sesión, cancelar edición, quitar bombero de bonificación) ahora usan el modal seguro de la app.',
+  'v5.63: 🚫 Doble click corregido — los botones se bloquean y muestran "Cargando..." mientras envían (no más registros duplicados).',
+  'v5.63: 📊 Se acabaron los números feos tipo "28.09999h" — todo redondeado a 1 decimal.',
+  'v5.63: 👥 Autocompletado sin nombres duplicados (tildes y Ñ ya no crean personas dobles).',
+  'v5.63: ⚠️ NUEVO recordatorio de sanciones en la pantalla de inicio (solo admins): quién debe horas y su nivel de alerta.',
+  'v5.63: 📐 Nueva regla de sanciones: la deuda se duplica si no se cumple (2h→4h→8h→16h→32h). Alertas por faltas consecutivas: 3=verbal, 4=escrito, 5=DESERCIÓN.',
+  'v5.63: ✅ Las horas de sanción cumplidas ya quedan registradas para siempre (no se pierden al registrar más domingos).',
+  'v5.63: 🎯 Nuevos tipos de actividad: Bomberitos Junior y Arreglos/Reparaciones (institución).',
+  'v5.63: 🔐 La sesión de admin se renueva sola al abrir la app — adiós al "cierra y vuelve a iniciar sesión".',
+  'v5.63: 🛡️ Aviso al enviar emergencias con nombres que no están en la base (evita duplicados en Operatividad).',
+  'v5.63: 📖 Manual y "Cómo funciona" actualizados.',
+  'v5.59: ARREGLADO: las fotos de las actividades ahora SÍ se guardan y se ven (se comprimen antes de subir). Detalle del domingo con sanciones.',
+  'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
+  'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
+  'v5.48: Seguridad reforzada — tu identidad se verifica con Google. Si te lo pide, vuelve a iniciar sesión.',
+  'v5.25: Botón guardar admin: CORREGIDO — leerFormulario usaba reporteActual (null) en vez del reporte admin.',
+  'v5.24: Botón guardar admin: toast en línea 1 + captura de errores en leerFormulario.',
+  'v5.23: Editor admin: firma comandante visible + guardar con diagnóstico de error en pantalla.',
+  'v5.22: Los borradores ya no tienen restricción de 24 horas — solo aplica a reportes enviados.',
+  'v5.21: Cierre de mes corregido — el botón Aplicar ahora funciona correctamente.',
+  'El Comandante de Incidente ahora se marca con la estrella ⭐ al lado del bombero en la lista (ya no se escribe aparte). Es quien dirigió en el lugar; distinto del comandante que FIRMA (ítem 13).',
+  'NUEVO: en "Recursos Desplegados" cada vehículo lleva su Responsable/Maquinista y la lista de tripulantes que fueron en ese vehículo, todo con AUTOCOMPLETAR (escriba la inicial y elija el nombre de la base de bomberos).',
+  'NUEVO: casilla de Comandante de Incidente (arriba de la sección) y Observaciones de mando (transferencia / continúa otro día).',
+  'NUEVO: el Total de personal se suma SOLO (nombres distintos). Una misma persona cuenta 1 aunque vaya varios días.',
+  'Arreglo: la app ya no se queda pegada por caché viejo; con internet siempre carga la última versión.',
+  'Login con red de seguridad: si Google no carga, aparece aviso + botón Reintentar.'
 ];
 
 // === ROSTER DE BOMBEROS (autocompletar) ===
 // v5.98: ESTA LISTA YA NO MANDA. Es solo la SEMILLA para una instalación nueva
 // que todavía no se ha conectado nunca (celular recién instalado y sin señal).
-// La lista de verdad se lee de la hoja Personal al iniciar sesión y queda
+// La lista de verdad se lee de la hoja Personal_CBVI al iniciar sesión y queda
 // cacheada en IndexedDB: ver `_cargarRosterDesdeHoja()` y `_rosterVigente()`.
 // Cadena de respaldo: hoja → caché → esta semilla.
 //
 // Antes de v5.98 esta lista era la ÚNICA fuente y estaba congelada: mostraba 10
-// personas que ya no estaban en la hoja y escondía 6 que sí (entre ellas una con
-// un apellido compuesto). Peor: el autocompletado escribía nombres con una grafía
+// personas que ya no estaban en la hoja y escondía 6 que sí (entre ellas JONNY
+// SUMAY SUÁREZ). Peor: el autocompletado escribía nombres con una grafía
 // distinta a la de la hoja, y esos registros después no cruzaban en Operatividad.
 // NO hace falta editarla a mano nunca más; se actualiza sola desde la hoja.
 const ROSTER_BOMBEROS = [
-  /* T1 — VACÍO A PROPÓSITO.
-     Antes esta lista traía los ~30 nombres reales del personal de una estación,
-     quemados en el frontend, que se publica abierto en GitHub Pages. Mandar el
-     producto así sería repartir datos personales de terceros (Ley 1581 de 2012).
-
-     No hace falta: desde v5.98 el roster sale de la hoja Personal de cada
-     cuerpo. Esta constante quedó solo como respaldo del autocompletado cuando
-     todavía no hay hoja, y vacía cumple ese papel sin filtrar a nadie. */
+  "ARIEL FERNANDO CARDENAS TEJEIRO","BAUDILIO GALINDO MARÍN","CRISTIAN ANDRES VIDAL TRUJILLO",
+  "DAVID FELIPE MUÑOZ ACOSTA","DELIO PINZON ALDANA","EIKER ALEJANDRO PEÑA RIVAS",
+  "ELIODORO LOPEZ MARTINEZ","ELIPSYS ALEXANDRA RONDON MORILLO","ELKIN AUGUSTO RODRIGUEZ GONZALEZ",
+  "FREDY ANDREY SIERRA BORRERO","GERMAN ALONSO ROJAS GARZON","GUILLERMO DIAZ SABOGAL",
+  "HAROLD HENDER BARRETO SAENZ","HECTOR DE JESUS GARCIA CUARTAS","HELIODORO LOPEZ VALENCIA",
+  "HERBHERT ARTEMIO DIAZ AGAPITO","JEFERSON JEANCARLOS RANGEL GIL","JHON JAIRO LÓPEZ SANTANA",
+  "JONNY SUMAY SUÁREZ","JOSE LUIS FERNANDEZ RODRIGUEZ","JOSE ROSENDO PALMA NARVAEZ",
+  "LEIDY KATHERINE ZAPATA RINCON","MERY JOSEFINA MORILLO MARIÑO","MIGUEL ANGEL CONTRERAS PACHECOS",
+  "MONICA LUZ MERY DIAZ AGAPITO","OSCAR ESTIBEN MARTINEZ LOPEZ","RUTH FÁTIMA CHAGAS BARRETO",
+  "VERONICA ALEJANDRA CAMICO GARRIDO","WILDER JOSE GAITAN DIAZ","WILFREDO MIGUEL NUÑEZ TORRES",
+  "WILLIAM MARTINEZ PATIÑO","YADHIRA NAYERLY DIAZ AGAPITO","YORDAN SANTIAGO TOVAR MARTÍNEZ",
+  "YORDI ALONSO MARTINEZ SAMPAYO"
 ];
 
-/* Crédito del AUTOR de la app. Se conserva a propósito: es atribución de autoría.
-
-   14/08/2026 — SE QUITÓ EL CAMPO `cuerpo`. Decía "Cuerpo de Bomberos Voluntarios de
-   la estación de origen" y se imprimía en el pie de TODOS los PDF oficiales — actas, informes de
-   incidente, anexos fotográficos. O sea que el documento oficial de cualquier otro
-   cuerpo salía firmado al pie con el nombre de OTRA institución.
-
-   La autoría de la persona y el nombre de su estación no son lo mismo, y estaban en el
-   mismo renglón. El membrete del documento ya lleva el cuerpo que corresponde: el del
-   comandante que lo emite, que sale de INSTITUCION. */
 const CREDITO_AUTOR = {
   nombre: 'Bombero Jeferson Jeancarlos Rangel Gil',
+  cuerpo: 'Cuerpo de Bomberos Voluntarios de Inírida',
   correo: 'gilrangeljeancarlosjeferson@gmail.com',
   telefono: '320 960 6428',
   facebook: 'https://www.facebook.com/jeancarlos.rangel.1420'
@@ -180,9 +260,10 @@ const CREDITO_AUTOR = {
 // mapa se pintan DESDE este arreglo; los reportes viejos no se afectan.
 const TIPOS_EVENTO = [
   'Incendio estructural', 'Incendio forestal', 'Incendio de interfaz', 'Incendio vehicular',
-  // v1.17: "Incendio en red eléctrica" = transformadores, loncheras, cables y redes del
-  // servicio público → en el RUE es FALLA ELÉCTRICA. Distinto de "Incendio de interfaz"
-  // (fuego monte-pueblo), que sigue existiendo con su significado real.
+  // v6.21: "Incendio en red eléctrica" = transformadores, loncheras, cables y redes del
+  // servicio público → en el RUE es FALLA ELÉCTRICA. Antes esto se marcaba como "Incendio
+  // de interfaz" (que en realidad es fuego monte-pueblo). migrarInterfazAElectrico() en
+  // Codigo.gs reetiqueta los reportes viejos una sola vez.
   'Incendio en red eléctrica',
   'Rescate vehicular', 'Rescate en altura', 'Rescate acuático', 'Búsqueda y rescate',
   'Primeros auxilios', 'Traslado', 'Materiales peligrosos (MATPEL)',
@@ -198,10 +279,35 @@ const CAUSAS = [
   'En investigación', 'Otra'
 ];
 
+/* v6.10: FUENTE ÚNICA de los vehículos reales de la estación. Lo pidió Jeferson:
+   hasta hoy los tres formularios que preguntan "qué vehículo" usaban indicativos
+   genéricos ("Máquina extintora 1", "Carro tanque 2"...) — y para colmo las TRES
+   listas ya estaban desalineadas entre sí (una decía "Carro tanque", otra "Carro
+   tanque 1" y "Carro tanque 2"). Ahora los tres formularios pintan ESTA lista, así
+   que no se pueden volver a desalinear.
+   Backend: verificado que Codigo.gs NO valida ni usa este texto en ningún punto
+   (viaja y se guarda tal cual, como cualquier otro campo libre) — cambiar esta
+   lista es seguro, no exige tocar Apps Script ni redesplegar nada.
+   Compatibilidad: los reportes/actividades viejos guardaron el nombre genérico
+   anterior; como es texto libre, se siguen viendo igual que siempre (no se
+   reescribe el histórico). Solo lo nuevo que se registre de acá en adelante usa
+   los nombres reales. Sin Móvil 4 ni Móvil 7 a propósito: no existen en la
+   estación, no se inventan números. */
+const VEHICULOS_CBVI = [
+  'Móvil 1 — Máquina extintora',
+  'Móvil 2 — Carro tanque',
+  'Móvil 3 — Intervención rápida (camioneta)',
+  'Móvil 5 — Camión de carga',
+  'Móvil 6 — Intervención rápida',
+  'Móvil 8 — Carro tanque',
+  'Motocarguero',
+  'Lancha / Voladora (fibra de vidrio)',
+];
+
 // ==================== BASE DE DATOS LOCAL ====================
 const DB = {
   db: null,
-  NOMBRE: 'ReportesBomberilesDB',   // T1: nombre genérico, no de un cuerpo
+  NOMBRE: 'BomberosIniridaDB',
   VERSION: 2,
 
   abrir() {
@@ -305,26 +411,14 @@ const app = {
   modoUbicacion: 'auto',
 
   async init() {
-    // T1b: pinta la identidad del cuerpo desde el caché ANTES de nada más, para que
-    // quien vuelve no vea un parpadeo con el nombre neutro.
-    try { this._pintarInstitucion(); } catch (e) {}
-
-    // v1.25: si la URL trae ?unir=TOKEN (link de invitación), guardarlo antes de nada.
-    this._detectarInvitacion();
-
     // v5.48 SEGURIDAD: inyecta el idToken de Google en toda petición al backend.
     this._instalarFetchToken();
 
     // v5.88: aplica el diseño elegido (original | apple) antes de pintar la UI.
     this.aplicarTema(this._temaGuardado(), true);
 
-    /* Escudo: el del CUERPO que usa la app, no uno fijo. En el original acá iba
-       el escudo de una estación quemado en logos.js (247 KB de base64), que le
-       habría puesto ese emblema a todos los cuerpos del país.
-       Orden: el que configuró el cuerpo → el genérico de logos.js → nada.
-       "Nada" es aceptable: mejor sin escudo que con el de otra institución. */
-    /* El pintado del logo se movió a _pintarLogos() para poder refrescarlo al instante
-       cuando el admin sube o quita el escudo, sin recargar la app. */
+    // v6.13: el logo sale del escudo subido por el admin (si hay), si no del
+    // LOGO_SMALL por defecto. _pintarLogos lee el escudo cacheado en localStorage.
     this._pintarLogos();
 
     // === Detectar nueva versión y mostrar banner por 10 min ===
@@ -335,6 +429,7 @@ const app = {
     this.escucharConexion();
     this.inicializarCheckboxes();
     this.poblarRosterBomberos();
+    this.poblarSelectVehiculos();
     this.inicializarFirmas();
     this.configurarFoto();
     this.configurarBotonAtrasMovil();
@@ -356,11 +451,10 @@ const app = {
       // v5.63 (BUG 9): renovar el pase de 30 días en segundo plano cada vez
       // que se abre la app → el admin ya no queda atado al token de 1h.
       this._renovarPaseSesion().catch(() => {});
-      // v5.98: refrescar el roster desde la hoja Personal (caché primero,
+      // v5.98: refrescar el roster desde la hoja Personal_CBVI (caché primero,
       // red después). En segundo plano: no debe demorar el arranque de la app.
       this._cargarRosterDesdeHoja().catch(() => {});
-      // v1.25: unidad que abre el link estando YA logueada → unirse y recargar limpio.
-      if (await this._manejarIngreso()) return; // v1.27: solicitud/pendiente/rechazado toma la pantalla
+      this._cargarFlota().catch(() => {});   // v6.19: flota lista para el formulario
       this.actualizarUIUsuario();
       // Si ya completó registro complementario, ir a Home
       if (sesion.registroCompleto) {
@@ -371,11 +465,11 @@ const app = {
         // Esto permite que un reporte hecho en otro dispositivo con el mismo
         // correo aparezca aquí al refrescar.
         this.sincronizarReportesDesdeServidor().catch(e => console.warn('Sincronización falló:', e));
-        /* v1.38: subir también lo que quedó PENDIENTE (creado sin señal). El evento
+        /* v6.33: subir también lo que quedó PENDIENTE (creado sin señal). El evento
            'online' solo dispara en la transición sin-señal→con-señal con la app viva;
-           si el equipo mató el WebView y se reabre YA en línea, el pendiente se quedaba
-           pegado hasta forzarlo a mano. sincronizarReporte es idempotente y tiene candado
-           _syncEnCurso, así que subir al arranque no duplica. */
+           si el celular mató el WebView y se reabre YA en línea, el pendiente se
+           quedaba pegado hasta forzarlo a mano. sincronizarReporte es idempotente
+           (v5.84) y tiene candado _syncEnCurso, así que subir al arranque no duplica. */
         if (navigator.onLine) this.sincronizarPendientes(true).catch(() => {});
       } else {
         this.irA('pantallaRegistroComplemento');
@@ -391,294 +485,25 @@ const app = {
     });
   },
 
-  // v1.25: link de UNIRSE. Si la URL trae ?unir=TOKEN, se guarda (sobrevive al login de
-  // Google) y se limpia la URL para que un refresh no lo repita.
-  _detectarInvitacion() {
-    try {
-      const tok = new URLSearchParams(location.search || '').get('unir');
-      if (tok) {
-        try { localStorage.setItem('_invitacionPendiente', tok); } catch (e) {}
-        try { history.replaceState({}, '', location.pathname + location.hash); } catch (e) {}
-      }
-    } catch (e) {}
-  },
-
-  // v1.27: GATE DE INGRESO. Reemplaza el auto-join. Devuelve true si toma la pantalla
-  // (el init/login NO debe seguir al Home).
-  //  - Si hay un link guardado → muestra el FORMULARIO de solicitud (nombre + descripción).
-  //  - Si no, y la persona quedó PENDIENTE/RECHAZADA de una solicitud previa → esa pantalla.
-  //  - Si ya está aprobada (o nunca pidió) → false (sigue el flujo normal).
-  async _manejarIngreso() {
-    if (!this._pase && !this._googleIdToken) return false;   // sin identidad aún: espera al login
-    let token = '';
-    try { token = localStorage.getItem('_invitacionPendiente') || ''; } catch (e) {}
-    if (token) { this._mostrarFormSolicitud(token); return true; }
-    // ¿ya aprobado antes? evita la llamada extra a los miembros de siempre.
-    let aprobadoLocal = false;
-    try { aprobadoLocal = localStorage.getItem('_ingresoAprobado') === '1'; } catch (e) {}
-    if (aprobadoLocal) return false;
-    try {
-      const r = await fetch(_exigirBackend(), {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'estadoMiSolicitud', pase: this._pase || '', idToken: this._googleIdToken || '' })
-      });
-      const d = await r.json();
-      if (d && d.ok) {
-        if (d.estado === 'aprobado') {
-          // bienvenida notoria SOLO a quien venía de una solicitud pendiente (no a los
-          // miembros de siempre, que no pasaron por la cola).
-          let fuiPend = false; try { fuiPend = localStorage.getItem('_fuiPendiente') === '1'; } catch (e) {}
-          if (fuiPend) {
-            try { localStorage.setItem('_bienvenidaCuerpo', String(d.cuerpo || 'tu cuerpo')); } catch (e) {}
-            try { localStorage.removeItem('_fuiPendiente'); } catch (e) {}
-          }
-          try { localStorage.setItem('_ingresoAprobado', '1'); } catch (e) {}
-          return false;
-        }
-        if (d.estado === 'pendiente') { this._mostrarEstadoIngreso('pendiente', d.cuerpo || ''); return true; }
-        if (d.estado === 'rechazada') { this._mostrarEstadoIngreso('rechazada', d.cuerpo || ''); return true; }
-      }
-    } catch (e) { /* sin red: sigue normal; el backend igual bloquea escrituras de un pendiente */ }
-    return false;
-  },
-  _mostrarFormSolicitud(token) {
-    this._tokenSolicitud = token;
-    const viejo = document.getElementById('_overlayIngreso'); if (viejo) viejo.remove();
-    const nombreGoogle = (this.usuario && this.usuario.nombre) ? this.usuario.nombre : '';
-    const correo = (this.usuario && this.usuario.email) ? this.usuario.email : '';
-    const cont = document.createElement('div');
-    cont.id = '_overlayIngreso';
-    cont.style.cssText = 'position:fixed;inset:0;background:#0f172a;z-index:10050;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto;';
-    cont.innerHTML =
-      '<div style="background:#fff;border-radius:16px;max-width:400px;width:100%;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.4);">'
-      + '<div style="font-size:40px;text-align:center;line-height:1;">🔗</div>'
-      + '<div style="font-size:18px;font-weight:800;color:#1e40af;text-align:center;margin:6px 0 4px;">Solicitar ingreso</div>'
-      + '<div style="font-size:12px;color:#64748b;text-align:center;margin-bottom:16px;">Un administrador debe aprobar tu ingreso antes de que puedas usar la app.</div>'
-      + '<label style="font-size:12px;font-weight:600;color:#334155;">Tu nombre completo</label>'
-      + '<input id="_solNombre" type="text" value="' + app._esc(nombreGoogle) + '" placeholder="Nombre y apellido" style="width:100%;box-sizing:border-box;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;margin:4px 0 12px;">'
-      + '<label style="font-size:12px;font-weight:600;color:#334155;">¿Quién eres? (para que te reconozcan)</label>'
-      + '<textarea id="_solDesc" rows="2" maxlength="200" placeholder="Ej: Soy Juan, unidad de rescate M-3" style="width:100%;box-sizing:border-box;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;margin:4px 0 16px;resize:vertical;"></textarea>'
-      + '<button id="_solEnviar" style="width:100%;padding:13px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;">Enviar solicitud</button>'
-      + '<div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:10px;word-break:break-all;">Entrarás con: ' + app._esc(correo) + '</div>'
-      + '</div>';
-    document.body.appendChild(cont);
-    const btn = document.getElementById('_solEnviar');
-    if (btn) btn.onclick = () => this._enviarSolicitud();
-  },
-  async _enviarSolicitud() {
-    const btn = document.getElementById('_solEnviar');
-    const nombre = ((document.getElementById('_solNombre') || {}).value || '').trim();
-    const descripcion = ((document.getElementById('_solDesc') || {}).value || '').trim();
-    if (!nombre) { this.toast('Escribe tu nombre', 'error'); return; }
-    await this._conBloqueo(btn, 'Enviando…', async () => {
-      try {
-        const r = await fetch(_exigirBackend(), {
-          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'unirseACuerpo', invitacion: this._tokenSolicitud, nombre: nombre, descripcion: descripcion, pase: this._pase || '', idToken: this._googleIdToken || '' })
-        });
-        const d = await r.json();
-        if (!d.ok) { this.toast(d.error || 'No se pudo enviar la solicitud', 'error'); return; }
-        try { localStorage.removeItem('_invitacionPendiente'); } catch (e) {}
-        if (d.estado === 'aprobado') {   // ya era miembro → entra directo
-          try { localStorage.setItem('_ingresoAprobado', '1'); } catch (e) {}
-          try { localStorage.setItem('_bienvenidaCuerpo', String(d.cuerpo || 'tu cuerpo')); } catch (e) {}
-          location.reload(); return;
-        }
-        this._mostrarEstadoIngreso('pendiente', d.cuerpo || '');
-      } catch (e) { this.toast('Sin conexión. Intenta de nuevo.', 'error'); }
-    });
-  },
-  _mostrarEstadoIngreso(estado, cuerpo) {
-    const viejo = document.getElementById('_overlayIngreso'); if (viejo) viejo.remove();
-    const esPend = estado === 'pendiente';
-    // marca para la bienvenida notoria cuando lo aprueben (solo quien pasó por la cola)
-    if (esPend) { try { localStorage.setItem('_fuiPendiente', '1'); } catch (e) {} }
-    const cont = document.createElement('div');
-    cont.id = '_overlayIngreso';
-    cont.style.cssText = 'position:fixed;inset:0;background:#0f172a;z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;';
-    cont.innerHTML =
-      '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:28px 22px;box-shadow:0 10px 40px rgba(0,0,0,.4);">'
-      + '<div style="font-size:52px;line-height:1;">' + (esPend ? '⏳' : '🚫') + '</div>'
-      + '<div style="font-size:19px;font-weight:800;color:' + (esPend ? '#b45309' : '#b91c1c') + ';margin:8px 0;">' + (esPend ? 'Solicitud enviada' : 'Solicitud no aprobada') + '</div>'
-      + '<div style="font-size:13px;color:#475569;line-height:1.55;margin-bottom:18px;">'
-      +   (esPend
-          ? 'Tu ingreso a <b>' + app._esc(cuerpo || 'el cuerpo') + '</b> está esperando que un administrador lo apruebe. Vuelve a abrir la app más tarde.'
-          : 'Un administrador no aprobó tu ingreso a <b>' + app._esc(cuerpo || 'el cuerpo') + '</b>. Si crees que es un error, pídele el link de invitación otra vez.')
-      + '</div>'
-      + '<button onclick="app._salirIngreso()" style="width:100%;padding:12px;background:#e2e8f0;color:#0f172a;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;">Cerrar sesión</button>'
-      + '</div>';
-    document.body.appendChild(cont);
-  },
-  _salirIngreso() {
-    const o = document.getElementById('_overlayIngreso'); if (o) o.remove();
-    try { this.cerrarSesion(); } catch (e) { try { location.reload(); } catch (e2) {} }
-  },
-
-  // v1.27: SOLICITUDES DE INGRESO (lado admin). Cualquier admin lista/aprueba/descarta.
-  async cargarSolicitudes(btn) {
-    const cont = document.getElementById('listaSolicitudes');
-    if (!cont) return;
-    if (btn) return this._conBloqueo(btn, 'Actualizando…', () => this.cargarSolicitudes());
-    cont.innerHTML = this._skeleton(2, 'linea');
-    try {
-      const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'listarSolicitudesIngreso', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '', pase: this._pase || '' }) });
-      const d = await r.json();
-      if (!d.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">' + app._esc(d.error || 'Error') + '</div>'; return; }
-      const lista = d.solicitudes || [];
-      const badge = document.getElementById('solicitudesBadge');
-      if (badge) badge.innerHTML = lista.length ? '<span style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;">' + lista.length + '</span>' : '';
-      if (!lista.length) { cont.innerHTML = '<div style="font-size:12px;color:#78350f;padding:6px;">No hay solicitudes pendientes.</div>'; return; }
-      cont.innerHTML = lista.map(function (s) {
-        const c = encodeURIComponent(s.correo || '');
-        const desc = app._esc(s.descripcion || '');
-        return '<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:10px;margin-bottom:8px;">'
-          + '<div style="font-weight:700;font-size:13px;color:#78350f;">' + app._esc(s.nombre || '(sin nombre)') + '</div>'
-          + '<div style="font-size:11px;color:#92400e;word-break:break-all;">' + app._esc(s.correo || '') + '</div>'
-          + (desc ? '<div style="font-size:12px;color:#334155;margin-top:4px;font-style:italic;">“' + desc + '”</div>' : '')
-          + (s.fecha ? '<div style="font-size:10px;color:#a16207;margin-top:3px;">' + app._esc(s.fecha) + '</div>' : '')
-          + '<div style="display:flex;gap:6px;margin-top:8px;">'
-          +   '<button onclick="app._aprobarSolicitud(this,\'' + c + '\')" style="flex:1;padding:8px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;">✅ Aceptar</button>'
-          +   '<button onclick="app._rechazarSolicitud(this,\'' + c + '\')" style="flex:1;padding:8px;background:#e5e7eb;color:#7f1d1d;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;">✕ Descartar</button>'
-          + '</div></div>';
-      }).join('');
-    } catch (e) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">Sin conexión</div>'; }
-  },
-  async _aprobarSolicitud(btn, correoEnc) {
-    const correo = decodeURIComponent(correoEnc || '');
-    await this._conBloqueo(btn, 'Aprobando…', async () => {
-      try {
-        const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'aprobarSolicitudIngreso', correo: correo, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '', pase: this._pase || '' }) });
-        const d = await r.json();
-        if (!d.ok) { this.toast(d.error || 'No se pudo aprobar', 'error'); return; }
-        this.toast('✅ Ingreso aprobado', 'exito');
-        this.cargarSolicitudes();
-      } catch (e) { this.toast('Sin conexión', 'error'); }
-    });
-  },
-  async _rechazarSolicitud(btn, correoEnc) {
-    const correo = decodeURIComponent(correoEnc || '');
-    const ok = await this.confirmar('Descartar solicitud', '¿Descartar esta solicitud? La persona no entrará (podría volver a pedir con el link).');
-    if (!ok) return;
-    await this._conBloqueo(btn, 'Descartando…', async () => {
-      try {
-        const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'rechazarSolicitudIngreso', correo: correo, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '', pase: this._pase || '' }) });
-        const d = await r.json();
-        if (!d.ok) { this.toast(d.error || 'No se pudo descartar', 'error'); return; }
-        this.toast('Solicitud descartada', 'info');
-        this.cargarSolicitudes();
-      } catch (e) { this.toast('Sin conexión', 'error'); }
-    });
-  },
-
-  // v1.25: el comandante genera un link de invitación (firmado por el backend) y lo comparte.
-  async compartirInvitacion(btn, rotar) {
-    await this._conBloqueo(btn, 'Generando…', async () => {
-      try {
-        const r = await fetch(_exigirBackend(), {
-          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'generarInvitacion', rotar: !!rotar,
-            adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '', pase: this._pase || '' })
-        });
-        const d = await r.json();
-        if (!d.ok) { this.toast(d.error || 'No se pudo generar la invitación', 'error'); return; }
-        const url = location.origin + location.pathname + '?unir=' + encodeURIComponent(d.token);
-        this._invUrlActual = url;
-        this._mostrarModalInvitacion(url, d.cuerpo || '');
-      } catch (e) { this.toast('Sin conexión para generar la invitación', 'error'); }
-    });
-  },
-
-  // v1.26: QR del link (qrcode-generator, incrustado en index.html). Genera un GIF
-  // en data:URL SIN canvas → funciona en el WebView del APK y offline. Si por lo que
-  // sea la librería no cargó, devuelve '' y el modal sigue con copiar/compartir.
-  _qrImg(url) {
-    try {
-      if (typeof qrcode === 'undefined') return '';
-      const qr = qrcode(0, 'M'); qr.addData(String(url || '')); qr.make();
-      return '<div style="text-align:center;margin:12px 0 2px;">'
-        + '<img alt="Código QR de la invitación" src="' + qr.createDataURL(5, 4) + '" style="max-width:100%;image-rendering:pixelated;background:#fff;border-radius:6px;">'
-        + '<div style="font-size:11px;color:#64748b;margin-top:4px;">📷 Escanéalo con la cámara del celular</div></div>';
-    } catch (e) { return ''; }
-  },
-  _mostrarModalInvitacion(url, cuerpo) {
-    this._cerrarModalInvitacion();
-    const cont = document.createElement('div');
-    cont.id = '_modalInvitacion';
-    cont.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;';
-    cont.innerHTML =
-      '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.3);">'
-      + '<div style="font-weight:700;font-size:15px;color:#1e40af;margin-bottom:4px;">🔗 Invitación a ' + app._esc(cuerpo) + '</div>'
-      + '<div style="font-size:12px;color:#555;margin-bottom:10px;">Compártelo con tus unidades. Al abrirlo y entrar con Google, quedan enlazadas a este cuerpo — sin configurar nada.</div>'
-      + this._qrImg(url)
-      + '<div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:8px;font-size:11px;word-break:break-all;">' + app._esc(url) + '</div>'
-      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">'
-      +   '<button onclick="app._copiarInvitacion()" style="flex:1;min-width:110px;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">📋 Copiar link</button>'
-      +   '<button onclick="app._compartirInvitacionNativo()" style="flex:1;min-width:110px;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">📤 Compartir</button>'
-      + '</div>'
-      + '<button onclick="app.compartirInvitacion(this,true)" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#b45309;border:1px dashed #fbbf24;border-radius:8px;font-weight:600;cursor:pointer;font-size:11px;">↻ Generar link nuevo (invalida los anteriores)</button>'
-      + '<button onclick="app._cerrarModalInvitacion()" style="width:100%;margin-top:8px;padding:10px;background:#e5e7eb;color:#111;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;">Cerrar</button>'
-      + '</div>';
-    document.body.appendChild(cont);
-  },
-  _cerrarModalInvitacion() { const m = document.getElementById('_modalInvitacion'); if (m) m.remove(); },
-  // v1.26: bienvenida PROMINENTE al unirse a un cuerpo. Se muestra UNA vez, tras
-  // recargar como miembro (el flag lo pone _procesarInvitacionPendiente). Deja
-  // claro a qué cuerpo pertenece la unidad, sin tener que "probar subiendo algo".
-  _mostrarBienvenidaCuerpo() {
-    let cuerpo = '';
-    try { cuerpo = localStorage.getItem('_bienvenidaCuerpo') || ''; } catch (e) {}
-    if (!cuerpo) return;
-    try { localStorage.removeItem('_bienvenidaCuerpo'); } catch (e) {}
-    const cont = document.createElement('div');
-    cont.id = '_modalBienvenida';
-    cont.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;align-items:center;justify-content:center;padding:20px;';
-    cont.innerHTML =
-      '<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:26px 22px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.35);">'
-      + '<div style="font-size:52px;line-height:1;margin-bottom:6px;">✅</div>'
-      + '<div style="font-size:14px;color:#475569;font-weight:600;">Ya perteneces a</div>'
-      + '<div style="font-size:22px;font-weight:800;color:#166534;margin:4px 0 12px;line-height:1.15;">' + app._esc(cuerpo) + '</div>'
-      + '<div style="font-size:12px;color:#64748b;line-height:1.5;margin-bottom:16px;">Tus reportes, actividades y asistencias quedan registrados en este cuerpo. Lo ves siempre en la parte de arriba, junto al nombre de la app.</div>'
-      + '<button onclick="app._cerrarBienvenidaCuerpo()" style="width:100%;padding:12px;background:#166534;color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;">Entendido</button>'
-      + '</div>';
-    document.body.appendChild(cont);
-  },
-  _cerrarBienvenidaCuerpo() { const m = document.getElementById('_modalBienvenida'); if (m) m.remove(); },
-  _copiarInvitacion() {
-    const url = this._invUrlActual || '';
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(() => this.toast('📋 Link copiado', 'exito')); return; }
-    } catch (e) {}
-    try { const t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); this.toast('📋 Link copiado', 'exito'); }
-    catch (e) { this.toast('Copia el link a mano', 'info'); }
-  },
-  async _compartirInvitacionNativo() {
-    const url = this._invUrlActual || '';
-    try { if (navigator.share) { await navigator.share({ title: 'Únete al cuerpo de bomberos', text: 'Ábrelo para unirte:', url: url }); return; } } catch (e) { return; }
-    this._copiarInvitacion();
-  },
-
   // Banner de notificación de nueva versión.
   // Compara APP_VERSION con la guardada en localStorage; si cambió o no
   // existe, muestra un banner verde arriba con la versión y los cambios.
   // El banner se auto-oculta a los 10 minutos o cuando el usuario pulsa "Cerrar".
   _mostrarBannerSiHayNuevaVersion() {
     let versionGuardada = null;
-    try { versionGuardada = localStorage.getItem('app_version'); }
+    try { versionGuardada = localStorage.getItem('cbvi_app_version'); }
     catch (e) { /* localStorage puede no estar disponible */ }
 
     // Primera vez en este dispositivo: solo guardar la versión, no mostrar banner
     if (!versionGuardada) {
-      try { localStorage.setItem('app_version', APP_VERSION); } catch (e) {}
+      try { localStorage.setItem('cbvi_app_version', APP_VERSION); } catch (e) {}
       return;
     }
     if (versionGuardada === APP_VERSION) return; // ya está al día
 
     // Hay versión nueva → mostrar banner
     const versionAnterior = versionGuardada;
-    try { localStorage.setItem('app_version', APP_VERSION); } catch (e) {}
+    try { localStorage.setItem('cbvi_app_version', APP_VERSION); } catch (e) {}
 
     // v5.64 (BUG 5): solo las notas de ESTA versión — mostrar TODO el
     // historial (v5.59, v5.63...) hacía crecer el banner cada release hasta
@@ -729,14 +554,14 @@ const app = {
     }
   },
 
-  /* v1.40: cierre animado del banner de nueva versión — sube y se va (antes hacía un
-     .remove() seco). NO se le quita el id: la animación de subida (CSS) depende de él,
-     y el banner es único (no se reabre), así que no hay colisión posible. */
+  /* v6.35: cierre animado del banner de nueva versión — sube y se va (antes hacía
+     un .remove() seco). NO se le quita el id: la animación de subida (CSS) depende
+     de él, y el banner es único (no se reabre), así que no hay colisión posible. */
   _cerrarBanner() {
     const el = document.getElementById('bannerNuevaVersion');
     if (!el || el._cerrando) return;
     el._cerrando = true;
-    el.classList.add('subiendo');
+    el.classList.add('cbvi-subiendo');
     setTimeout(() => { try { el.remove(); } catch (e) {} }, 320);
   },
 
@@ -800,8 +625,8 @@ const app = {
   // el idToken de Google si no viene ya. Es DEFENSIVO: si algo falla, deja la
   // petición original intacta (nunca rompe el flujo existente).
   _instalarFetchToken() {
-    if (window.__fetchPatched) return;
-    window.__fetchPatched = true;
+    if (window.__cbviFetchPatched) return;
+    window.__cbviFetchPatched = true;
     const _orig = window.fetch.bind(window);
     const self = this;
     window.fetch = function (url, opts) {
@@ -823,8 +648,8 @@ const app = {
                y el backend lo guarda en el log de auditoría. Va en el interceptor
                a propósito: así viaja en TODA llamada sin tener que acordarse de
                agregarlo en cada fetch (que es como se cuelan los olvidos). */
-            // Una firma vencida NO puede viajar. Se comprueba acá porque este es
-            // el único punto por el que pasan TODAS las llamadas.
+            // v6.09: una firma vencida NO puede viajar. Se comprueba acá porque
+            // este es el único punto por el que pasan TODAS las llamadas.
             if (self._firmaVencida && self._firmaVencida()) self._borrarFirma();
             const oper = self._operadorSesion || '';
             if (oper && !obj.operador) {
@@ -833,7 +658,7 @@ const app = {
               if (self._tocarFirma) self._tocarFirma();
               obj.operador = oper;
               // v6.02: van también cédula y PIN porque el backend NO se cree el
-              // nombre: valida el PIN y saca el nombre de Personal por cédula.
+              // nombre: valida el PIN y saca el nombre de Personal_CBVI por cédula.
               obj.operadorCedula = self._operadorCedula || '';
               obj.operadorPin = self._operadorPin || '';
               // v6.03: si se firmó con la llave de comandancia, viaja la llave en
@@ -856,12 +681,15 @@ const app = {
                 resp.clone().json().then(function (j) {
                   if (j && j.ok === false && /no autorizado/i.test(j.error || '')) {
                     self._avisarTokenSiExpirado();
-                    /* Si el servidor rechazó por CONTRASEÑA, hay que olvidarla en
-                       el acto o queda cacheada y todo lo demás falla en cadena sin
-                       volver a preguntarla nunca. Se hace acá, en el interceptor,
-                       porque el problema aparecía en las ~20 pantallas que mandan
-                       adminPassword. Se excluyen los rechazos por PIN: ahí la
-                       contraseña puede estar perfecta. */
+                    /* v6.09: si el servidor rechazó por CONTRASEÑA, hay que
+                       olvidarla en el acto o queda cacheada y todo lo demás
+                       falla en cadena sin volver a preguntarla nunca. Se hace
+                       acá, en el interceptor, porque el problema aparecía en las
+                       ~20 pantallas que mandan adminPassword y arreglarlas una
+                       por una es justo como se cuelan los olvidos.
+                       Se excluyen los rechazos por PIN (v6.00 los redacta
+                       diciendo "firma con tu usuario y PIN"): ahí la contraseña
+                       puede estar perfecta y borrarla sería molestar de gratis. */
                     if (!/\bPIN\b/i.test(String(j.error || ''))) self._olvidarPwdAdmin();
                   }
                 }).catch(function () {});
@@ -963,17 +791,8 @@ const app = {
           // que hace que "Agregar administrador" sirva de algo: sin esta línea,
           // la persona agregada nunca veía la zona de administrador.
           if (typeof dPase.esAdmin === 'boolean') this.usuario.esAdminSrv = dPase.esAdmin;
-          // T1: el superadmin lo decide el servidor (es el FUNDADOR de esta
-          // instalación), no una comparación de correo quemada en el front.
-          if (typeof dPase.esSuperAdmin === 'boolean') this.usuario.esSuperAdmin = dPase.esSuperAdmin;
-          // Firma con PIN: el backend dice si ESTE cuerpo la exige. Apagada por defecto
-          // (cada admin entra con su propia cuenta), así que normalmente nunca se pide.
-          this._firmaObligatoria = (dPase.firmaObligatoria === true);
-          // T1b: la identidad del cuerpo llega en el login y se cachea para el
-          // próximo arranque, cuando todavía no hay servidor que preguntar.
-          if (dPase.institucion) { try { this._pintarInstitucion(dPase.institucion); } catch (e) {} }
-          // Asistente: el backend dice si esta copia ya tiene cuerpo configurado.
-          this._instalacionConfigurada = (dPase.instalacionConfigurada !== false);
+          // v6.13: escudo del cuerpo → se cachea y repinta el logo al instante.
+          if (typeof dPase.escudoUrl === 'string') this._aplicarEscudo(dPase.escudoUrl);
           await DB.guardarConfig('sesion', this.usuario);
         }
       } catch (ePase) { console.warn('No se pudo obtener pase de 8h:', ePase); }
@@ -983,21 +802,7 @@ const app = {
       // v5.98: tras un login NUEVO también se trae el roster de la hoja
       // (el arranque con sesión ya restaurada lo hace en su propia rama).
       this._cargarRosterDesdeHoja().catch(() => {});
-
-      // v1.25: si la unidad venía con una invitación, unirse ANTES de decidir si es
-      // fundador (un miembro nuevo NO debe caer en la pantalla de instalación).
-      if (await this._manejarIngreso()) return; // v1.27: solicitud/pendiente/rechazado toma la pantalla
-
-      /* ⚠️ EL ASISTENTE VA PRIMERO QUE TODO. Sin base de datos configurada no hay
-         dónde guardar el registro del bombero, así que mandarlo a completar sus
-         datos antes de instalar lo dejaría escribiendo contra el vacío. */
-      if (this._instalacionConfigurada === false) {
-        document.getElementById('saludoInstalacion').textContent =
-          `${usuario.email} · Usted será el administrador de este cuerpo`;
-        this._cargarCatalogos().catch(() => {});
-        this.irA('pantallaInstalacion');
-        return;
-      }
+      this._cargarFlota().catch(() => {});   // v6.19: flota lista para el formulario
 
       if (usuario.registroCompleto) {
         this.actualizarUIUsuario();
@@ -1005,7 +810,7 @@ const app = {
         await this.actualizarHome();
         // Sincronizar reportes del servidor en segundo plano (tipo Gmail)
         this.sincronizarReportesDesdeServidor().catch(e => console.warn('Sincronización falló:', e));
-        // v1.38: subir lo pendiente también tras un login nuevo (ver init).
+        // v6.33: subir lo pendiente también tras un login nuevo (ver init).
         if (navigator.onLine) this.sincronizarPendientes(true).catch(() => {});
       } else {
         document.getElementById('saludoRegistro').textContent =
@@ -1145,15 +950,15 @@ const app = {
         await this.actualizarHome();
       }
 
-      // === Auto-sincronización del personal que participó ===
+      // === Auto-sincronización de bonificaciones ===
       // Para cada reporte LOCAL ya enviado que tenga recursos+personal,
       // mandar los recursos al servidor. El backend es IDEMPOTENTE: solo
-      // llena la hoja Personal_por_Incidente si está vacía para ese informe
+      // llena la hoja Bonificaciones si está vacía para ese reporte
       // (no sobreescribe lo que el admin haya registrado manualmente).
-      // Esto permite que los informes viejos (sin participación registrada) se
+      // Esto permite que los reportes viejos (sin bonificaciones) se
       // completen automáticamente cuando el bombero original abre su app.
-      this._sincronizarParticipacionLocal(locales).catch(e =>
-        console.warn('Auto-sync de participación falló:', e)
+      this._sincronizarBonificacionesLocales(locales).catch(e =>
+        console.warn('Auto-sync bonificaciones falló:', e)
       );
 
     } catch (e) {
@@ -1189,8 +994,8 @@ const app = {
   },
 
   // Recorre los reportes locales del usuario y sube sus recursos al servidor.
-  // El backend decide por sí mismo si ese informe necesita llenar la participación.
-  async _sincronizarParticipacionLocal(locales) {
+  // El backend decide por sí mismo si ese reporte necesita llenar bonificaciones.
+  async _sincronizarBonificacionesLocales(locales) {
     if (!this.usuario || !this.usuario.email) return;
     const candidatos = (locales || []).filter(r =>
       r &&
@@ -1219,11 +1024,11 @@ const app = {
         // Si responde { omitido: true } no contamos (ya estaba sincronizado)
       } catch (e) {
         // Silencioso: si falla, el admin puede registrar manual con los chips
-        console.warn('No se pudo sincronizar la participación del informe ' + r.id, e);
+        console.warn('No se pudo sincronizar bonificaciones del reporte ' + r.id, e);
       }
     }
     if (sincronizados > 0) {
-      this.toast(`✅ ${sincronizados} reporte(s) sincronizaron su personal participante`, 'exito');
+      this.toast(`✅ ${sincronizados} reporte(s) sincronizaron sus bonificaciones`, 'exito');
     }
   },
 
@@ -1234,7 +1039,7 @@ const app = {
      basura: le preguntaba a ADMIN_EMAILS, la lista quemada en la línea 8. Por eso
      agregar a alguien escribía la fila en la hoja y no le habilitaba NADA en su
      celular: su app seguía consultando el código.
-     ADMIN_EMAILS queda SOLO como respaldo: primer arranque y sin señal.
+     ADMIN_EMAILS queda SOLO como respaldo: primer arranque y sin señal (Inírida).
      Sin red no se puede consultar la hoja, y dejar sin Panel al admin por estar
      offline sería peor que el bug. El servidor valida igual en cada acción
      (_enAdmins), así que esto decide únicamente qué se MUESTRA, nunca qué se
@@ -1278,37 +1083,37 @@ const app = {
   toggleUserMenu() {
     const m = document.getElementById('userMenu');
     if (m.classList.contains('visible')) { this.cerrarUserMenu(); return; }
-    // v1.39: al abrir, cancelar un cierre en curso y limpiar la clase de salida.
+    // v6.34: al abrir, cancelar un cierre en curso y limpiar la clase de salida.
     if (m._tCerrar) { clearTimeout(m._tCerrar); m._tCerrar = null; }
-    m.classList.remove('cerrando');
+    m.classList.remove('cbvi-cerrando');
     m.classList.add('visible');
   },
 
   cerrarUserMenu() {
     const m = document.getElementById('userMenu');
     if (!m || !m.classList.contains('visible')) return;
-    this._animarCierre(m, () => m.classList.remove('visible'));   // v1.39: cierre animado
+    this._animarCierre(m, () => m.classList.remove('visible'));   // v6.34: cierre animado
   },
 
   // ==================== TEMA DE DISEÑO (v5.88) ====================
-  // Dos diseños: 'original' (clásico) y 'apple' (Minimalista). La
+  // Dos diseños: 'original' (clásico CBVI) y 'apple' (Minimalista). La
   // elección vive en localStorage del dispositivo (NO se sube al servidor)
   // y también se aplica en el <head> antes de pintar la página (anti-flash).
   // La estética cambia SOLO por CSS ([data-theme] + variables) — ninguna
   // pantalla, flujo ni dato se toca. Riesgo funcional: cero.
   _temaGuardado() {
     try {
-      return localStorage.getItem('app_tema') === 'apple' ? 'apple' : 'original';
+      return localStorage.getItem('cbvi_tema') === 'apple' ? 'apple' : 'original';
     } catch (e) { return 'original'; }
   },
 
   aplicarTema(tema, silencioso = false) {
     const t = (tema === 'apple') ? 'apple' : 'original';
-    try { localStorage.setItem('app_tema', t); } catch (e) {}
+    try { localStorage.setItem('cbvi_tema', t); } catch (e) {}
     document.documentElement.setAttribute('data-theme', t);
     // Color de la barra de estado del teléfono acorde al tema activo
     const metaTema = document.getElementById('metaThemeColor');
-    if (metaTema) metaTema.setAttribute('content', t === 'apple' ? '#f5f5f7' : '#7a1010');
+    if (metaTema) metaTema.setAttribute('content', t === 'apple' ? '#f5f5f7' : '#16223f');
     this._sincronizarUITema();
     if (!silencioso) {
       this.toast(t === 'apple' ? '🍎 Diseño Minimalista activado' : '🚒 Diseño Original activado', 'exito');
@@ -1420,7 +1225,7 @@ const app = {
     // Solo admin puede cambiar consecutivo
     if (this.esAdmin()) {
       this.config.proximoNumero = +document.getElementById('cfg_proximo_numero').value || 1;
-      // v1.46: mismo filtro que el backend (_prefijoSeguro) — solo letras/dígitos, máx 6.
+      // v6.44: mismo filtro que el backend (_prefijoSeguro) — solo letras/dígitos, máx 6.
       this.config.prefijo = document.getElementById('cfg_prefijo').value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'RE';
     }
 
@@ -1443,9 +1248,10 @@ const app = {
     }
 
     document.querySelectorAll('.pantalla').forEach(p => p.classList.remove('activa'));
-    /* El reflow que faltaba. El remove y el add ocurren en la MISMA tarea
-       síncrona, así que si el destino es la pantalla que YA estaba activa,
-       appFadeIn no se vuelve a reproducir. */
+    /* v6.11: el reflow que faltaba. El remove y el add ocurren en la MISMA tarea
+       síncrona, así que el navegador nunca recalcula el estilo con la clase
+       ausente: si el destino es la pantalla que YA estaba activa, cbviFadeIn no
+       se vuelve a reproducir. Mismo problema y misma solución que _veloCierre. */
     const _pantallaDestino = document.getElementById(pantallaId);
     void _pantallaDestino.offsetWidth;
     _pantallaDestino.classList.add('activa');
@@ -1466,8 +1272,11 @@ const app = {
 
     // Llenar configuración con datos del usuario actual
     if (pantallaId === 'pantallaListaActividades') { this.cargarListaActividades(); }
+    if (pantallaId === 'pantallaAsistencia') { this.cargarPantallaAsistencia(); }
     if (pantallaId === 'pantallaOperatividad') { this.cargarOperatividad(); }
+    if (pantallaId === 'pantallaDeudores') { this.cargarPantallaDeudores(); }
     if (pantallaId === 'pantallaMapa') { this.cargarPantallaMapa(); }
+    if (pantallaId === 'pantallaAcercaDe') { this._pintarAcercaDe(); }
     if (pantallaId === 'pantallaConfig' && this.usuario) {
       document.getElementById('cfg_perfil_nombre').value = this.usuario.nombreCompleto || this.usuario.nombre || '';
       document.getElementById('cfg_perfil_grado').value = this.usuario.grado || '';
@@ -1478,409 +1287,46 @@ const app = {
       document.getElementById('zonaAdmin').style.display = this.esAdmin() ? 'block' : 'none';
     }
 
-    if (pantallaId === 'pantallaAcercaDe') { this._pintarAcercaDe(); }
-
     if (pantallaId === 'pantallaHome') {
       btnVolver.style.display = 'none';
-      document.getElementById('headerTitulo').textContent = this._rotuloApp();
+      document.getElementById('headerTitulo').textContent = 'CBVI Reportes';
       this.actualizarHome();
-      // Primer arranque: ofrecer el recorrido UNA vez (revisa el flag adentro).
-      this._ofrecerTour();
+      this._ofrecerTour();   // v6.15: recorrido de bienvenida, una sola vez
     } else {
       btnVolver.style.display = 'inline-block';
       btnVolver.onclick = () => this.atras();
       const titulos = {
-        pantallaForm: 'Informe de Incidente',
-        pantallaDetalle: 'Detalle del Informe',
+        pantallaForm: 'Registro de Incidente',
+        pantallaDetalle: 'Detalle del Incidente',
         pantallaConfig: 'Configuración',
         pantallaActividades: '🎯 Nueva Actividad',
         pantallaListaActividades: '📋 Actividades',
         pantallaDetalleActividad: '🎯 Detalle Actividad',
+        pantallaAsistencia: '📅 Asistencia',
         pantallaOperatividad: '📊 Operatividad',
-        pantallaMapa: '🗺️ Mapa de Incidentes',
+        pantallaDeudores: '⚠️ Ver Deudores',
+        pantallaMapa: '🗺️ Mapa de Emergencias',
         pantallaAcercaDe: 'ℹ️ Acerca de'
       };
-      document.getElementById('headerTitulo').textContent = titulos[pantallaId] || this._rotuloApp();
+      document.getElementById('headerTitulo').textContent = titulos[pantallaId] || 'CBVI Reportes';
     }
   },
 
-  /* ═══════════════ ACERCA DE + TUTORIAL ═══════════════
-     El video lo grabará Jeferson; hasta que exista, `URL_TUTORIAL_VIDEO` está vacía y el
-     botón lo dice en vez de abrir una página rota. Cuando lo tenga, se pone acá y listo. */
-  _pintarAcercaDe() {
-    const v = document.getElementById('acercaVersion');
-    if (v) v.textContent = (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '');
-    // El logo: el escudo del cuerpo si lo subió, si no la cruz de Malta.
-    const cont = document.getElementById('acercaLogo');
-    if (cont) {
-      const esc = (this._inst().escudoUrl || '') ||
-        'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect x=%224%22 y=%224%22 width=%2292%22 height=%2292%22 rx=%2222%22 fill=%22%237a1010%22/%3E%3Cpath d=%22M50,50L56.9,44.94L96,28.84L82.2,50L96,71.16L56.9,55.06ZM50,50L44.94,43.1L28.84,4L50,17.8L71.16,4L55.06,43.1ZM50,50L43.1,55.06L4,71.16L17.8,50L4,28.84L43.1,44.94ZM50,50L55.06,56.9L71.16,96L50,82.2L28.84,96L44.94,56.9Z%22 fill=%22%23f7f3ea%22/%3E%3C/svg%3E';
-      cont.innerHTML = '<img src="' + esc + '" alt="" style="width:76px;height:76px;border-radius:16px;object-fit:contain;">';
-    }
-    const btn = document.getElementById('btnVideoTutorial');
-    if (btn) {
-      const hay = typeof URL_TUTORIAL_VIDEO !== 'undefined' && URL_TUTORIAL_VIDEO;
-      btn.textContent = hay ? '🎬 Ver tutorial en video' : '🎬 Video: próximamente';
-      btn.style.opacity = hay ? '' : '0.6';
-    }
-    // v1.33: el tour de administrador solo se ofrece a quien lo es.
-    const btnTA = document.getElementById('btnTourAdmin');
-    if (btnTA) btnTA.style.display = this.esAdmin() ? 'block' : 'none';
-  },
-
-  abrirVideoTutorial() {
-    const url = (typeof URL_TUTORIAL_VIDEO !== 'undefined') ? URL_TUTORIAL_VIDEO : '';
-    if (!url) { this.toast('El video estará disponible pronto.', 'info'); return; }
-    try { window.open(url, '_blank', 'noopener'); } catch (e) { location.href = url; }
-  },
-
-  /* Ofrece el recorrido UNA sola vez, tras el primer Inicio. Guarda el flag apenas
-     lo ofrece (no cuando lo termina): así, si lo omite, no vuelve a molestar. */
-  /* ═══════════════ LOGO / ESCUDO ═══════════════ */
-  _CRUZ_CREMA: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cpath d=%22M50,50L56.9,44.94L96,28.84L82.2,50L96,71.16L56.9,55.06ZM50,50L44.94,43.1L28.84,4L50,17.8L71.16,4L55.06,43.1ZM50,50L43.1,55.06L4,71.16L17.8,50L4,28.84L43.1,44.94ZM50,50L55.06,56.9L71.16,96L50,82.2L28.84,96L44.94,56.9Z%22 fill=%22%23f7f3ea%22/%3E%3C/svg%3E',   // para el header rojo
-  _CRUZ_ROJA:  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cpath d=%22M50,50L56.9,44.94L96,28.84L82.2,50L96,71.16L56.9,55.06ZM50,50L44.94,43.1L28.84,4L50,17.8L71.16,4L55.06,43.1ZM50,50L43.1,55.06L4,71.16L17.8,50L4,28.84L43.1,44.94ZM50,50L55.06,56.9L71.16,96L50,82.2L28.84,96L44.94,56.9Z%22 fill=%22%237a1010%22/%3E%3C/svg%3E',    // para el login/fondo claro
-
-  /* Pinta el logo en el header y en el login. Si el cuerpo subió su escudo, ese;
-     si no, la cruz de Malta (crema en el header, roja en el login). Reutilizable
-     para refrescar al instante cuando el admin cambia el escudo. */
-  _pintarLogos() {
-    const escudo = (this._inst().escudoUrl || '');
-    [['logoHeader', this._CRUZ_CREMA], ['logoLogin', this._CRUZ_ROJA]].forEach((par) => {
-      const el = document.getElementById(par[0]);
-      if (!el) return;
-      el.src = escudo || par[1];
-      el.style.display = '';
-    });
-  },
-
-  _pintarEscudoPanel() {
-    const escudo = (this._inst().escudoUrl || '');
-    const prev = document.getElementById('escudoPreview');
-    if (prev) prev.src = escudo || this._CRUZ_ROJA;
-    const btn = document.getElementById('btnQuitarEscudo');
-    if (btn) btn.style.display = escudo ? 'block' : 'none';
-  },
-
-  /* Toma el archivo, lo REDUCE en el navegador a máx 180px y lo manda como PNG
-     (conserva transparencia). Reducir acá evita mandar 5MB al servidor y mantiene
-     la imagen chica para que quepa en una celda de la hoja (~50KB). */
-  _procesarEscudo(input) {
-    const file = input.files && input.files[0];
-    input.value = '';   // permite volver a elegir el mismo archivo
-    if (!file) return;
-    if (String(file.type).indexOf('image/') !== 0) { this.toast('Elija una imagen (PNG o JPG).', 'error'); return; }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const MAX = 180;
-        let w = img.width, h = img.height;
-        if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
-        else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        c.getContext('2d').drawImage(img, 0, 0, w, h);
-        let dataUrl;
-        try { dataUrl = c.toDataURL('image/png'); } catch (err) { this.toast('No se pudo procesar la imagen.', 'error'); return; }
-        // Si el PNG sale muy grande (foto con muchos colores), se recomprime en JPEG.
-        if (dataUrl.length > 46000) { try { dataUrl = c.toDataURL('image/jpeg', 0.85); } catch (e2) {} }
-        if (dataUrl.length > 46000) { this.toast('La imagen es muy compleja. Use uno más simple o recórtelo.', 'error'); return; }
-        this._subirEscudo(dataUrl);
-      };
-      img.onerror = () => this.toast('No se pudo leer la imagen.', 'error');
-      img.src = e.target.result;
-    };
-    reader.onerror = () => this.toast('No se pudo leer el archivo.', 'error');
-    reader.readAsDataURL(file);
-  },
-
-  async _subirEscudo(dataUrl) {
-    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
-    if (!pw) return;
-    this.toast('Guardando el escudo...', 'info');
-    try {
-      const r = await fetch(_exigirBackend(), {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'guardarEscudo', escudo: dataUrl, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
-      });
-      const d = await r.json();
-      if (!d.ok) { this.toast(d.error || 'No se pudo guardar.', 'error'); return; }
-      this._aplicarEscudo(d.escudoUrl || '');
-      this.toast('✅ Escudo actualizado.', 'exito');
-    } catch (e) { this.toast('Sin conexión: no se pudo guardar el escudo.', 'error'); }
-  },
-
-  async quitarEscudo() {
-    const ok = await this.confirmar('Quitar escudo', '¿Volver a la cruz de bombero por defecto?');
-    if (!ok) return;
-    this._subirEscudo('');   // vacío = quitar
-  },
-
-  /* Guarda el escudo en la copia cacheada de la institución y refresca la UI al
-     instante — header, login, Acerca de y el preview del Panel — sin recargar. */
-  _aplicarEscudo(escudoUrl) {
-    let inst = {};
-    try { inst = JSON.parse(localStorage.getItem('inst_cuerpo') || '{}') || {}; } catch (e) {}
-    inst.escudoUrl = escudoUrl;
-    try { localStorage.setItem('inst_cuerpo', JSON.stringify(inst)); } catch (e) {}
-    this._pintarLogos();
-    this._pintarEscudoPanel();
-    if (this.pantallaActual === 'pantallaAcercaDe') this._pintarAcercaDe();
-  },
-  _ofrecerTour() {
-    // v1.33: el propio tour navega por irA('pantallaHome') (arranca ahí y el
-    // guion de admin vuelve ahí al cerrar) — sin este guard, ese mismo irA()
-    // podía disparar la oferta de "¿quiere un recorrido?" ENCIMA del tour que
-    // se está viendo o que se acaba de terminar.
-    if (this._tourActivo) return;
-    const esAdm = this.esAdmin();
-    // v1.33: dos tours separados con su propia bandera — quien entró como
-    // bombero y luego se volvió admin recibe la oferta del tour de admin una
-    // sola vez, sin repetirle el básico que ya vio.
-    const clave = esAdm ? 'app_tour_visto_admin' : 'app_tour_visto_operativo';
-    try { if (localStorage.getItem(clave)) return; } catch (e) { return; }
-    try { localStorage.setItem(clave, '1'); } catch (e) {}
-    // Un respiro para que el Inicio termine de pintarse antes del modal.
-    setTimeout(() => { try { this._preguntarTour(esAdm ? 'admin' : 'no_admin'); } catch (e) {} }, 700);
-  },
-
-  _preguntarTour(rol) {
-    const esAdm = rol === 'admin';
-    const m = document.createElement('div');
-    m.className = 'modal-js';
-    m.style.cssText = 'position:fixed;inset:0;background:rgba(26,21,18,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;';
-    m.innerHTML = '<div style="background:#fff;border-radius:var(--radio-lg);padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:var(--sombra-fuerte);border-top:4px solid var(--oro);">'
-      + '<div style="font-size:38px;">' + (esAdm ? '🛡️' : '🚒') + '</div>'
-      + '<div style="font-family:var(--disp);font-size:17px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;color:var(--rojo);margin:8px 0 4px;">¡Bienvenido' + (esAdm ? ', administrador' : '') + '!</div>'
-      + '<div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:18px;">¿Quiere un recorrido interactivo por la app' + (esAdm ? ', enfocado en lo que solo usted administra' : '') + '? Se mueve por las pantallas reales y lo puede saltar cuando quiera.</div>'
-      + '<button id="_tourVer" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:var(--radio);padding:13px;font-weight:700;cursor:pointer;font-size:15px;margin-bottom:8px;font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;">▶️ Ver recorrido</button>'
-      + '<button id="_tourNo" style="width:100%;background:#f5f5f5;color:#555;border:none;border-radius:var(--radio);padding:11px;font-weight:700;cursor:pointer;font-size:13px;">Omitir</button>'
-      + '<div style="font-size:11px;color:#999;margin-top:12px;">Siempre puede verlo de nuevo en <b>ℹ️ Acerca de</b>.</div>'
-      + '</div>';
-    document.body.appendChild(m);
-    const cerrar = () => { try { app._cerrarModalJS(m); } catch (e) {} };
-    m.querySelector('#_tourNo').onclick = cerrar;
-    m.querySelector('#_tourVer').onclick = () => { cerrar(); this.mostrarTour(rol); };
-  },
-
-  /* Guion del tour para unidades SIN permisos admin (v1.34: más contenido —
-     Jeferson lo sintió corto para alguien que lo ve por primera vez). Todo
-     dentro de Inicio + Configuración (ambas sin efectos reales): no navega a
-     pantallaForm/pantallaDetalle porque abrirlas de verdad exige efectos
-     reales (nuevoReporte() pide GPS, pantallaDetalle necesita un informe
-     real) que el tour no debe disparar (Regla 1). */
-  _TOUR_NO_ADMIN: [
-    { id: 'nuevo-incidente', pantalla: 'pantallaHome', selector: '[data-tour="cta-nuevo-incidente"]', icono: '🚨', titulo: 'Nuevo incidente', texto: 'Registra un incidente oficial: clasificación, ubicación por GPS automático, recursos desplegados, víctimas y firmas en 13 secciones con barra de avance. Sin señal igual queda guardado y se envía solo cuando vuelva a tener señal.' },
-    { id: 'contadores', pantalla: 'pantallaHome', selector: '[data-tour="stats-home"]', icono: '🔢', titulo: 'Sus contadores', texto: 'Total es todo lo que usted ha registrado. Pendientes es lo que guardó sin señal — se envía solo, o lo puede forzar desde Configuración. Enviados ya quedó en el servidor.' },
-    { id: 'informes', pantalla: 'pantallaHome', selector: '[data-tour="informes-recientes"]', icono: '🧾', titulo: 'Informes recientes', texto: 'Toque cualquiera para ver su detalle: ahí imprime el PDF oficial, ve el resumen listo para copiar al RUE, o lo edita durante las primeras 24 horas. Pasado ese plazo, solo el administrador corrige. Cada quien ve solo sus propios informes.' },
-    { id: 'actividades', pantalla: 'pantallaHome', selector: '[data-tour="fila-registrar"]', icono: '🎯', titulo: 'Nueva actividad', texto: 'Acá registra lo que no es un incidente: capacitaciones, simulacros, inspecciones, jornadas comunitarias. Sume el personal que asistió, vehículos y hasta 3 fotos. "Mis actividades" guarda todo lo que ya registró.' },
-    { id: 'config-perfil', pantalla: 'pantallaConfig', selector: '[data-tour="config-perfil"]', icono: '👤', titulo: 'Su perfil', texto: 'Por el avatar de arriba a la derecha llega aquí: corrija su nombre, grado, cédula y teléfono, elija el diseño Original o Minimalista de la app, y sincronice sus informes pendientes cuando quiera.' },
-    { id: 'ayuda', pantalla: 'pantallaHome', selector: '[data-tour="ayuda-home"]', icono: '📖', titulo: 'Manual y ayuda', texto: 'Manual explica cada pantalla paso a paso, Cómo funciona cuenta dónde viven sus datos, y Bases legales reúne la norma nacional que respalda cada informe (RUE, grados, tipos de incidente).' },
-    { id: 'cierre', pantalla: 'pantallaHome', selector: '[data-tour="lema-home"]', icono: '🎖️', titulo: 'Listo para operar', texto: 'Ahí abajo está el lema de su cuerpo. Operatividad, Mapa y Panel de administrador quedan solo para su administrador — ya conoce todo lo que usted necesita para trabajar.' }
-  ],
-
-  /* Guion del tour para administradores (v1.35: bastante más largo a
-     propósito — Jeferson pidió más contexto acá porque es quien necesita
-     entender TODO el sistema. v1.34 explicó el escudo/logo, invitar por
-     separado de aprobar, e importar personal. v1.35 agrega dónde vive la
-     base de datos (hoja de cálculo), y reescribe "Quién opera": dentro del
-     Panel Admin ya no aplica el lenguaje de "guardia/turno" — a este panel
-     solo entran administradores (abrirPanelAdmin() ya lo exige), así que lo
-     que importa es CUÁL administrador está firmando las acciones, no un
-     turno de guardia genérico. La firma en sí (PIN) no cambia — es el mismo
-     mecanismo que usa cualquier unidad para firmar de guardia en el resto de
-     la app; acá solo se explica distinto porque el público de este paso ya
-     son administradores.
-     Entra al Panel Admin navegando directo (irA), SIN pedir la contraseña ni
-     firmar: eso es un candado real que el tour no debe destrabar por su
-     cuenta. Las tarjetas se ven vacías hasta que se abre el Panel de verdad,
-     igual que en una instalación nueva — no rompe nada, solo no trae datos. */
-  _TOUR_ADMIN: [
-    { id: 'bienvenida-admin', pantalla: 'pantallaHome', selector: '[data-tour="fila-consultar"]', icono: '🛡️', titulo: 'Bienvenido, administrador', texto: 'Ya conoce Nuevo Incidente y Actividades igual que cualquier unidad. Este recorrido es distinto: todo lo que solo ve un administrador, empezando por esta fila y siguiendo por el Panel de Administrador.' },
-    { id: 'datos', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-titulo"]', icono: '🗄️', titulo: 'Dónde viven sus datos', texto: 'Todo lo que se registra en la app se guarda en un Google Sheets — una hoja de cálculo — que vive en el Google Drive de SU cuerpo, no en un servidor de terceros. Usted es dueño del archivo: puede abrirlo, descargarlo o quitarle el permiso a la app cuando quiera.' },
-    { id: 'escudo', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-escudo"]', icono: '🎖️', titulo: 'Escudo del cuerpo', texto: 'Suba el escudo o logo de su institución: reemplaza la cruz de Malta en el encabezado, la pantalla de inicio, Acerca de y el PDF de cada informe. Si no sube ninguno, se usa la cruz por defecto.' },
-    { id: 'relevo', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-relevo"]', icono: '🪪', titulo: 'Quién firma como administrador', texto: 'Acá ve qué administrador está firmando las acciones que se hacen desde este panel. Si cambia quien administra en este dispositivo, toque "Cambiar (relevo)" para que quede firmando el administrador correcto — no el anterior.' },
-    { id: 'llaves', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-pins"]', icono: '🔑', titulo: 'PIN de las unidades', texto: 'Cada unidad necesita un PIN de 4 dígitos para firmar lo que hace de guardia. Se guardan cifrados — ni usted los ve, solo los reemplaza. Si es el administrador principal, más abajo también decide quién más entra a este panel.' },
-    { id: 'unidades-vinculadas', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-unidades"]', icono: '👥', titulo: 'Quién usa la app', texto: 'Solo si usted es el administrador principal: acá ve todo correo vinculado a su cuerpo, cuándo entró por última vez, y puede bloquearle el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.' },
-    { id: 'invitar', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-invitar"]', icono: '🔗', titulo: 'Invitar unidades', texto: 'Comparta el link o el código QR: quien lo abra y entre con Google queda enlazado a este cuerpo, sin configurar nada. Si un link se filtra, genere uno nuevo — invalida los anteriores.' },
-    { id: 'solicitudes', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-solicitudes"]', icono: '📥', titulo: 'Aprobar el ingreso', texto: 'Quien entra por el link o el QR NO entra solo: queda AQUÍ esperando su aprobación. Revise quién es antes de aceptar — aceptar da acceso a la app, pero no lo agrega a Personal: eso se hace aparte.' },
-    { id: 'flota', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-vehiculos"]', icono: '🚒', titulo: 'Vehículos del cuerpo', texto: 'Registre cada vehículo con el indicativo que usan en la radio — Móvil 1, M-3, como le digan — y su clase, que es lo que entiende el RUE. Sin esto, los formularios no tienen qué ofrecer.' },
-    { id: 'importar', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-importar"]', icono: '📋', titulo: 'Cargar su nómina', texto: 'Pegue su lista completa desde el Excel que ya tiene, con Ctrl+V. Reconoce las columnas por el título, no por el orden, y solo agrega a quien todavía no esté: no borra ni pisa nada.' },
-    { id: 'operatividad', pantalla: 'pantallaOperatividad', selector: '[data-tour="operatividad-titulo"]', icono: '📊', titulo: 'El ranking', texto: 'El puntaje de cada unidad sale de una sola fórmula: incidentes × 2 + horas de actividades. Vea el ranking general o busque a una unidad puntual. En una instalación nueva se llena solo con la primera actividad.' },
-    { id: 'mapa', pantalla: 'pantallaMapa', selector: '[data-tour="mapa-titulo"]', icono: '🗺️', titulo: 'Mapa de incidentes', texto: 'Cada incidente con coordenadas aparece como un pin con el emoji de su tipo. La leyenda filtra por tipo, y también puede filtrar por año y por mes para revisar un período puntual.' },
-    { id: 'zona-admin', pantalla: 'pantallaConfig', selector: '#zonaAdmin', icono: '⭐', titulo: 'Zona Administrador', texto: 'Defina el prefijo del consecutivo (por defecto "RE"), cierre el mes para reorganizar los consecutivos por la fecha real de la llamada, y use "Renumerar" solo si quedaron desordenados por excepción.' },
-    { id: 'cierre-admin', pantalla: 'pantallaHome', selector: '[data-tour="lema-home"]', icono: '🎖️', titulo: 'Listo para administrar', texto: 'Ya conoce el escudo, el relevo, las llaves, cómo sumar y aprobar unidades, la flota, el ranking, el mapa y el cierre de mes. Puede volver a ver este recorrido cuando quiera desde Acerca de.' }
-  ],
-
-  /* ═══ Motor del tour "Bitácora de Guardia" (v1.33) ═══
-     La app navega de verdad con irA(); un anillo dorado (#tourAnillo) señala
-     el elemento real y un panel inferior (#tourPanel) narra cada paso, sin
-     oscurecer el resto de la pantalla. #tourCatcher absorbe los toques sobre
-     la app real mientras el tour está activo, para que ninguna acción real
-     se dispare por accidente (Regla 1). */
-  mostrarTour(rol) {
-    if (this._tourActivo) return;
-    const esAdminRol = rol === 'admin' || (rol == null && this.esAdmin());
-    if (esAdminRol && !this.esAdmin()) { this.toast('Solo administradores pueden ver este recorrido', 'error'); return; }
-    // Marca el flag también cuando se abre a mano desde Acerca de (no solo
-    // cuando lo ofrece _ofrecerTour): si no, al volver a Inicio al cerrarlo
-    // _ofrecerTour() lo volvería a ofrecer como si fuera la primera vez.
-    try { localStorage.setItem(esAdminRol ? 'app_tour_visto_admin' : 'app_tour_visto_operativo', '1'); } catch (e) {}
-    this._tourActivo = true;
-    this._tourTransicionando = false;
-    this._tourOrigen = this.pantallaActual;
-    this._tourPasos = esAdminRol ? this._TOUR_ADMIN : this._TOUR_NO_ADMIN;
-    this._construirCapasTour();
-    this._pasoTour(0);
-  },
-
-  _construirCapasTour() {
-    if (!document.getElementById('tourCatcher')) {
-      const catcher = document.createElement('div');
-      catcher.id = 'tourCatcher';
-      catcher.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-      catcher.addEventListener('wheel', e => e.preventDefault(), { passive: false });
-      document.body.appendChild(catcher);
-    }
-    if (!document.getElementById('tourAnillo')) {
-      const anillo = document.createElement('div');
-      anillo.id = 'tourAnillo';
-      anillo.style.opacity = '0';
-      document.body.appendChild(anillo);
-    }
-    if (!document.getElementById('tourPanel')) {
-      document.body.appendChild(document.createElement('div')).id = 'tourPanel';
-    }
-  },
-
-  async _pasoTour(i) {
-    if (!this._tourActivo) return;
-    // v1.34: mientras se arma un paso (navegar + esperar el scroll) el botón
-    // VIEJO de "Siguiente" sigue en pantalla y sigue respondiendo — un toque
-    // impaciente ahí disparaba OTRO _pasoTour() encimado al que ya estaba en
-    // curso, con dos animaciones de scroll compitiendo por el mismo anillo.
-    // Mismo espíritu que _conBloqueo en el resto de la app: un paso a la vez.
-    if (this._tourTransicionando) return;
-    this._tourTransicionando = true;
-    const pasos = this._tourPasos;
-    if (!pasos || i < 0 || i >= pasos.length) { this._tourTransicionando = false; return; }
-    this._tourIndice = i;
-    const paso = pasos[i];
-    const anillo = document.getElementById('tourAnillo');
-    if (anillo) anillo.style.opacity = '0';
-    try {
-      if (paso.pantalla && this.pantallaActual !== paso.pantalla) {
-        this.irA(paso.pantalla, true);
-        await new Promise(r => setTimeout(r, 380));
-      }
-      if (!this._tourActivo) return; // se pudo cerrar mientras esperábamos
-      await this._posicionarAnillo(paso.selector);
-      if (!this._tourActivo) return;
-      this._pintarPanelTour(paso, i, pasos.length);
-    } catch (e) {
-      // Red de seguridad: un fallo del tour nunca debe tapar la app real.
-      this._cerrarTour();
-    } finally {
-      this._tourTransicionando = false;
-    }
-  },
-
-  async _posicionarAnillo(selector) {
-    const anillo = document.getElementById('tourAnillo');
-    if (!anillo) return;
-    if (!selector) { anillo.style.opacity = '0'; return; }
-    let el = null;
-    for (let intento = 0; intento < 10; intento++) {
-      el = document.querySelector(selector);
-      if (el && el.offsetParent !== null) break;
-      await new Promise(r => requestAnimationFrame(r));
-    }
-    // Elemento no encontrado (p. ej. un atributo data-tour se borró en otra
-    // sesión): el panel se sigue viendo, solo sin anillo. Nunca se cuelga.
-    if (!el || el.offsetParent === null) { anillo.style.opacity = '0'; return; }
-    const panel = document.getElementById('tourPanel');
-    try { document.documentElement.style.scrollPaddingBottom = (panel ? panel.offsetHeight + 20 : 140) + 'px'; } catch (e) {}
-    // v1.34: salto instantáneo ('auto'), NO 'smooth'. Se probó 'smooth' con
-    // varias formas de esperar a que terminara (setTimeout fijo, contar
-    // cuadros de animación seguidos, un reloj de tiempo real) y en pruebas
-    // reales siguió midiendo la posición VIEJA a mitad de camino — el anillo
-    // quedaba sobre el elemento equivocado, siempre de forma reproducible.
-    // Un scroll animado no se puede esperar de forma confiable con
-    // setTimeout/rAF porque su duración real varía según el navegador y el
-    // dispositivo. El salto es menos vistoso, pero SIEMPRE cae en el lugar
-    // correcto — y en un celular de gama baja (el público real de esta app)
-    // es preferible a una animación que a veces falla.
-    try { el.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (e) {}
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    if (!this._tourActivo) return;
-    const r2 = el.getBoundingClientRect();
-    const PAD = 7;
-    anillo.style.top = (r2.top - PAD) + 'px';
-    anillo.style.left = (r2.left - PAD) + 'px';
-    anillo.style.width = (r2.width + PAD * 2) + 'px';
-    anillo.style.height = (r2.height + PAD * 2) + 'px';
-    anillo.style.opacity = '1';
-  },
-
-  _pintarPanelTour(paso, i, total) {
-    const panel = document.getElementById('tourPanel');
-    if (!panel) return;
-    const ultimo = i === total - 1;
-    panel.innerHTML = '<div class="tour-franja"></div>'
-      + '<div class="tour-cuerpo">'
-      + '<div class="tour-sello"><span class="icono">' + paso.icono + '</span><span class="paso">Paso ' + (i + 1) + ' de ' + total + '</span></div>'
-      + '<div class="tour-titulo">' + this._esc(paso.titulo) + '</div>'
-      + '<div class="tour-texto">' + this._esc(paso.texto) + '</div>'
-      + '<div class="tour-progreso-track"><div class="tour-progreso-fill" style="width:' + Math.round(((i + 1) / total) * 100) + '%;"></div></div>'
-      + '<div class="tour-acciones">'
-      + (i > 0 ? '<button class="tour-btn tour-btn-atras" id="_tAtras">← Atrás</button>' : '')
-      + '<button class="tour-btn tour-btn-siguiente" id="_tSiguiente">' + (ultimo ? '¡Listo! ✔' : 'Siguiente →') + '</button>'
-      + '</div>'
-      + '<div class="tour-fila-cierre">'
-      + '<button class="tour-saltar" id="_tSaltar">Saltar recorrido</button>'
-      + '<button class="tour-cerrar" id="_tCerrar" aria-label="Cerrar recorrido">✕</button>'
-      + '</div>'
-      + '</div>';
-    const bAtras = document.getElementById('_tAtras');
-    if (bAtras) bAtras.onclick = () => this._pasoTour(i - 1);
-    document.getElementById('_tSiguiente').onclick = () => { if (ultimo) this._cerrarTour(); else this._pasoTour(i + 1); };
-    document.getElementById('_tCerrar').onclick = () => this._cerrarTour();
-    document.getElementById('_tSaltar').onclick = async () => {
-      if (i === 0) { this._cerrarTour(); return; }
-      // El catcher (z-index 9490) queda por encima del modal de confirmar
-      // (.modal-fondo, z-index 200): sin bajarle pointer-events, se comería
-      // el toque en "Sí/No" y el modal se vería pero no respondería a nada.
-      const catcher = document.getElementById('tourCatcher');
-      if (catcher) catcher.style.pointerEvents = 'none';
-      const ok = await this.confirmar('Salir del recorrido', '¿Seguro? Puede volver a verlo cuando quiera desde ℹ️ Acerca de.');
-      if (catcher) catcher.style.pointerEvents = 'auto';
-      if (ok) this._cerrarTour();
-    };
-  },
-
-  _cerrarTour() {
-    if (!this._tourActivo) return;
-    this._tourActivo = false;
-    try { document.documentElement.style.scrollPaddingBottom = ''; } catch (e) {}
-    ['tourPanel', 'tourAnillo', 'tourCatcher'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.remove();
-    });
-    const origen = this._tourOrigen || 'pantallaHome';
-    this._tourOrigen = null;
-    this._tourPasos = null;
-    if (this.pantallaActual !== origen) this.irA(origen, true);
-  },
-
-  /* v1.38 — RED DE SEGURIDAD AL SALIR (pérdida de datos).
-     Antes SOLO el formulario de incidente avisaba al salir. La Actividad —que se
-     llena con personal, vehículos, fotos y novedades en memoria— descartaba todo
-     en silencio con un toque en "Volver" o el botón físico Atrás. No se guarda
-     hasta pulsar "Registrar Actividad". */
+  /* v6.33 — RED DE SEGURIDAD AL SALIR (pérdida de datos).
+     Antes SOLO el formulario de emergencia avisaba al salir. Asistencia y
+     Actividad —las tareas más repetidas— descartaban en silencio todo el
+     marcado/carga en memoria con un toque en "Volver" o el botón físico Atrás:
+     marcar 30 personas y salir sin querer = todo perdido. Estas pantallas viven
+     en memoria (_asistRegistros, _actPersonal…) y no se guardan hasta pulsar su
+     propio botón Guardar/Registrar. */
   _hayCambiosSinGuardar() {
     if (this.pantallaActual === 'pantallaForm') {
       return { titulo: 'Salir del reporte',
         mensaje: '¿Desea salir? Los cambios sin guardar se perderán. Use "Borrador" para guardar el progreso.' };
+    }
+    if (this.pantallaActual === 'pantallaAsistencia' && this._asistDirty) {
+      return { titulo: 'Salir sin guardar',
+        mensaje: '¿Salir de Asistencia? Se perderá lo que marcaste. Usa "Guardar Asistencia" primero.' };
     }
     if (this.pantallaActual === 'pantallaActividades' && this._actividadTieneDatos()) {
       return { titulo: 'Salir sin guardar',
@@ -1906,9 +1352,9 @@ const app = {
     return await this.confirmar(g.titulo, g.mensaje);
   },
 
-  /* El botón "← Volver" de Actividad llama a esto (antes iba directo a
-     irA('pantallaHome'), saltándose el aviso). El "←" del header y el botón físico
-     Atrás ya pasan por atras(), que tiene el mismo guard. */
+  /* Los botones "← Volver" de Asistencia/Actividad llaman a esto (antes iban
+     directo a irA('pantallaHome'), saltándose cualquier aviso). El "←" del
+     header y el botón físico Atrás ya pasan por atras(), que tiene el mismo guard. */
   async volverDesde(destino) {
     if (!(await this._confirmarSalidaSiSucio())) return;
     this._yendoAtras = true;
@@ -1916,7 +1362,7 @@ const app = {
   },
 
   async atras() {
-    // v1.38: red de seguridad unificada (formulario + actividad).
+    // v6.33: red de seguridad unificada (formulario + asistencia + actividad).
     if (!(await this._confirmarSalidaSiSucio())) return;
 
     if (this.pilaPantallas.length > 0) {
@@ -1933,7 +1379,7 @@ const app = {
     // Manejar el botón Atrás del navegador y del celular
     history.pushState({ pantalla: 'inicio' }, '');
     window.addEventListener('popstate', (e) => {
-      // v1.33: el botón Atrás del celular cierra el tour antes que cualquier
+      // v6.31: el botón Atrás del celular cierra el tour antes que cualquier
       // otra cosa (no tiene sentido navegar atrás de verdad con el tour
       // encima tapando la app).
       if (this._tourActivo) {
@@ -1995,7 +1441,8 @@ const app = {
 
   // ==================== HOME ====================
   async actualizarHome() {
-    try { this._mostrarBienvenidaCuerpo(); } catch (e) {} // v1.26: solo aparece si acabás de unirte a un cuerpo
+    // v5.63 (BUG 10): widget de sanciones para admins (no bloquea el Home)
+    this._cargarWidgetSanciones().catch(() => {});
     let reportes = await DB.listarReportes();
     // FILTRO POR CORREO: cada bombero solo ve SUS propios reportes
     // Identificamos por operadorEmail (el correo con que se creó el reporte)
@@ -2006,7 +1453,7 @@ const app = {
         return r.operadorEmail.toLowerCase() === this.usuario.email.toLowerCase();
       });
     }
-    // v1.42: los totales SUBEN desde 0 (count-up) en vez de aparecer secos.
+    // v6.38: los totales SUBEN desde 0 (count-up) en vez de aparecer secos.
     this._countUp(document.getElementById('statTotal'), reportes.length);
     this._countUp(document.getElementById('statPendientes'), reportes.filter(r => r.estado === 'pendiente').length);
     this._countUp(document.getElementById('statEnviados'), reportes.filter(r => r.estado === 'enviado').length);
@@ -2016,7 +1463,7 @@ const app = {
       lista.innerHTML = `
         <div class="vacio-estado">
           <div class="icono">📋</div>
-          <div>No hay informes aún</div>
+          <div>No hay reportes aún</div>
           <div style="font-size: 12px; margin-top: 4px;">Toque "Nuevo incidente" para empezar</div>
         </div>`;
       return;
@@ -2026,7 +1473,7 @@ const app = {
       const fecha = new Date(r.fechaCreacion).toLocaleString('es-CO', {
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
       });
-      // v1.46 (I5): consecutivo y clasificación llegan del servidor (listarMisReportes) —
+      // v6.44 (I5): consecutivo y clasificación llegan del servidor (listarMisReportes) —
       // el consecutivo lo arma el backend con un prefijo que MANDA EL CLIENTE. Nada
       // que venga de otra persona va crudo a innerHTML.
       return `
@@ -2043,6 +1490,110 @@ const app = {
 
   etiquetaEstado(estado) {
     return { borrador: 'Borrador', pendiente: 'Pendiente', enviado: 'Enviado' }[estado] || this._esc(estado);
+  },
+
+  // ═══ v5.63 (BUG 10): widget "Sanciones pendientes" en el Home (solo admin) ═══
+  // Recuerda a los admins qué unidades deben horas SIN tener que entrar a
+  // Asistencia. Falla en silencio si no hay conexión (no molesta al bombero).
+  async _cargarWidgetSanciones() {
+    const cont = document.getElementById('homeSanciones');
+    if (!cont) return;
+    if (!navigator.onLine) { cont.style.display = 'none'; return; }
+    // v5.94: la unidad NO admin que tenga deuda ve ÚNICAMENTE su propia sanción
+    // (no la de los demás). El admin sigue viendo el listado completo.
+    if (!this.esAdmin()) { return this._cargarWidgetMiSancion(cont); }
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarSanciones', adminEmail: this.usuario ? this.usuario.email : '' })
+      });
+      const data = await resp.json();
+      if (!data.ok) { cont.style.display = 'none'; return; }
+      const sanc = (data.sanciones || []).filter(s => Number(s.horasPendientes) > 0);
+      if (!sanc.length) { cont.style.display = 'none'; return; }
+      sanc.sort((a,b) => Number(b.horasPendientes) - Number(a.horasPendientes));
+      const badge = (s) => {
+        if (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO')
+          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>';
+        if (s.tipoAlerta === 'LLAMADO_ESCRITO')
+          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>';
+        if (s.tipoAlerta === 'LLAMADO_VERBAL')
+          return '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>';
+        return '';
+      };
+      const filas = sanc.slice(0, 5).map(s =>
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #ffe0e0;font-size:13px;">'
+        + '<span style="font-weight:600;">' + app._esc(s.nombre) + badge(s) + '</span>'
+        + '<span style="color:#c00;font-weight:700;white-space:nowrap;margin-left:8px;">' + s.horasPendientes + 'h</span>'
+        + '</div>').join('');
+      const resto = sanc.length > 5
+        ? '<div style="font-size:11px;color:#c00;margin-top:4px;">+ ' + (sanc.length - 5) + ' más — toca para ver todas</div>' : '';
+      cont.innerHTML =
+        '<div onclick="app.abrirDeudores()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
+        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:6px;">⚠️ Sanciones pendientes (' + sanc.length + ')</div>'
+        + filas + resto
+        + '</div>';
+      cont.style.display = 'block';
+    } catch (e) { cont.style.display = 'none'; }
+  },
+
+  // ═══ v5.94: sanción propia para la unidad (NO admin) ═══
+  // Muestra en el Inicio SOLO la deuda de quien está en sesión — nunca la de
+  // los demás. La identidad se verifica en el backend con el pase firmado
+  // (no con el email declarado), así que nadie puede pedir la de otro.
+  async _cargarWidgetMiSancion(cont) {
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'miSancion', pase: this._pase || '', idToken: this._googleIdToken || '' })
+      });
+      const data = await resp.json();
+      if (!data.ok || !data.sancion || Number(data.sancion.horasPendientes) <= 0) { cont.style.display = 'none'; return; }
+      this._miSancionCache = data;
+      const s = data.sancion;
+      const badge =
+        (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO') ? '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>'
+        : (s.tipoAlerta === 'LLAMADO_ESCRITO') ? '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>'
+        : (s.tipoAlerta === 'LLAMADO_VERBAL') ? '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>'
+        : '';
+      cont.innerHTML =
+        '<div onclick="app.abrirMiSancion()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
+        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:4px;">⚠️ Tienes ' + app._esc(String(s.horasPendientes)) + ' horas de sanción pendientes' + badge + '</div>'
+        + '<div style="font-size:12px;color:#c00;">Toca para ver de qué domingos vienen →</div>'
+        + '</div>';
+      cont.style.display = 'block';
+    } catch (e) { cont.style.display = 'none'; }
+  },
+
+  // v5.94: detalle en solo lectura de la deuda propia (modal, sin diálogos
+  // nativos — I4). Usa lo ya traído por _cargarWidgetMiSancion.
+  abrirMiSancion() {
+    const data = this._miSancionCache;
+    if (!data || !data.sancion) return;
+    const s = data.sancion;
+    const faltas = data.faltas || [];
+    const filas = faltas.length
+      ? faltas.map(f =>
+          '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #ffe0e0;font-size:13px;">'
+          + '<span style="font-weight:600;white-space:nowrap;">' + app._esc(f.fecha || '-') + '</span>'
+          + '<span style="color:#555;text-align:right;">' + app._esc(f.tema || '(sin tema)') + '</span>'
+          + '</div>').join('')
+      : '<div style="color:#777;font-style:italic;padding:8px 0;">No hay domingos sin excusa registrados para ti.</div>';
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
+    modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+      + '<div style="font-size:16px;font-weight:800;color:#c00;text-align:center;margin-bottom:4px;">⚠️ Mi sanción</div>'
+      + '<div style="text-align:center;font-size:14px;color:#333;margin-bottom:12px;">Debes <b style="color:#c00;">' + app._esc(String(s.horasPendientes)) + ' horas</b></div>'
+      + '<div style="font-size:12px;color:#666;margin-bottom:6px;">Domingos sin excusa que generaron tu deuda:</div>'
+      + filas
+      + '<div style="font-size:11px;color:#888;margin-top:12px;line-height:1.5;">La deuda se duplica cada domingo que pase sin cumplir tus horas (tope 32h). Cumplir las horas a tiempo es lo único que la detiene. Si ves un error, avisa al administrador.</div>'
+      + '<button id="_miSancCerrar" style="margin-top:14px;width:100%;padding:12px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cerrar</button>'
+      + '</div>';
+    document.body.appendChild(modal);
+    const cerrar = () => { if (modal.parentNode) app._cerrarModalJS(modal); };
+    document.getElementById('_miSancCerrar').onclick = cerrar;
+    modal.onclick = (ev) => { if (ev.target === modal) cerrar(); };
   },
 
   // ═══ v5.63 (BUG 9): renovación automática del pase de sesión ═══
@@ -2071,8 +1622,6 @@ const app = {
         // v6.05: se refresca el privilegio desde la hoja en CADA arranque con
         // señal. Si cambió (te agregaron o te quitaron), la interfaz se redibuja
         // sola; si no, el menú seguiría mostrando lo de antes indefinidamente.
-        // Se refresca también la exigencia de PIN por si el cuerpo la cambió.
-        if (typeof data.firmaObligatoria === 'boolean') this._firmaObligatoria = data.firmaObligatoria;
         if (typeof data.esAdmin === 'boolean') {
           const antesEraAdmin = this.usuario.esAdminSrv;
           this.usuario.esAdminSrv = data.esAdmin;
@@ -2128,7 +1677,7 @@ const app = {
     this.limpiarFormulario();
     document.getElementById('f_consecutivo').value = 'Se asigna al enviar';
     document.getElementById('f_fecha_llamada').value = this.fechaLocalISO(ahora);
-    document.getElementById('f_municipio').value = this._municipioPorDefecto();
+    document.getElementById('f_municipio').value = 'Inírida';
 
     // Pre-llenar comandante con datos del usuario
     if (this.usuario && this.usuario.nombreCompleto) {
@@ -2141,12 +1690,6 @@ const app = {
     this.actualizarUIGPS();
     this.capturarGPS();
     this.actualizarProgreso();
-    /* La flota se trae ANTES de que se pueda agregar un recurso: agregarRecurso()
-       es síncrona y pinta el <select> desde la caché. Sin esta precarga, el
-       primer vehículo que se agregara en la sesión saldría con la lista vacía.
-       No se espera (sin await) para no retrasar la apertura del formulario en una
-       emergencia; si la red tarda, el campo cae a texto libre, que sigue sirviendo. */
-    this._cargarFlota();
     this.irA('pantallaForm');
   },
 
@@ -2156,7 +1699,7 @@ const app = {
       else if (el.type === 'number') el.value = el.defaultValue || '';
       else el.value = '';
     });
-    document.getElementById('f_municipio').value = this._municipioPorDefecto();
+    document.getElementById('f_municipio').value = 'Inírida';
     document.getElementById('f_comandante_estacion').value = NOMBRE_ESTACION;
     document.querySelectorAll('.foto-slot').forEach((slot, i) => {
       slot.innerHTML = `<span class="icono">📷</span><span>Foto ${i+1}</span>`;
@@ -2245,7 +1788,7 @@ const app = {
   // v5.92: Convierte UN token de coordenada escrito a mano en un número decimal (o NaN).
   // Causa raíz del bug del mapa: en Colombia el separador decimal es la COMA, y
   // parseFloat("3,8650") devuelve 3 (corta en la coma). Como 3 es una latitud válida
-  // dentro del país, pasaba el chequeo de rango y se guardaba MAL en silencio: el pin
+  // cerca de Inírida, pasaba el chequeo de rango y se guardaba MAL en silencio: el pin
   // caía en (3, -67) en vez de (3.8650, -67.9239) → "desordenado en el mapa".
   // Ahora tolera: coma o punto decimal, separador de miles, letras de hemisferio
   // (N/S/E/W/O), grados-minutos-segundos (3°51'54"N) y espacios/símbolos sobrantes.
@@ -2292,7 +1835,7 @@ const app = {
     const intentos = [];
     if (s.includes(';')) intentos.push(s.split(';'));           // separadas por ';'
     if (/,\s+/.test(s)) intentos.push(s.split(/,\s+/));         // coma+espacio (no parte la coma decimal)
-    const mNeg = s.match(/^(.+?)[,\s]+(-.+)$/);                 // la longitud arranca con '-' (Colombia)
+    const mNeg = s.match(/^(.+?)[,\s]+(-.+)$/);                 // la longitud arranca con '-' (Inírida)
     if (mNeg) intentos.push([mNeg[1], mNeg[2]]);
     if (/\s+/.test(s)) intentos.push(s.split(/\s+/));           // separadas por espacio(s)
     for (const par of intentos) {
@@ -2331,7 +1874,7 @@ const app = {
   // v5.92: Vista previa EN VIVO de las coordenadas manuales (se llama en cada `oninput`).
   // Muestra exactamente cómo se guardará el pin ANTES de enviar, así la unidad detecta
   // al instante si escribió mal. Sin llamadas de red ni mapa: funciona sin señal (rural
-  // Colombia) y no mete texto libre a innerHTML (solo números ya parseados y GMS derivado).
+  // Inírida) y no mete texto libre a innerHTML (solo números ya parseados y GMS derivado).
   _previewCoordsManual() {
     const box = document.getElementById('gpsPreview');
     if (!box) return;
@@ -2489,7 +2032,7 @@ const app = {
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=es`;
       const resp = await fetch(url, {
-        headers: { 'User-Agent': 'Reportes-Bomberos/4.1 (gilrangeljeancarlosjeferson@gmail.com)' }
+        headers: { 'User-Agent': 'CBVI-Reportes/4.1 (gilrangeljeancarlosjeferson@gmail.com)' }
       });
       if (!resp.ok) return;
       const data = await resp.json();
@@ -2526,7 +2069,7 @@ const app = {
         if (loc) { localidadInput.value = loc; huboCambio = true; }
       }
 
-      if (!municipioInput.value || municipioInput.value === this._municipioPorDefecto()) {
+      if (!municipioInput.value || municipioInput.value === 'Inírida') {
         const mun = addr.city || addr.town || addr.municipality || '';
         if (mun) { municipioInput.value = mun; huboCambio = true; }
       }
@@ -2745,8 +2288,10 @@ const app = {
       <div class="campo">
         <label>Recurso</label>
         <select data-campo="recurso" onchange="app.cambioTipoRecurso(this)">
-          ${app._opcionesFlota(datos && datos.recurso)}
-          <option value="Personal"${(datos && datos.recurso === 'Personal') ? ' selected' : ''}>Personal (sin vehículo)</option>
+          <option value="">-- Seleccione --</option>
+          ${app._flotaOpciones()}
+          <option>Personal</option>
+          <option>Otro</option>
         </select>
         <input type="text" data-campo="recurso_otro" placeholder="Especifique" style="display:none; margin-top: 6px;">
       </div>
@@ -2767,13 +2312,13 @@ const app = {
 
     if (datos) {
       const sel = div.querySelector('[data-campo="recurso"]');
-      /* La flota ya se pintó arriba marcando el valor guardado, así que acá solo
-         queda el caso "este vehículo no está en la flota": un reporte viejo que
-         nombra una máquina dada de baja, o un apoyo de otro cuerpo. Eso NO se
-         pierde: cae al campo de texto libre con su nombre original. */
-      const enFlota = app._flotaDisponible().some(v => v.indicativo === datos.recurso)
-                      || datos.recurso === 'Personal';
-      if (enFlota) {
+      /* v6.10: la misma lista que arriba, no una copia aparte — así un reporte
+         VIEJO cuyo recurso ya no está en el catálogo (p. ej. "Carro tanque 1" de
+         antes de hoy) cae en "Otro" con el texto original visible, en vez de
+         desaparecer. Es exactamente el comportamiento que ya existía; solo se
+         corrige que estuviera duplicada y pudiera desalinearse con el select. */
+      const opciones = this._flotaIndicativos().concat(['Personal', 'Otro']);
+      if (opciones.includes(datos.recurso)) {
         sel.value = datos.recurso;
       } else if (datos.recurso) {
         sel.value = 'Otro';
@@ -2781,7 +2326,7 @@ const app = {
         div.querySelector('[data-campo="recurso_otro"]').style.display = 'block';
       }
       this.cambioTipoRecurso(sel);
-      // v1.47 (PLAN-20260915-01): cantidad y código ya no se piden. Los de reportes VIEJOS se conservan
+      // v6.46 (PLAN-20260915-01): cantidad y código ya no se piden. Los de reportes VIEJOS se conservan
       // en el dataset de la fila para no perderlos al re-guardar (leerRecursos los lee de ahí).
       div.dataset.cantidad = datos.cantidad != null ? String(datos.cantidad) : '';
       div.dataset.codigo = datos.codigo || '';
@@ -2795,12 +2340,8 @@ const app = {
   cambioTipoRecurso(select) {
     const fila = select.closest('.fila');
     const otroInput = fila.querySelector('[data-campo="recurso_otro"]');
-    /* El marcador __OTRO__ lo pone _opcionesFlota. Antes se comparaba con 'Otro'
-       a secas, que era una opción de la lista fija; ahora la lista sale de la
-       flota del cuerpo y ese texto ya no existe. */
-    const esOtro = select.value === '__OTRO__' || select.value === 'Otro';
-    otroInput.style.display = esOtro ? 'block' : 'none';
-    if (esOtro) { try { otroInput.focus(); } catch (e) {} }
+    if (select.value === 'Otro') otroInput.style.display = 'block';
+    else otroInput.style.display = 'none';
     // La lista de tripulantes ahora está siempre visible en cada vehículo.
   },
 
@@ -2831,10 +2372,10 @@ const app = {
     return (typeof ROSTER_BOMBEROS !== 'undefined') ? ROSTER_BOMBEROS : [];
   },
 
-  // v5.98: la hoja Personal manda. Se llama al restaurar sesión y tras
+  // v5.98: la hoja Personal_CBVI manda. Se llama al restaurar sesión y tras
   // iniciar sesión. Primero pinta lo cacheado (instantáneo y funciona SIN
   // señal), luego refresca desde el backend en segundo plano.
-  // hay cuerpos que se quedan sin cobertura por días: por eso nunca se bloquea ni se
+  // Inírida se queda sin cobertura por días: por eso nunca se bloquea ni se
   // borra la caché ante un fallo de red.
   async _cargarRosterDesdeHoja() {
     // 1) Caché primero — sirve offline y evita parpadeo.
@@ -2878,6 +2419,19 @@ const app = {
       .map(n => `<option value="${String(n).replace(/"/g, '&quot;')}"></option>`).join('');
   },
 
+  /* v6.10: llena el <select> de "Nueva Actividad → Recursos / Vehículos" desde
+     VEHICULOS_CBVI (única fuente). El HTML solo trae el placeholder; el resto se
+     pinta acá, igual que inicializarCheckboxes() pinta TIPOS_EVENTO. Los otros
+     dos usos (reporte de emergencia, editor de actividad) mapean el mismo
+     arreglo directamente donde arman su HTML — no necesitan pasar por acá. */
+  poblarSelectVehiculos() {
+    const sel = document.getElementById('actRecursoTipo');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Tipo de vehículo...</option>'
+      + this._flotaOpciones()
+      + '<option value="Otro">Otro</option>';
+  },
+
   // v5.95: se eliminó una definición duplicada (débil, sin quitar tildes) de
   // _normNombre que había aquí — la vigente (fuerte) vive junto a _cedKey.
 
@@ -2887,10 +2441,10 @@ const app = {
   },
 
   // v5.63 (BUG duplicados): normalización FUERTE de nombres — mayúsculas,
-  // sin tildes y Ñ→N. Así "JOSÉ NÚÑEZ" == "JOSE NUNEZ" y "MUÑOZ" == "MUNOZ".
+  // sin tildes y Ñ→N. Así "GERMÁN ROJAS" == "GERMAN ROJAS" y "MARIÑO" == "MARINO".
   _normFuerte(s) {
     return (s || '').toString().trim().toUpperCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ');
   },
 
@@ -2899,7 +2453,7 @@ const app = {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-      modal.className = 'modal-js';   // sin esto ninguna regla CSS lo alcanza
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
         + '<div style="font-size:14px;color:#333;margin-bottom:16px;line-height:1.5;">'+mensajeHTML+'</div>'
         + '<div style="display:flex;gap:10px;">'
@@ -3251,7 +2805,7 @@ const app = {
     document.getElementById('f_direccion').value = r.direccion || '';
     document.getElementById('f_barrio').value = r.barrio || '';
     document.getElementById('f_localidad').value = r.localidad || '';
-    document.getElementById('f_municipio').value = r.municipio || this._municipioPorDefecto();
+    document.getElementById('f_municipio').value = r.municipio || 'Inírida';
     document.getElementById('f_referencia').value = r.referencia || '';
 
     document.getElementById('f_narrativa').value = r.narrativa || '';
@@ -3378,14 +2932,15 @@ const app = {
     this.irA('pantallaHome');
   },
 
-  /* v1.38 — AUTOGUARDADO del reporte en curso (pérdida de datos).
-     El WebView de gama baja se muere solo (llamada entrante, poca RAM) y un reporte
-     largo dictado por voz se perdía entero si no tocaban "Borrador" a mano. Se guarda
-     SILENCIOSO en el MISMO id del reporte en curso (leerFormulario reusa
-     this.reporteActual, así que NO acumula borradores basura), reusando el pipeline
-     durable de borrador (IndexedDB). El borrador queda visible en Inicio y se reabre
-     desde ahí; al enviar con éxito se transforma en 'enviado'/'pendiente'. NO corre en
-     edición de admin (eso edita un reporte ya existente del servidor). */
+  /* v6.33 — AUTOGUARDADO del reporte en curso (pérdida de datos).
+     El WebView de gama baja se muere solo (llamada entrante por radio, poca RAM)
+     y un reporte largo dictado por voz se perdía entero si no tocaban "Borrador"
+     a mano. Se guarda SILENCIOSO en el MISMO id del reporte en curso (leerFormulario
+     reusa this.reporteActual, así que NO acumula borradores basura), reusando el
+     pipeline durable de borrador (IndexedDB). El borrador queda visible en Inicio
+     como cualquier otro y se reabre desde ahí; al enviar con éxito se transforma
+     en 'enviado'/'pendiente'. NO corre en edición de admin (eso edita un reporte
+     ya existente del servidor, no un borrador local). */
   _autoguardarBorrador() {
     if (this.pantallaActual !== 'pantallaForm' || !this.reporteActual || this._modoEdicionAdmin) return;
     try {
@@ -3405,7 +2960,8 @@ const app = {
     if (this._enviandoReporte) return;
     const r = this.leerFormulario();
     if (!r.narrativa || !r.direccion || !r.comandanteNombre || !r.fechaLlamada) {
-      // v1.42: se MARCA y SACUDE cada campo que falta y la app te LLEVA al primero.
+      // v6.38: en vez de un aviso genérico, se MARCA y SACUDE cada campo que falta
+      // y la app te LLEVA al primero (antes había que buscarlo en un formulario largo).
       const faltantes = [
         ['f_fecha_llamada', !r.fechaLlamada, 'la fecha de la llamada'],
         ['f_direccion', !r.direccion, 'la dirección'],
@@ -3450,7 +3006,7 @@ const app = {
     // Si esta sesión del formulario es una edición de un reporte que ya está
     // en el servidor, preservamos el consecutivo y marcamos _actualizar:true
     // para que el backend actualice la fila + regenere hojas auxiliares
-    // (Recursos, Personal, Victimas, Organizaciones, Personal_por_Incidente).
+    // (Recursos, Personal, Victimas, Organizaciones, Bonificaciones).
     // Si es uno nuevo: consecutivo vacío → el servidor asigna nuevo.
     const esEdicion = this._esEdicionReporteExistente && r.id === this._idReporteEditandoBombero;
     if (esEdicion) {
@@ -3587,6 +3143,53 @@ const app = {
     });
   },
 
+  // ═══ v5.76: alerta de sanciones bajo demanda (botón en Configuración) ═══
+  // El backend recalcula sanciones, manda el correo personal a cada deudor y
+  // el resumen a la estación. El pase firmado viaja solo (interceptor de
+  // fetch); el servidor tiene enfriamiento de 10 min contra doble envío y
+  // _conBloqueo evita el doble toque local.
+  async enviarAlertaSanciones(btn) {
+    if (!this.esAdmin()) {
+      this.toast('Solo el administrador', 'error');
+      return;
+    }
+    if (!this.config.urlBackend) {
+      this.toast('Configure URL del backend primero', 'error');
+      return;
+    }
+    const ok = await this.confirmar(
+      '📨 Enviar alerta de sanciones',
+      'Se enviará AHORA un correo a cada unidad deudora (a su correo personal) y el resumen completo a la estación. ¿Continuar?'
+    );
+    if (!ok) return;
+
+    await this._conBloqueo(btn, 'Enviando...', async () => {
+      try {
+        const resp = await fetch(this.config.urlBackend, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            accion: 'enviarAlertaSanciones',
+            adminEmail: this.usuario.email
+          })
+        });
+        const data = await resp.json();
+        if (data && data.ok) {
+          if (!data.deudores) {
+            this.toast('✅ No hay unidades con horas pendientes — no se envió ningún correo', 'exito');
+          } else {
+            const faltantes = (data.sinCorreo && data.sinCorreo.length) ? ' · ' + data.sinCorreo.length + ' sin correo en la base' : '';
+            this.toast('✅ Alerta enviada: ' + data.enviados + ' de ' + data.deudores + ' deudor(es) con correo' + faltantes, 'exito');
+          }
+        } else {
+          this.toast('Error: ' + ((data && data.error) || 'desconocido'), 'error');
+        }
+      } catch (err) {
+        console.error('Error enviando alerta de sanciones:', err);
+        this.toast('Error de red al enviar la alerta', 'error');
+      }
+    });
+  },
 
   // ========== 🆕 v5.3: CIERRE DE MES POR FECHA DE LLAMADA ==========
   // Renumera SOLO los reportes de un mes específico, ordenándolos
@@ -3820,10 +3423,14 @@ const app = {
     }
     // Pedir contraseña — el backend valida, no el frontend
     // v5.63: modal propio (window.prompt está bloqueado en el APK)
+    // v6.32: 'panelAdmin' → el modal de firma pregunta "qué administrador
+    // entra", no "quién está de guardia" (los guardias no llegan hasta acá).
     const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador', 'panelAdmin');
     if (!pw) return;
     this._adminAutorizado = true;
     this.irA('pantallaPanelAdmin');
+    this._pintarEscudoPanel();
+    this._cargarFlota(true).then(() => this._renderFlotaAdmin()).catch(() => {});
     // v5.94: si venías de "Ver reporte completo" (p. ej. desde el Mapa de
     // Emergencias), la vista de detalle quedaba abierta y al reentrar al Panel
     // se veía ese reporte (a veces vacío) en lugar de la lista. Reseteamos.
@@ -3832,12 +3439,6 @@ const app = {
     // v6.00: bandeja de altas pendientes. Sin await a propósito: es información
     // secundaria y no debe demorar la apertura del Panel ni romperla si falla.
     this.cargarPersonalPendiente();
-    // v1.27: solicitudes de ingreso por link/QR (mismo criterio: secundario, sin await).
-    this.cargarSolicitudes();
-    /* Flota: sin esto el bloque de vehículos salía vacío hasta que alguien
-       tocara "Actualizar", y un cuerpo con su flota ya cargada creería que se
-       le perdió. Sin await por el mismo motivo que la bandeja. */
-    this._cargarFlota(true).then(() => this._renderFlotaAdmin()).catch(() => {});
     // v6.02: mostrar quién quedó firmado (la firma se pidió en _obtenerPwdAdmin).
     const _et = document.getElementById('operActualTxt');
     if (_et) _et.textContent = this._operadorSesion || 'sin firmar';
@@ -3845,7 +3446,7 @@ const app = {
     // principal. El backend valida igual — esto evita ofrecer botones que fallan.
     const _aw = document.getElementById('adminsWrap');
     if (_aw) _aw.style.display = this.esSuperAdmin() ? 'block' : 'none';
-    // v1.35: unidades vinculadas — mismo criterio que Administradores.
+    // v6.31: unidades vinculadas — mismo criterio que Administradores.
     const _uw = document.getElementById('unidadesWrap');
     if (_uw) _uw.style.display = this.esSuperAdmin() ? 'block' : 'none';
     // v6.05: las cajas se llenan SOLAS al abrir el Panel. Hasta v6.04 solo se
@@ -3860,7 +3461,6 @@ const app = {
     // que faltaba personal.
     this._pinsFiltro = '';
     this.cargarEstadoPins();
-    this._pintarEscudoPanel();
   },
 
   // v5.94: deja el Panel Admin en su estado inicial (lista visible, detalle y
@@ -3871,7 +3471,7 @@ const app = {
     const wrap = document.getElementById('listaReportesAdminWrap');
     if (viendo) viendo.style.display = 'none';
     if (editando) editando.style.display = 'none';
-    if (wrap) { wrap.style.display = 'block'; this._animarEntrada(wrap); }
+    if (wrap) { wrap.style.display = 'block'; this._animarEntrada(wrap); }  // v6.11
     this._reporteAdminViendo = null;
   },
 
@@ -3879,733 +3479,8 @@ const app = {
      El backend valida con _esSuperAdmin (identidad verificada + contraseña); esto
      de acá solo decide si se muestran los botones, para no ofrecer lo que va a
      fallar. Nadie gana permisos por editar el HTML: el servidor manda. */
-  /* T1 — ANTES comparaba contra el correo de Jeferson quemado acá. En el producto
-     el superadmin es el FUNDADOR de CADA instalación, no el creador de la app.
-     Lo dice el servidor en iniciarSesion; el front solo lo refleja para pintar
-     botones. El servidor vuelve a verificar en cada acción: nadie gana permisos
-     editando el HTML. */
   esSuperAdmin() {
-    return !!(this.usuario && this.usuario.esSuperAdmin);
-  },
-
-  /* ═══════════ T1b — IDENTIDAD DEL CUERPO EN LA INTERFAZ ═══════════
-     ANTES: el nombre y la sigla de UNA estación
-     estaban escritos a mano en ~40 sitios del HTML. Otro cuerpo abría
-     la app y leía el nombre de otro cuerpo por todos lados: se sentía prestada, no propia.
-
-     EL PROBLEMA DE ORDEN: la pantalla de login muestra el nombre ANTES de que el
-     usuario entre, así que el servidor todavía no puede decirlo. Se resuelve
-     cacheando la institución tras el primer login: quien vuelve ve su nombre al
-     instante, y una instalación nueva muestra un texto neutro hasta configurarse.
-
-     Se llama con datos (tras login, y los guarda) o sin datos (al arrancar, y los
-     lee del caché).
-
-     ⚠️ Usa `textContent`, NUNCA `innerHTML`: el nombre del cuerpo es texto libre
-     que escribe el admin. Con innerHTML sería una vía de inyección (invariante I5). */
-  /* T1b — municipio por defecto del formulario de emergencia.
-     ANTES estaba escrito el municipio a mano en DOS sitios del código, así que aunque
-     el HTML quedara limpio, el JavaScript lo volvía a poner en cada formulario
-     nuevo. Otro cuerpo habría reportado todos sus incidentes en el municipio equivocado: no es
-     cosmético, es dato equivocado en el reporte oficial y en el RUE.
-     Vacío si no hay institución: mejor que el bombero lo escriba a que salga mal. */
-  /* T1b — MEMBRETE DEL PDF OFICIAL.
-     ANTES traía el NIT, la personería jurídica, el teléfono y la dirección de
-     de una estación escritos a mano en los dos generadores de PDF. Otro cuerpo habría
-     emitido sus actas oficiales con la identidad legal de una institución ajena.
-     Eso no es un problema de marca: es un documento que no corresponde a quien lo
-     firma, y en una diligencia oficial eso se cae.
-     Devuelve solo los datos que la institución tenga cargados, separados por " | ";
-     lo que falte simplemente no aparece. */
-  /* Rótulo corto de la app: "CBVPC Reportes", o solo "Reportes" si el cuerpo
-     todavía no tiene sigla. Se usa en el encabezado de cada pantalla. */
-  /* ═══════════ ASISTENTE DE PRIMER ARRANQUE ═══════════
-     Manda los 5 campos al backend, que crea la hoja EN EL DRIVE DEL USUARIO y lo
-     deja de administrador fundador. Solo ocurre una vez por instalación. */
-  /* Trae los catálogos del backend (departamentos, eventos RUE, rangos, cargos,
-     RH) UNA vez y llena los `<select>` que los usan. Así una norma que cambie
-     llega a todos los cuerpos sin tocar el front — el principio de Jeferson:
-     "solo me preocupo por actualizaciones de normativa". */
-  /* ═══════════ VISTA RUE ═══════════
-     Muestra los datos del reporte en el ORDEN EXACTO del formulario del RUE, con
-     un botón de copiar por campo. Quien llena el RUE baja por esta pantalla en
-     paralelo a la otra, sin buscar en papeles ni saltar de un lado a otro.
-
-     ⚠️ NO automatiza el RUE. Se llena a mano, registro por registro (Oracle APEX,
-     verificado en la plataforma real el 30/07). Lo que se elimina es la búsqueda
-     y el error de transcripción, no el tecleo. Prometer más sería mentirle al
-     comandante, y eso se paga con el primer cliente. */
-  /* ═══════════ IMPORTAR PERSONAL DESDE EXCEL ═══════════
-     Reconoce las columnas por su TÍTULO, no por posición: cada cuerpo tiene su
-     Excel con las columnas en otro orden y con otros nombres ("CC", "Documento",
-     "Cédula"...). Exigir un orden fijo sería devolverle el trabajo al comandante. */
-  _COLUMNAS_IMPORT: {
-    nombre:   ['nombre', 'nombres', 'nombre completo', 'apellidos y nombres', 'nombres y apellidos', 'unidad', 'bombero'],
-    apellido: ['apellido', 'apellidos'],
-    cedula:   ['cedula', 'cc', 'documento', 'identificacion', 'nit', 'numero de cedula', 'documento de identidad'],
-    rango:    ['rango', 'grado', 'jerarquia'],
-    telefono: ['telefono', 'celular', 'movil', 'tel'],
-    email:    ['email', 'mail', 'correo', 'correo electronico'],
-    cargo:    ['cargo', 'funcion'],
-    rh:       ['rh', 'sangre', 'tipo de sangre', 'grupo sanguineo', 'hemoclasificacion']
-  },
-
-  /* Normaliza un título de columna: sin tildes, minúsculas, sin puntuación.
-     Así "CÉDULA", "cedula" y "C.C." caen en la misma llave. */
-  _normTitulo(s) {
-    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-  },
-
-  /* Casa un título YA normalizado contra los alias de un campo. Alias de UNA
-     palabra: casa si aparece como token; de VARIAS: como subcadena. Antes se exigía
-     igualdad EXACTA del título completo, y por eso "Cédula (CC)" no casaba con
-     "cedula" y la cédula se perdía. */
-  _tituloCoincide(tituloNorm, alias) {
-    const tokens = tituloNorm.split(' ').filter(Boolean);
-    return alias.some((a) => a.indexOf(' ') !== -1
-      ? tituloNorm.indexOf(a) !== -1
-      : tokens.indexOf(a) !== -1);
-  },
-
-  _parsearPegado(texto) {
-    const lineas = String(texto || '').split(/\r?\n/).filter((l) => l.trim());
-    if (lineas.length < 2) return { error: 'Pegue al menos la fila de títulos y una persona.' };
-
-    // Excel copia separando por TAB. El punto y coma o la coma son respaldo.
-    const sep = lineas[0].indexOf('\t') !== -1 ? '\t' : (lineas[0].indexOf(';') !== -1 ? ';' : ',');
-    const celdas = (l) => l.split(sep).map((c) => c.trim().replace(/^"|"$/g, ''));
-
-    const titulos = celdas(lineas[0]).map((t) => this._normTitulo(t));
-    const mapa = {};
-    Object.keys(this._COLUMNAS_IMPORT).forEach((campo) => {
-      const alias = this._COLUMNAS_IMPORT[campo];
-      const i = titulos.findIndex((t) => t && this._tituloCoincide(t, alias));
-      if (i !== -1) mapa[campo] = i;
-    });
-
-    // Si el roster trae "Apellidos" pero no "Nombres", esa columna ES el nombre.
-    if (mapa.nombre === undefined && mapa.apellido !== undefined) { mapa.nombre = mapa.apellido; delete mapa.apellido; }
-
-    if (mapa.nombre === undefined) {
-      return { error: 'No se encontró una columna de nombres. Títulos detectados: ' +
-                      (titulos.filter(Boolean).join(', ') || '(ninguno)') };
-    }
-
-    const filas = [];
-    for (let i = 1; i < lineas.length; i++) {
-      const c = celdas(lineas[i]);
-      const p = {};
-      Object.keys(mapa).forEach((campo) => { p[campo] = (c[mapa[campo]] || '').trim(); });
-      // "Nombres" + "Apellidos" en columnas DISTINTAS → se unen en el nombre completo.
-      if (p.apellido !== undefined) {
-        if (mapa.apellido !== mapa.nombre) p.nombre = (p.nombre + ' ' + p.apellido).trim().replace(/\s+/g, ' ');
-        delete p.apellido;
-      }
-      if (p.nombre) filas.push(p);
-    }
-    return { filas: filas, columnas: Object.keys(mapa) };
-  },
-
-  previsualizarImportacion() {
-    const cont = document.getElementById('impResumen');
-    const btn = document.getElementById('btnImportarConfirmar');
-    const r = this._parsearPegado(document.getElementById('impPegar').value);
-    this._filasImport = null;
-    btn.style.display = 'none';
-
-    if (r.error) {
-      cont.innerHTML = '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;font-size:13px;">'
-                     + this._esc(r.error) + '</div>';
-      return;
-    }
-
-    this._filasImport = r.filas;
-    const sinCedula = r.filas.filter((p) => !String(p.cedula || '').replace(/\D/g, '')).length;
-
-    let h = '<div style="background:#e8f5e9;padding:10px;border-radius:6px;font-size:13px;">'
-          + '<b>' + r.filas.length + ' personas</b> detectadas.<br>'
-          + 'Columnas reconocidas: <b>' + this._esc(r.columnas.join(', ')) + '</b></div>';
-
-    if (sinCedula) {
-      h += '<div style="background:#fff3e0;padding:10px;border-radius:6px;font-size:12px;margin-top:8px;">'
-         + '⚠️ <b>' + sinCedula + '</b> sin cédula. Entran igual, pero se identifican solo por el nombre: '
-         + 'si dos personas se llaman parecido, el sistema no las puede distinguir.</div>';
-    }
-
-    // Muestra las primeras 5 para que confirme que las columnas quedaron bien.
-    h += '<div style="margin-top:10px;font-size:12px;"><b>Primeras filas:</b><table style="width:100%;border-collapse:collapse;margin-top:4px;">';
-    r.filas.slice(0, 5).forEach((p) => {
-      h += '<tr><td style="border-bottom:1px solid #eee;padding:3px;">' + this._esc(p.nombre) + '</td>'
-         + '<td style="border-bottom:1px solid #eee;padding:3px;color:#666;">' + this._esc(p.cedula || '—') + '</td>'
-         + '<td style="border-bottom:1px solid #eee;padding:3px;color:#666;">' + this._esc(p.rango || 'BOMBERO') + '</td></tr>';
-    });
-    h += '</table></div>';
-    h += '<p style="font-size:11px;color:#666;margin-top:8px;">No se borra ni se pisa nada: '
-       + 'solo se agrega quien todavía no esté en el sistema.</p>';
-
-    cont.innerHTML = h;
-    btn.style.display = '';
-  },
-
-  async confirmarImportacion(btn) {
-    if (!this._filasImport || !this._filasImport.length) return;
-    await this._conBloqueo(btn, 'Importando...', async () => {
-      try {
-        const r = await fetch(_exigirBackend(), {
-          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'importarPersonal', filas: this._filasImport })
-        });
-        const d = await r.json();
-        if (!d || !d.ok) return this.toast((d && d.error) || 'No se pudo importar', 'error');
-
-        let msg = d.agregados + ' agregadas';
-        if (d.duplicados.length) msg += ', ' + d.duplicados.length + ' ya estaban';
-        if (d.rechazados.length) msg += ', ' + d.rechazados.length + ' rechazadas';
-        this.toast(msg, 'exito');
-        this.cerrarModalImportar();
-        this._cargarRosterDesdeHoja().catch(() => {});
-      } catch (e) {
-        this.toast('Sin conexión: ' + e.message, 'error');
-      }
-    });
-  },
-
-  abrirModalImportar() {
-    document.getElementById('impPegar').value = '';
-    document.getElementById('impResumen').innerHTML = '';
-    document.getElementById('btnImportarConfirmar').style.display = 'none';
-    document.getElementById('modalImportar').classList.add('visible');
-  },
-
-  cerrarModalImportar() {
-    document.getElementById('modalImportar').classList.remove('visible');
-  },
-
-  async verVistaRUE(btn) {
-    /* Mismas fuentes que usa el botón "Editar" de al lado: `reporteActual` en la
-       vista normal, `_reporteAdminViendo` en el panel de administrador. */
-    const r = this._reporteAdminViendo || this.reporteActual;
-    if (!r || !r.id) return this.toast('Abra primero un reporte', 'error');
-
-    await this._conBloqueo(btn, 'Preparando...', async () => {
-      try {
-        const resp = await fetch(_exigirBackend(), {
-          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'vistaRUE', id: r.id })
-        });
-        const d = await resp.json();
-        if (!d || !d.ok) return this.toast((d && d.error) || 'No se pudo preparar la vista', 'error');
-        this._pintarVistaRUE(d);
-        document.getElementById('modalRUE').classList.add('visible');
-      } catch (e) {
-        this.toast('Sin conexión: ' + e.message, 'error');
-      }
-    });
-  },
-
-  _pintarVistaRUE(d) {
-    const esc = (v) => this._esc(v == null ? '' : String(v));
-    let h = '';
-
-    if (d.faltantes && d.faltantes.length) {
-      h += '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;margin-bottom:12px;font-size:13px;">'
-         + '<b>⚠️ Faltan datos que el RUE exige:</b><ul style="margin:6px 0 0 18px;">'
-         + d.faltantes.map((f) => '<li>' + esc(f) + '</li>').join('') + '</ul></div>';
-    }
-
-    h += '<div style="background:#fff3e0;border-left:4px solid #e65100;padding:8px 10px;'
-       + 'border-radius:4px;font-size:12px;margin-bottom:14px;">' + esc(d.advertencia) + '</div>';
-
-    const bloque = (titulo, campos) => {
-      let s = '<div style="font-weight:700;margin:14px 0 6px;">' + esc(titulo) + '</div>';
-      campos.forEach((c) => {
-        const alerta = c.aproximado
-          ? '<div style="color:#92400e;font-size:11px;margin-top:3px;">⚠️ ' + esc(c.nota || 'Verifique este dato.') + '</div>'
-          : (c.nota ? '<div style="color:#666;font-size:11px;margin-top:3px;">' + esc(c.nota) + '</div>' : '');
-        s += '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #eee;">'
-           + '<div style="flex:0 0 40%;font-size:12px;color:#444;">' + esc(c.campo)
-           + (c.obligatorio ? ' <span style="color:#c00;">*</span>' : '') + '</div>'
-           + '<div style="flex:1;font-size:13px;"><b>' + (c.valor ? esc(c.valor) : '<span style="color:#999;">(vacío)</span>') + '</b>' + alerta + '</div>'
-           /* data-* en vez de meter el valor dentro del onclick: así un texto con
-              comillas o caracteres raros no rompe el HTML (invariante I10). */
-           + '<button class="btn btn-secundario" style="padding:3px 8px;font-size:11px;" '
-           + 'data-copiar="' + esc(c.valor) + '" onclick="app._copiarCampoRUE(this)">Copiar</button>'
-           + '</div>';
-      });
-      return s;
-    };
-
-    h += bloque('1 · Nueva Emergencia', d.emergencia);
-    h += bloque('2 · Nuevo Detalle Emergencia', d.detalle);
-    // v1.36 (deuda portada de la app de referencia): recursos desplegados con su clase del
-    // RUE (el backend ya la manda; faltaba pintarla). Solo si el reporte trae
-    // vehículos con match en la flota.
-    if (d.recursos && d.recursos.length) h += bloque('3 · Recursos desplegados (clase para el RUE)', d.recursos);
-    document.getElementById('modalRUECuerpo').innerHTML = h;
-  },
-
-  _copiarCampoRUE(btn) {
-    const txt = btn.getAttribute('data-copiar') || '';
-    const listo = () => { const o = btn.textContent; btn.textContent = '✓ Copiado'; setTimeout(() => { btn.textContent = o; }, 1200); };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).then(listo).catch(() => this.toast('No se pudo copiar', 'error'));
-    } else {
-      // Respaldo para WebView antiguo del APK, donde clipboard puede no existir.
-      const ta = document.createElement('textarea');
-      ta.value = txt; document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); listo(); } catch (e) { this.toast('No se pudo copiar', 'error'); }
-      document.body.removeChild(ta);
-    }
-  },
-
-  cerrarModalRUE() {
-    document.getElementById('modalRUE').classList.remove('visible');
-  },
-
-  /* ═══════════ FLOTA DEL CUERPO ═══════════
-     Antes los tres formularios que preguntan "qué vehículo" traían una lista fija
-     con los vehículos de UNA estación. A cualquier otro cuerpo le quedaba mal:
-     elegía entre máquinas que no tiene y no encontraba las suyas.
-     Ahora la lista sale de la hoja `Vehiculos`, que cada cuerpo llena con SU
-     indicativo ("Móvil 1", "M-3", como le digan en la radio) y la clase que
-     entiende el RUE. Se cachea por sesión: se consulta al abrir el primer
-     formulario, no en cada tecla. */
-  async _cargarFlota(forzar) {
-    if (this._flota && !forzar) return this._flota;
-    try {
-      const r = await fetch(_exigirBackend(), {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'listarVehiculos' })
-      });
-      const d = await r.json();
-      if (d && d.ok && Array.isArray(d.vehiculos)) {
-        this._flota = d.vehiculos;
-        this._flotaError = false;
-      } else {
-        /* v1.37 (deuda portada de la app de referencia): el servidor respondió
-           pero sin la lista — NO es lo mismo que "de verdad no hay vehículos".
-           Antes esto se confundía con la flota vacía y "🚒 Vehículos del
-           cuerpo" decía "Todavía no hay vehículos" aunque sí los hubiera. */
-        this._flotaError = true;
-        this._flota = this._flota || [];
-      }
-    } catch (e) {
-      /* Sin señal NO se bloquea el registro de una emergencia: se devuelve vacío
-         y el campo cae a texto libre. Hay cuerpos con zonas sin cobertura por
-         días; una lista que no carga no puede impedir anotar lo que pasó. */
-      this._flotaError = true;   // pero sí se distingue de "de verdad no hay" (ver arriba)
-      this._flota = this._flota || [];
-    }
-    return this._flota;
-  },
-
-  /* Vehículos que se pueden elegir HOY: los de baja o fuera de servicio no se
-     ofrecen (no tiene sentido despachar una máquina varada), pero SIGUEN en la
-     hoja para que los reportes viejos que los nombran se entiendan. */
-  /* v1.47 (PLAN-20260915-01): el PDF saca CLASE y PLACA del catálogo (hoja Vehiculos) por indicativo —
-     dato maestro, no se vuelve a digitar en cada reporte. Cruce exacto y, si no, por prefijo
-     ("Móvil 3 — máquina extintora" → "Móvil 3"; NO confunde Móvil 1 con Móvil 10 porque exige espacio
-     tras el indicativo). Sin flota cargada (sin señal) devuelve null: el PDF nunca se bloquea. */
-  _vehiculoDeRecurso(nombre) {
-    const n = String(nombre || '').trim().toUpperCase();
-    if (!n) return null;
-    const flota = this._flota || [];
-    const exacto = flota.find(v => String(v.indicativo || '').trim().toUpperCase() === n);
-    if (exacto) return exacto;
-    return flota.find(v => { const ind = String(v.indicativo || '').trim().toUpperCase(); return ind && n.indexOf(ind + ' ') === 0; }) || null;
-  },
-
-  _flotaDisponible() {
-    return (this._flota || []).filter(v => v.estado !== 'DE BAJA' && v.estado !== 'FUERA DE SERVICIO');
-  },
-
-  /* Pinta un <select> con la flota. Si el cuerpo todavía no registró vehículos,
-     NO deja el campo inservible: avisa dónde registrarlos y el llamador cae a
-     texto libre. "Sin configurar" es un estado de primera clase, no un error. */
-  _opcionesFlota(valorActual) {
-    const lista = this._flotaDisponible();
-    let html = '<option value="">Vehículo...</option>';
-    lista.forEach(v => {
-      const etiqueta = v.indicativo + (v.clase ? ' — ' + v.clase.toLowerCase() : '');
-      const sel = (valorActual && valorActual === v.indicativo) ? ' selected' : '';
-      html += '<option value="' + app._esc(v.indicativo) + '"' + sel + '>' + app._esc(etiqueta) + '</option>';
-    });
-    // Un vehículo de un reporte viejo que ya no está en la flota no se pierde.
-    if (valorActual && !lista.some(v => v.indicativo === valorActual)) {
-      html += '<option value="' + app._esc(valorActual) + '" selected>' + app._esc(valorActual) + ' (ya no está en la flota)</option>';
-    }
-    html += '<option value="__OTRO__">Otro (escribir)...</option>';
-    return html;
-  },
-
-  _flotaVacia() { return !(this._flota && this._flota.length); },
-
-  /* Modal para elegir UNA opción de una lista. No existía: había modales para
-     pedir texto, contraseña y confirmar, pero no para elegir. I4: nada de
-     prompt() nativo, que en el APK falla en silencio.
-     Devuelve el valor elegido, o null si se cancela — igual que _pedirTexto, para
-     que los llamadores usen el mismo `if (x === null) return;`. */
-  _pedirOpcion(titulo, ayuda, opciones, valorActual) {
-    return new Promise((resolve) => {
-      const modal = document.createElement('div');
-      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-      modal.className = 'modal-js';
-      const ops = (opciones || []).map(o =>
-        '<option value="' + app._esc(o) + '"' + (o === valorActual ? ' selected' : '') + '>' + app._esc(o) + '</option>'
-      ).join('');
-      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
-        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">' + app._esc(titulo || '') + '</div>'
-        + (ayuda ? '<div style="font-size:12px;color:#666;margin-bottom:12px;text-align:center;">' + app._esc(ayuda) + '</div>' : '')
-        + '<select id="_opcSel" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:14px;">' + ops + '</select>'
-        + '<div style="display:flex;gap:10px;">'
-        + '<button id="_opcCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
-        + '<button id="_opcOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Continuar</button>'
-        + '</div></div>';
-      document.body.appendChild(modal);
-      const sel = modal.querySelector('#_opcSel');
-      const fin = (v) => { try { app._cerrarModalJS(modal); } catch(e){} resolve(v); };
-      modal.querySelector('#_opcCancel').onclick = () => fin(null);
-      modal.querySelector('#_opcOk').onclick = () => fin(sel.value || '');
-    });
-  },
-
-  /* ── Regla de sanciones (Panel de Admin) ── */
-
-
-  /* La regla se explica en palabras, no con los nombres internos de los modos.
-     Un comandante tiene que poder leer esto y reconocer (o no) la regla de sus
-     estatutos; "PROGRESIVA, base 2, tope 32" no le dice nada. */
-
-  /* ── Administración de la flota (Panel de Admin) ── */
-
-  async cargarFlotaAdmin(btn) {
-    await this._conBloqueo(btn, 'Cargando...', async () => {
-      await this._cargarFlota(true);       // true = ignorar caché, el admin quiere ver lo actual
-      this._renderFlotaAdmin();
-    });
-  },
-
-  _renderFlotaAdmin() {
-    const cont = document.getElementById('listaFlota');
-    if (!cont) return;
-    const lista = this._flota || [];
-    if (!lista.length) {
-      // v1.37: distingue "no se pudo cargar" de "de verdad no hay vehículos"
-      // (ver _cargarFlota) — antes las dos se veían igual.
-      cont.innerHTML = this._flotaError
-        ? '<div style="color:#c00;font-size:12px;text-align:center;padding:10px;">⚠️ No se pudo cargar la flota. Revise su conexión y toque "🔄 Actualizar".</div>'
-        : '<div style="color:#166534;font-size:12px;text-align:center;padding:10px;opacity:.8;">'
-          + 'Todavía no hay vehículos. Agregue el primero para que aparezca al reportar.</div>';
-      return;
-    }
-    // I5: todo texto libre pasa por _esc. I10: data-* en vez de meter el
-    // indicativo dentro de la cadena del onclick (un apóstrofo lo rompería).
-    cont.innerHTML = lista.map(v => {
-      const fuera = v.estado === 'DE BAJA' || v.estado === 'FUERA DE SERVICIO';
-      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#fff;border-radius:8px;margin-bottom:6px;'
-        + (fuera ? 'opacity:.55;' : '') + '">'
-        + '<div style="min-width:0;">'
-        +   '<strong style="font-size:14px;">' + app._esc(v.indicativo) + '</strong>'
-        +   (fuera ? ' <span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:4px;">' + app._esc(v.estado) + '</span>' : '')
-        +   '<div style="font-size:11px;color:#666;">' + app._esc(v.clase || 'sin clase')
-        +     (v.capacidad ? ' · ' + app._esc(v.capacidad) : '')
-        +     (v.placa ? ' · ' + app._esc(v.placa) : '') + '</div>'
-        + '</div>'
-        + '<div style="display:flex;gap:4px;flex-shrink:0;">'
-        +   '<button data-v="' + app._esc(v.indicativo) + '" onclick="app.agregarVehiculo(this.dataset.v)" title="Editar" style="background:none;border:none;font-size:16px;cursor:pointer;">&#9998;</button>'
-        +   '<button data-v="' + app._esc(v.indicativo) + '" onclick="app.quitarVehiculo(this.dataset.v)" title="Eliminar" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;">&#x2715;</button>'
-        + '</div></div>';
-    }).join('');
-  },
-
-  /* Alta y edición usan el mismo flujo: si llega un indicativo, se precargan sus
-     datos. El backend decide por el indicativo si actualiza o agrega, así que no
-     hace falta un "modo" aparte. */
-  async agregarVehiculo(indicativoExistente) {
-    const cat = await this._cargarCatalogos().catch(() => null);
-    const clases = (cat && cat.clasesVehiculo) ? cat.clasesVehiculo.map(c => c.nombre) : ['OTRO'];
-    const previo = (this._flota || []).find(v => v.indicativo === indicativoExistente) || {};
-
-    const indicativo = await this._pedirTexto(
-      '<div style="text-align:left;font-weight:400;font-size:13px;">Indicativo del vehículo<div style="font-size:11px;color:#666;margin-top:3px;">Como lo nombran en la radio: Móvil 1, M-3, Tanque 2…</div></div>',
-      { placeholder: 'Móvil 1', maxlength: 40, boton: 'Siguiente', valor: previo.indicativo || '' });
-    if (!indicativo || !indicativo.trim()) return;
-
-    const clase = await this._pedirOpcion('Clase del vehículo',
-      'Es lo que entiende el RUE. Si ninguna encaja, elija OTRO.', clases, previo.clase || '');
-    if (clase === null) return;
-
-    const capacidad = await this._pedirTexto(
-      '<div style="text-align:left;font-weight:400;font-size:13px;">Capacidad (opcional)<div style="font-size:11px;color:#666;margin-top:3px;">Ej: 1.000 galones, 500 GPM. Sirve para el inventario de capacidades que pide la DNBC.</div></div>',
-      { placeholder: 'Opcional', maxlength: 60, boton: 'Guardar', valor: previo.capacidad || '' });
-    if (capacidad === null) return;
-
-    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
-    if (!pw) return;
-    try {
-      const r = await fetch(_exigirBackend(), {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'guardarVehiculo', indicativo: indicativo.trim(),
-          clase: clase, capacidad: capacidad, placa: previo.placa || '',
-          estado: previo.estado || 'DISPONIBLE',
-          adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
-      });
-      const d = await r.json();
-      if (!d.ok) throw new Error(d.error || 'No se pudo guardar');
-      this.toast('🚒 ' + d.mensaje, 'exito');
-      await this._cargarFlota(true);
-      this._renderFlotaAdmin();
-    } catch (e) { this.toast('Error: ' + e.message, 'error'); }
-  },
-
-  quitarVehiculo(indicativo) {
-    /* _confirmarAccion recibe un CALLBACK, no devuelve promesa. Se respeta su
-       firma en vez de envolverla: es la que usa el resto del proyecto.
-       Se avisa lo que NO hace: borrar un vehículo no reescribe los reportes
-       viejos que lo nombran. Para una máquina dada de baja conviene más cambiarle
-       el estado que borrarla, y eso hay que decirlo ANTES, no después. */
-    this._confirmarAccion(
-      '¿Eliminar ' + app._esc(indicativo) + '?<div style="font-weight:400;font-size:12px;color:#666;margin-top:8px;">Dejará de aparecer al reportar. Los reportes anteriores que lo nombran NO cambian.</div>',
-      async () => {
-        const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
-        if (!pw) return;
-        try {
-          const r = await fetch(_exigirBackend(), {
-            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ accion: 'eliminarVehiculo', indicativo: indicativo,
-              adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
-          });
-          const d = await r.json();
-          if (!d.ok) throw new Error(d.error || 'No se pudo eliminar');
-          this.toast(d.mensaje, 'exito');
-          await this._cargarFlota(true);
-          this._renderFlotaAdmin();
-        } catch (e) { this.toast('Error: ' + e.message, 'error'); }
-      });
-  },
-
-  /* Llena un <select> ya existente en el HTML con la flota. Si el cuerpo todavía
-     no registró vehículos, deja una opción que lo DICE en vez de un desplegable
-     vacío que parece roto — y el campo de al lado sigue aceptando texto libre,
-     así que nadie queda bloqueado por no haber configurado la flota. */
-  poblarSelectFlota(idSelect, valorActual) {
-    const sel = document.getElementById(idSelect);
-    if (!sel) return;
-    if (this._flotaVacia()) {
-      sel.innerHTML = '<option value="">Sin vehículos registrados — agrégalos en el Panel</option>';
-      return;
-    }
-    sel.innerHTML = this._opcionesFlota(valorActual);
-  },
-
-  async _cargarCatalogos() {
-    if (this._catalogos) return this._catalogos;   // ya se trajeron esta sesión
-    const r = await fetch(_exigirBackend(), {
-      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'obtenerCatalogos' })
-    });
-    const d = await r.json();
-    if (!d || !d.ok) throw new Error('No se pudieron cargar los catálogos.');
-    this._catalogos = d;
-
-    const sel = document.getElementById('inst_departamento');
-    if (sel && d.departamentos) {
-      d.departamentos.forEach((dep) => {
-        const o = document.createElement('option');
-        o.value = dep; o.textContent = dep;   // textContent: nunca innerHTML con datos externos
-        sel.appendChild(o);
-      });
-    }
-    return d;
-  },
-
-  /* ═══ PERMISO SOBRE EL DRIVE DEL COMANDANTE ═══
-
-     Devuelve un token de ACCESO (no el de identidad) con permiso para crear archivos.
-
-     POR QUÉ HACE FALTA. El backend corre como quien publicó la app, así que todo lo que
-     crea nace en el Drive de ESA cuenta. Se intentó arreglarlo transfiriendo la
-     propiedad después, y Google lo rechazó con un 403 explícito:
-     «Consent is required to transfer ownership of a file to another user» — la
-     propiedad no se puede empujar, el destinatario tiene que aceptarla, y eso obliga a
-     salir de la app a leer un correo.
-
-     Con este token la hoja NACE siendo del comandante. No hay traspaso que rechazar.
-
-     El permiso pedido es `drive.file`: la app solo alcanza los archivos que ella misma
-     crea. Es el más angosto que sirve, y es literalmente lo que la pantalla promete.
-
-     Se pide en el momento de instalar y no al iniciar sesión, a propósito: así el
-     comandante ve la ventana de permisos cuando ya entiende para qué es —está creando
-     la base de datos de su cuerpo— y no como un obstáculo antes de haber visto nada. */
-  _pedirPermisoDrive() {
-    return new Promise((resolve) => {
-      try {
-        if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-          return resolve({ ok: false, motivo: 'La librería de Google no cargó. Revise su conexión.' });
-        }
-        const cliente = google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_CLIENT_ID,
-          scope: 'https://www.googleapis.com/auth/drive.file',
-          callback: (resp) => {
-            if (resp && resp.access_token) resolve({ ok: true, token: resp.access_token });
-            else resolve({ ok: false, motivo: 'No se recibió el permiso.' });
-          },
-          error_callback: (e) => {
-            /* El comandante puede cerrar la ventana. No es un error del sistema: es una
-               decisión suya, y el mensaje tiene que decirle qué pasa si no lo da. */
-            const t = (e && e.type) || '';
-            resolve({ ok: false, motivo: t === 'popup_closed'
-              ? 'Cerró la ventana de permisos.'
-              : 'No se pudo pedir el permiso (' + t + ').' });
-          }
-        });
-        cliente.requestAccessToken();
-      } catch (e) { resolve({ ok: false, motivo: e.message }); }
-    });
-  },
-
-  async instalarCuerpo(btn) {
-    const err = document.getElementById('instError');
-    const mostrarError = (m) => { err.textContent = m; err.style.display = 'block'; };
-    err.style.display = 'none';
-
-    const datos = {
-      accion: 'configurarInstitucion',
-      nombre: document.getElementById('inst_nombre').value.trim(),
-      departamento: document.getElementById('inst_departamento').value.trim(),
-      municipio: document.getElementById('inst_municipio').value.trim(),
-      tipo: document.getElementById('inst_tipo').value,
-      sigla: document.getElementById('inst_sigla').value.trim(),
-      // Opcional: si queda vacío, los PDF simplemente no llevan lema — mejor eso
-      // que llevar el de otra estación.
-      lema: (document.getElementById('inst_lema') || {}).value ? document.getElementById('inst_lema').value.trim() : '',
-      // Se manda la contraseña de administrador que el comandante acaba de definir.
-      // El backend la escribe UNA sola vez, en la instalación inicial (ver configurarInstitucion).
-      adminPassword: (document.getElementById('inst_pwd') || {}).value || ''
-    };
-
-    // Se valida acá para dar respuesta inmediata, pero el backend vuelve a validar:
-    // el front nunca es la autoridad.
-    if (datos.nombre.length < 5)   return mostrarError('Escriba el nombre completo del cuerpo de bomberos.');
-    if (!datos.departamento)       return mostrarError('Falta el departamento.');
-    if (!datos.municipio)          return mostrarError('Falta el municipio.');
-
-    /* Contraseña de administrador. Se valida acá para dar respuesta inmediata; el
-       backend la vuelve a exigir, que es donde manda. Se comprueba ANTES de tocar el
-       servidor: hacer que el comandante espere una llamada de red para que le digan
-       que escribió mal la confirmación es maltratarlo en el peor momento —
-       el primer arranque. */
-    const _p1 = (document.getElementById('inst_pwd') || {}).value || '';
-    const _p2 = (document.getElementById('inst_pwd2') || {}).value || '';
-    if (_p1.length < 6)  return mostrarError('La contraseña de administrador debe tener al menos 6 caracteres.');
-    if (_p1 !== _p2)     return mostrarError('Las dos contraseñas no coinciden. Escríbalas de nuevo.');
-
-    /* ═══ EL PERMISO SE PIDE ACÁ, ANTES DE TOCAR EL SERVIDOR ═══
-       Si se pidiera después, una negativa dejaría el cuerpo a medio crear en el
-       servidor y la hoja en el Drive equivocado. Primero el permiso; si no lo da,
-       no se creó nada y puede volver a intentar. */
-    const permiso = await this._pedirPermisoDrive();
-    if (!permiso.ok) {
-      return mostrarError(permiso.motivo + ' Sin ese permiso la base de datos de su cuerpo ' +
-        'no puede crearse en SU Google Drive. Toque otra vez para reintentar.');
-    }
-    datos.driveToken = permiso.token;
-
-    // I4: nada de confirm() nativo. El bloqueo anti-doble-click es obligatorio —
-    // dos toques acá intentarían crear dos bases de datos.
-    await this._conBloqueo(btn, 'Creando la base de datos...', async () => {
-      try {
-        const r = await fetch(_exigirBackend(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(datos)
-        });
-        const d = await r.json();
-        if (!d || !d.ok) return mostrarError((d && d.error) || 'No se pudo crear la base de datos.');
-
-        this._pintarInstitucion({
-          nombre: datos.nombre, sigla: datos.sigla || '', municipio: datos.municipio,
-          departamento: datos.departamento, tipo: datos.tipo
-        });
-        if (this.usuario) { this.usuario.esSuperAdmin = !!d.fundador; this.usuario.esAdminSrv = true; }
-
-        this.toast('Base de datos creada. Ya puede empezar.', 'exito');
-        this.actualizarUIUsuario();
-        this.irA('pantallaHome');
-        await this.actualizarHome();
-      } catch (e) {
-        mostrarError('No se pudo conectar con el servidor: ' + e.message);
-      }
-    });
-  },
-
-  _rotuloApp() {
-    const s = this._inst().sigla;
-    return (s ? s + ' ' : '') + 'Reportes';
-  },
-
-  /* Institución cacheada. Devuelve SIEMPRE un objeto, nunca null, para que los
-     membretes puedan hacer `app._inst().nit` sin reventar en instalación nueva. */
-  _inst() {
-    try { return JSON.parse(localStorage.getItem('inst_cuerpo') || 'null') || {}; }
-    catch (e) { return {}; }
-  },
-
-  _membrete() {
-    const i = this._inst();
-    if (!i.nit && !i.telefono && !i.direccion) return '';
-    const partes = [];
-    if (i.nit)       partes.push('NIT: ' + i.nit);
-    if (i.telefono)  partes.push('Tel. ' + i.telefono);
-    if (i.direccion) partes.push(i.direccion);
-    return this._esc(partes.join('  |  '));
-  },
-
-  _municipioPorDefecto() {
-    try {
-      const i = JSON.parse(localStorage.getItem('inst_cuerpo') || 'null');
-      return (i && i.municipio) ? String(i.municipio) : '';
-    } catch (e) { return ''; }
-  },
-
-  _pintarInstitucion(inst) {
-    if (inst && inst.nombre) {
-      try { localStorage.setItem('inst_cuerpo', JSON.stringify(inst)); } catch (e) {}
-    } else {
-      try { inst = JSON.parse(localStorage.getItem('inst_cuerpo') || 'null'); } catch (e) { inst = null; }
-    }
-    if (!inst) return;
-
-    const nombre = String(inst.nombre || '');
-    const sigla  = String(inst.sigla || '');
-    const rotulo = (sigla ? sigla + ' ' : '') + 'Reportes';
-
-    // Textos marcados con data-inst="clave"
-    document.querySelectorAll('[data-inst]').forEach((el) => {
-      const k = el.getAttribute('data-inst');
-      const v = (k === 'app') ? rotulo : String(inst[k] || '');
-      if (v) el.textContent = v;
-    });
-
-    // Valores por defecto de formulario (ej. municipio del reporte).
-    // Solo si el campo está vacío: nunca pisar lo que el bombero escribió.
-    document.querySelectorAll('[data-inst-valor]').forEach((el) => {
-      const k = el.getAttribute('data-inst-valor');
-      if (!el.value && inst[k]) el.value = String(inst[k]);
-    });
-
-    const ponTexto = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
-    ponTexto('headerTitulo', rotulo);
-    ponTexto('headerSubtitulo', nombre);
-    ponTexto('loginTitulo', rotulo);
-    ponTexto('loginCuerpo', nombre);
-
-    document.title = nombre ? (rotulo + ' — ' + nombre) : rotulo;
-
-    NOMBRE_ESTACION = sigla || nombre;
-    if (inst.telefono) TELEFONO_ESTACION = String(inst.telefono);
+    return String((this.usuario && this.usuario.email) || '').toLowerCase().trim() === 'gilrangeljeancarlosjeferson@gmail.com';
   },
 
   // v6.07: `btn` opcional, mismo criterio que cargarEstadoPins — el botón
@@ -4687,7 +3562,7 @@ const app = {
     });
   },
 
-  /* ═══ v1.35: UNIDADES VINCULADAS — quién usa la app, y bloquear/desbloquear ═══
+  /* ═══ v6.31: UNIDADES VINCULADAS — quién usa la app, y bloquear/desbloquear ═══
      Mismo patrón que Administradores (arriba): _conBloqueo anti-doble-click,
      app.confirmar() en vez de confirm() nativo (I4), data-* en vez de IDs
      escapados en el onclick (I10), _esc() en todo lo que viene del servidor (I5). */
@@ -4703,7 +3578,7 @@ const app = {
       const d = await resp.json();
       if (!d.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
       if (!d.unidades || !d.unidades.length) {
-        cont.innerHTML = '<div style="font-size:11px;color:#999;padding:8px;">Todavía no hay nadie vinculado a este cuerpo.</div>';
+        cont.innerHTML = '<div style="font-size:11px;color:#999;padding:8px;">Todavía nadie ha iniciado sesión en la app.</div>';
         return;
       }
       const miCorreo = String((this.usuario&&this.usuario.email)||'').toLowerCase().trim();
@@ -4827,7 +3702,7 @@ const app = {
         if (!d.ok) { this._pinsData = null; cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
         if (!d.personal || !d.personal.length) { this._pinsData = null; cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Sin personal activo.</div>'; return; }
         // Se guarda en memoria para poder filtrar SIN volver a pedirle al servidor:
-        // con enlaces lentos cada consulta de más se paga en segundos de espera.
+        // en Inírida cada consulta de más se paga en segundos de espera.
         this._pinsData = d;
         this._pintarEstadoPins();
       } catch (e) {
@@ -4932,7 +3807,7 @@ const app = {
   /* ═══════ v6.00: BANDEJA DE ALTAS PENDIENTES AL ROSTER ═══════
      Cuando una actividad la registra alguien que NO es administrador, el
      personal nuevo que aparece ahí no puede entrar solo a la base (escribir en
-     Personal es acción de admin desde v5.69, y así debe seguir). Hasta
+     Personal_CBVI es acción de admin desde v5.69, y así debe seguir). Hasta
      v5.93 esa alta simplemente se perdía en silencio: la persona quedaba
      "desconocida" para el autocompletado y para el aviso anti-typos, sin que
      nadie se enterara. Ahora el backend la deja en una bandeja y vos decidís.
@@ -4988,7 +3863,7 @@ const app = {
           </div>`;
       }).join('');
       wrap.style.display = 'block';
-      this._animarEntradaLista(cont);   // v1.41: las altas pendientes entran escalonadas
+      this._animarEntradaLista(cont);   // v6.36: las altas pendientes entran escalonadas
     } catch (e) {
       wrap.style.display = 'none';
     }
@@ -5012,7 +3887,7 @@ const app = {
         this.toast('✅ ' + (data.mensaje || nombre + ' quedó en el roster'), 'exito');
         await this.cargarPersonalPendiente();
       } catch (e) {
-        /* v6.01: la orden PUDO haber llegado igual. Con una red intermitente pasa:
+        /* v6.01: la orden PUDO haber llegado igual. Con la red de Inírida pasa:
            el backend ejecuta y la respuesta se corta en el camino, así que el
            teléfono muestra "Failed to fetch" sobre algo que sí funcionó. Antes
            eso te empujaba a apretar de nuevo. Ahora se recarga la bandeja y ves
@@ -5085,7 +3960,7 @@ const app = {
         return;
       }
       this.renderizarListaAdmin();
-      this._animarEntradaLista(cont);   // v1.41: las tarjetas entran escalonadas al cargar (no al filtrar)
+      this._animarEntradaLista(cont);   // v6.36: las tarjetas entran escalonadas al cargar (no al filtrar)
     } catch (e) {
       { const _d=document.createElement("div"); _d.style.cssText="padding:20px;color:#c00;"; _d.textContent="Error de red: "+(e.message||"")+". Verifica tu conexión."; cont.innerHTML=""; cont.appendChild(_d); }
     }
@@ -5199,12 +4074,12 @@ const app = {
     // Mostrar el panel de visualización
     document.getElementById('listaReportesAdminWrap').style.display = 'none';
     document.getElementById('panelAdminViendo').style.display = 'block';
-    this._animarEntrada(document.getElementById('panelAdminViendo'));
+    this._animarEntrada(document.getElementById('panelAdminViendo'));   // v6.11
     const cont = document.getElementById('panelAdminViendoContenido');
     cont.innerHTML = app._cargador('Cargando el reporte completo…');
 
     // Descargar reporte completo. v5.94: si la descarga falla (auth intermitente
-    // o red caída) NO mostramos el stub pobre del mapa como si fuera
+    // o red caída en Inírida) NO mostramos el stub pobre del mapa como si fuera
     // el reporte real — eso era el "reporte vacío" que confundía. Mostramos un
     // aviso claro con botón de reintento, sin dejar el detalle a medias.
     const rCompleto = await this._descargarReporteCompletoAdmin(idReporte);
@@ -5214,7 +4089,7 @@ const app = {
         + '<div style="font-size:40px;">⚠️</div>'
         + '<div style="margin-top:8px;font-weight:700;">No se pudo cargar el reporte completo</div>'
         + '<div style="font-size:13px;color:#666;margin-top:6px;">Puede ser la conexión o que la sesión de administrador expiró. Intenta de nuevo.</div>'
-        + '<button data-id="' + _cid + '" onclick="app.verReporteAdmin(this.dataset.id)" style="margin-top:14px;padding:10px 18px;background:#6e2fa0;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>'
+        + '<button data-id="' + _cid + '" onclick="app.verReporteAdmin(this.dataset.id)" style="margin-top:14px;padding:10px 18px;background:#d81f27;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>'
         + '</div>';
       this._reporteAdminViendo = null;
       return;
@@ -5231,14 +4106,14 @@ const app = {
     // Renderizar contenido
     cont.innerHTML = this._renderDetalleReporteAdmin(r);
 
-    // Cargar chips del personal que participó (asíncrono, no bloquea render)
+    // Cargar chips de bomberos para bonificaciones (asíncrono, no bloquea render)
     this._cargarBomberosBonifAdmin(r.id);
   },
 
   cerrarVistaAdmin() {
     document.getElementById('panelAdminViendo').style.display = 'none';
     document.getElementById('listaReportesAdminWrap').style.display = 'block';
-    this._animarEntrada(document.getElementById('listaReportesAdminWrap'));
+    this._animarEntrada(document.getElementById('listaReportesAdminWrap'));   // v6.11
     this._reporteAdminViendo = null;
   },
 
@@ -5391,9 +4266,9 @@ const app = {
         </div>
       `)}
 
-      ${card('🧑‍🚒 Personal que participó en el incidente', `
+      ${card('💰 Bonificaciones — bomberos que participaron', `
         <div style="font-size:12px;color:#555;background:#f0f7ff;padding:8px;border-radius:4px;margin-bottom:10px;border:1px solid #b0cfe0;">
-          Lista del personal registrado en la hoja <em>Personal_por_Incidente</em>
+          Lista de bomberos registrados en la hoja <em>Bonificaciones</em>
           para este reporte. Para agregar o quitar bomberos usa <strong>✏️ Editar</strong>.
         </div>
         <div id="adminBonifChips_${r.id}" style="min-height:36px;display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f8f8f8;border:1px solid #e5e5e5;border-radius:6px;">
@@ -5403,7 +4278,7 @@ const app = {
     `;
   },
 
-  // Carga la lista del personal registrado para un informe
+  // Carga la lista de bomberos registrados en Bonificaciones para un reporte
   // y la pinta como chips dentro del contenedor adminBonifChips_<id>.
   async _cargarBomberosBonifAdmin(idReporte) {
     const cont = document.getElementById('adminBonifChips_' + idReporte);
@@ -5413,7 +4288,7 @@ const app = {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          accion: 'listarPersonalIncidente',
+          accion: 'listarBomberosBonificacion',
           adminEmail: this.usuario.email,
           adminPassword: this._adminPwdSession || '',
           pase: this._pase || '',            // v5.94: identidad firmada (ver obtenerReporteCompleto)
@@ -5458,8 +4333,8 @@ const app = {
     }
   },
 
-  // Agrega UN bombero a la participación del informe
-  async agregarPersonalIncidenteAdmin(btn, idReporte) {
+  // Agrega UN bombero a Bonificaciones del reporte
+  async agregarBomberoBonifAdmin(btn, idReporte) {
     const inp = document.getElementById('adminBonifInput_' + idReporte);
     if (!inp) return;
     const nombre = (inp.value || '').trim();
@@ -5470,7 +4345,7 @@ const app = {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          accion: 'agregarPersonalIncidente',
+          accion: 'agregarBomberoBonificacion',
           adminEmail: this.usuario.email,
           adminPassword: this._adminPwdSession || '',
           idReporte: idReporte,
@@ -5502,9 +4377,9 @@ const app = {
     });
   },
 
-  // Quita UN bombero específico de la participación del informe
+  // Quita UN bombero específico de Bonificaciones del reporte
   async quitarBomberoBonifAdmin(btn, idReporte, nombre) {
-    const ok = await this.confirmar('Quitar bombero', `¿Quitar a "${nombre}" de la participación en este incidente?`);
+    const ok = await this.confirmar('Quitar bombero', `¿Quitar a "${nombre}" de las bonificaciones de este reporte?`);
     if (!ok) return;
     await this._conBloqueo(btn, 'Quitando...', async () => {
     try {
@@ -5512,7 +4387,7 @@ const app = {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          accion: 'quitarPersonalIncidente',
+          accion: 'quitarBomberoBonificacion',
           adminEmail: this.usuario.email,
           adminPassword: this._adminPwdSession || '',
           idReporte: idReporte,
@@ -5567,7 +4442,6 @@ const app = {
     // Cambiar UI a modo edición admin
     this._aplicarUIEdicionAdmin(true, r);
 
-    this._cargarFlota();   // el editor también pinta el <select> de vehículos
     this.irA('pantallaForm');
   },
 
@@ -5795,7 +4669,7 @@ const app = {
   cancelarEdicionAdmin() {
     document.getElementById('panelAdminEditando').style.display = 'none';
     document.getElementById('listaReportesAdminWrap').style.display = 'block';
-    this._animarEntrada(document.getElementById('listaReportesAdminWrap'));
+    this._animarEntrada(document.getElementById('listaReportesAdminWrap'));   // v6.11
     this._reporteAdminEditando = null;
   },
 
@@ -5948,19 +4822,8 @@ const app = {
     return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1600';
   },
 
-  // El logo que va en los PDF: el escudo que subió el cuerpo (Panel Admin);
-  // si no subió ninguno, la cruz de bombero por defecto. LOGO_BIG solo existe
-  // en la estación de origen (vive en su logos.js); acá nace indefinido, por eso
-  // el escudo manda y la cruz roja es el respaldo. Es una data-URL: se embebe
-  // directo en <img> y en la marca de agua sin llamar a la red.
-  _logoImpresion() {
-    return (this._inst().escudoUrl || '')
-        || ((typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '')
-        || this._CRUZ_ROJA;
-  },
-
   // Espera a que TODAS las imágenes de la ventana de impresión carguen
-  // (máximo 10 s, pensado para enlaces lentos) antes de imprimir.
+  // (máximo 10 s, pensado para el internet de Inírida) antes de imprimir.
   _imprimirCuandoCarguenImagenes(ventana, maxMs) {
     const imgs = Array.from(ventana.document.images || []);
     const esperas = imgs.map(img => new Promise(res => {
@@ -5972,6 +4835,772 @@ const app = {
     Promise.race([Promise.all(esperas), tope]).then(() => {
       setTimeout(() => { try { ventana.focus(); ventana.print(); } catch (e) { console.warn(e); } }, 300);
     });
+  },
+
+  /* ═══════════════ ESCUDO DEL CUERPO (subible desde el Panel) ═══════════════
+     Reemplaza el logo por defecto (LOGO_SMALL en header/login, LOGO_BIG en el
+     PDF) por uno que sube el admin. Se guarda en la hoja del cuerpo (Config_CBVI)
+     y se cachea en localStorage para pintarlo al instante y aun sin señal. */
+  _escudoActual() {
+    try { return localStorage.getItem('cbvi_escudo') || ''; } catch (e) { return ''; }
+  },
+
+  /* Pinta el logo del header y del login: el escudo subido si hay, si no el
+     LOGO_SMALL de siempre. Reutilizable para refrescar al instante. */
+  _pintarLogos() {
+    const escudo = this._escudoActual();
+    const def = (typeof LOGO_SMALL !== 'undefined') ? LOGO_SMALL : '';
+    ['logoHeader', 'logoLogin'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.src = escudo || def;
+    });
+  },
+
+  _pintarEscudoPanel() {
+    const escudo = this._escudoActual();
+    const def = (typeof LOGO_BIG !== 'undefined') ? LOGO_BIG
+              : ((typeof LOGO_SMALL !== 'undefined') ? LOGO_SMALL : '');
+    const prev = document.getElementById('escudoPreview');
+    if (prev) prev.src = escudo || def;
+    const btn = document.getElementById('btnQuitarEscudo');
+    if (btn) btn.style.display = escudo ? 'block' : 'none';
+  },
+
+  /* El logo que va en los PDF: el escudo subido si hay, si no LOGO_BIG. */
+  _logoImpresion() {
+    return this._escudoActual() || ((typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '');
+  },
+
+  /* Toma el archivo, lo REDUCE en el navegador a máx 180px y lo manda como PNG
+     (conserva transparencia). Reducir acá evita mandar 5MB y mantiene la imagen
+     chica para que quepa en una celda de la hoja (~50KB). */
+  _procesarEscudo(input) {
+    const file = input.files && input.files[0];
+    input.value = '';   // permite volver a elegir el mismo archivo
+    if (!file) return;
+    if (String(file.type).indexOf('image/') !== 0) { this.toast('Elija una imagen (PNG o JPG).', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 180;
+        let w = img.width, h = img.height;
+        if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        let dataUrl;
+        try { dataUrl = c.toDataURL('image/png'); } catch (err) { this.toast('No se pudo procesar la imagen.', 'error'); return; }
+        // Si el PNG sale muy grande (foto con muchos colores), se recomprime en JPEG.
+        if (dataUrl.length > 46000) { try { dataUrl = c.toDataURL('image/jpeg', 0.85); } catch (e2) {} }
+        if (dataUrl.length > 46000) { this.toast('La imagen es muy compleja. Use uno más simple o recórtelo.', 'error'); return; }
+        this._subirEscudo(dataUrl);
+      };
+      img.onerror = () => this.toast('No se pudo leer la imagen.', 'error');
+      img.src = e.target.result;
+    };
+    reader.onerror = () => this.toast('No se pudo leer el archivo.', 'error');
+    reader.readAsDataURL(file);
+  },
+
+  async _subirEscudo(dataUrl) {
+    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+    if (!pw) return;
+    this.toast('Guardando el escudo...', 'info');
+    try {
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'guardarEscudo', escudo: dataUrl, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const d = await r.json();
+      if (!d.ok) { this.toast(d.error || 'No se pudo guardar.', 'error'); return; }
+      this._aplicarEscudo(d.escudoUrl || '');
+      this.toast('✅ Escudo actualizado.', 'exito');
+    } catch (e) { this.toast('Sin conexión: no se pudo guardar el escudo.', 'error'); }
+  },
+
+  async quitarEscudo() {
+    const ok = await this.confirmar('Quitar escudo', '¿Volver al escudo por defecto de la estación?');
+    if (!ok) return;
+    this._subirEscudo('');   // vacío = quitar
+  },
+
+  /* Cachea el escudo y refresca la UI al instante — header, login y el preview
+     del Panel — sin recargar. */
+  _aplicarEscudo(escudoUrl) {
+    try { localStorage.setItem('cbvi_escudo', escudoUrl || ''); } catch (e) {}
+    this._pintarLogos();
+    this._pintarEscudoPanel();
+    if (this.pantallaActual === 'pantallaAcercaDe') this._pintarAcercaDe();
+  },
+
+  /* Pinta la pantalla Acerca de: la versión y el logo (el escudo subido si hay,
+     si no el LOGO_BIG por defecto de la estación). */
+  _pintarAcercaDe() {
+    const v = document.getElementById('acercaVersion');
+    if (v) v.textContent = (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '');
+    const cont = document.getElementById('acercaLogo');
+    if (cont) {
+      const esc = this._escudoActual() || ((typeof LOGO_BIG !== 'undefined') ? LOGO_BIG : '');
+      cont.innerHTML = esc ? '<img src="' + esc + '" alt="" style="width:76px;height:76px;border-radius:16px;object-fit:contain;">' : '';
+    }
+    const btn = document.getElementById('btnVideoTutorial');
+    if (btn) {
+      const hay = typeof URL_TUTORIAL_VIDEO !== 'undefined' && URL_TUTORIAL_VIDEO;
+      btn.textContent = hay ? '🎬 Ver tutorial en video' : '🎬 Video: próximamente';
+      btn.style.opacity = hay ? '' : '0.6';
+    }
+    // v6.31: el tour de administrador solo se ofrece a quien lo es.
+    const btnTA = document.getElementById('btnTourAdmin');
+    if (btnTA) btnTA.style.display = this.esAdmin() ? 'block' : 'none';
+  },
+
+  abrirVideoTutorial() {
+    const url = (typeof URL_TUTORIAL_VIDEO !== 'undefined') ? URL_TUTORIAL_VIDEO : '';
+    if (!url) { this.toast('El video estará disponible pronto.', 'info'); return; }
+    try { window.open(url, '_blank', 'noopener'); } catch (e) { location.href = url; }
+  },
+
+  /* ═══ Tour interactivo "Bitácora de Guardia" (v6.31, portado del Producto) ═══
+     La app navega de verdad con irA(); un anillo dorado (#tourAnillo) señala el
+     elemento real y un panel inferior (#tourPanel) narra cada paso, sin
+     oscurecer el resto de la pantalla. #tourCatcher absorbe los toques sobre la
+     app real mientras el tour está activo, para que ninguna acción real se
+     dispare por accidente (Regla 1).
+     Adaptado a lo que Inírida SÍ tiene y el Producto no (Asistencia, Deudores),
+     y SIN lo que el Producto sí tiene y acá no existe (invitar por link/QR,
+     solicitudes de ingreso: acá el personal se carga por Excel, no por
+     auto-registro). "Quién opera"/relevo SÍ mantiene el lenguaje de guardia:
+     acá es una estación real con turnos de guardia de verdad (a diferencia del
+     Producto, donde ese lenguaje no aplicaba). */
+  _ofrecerTour() {
+    const esAdm = this.esAdmin();
+    // v6.31: dos tours separados con su propia bandera — quien entró como
+    // unidad y luego se volvió admin recibe la oferta del tour de admin una
+    // sola vez, sin repetirle el básico que ya vio.
+    const clave = esAdm ? 'app_tour_visto_admin' : 'app_tour_visto_operativo';
+    if (this._tourActivo) return;
+    try { if (localStorage.getItem(clave)) return; } catch (e) { return; }
+    try { localStorage.setItem(clave, '1'); } catch (e) {}
+    setTimeout(() => { try { this._preguntarTour(esAdm ? 'admin' : 'no_admin'); } catch (e) {} }, 700);
+  },
+
+  _preguntarTour(rol) {
+    const esAdm = rol === 'admin';
+    const m = document.createElement('div');
+    m.className = 'cbvi-modal-js';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(26,21,18,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;';
+    m.innerHTML = '<div style="background:#fff;border-radius:var(--radio-lg);padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:var(--sombra-fuerte);border-top:4px solid var(--oro);">'
+      + '<div style="font-size:38px;">' + (esAdm ? '🛡️' : '🚒') + '</div>'
+      + '<div style="font-family:var(--disp);font-size:17px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;color:var(--rojo);margin:8px 0 4px;">¡Bienvenido' + (esAdm ? ', administrador' : '') + '!</div>'
+      + '<div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:18px;">¿Quiere un recorrido interactivo por la app' + (esAdm ? ', enfocado en lo que solo usted administra' : '') + '? Se mueve por las pantallas reales y lo puede saltar cuando quiera.</div>'
+      + '<button id="_tourVer" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:var(--radio);padding:13px;font-weight:700;cursor:pointer;font-size:15px;margin-bottom:8px;font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;">▶️ Ver recorrido</button>'
+      + '<button id="_tourNo" style="width:100%;background:#f5f5f5;color:#555;border:none;border-radius:var(--radio);padding:11px;font-weight:700;cursor:pointer;font-size:13px;">Omitir</button>'
+      + '<div style="font-size:11px;color:#999;margin-top:12px;">Siempre puede verlo de nuevo en <b>ℹ️ Acerca de</b>.</div>'
+      + '</div>';
+    document.body.appendChild(m);
+    const cerrar = () => { try { app._cerrarModalJS(m); } catch (e) {} };
+    m.querySelector('#_tourNo').onclick = cerrar;
+    m.querySelector('#_tourVer').onclick = () => { cerrar(); this.mostrarTour(rol); };
+  },
+
+  /* Guion del tour para unidades SIN permisos admin. Todo dentro de Inicio +
+     Configuración (ambas sin efectos reales): no navega a pantallaForm ni al
+     detalle de un incidente porque abrirlos de verdad exige efectos reales
+     (nuevoReporte() pide GPS, el detalle necesita un incidente real) que el
+     tour no debe disparar (Regla 1). */
+  _TOUR_NO_ADMIN: [
+    { id: 'nuevo-incidente', pantalla: 'pantallaHome', selector: '[data-tour="cta-nuevo-incidente"]', icono: '🚨', titulo: 'Nuevo incidente', texto: 'Registra un incidente oficial: clasificación, ubicación por GPS automático, recursos, víctimas y firmas en 13 secciones con barra de avance. Sin señal igual queda guardado y se envía solo cuando vuelva a tener señal.' },
+    { id: 'contadores', pantalla: 'pantallaHome', selector: '[data-tour="stats-home"]', icono: '🔢', titulo: 'Sus contadores', texto: 'Total es todo lo que usted ha registrado. Pendientes es lo que guardó sin señal — se envía solo, o lo puede forzar desde Configuración. Enviados ya quedó en el servidor.' },
+    { id: 'informes', pantalla: 'pantallaHome', selector: '[data-tour="informes-recientes"]', icono: '🧾', titulo: 'Incidentes recientes', texto: 'Toque cualquiera para ver su detalle: ahí imprime el PDF oficial, ve el resumen listo para copiar al RUE, o lo edita durante las primeras 24 horas. Cada quien ve solo sus propios incidentes.' },
+    { id: 'actividades', pantalla: 'pantallaHome', selector: '[data-tour="fila-registrar"]', icono: '🎯', titulo: 'Nueva actividad', texto: 'Acá registra lo que no es un incidente: capacitaciones, entrenamientos, jornadas. La asistencia de los domingos la registra el administrador, en 📅 Asistencia.' },
+    { id: 'config-perfil', pantalla: 'pantallaConfig', selector: '[data-tour="config-perfil"]', icono: '👤', titulo: 'Su perfil', texto: 'Por el avatar de arriba a la derecha llega aquí: corrija su nombre, grado, cédula y teléfono, elija el diseño de la app, y sincronice sus incidentes pendientes cuando quiera.' },
+    { id: 'ayuda', pantalla: 'pantallaHome', selector: '[data-tour="ayuda-home"]', icono: '📖', titulo: 'Manual y ayuda', texto: 'Manual explica cada pantalla paso a paso, Cómo funciona cuenta dónde viven sus datos, y Bases legales reúne la norma nacional que respalda cada informe.' },
+    { id: 'cierre', pantalla: 'pantallaHome', selector: '[data-tour="lema-home"]', icono: '🎖️', titulo: 'Listo para operar', texto: 'Operatividad, Deudores, Mapa, Asistencia y Panel de administrador quedan solo para su administrador. Ya conoce lo que necesita para trabajar.' }
+  ],
+
+  /* Guion del tour para administradores. Más largo a propósito: es quien
+     necesita entender TODO el sistema, incluido lo exclusivo de Inírida
+     (Asistencia de guardia, Deudores de sanción) que el Producto no tiene.
+     Entra al Panel Admin navegando directo (irA), SIN pedir la contraseña ni
+     firmar: eso es un candado real que el tour no debe destrabar por su
+     cuenta. Las tarjetas se ven vacías/con datos viejos hasta que se abre el
+     Panel de verdad — no rompe nada, solo no fuerza una apertura real. */
+  _TOUR_ADMIN: [
+    { id: 'bienvenida-admin', pantalla: 'pantallaHome', selector: '[data-tour="fila-consultar"]', icono: '🛡️', titulo: 'Bienvenido, administrador', texto: 'Ya conoce Nuevo Incidente y Actividades igual que cualquier unidad. Este recorrido es distinto: todo lo que solo ve un administrador, empezando por esta fila y siguiendo por el Panel de Administrador.' },
+    { id: 'datos', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-titulo"]', icono: '🗄️', titulo: 'Dónde viven sus datos', texto: 'Todo lo que se registra queda en el Google Sheets del CBVI, bajo la cuenta institucional — no es un servidor externo. Puede abrirlo y revisarlo, y se respalda solo todos los días.' },
+    { id: 'escudo', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-escudo"]', icono: '🎖️', titulo: 'Escudo del cuerpo', texto: 'Suba el escudo del CBVI: reemplaza el escudo por defecto en el encabezado, la pantalla de inicio y el PDF de cada informe.' },
+    { id: 'relevo', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-relevo"]', icono: '🪪', titulo: 'Quién opera', texto: 'Acá se ve qué unidad está firmando de guardia ahora mismo. Al cambiar de turno, toque "Cambiar (relevo)" para que quien entra firme con su propio PIN y no quede todo a nombre del turno anterior.' },
+    { id: 'llaves', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-pins"]', icono: '🔑', titulo: 'PIN de las unidades', texto: 'Cada unidad necesita un PIN de 4 dígitos para firmar lo que hace de guardia. Se guardan cifrados — ni usted los ve, solo los reemplaza.' },
+    { id: 'unidades-vinculadas', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-unidades"]', icono: '👥', titulo: 'Quién usa la app', texto: 'Solo si usted es el administrador principal: acá ve todo correo que ya inició sesión, cuándo fue su último ingreso, y puede bloquearle el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.' },
+    { id: 'importar', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-importar"]', icono: '📋', titulo: 'Cargar su nómina', texto: 'Pegue su lista completa desde el Excel que ya tiene. Reconoce las columnas por el título, no por el orden, y solo agrega a quien todavía no esté: no borra ni pisa nada.' },
+    { id: 'flota', pantalla: 'pantallaPanelAdmin', selector: '[data-tour="panel-vehiculos"]', icono: '🚒', titulo: 'Vehículos del cuerpo', texto: 'Registre cada vehículo con el indicativo que usan en la radio — Móvil 1, M-3 — y su clase, que es lo que entiende el RUE.' },
+    { id: 'operatividad', pantalla: 'pantallaOperatividad', selector: '[data-tour="operatividad-titulo"]', icono: '📊', titulo: 'El ranking', texto: 'El puntaje de cada unidad suma incidentes, horas de actividad y asistencia a domingos. Vea el ranking general o busque a una unidad puntual.' },
+    { id: 'asistencia', pantalla: 'pantallaAsistencia', selector: '[data-tour="asistencia-titulo"]', icono: '📅', titulo: 'Asistencia de domingos', texto: 'Registre quién asistió a la guardia dominical, con fecha y tipo de reunión. La unidad firma con su propio PIN — queda anotado quién lo hizo, sin depender de su contraseña.' },
+    { id: 'deudores', pantalla: 'pantallaDeudores', selector: '[data-tour="deudores-titulo"]', icono: '⚠️', titulo: 'Deudores de sanción', texto: 'Quién debe horas de sanción por inasistencia, y desde acá registra las horas que ya cumplió. El registro de la asistencia en sí se hace en 📅 Asistencia.' },
+    { id: 'mapa', pantalla: 'pantallaMapa', selector: '[data-tour="mapa-titulo"]', icono: '🗺️', titulo: 'Mapa de emergencias', texto: 'Cada incidente con coordenadas aparece como un pin con el emoji de su tipo, y la leyenda filtra lo que ve.' },
+    { id: 'zona-admin', pantalla: 'pantallaConfig', selector: '#zonaAdmin', icono: '⭐', titulo: 'Zona Administrador', texto: 'Defina el prefijo del consecutivo (por defecto "RE") — el servidor sigue asignando el número automático al enviar. Esta sección es solo para casos excepcionales.' },
+    { id: 'cierre-admin', pantalla: 'pantallaHome', selector: '[data-tour="lema-home"]', icono: '🎖️', titulo: 'Listo para administrar', texto: 'Ya conoce el escudo, el relevo, las llaves, quién usa la app, la nómina, la flota, el ranking, asistencia, deudores y el mapa. Puede volver a ver este recorrido cuando quiera desde Acerca de.' }
+  ],
+
+  mostrarTour(rol) {
+    if (this._tourActivo) return;
+    const esAdminRol = rol === 'admin' || (rol == null && this.esAdmin());
+    if (esAdminRol && !this.esAdmin()) { this.toast('Solo administradores pueden ver este recorrido', 'error'); return; }
+    // Marca el flag también cuando se abre a mano desde Acerca de (no solo
+    // cuando lo ofrece _ofrecerTour): si no, al volver a Inicio al cerrarlo
+    // _ofrecerTour() lo volvería a ofrecer como si fuera la primera vez.
+    try { localStorage.setItem(esAdminRol ? 'app_tour_visto_admin' : 'app_tour_visto_operativo', '1'); } catch (e) {}
+    this._tourActivo = true;
+    this._tourTransicionando = false;
+    this._tourOrigen = this.pantallaActual;
+    this._tourPasos = esAdminRol ? this._TOUR_ADMIN : this._TOUR_NO_ADMIN;
+    this._construirCapasTour();
+    this._pasoTour(0);
+  },
+
+  _construirCapasTour() {
+    if (!document.getElementById('tourCatcher')) {
+      const catcher = document.createElement('div');
+      catcher.id = 'tourCatcher';
+      catcher.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+      catcher.addEventListener('wheel', e => e.preventDefault(), { passive: false });
+      document.body.appendChild(catcher);
+    }
+    if (!document.getElementById('tourAnillo')) {
+      const anillo = document.createElement('div');
+      anillo.id = 'tourAnillo';
+      anillo.style.opacity = '0';
+      document.body.appendChild(anillo);
+    }
+    if (!document.getElementById('tourPanel')) {
+      document.body.appendChild(document.createElement('div')).id = 'tourPanel';
+    }
+  },
+
+  async _pasoTour(i) {
+    if (!this._tourActivo) return;
+    // v6.31: mientras se arma un paso (navegar + posicionar el anillo) el botón
+    // VIEJO de "Siguiente" sigue en pantalla y sigue respondiendo — un toque
+    // impaciente ahí disparaba OTRO _pasoTour() encimado al que ya estaba en
+    // curso. Mismo espíritu que _conBloqueo en el resto de la app.
+    if (this._tourTransicionando) return;
+    this._tourTransicionando = true;
+    const pasos = this._tourPasos;
+    if (!pasos || i < 0 || i >= pasos.length) { this._tourTransicionando = false; return; }
+    this._tourIndice = i;
+    const paso = pasos[i];
+    const anillo = document.getElementById('tourAnillo');
+    if (anillo) anillo.style.opacity = '0';
+    try {
+      if (paso.pantalla && this.pantallaActual !== paso.pantalla) {
+        this.irA(paso.pantalla, true);
+        await new Promise(r => setTimeout(r, 380));
+      }
+      if (!this._tourActivo) return; // se pudo cerrar mientras esperábamos
+      await this._posicionarAnillo(paso.selector);
+      if (!this._tourActivo) return;
+      this._pintarPanelTour(paso, i, pasos.length);
+    } catch (e) {
+      // Red de seguridad: un fallo del tour nunca debe tapar la app real.
+      this._cerrarTour();
+    } finally {
+      this._tourTransicionando = false;
+    }
+  },
+
+  async _posicionarAnillo(selector) {
+    const anillo = document.getElementById('tourAnillo');
+    if (!anillo) return;
+    if (!selector) { anillo.style.opacity = '0'; return; }
+    let el = null;
+    for (let intento = 0; intento < 10; intento++) {
+      el = document.querySelector(selector);
+      if (el && el.offsetParent !== null) break;
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    // Elemento no encontrado (p. ej. un atributo data-tour se borró en otra
+    // sesión): el panel se sigue viendo, solo sin anillo. Nunca se cuelga.
+    if (!el || el.offsetParent === null) { anillo.style.opacity = '0'; return; }
+    const panel = document.getElementById('tourPanel');
+    try { document.documentElement.style.scrollPaddingBottom = (panel ? panel.offsetHeight + 20 : 140) + 'px'; } catch (e) {}
+    // v6.31: salto instantáneo ('auto'), NO 'smooth'. Un scroll animado no se
+    // puede esperar de forma confiable con setTimeout/rAF (se probó en el
+    // Producto y siguió midiendo la posición VIEJA de forma reproducible, con
+    // el anillo sobre el elemento equivocado). El salto es menos vistoso, pero
+    // SIEMPRE cae en el lugar correcto.
+    try { el.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (e) {}
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    if (!this._tourActivo) return;
+    const r2 = el.getBoundingClientRect();
+    const PAD = 7;
+    anillo.style.top = (r2.top - PAD) + 'px';
+    anillo.style.left = (r2.left - PAD) + 'px';
+    anillo.style.width = (r2.width + PAD * 2) + 'px';
+    anillo.style.height = (r2.height + PAD * 2) + 'px';
+    anillo.style.opacity = '1';
+  },
+
+  _pintarPanelTour(paso, i, total) {
+    const panel = document.getElementById('tourPanel');
+    if (!panel) return;
+    const ultimo = i === total - 1;
+    panel.innerHTML = '<div class="tour-franja"></div>'
+      + '<div class="tour-cuerpo">'
+      + '<div class="tour-sello"><span class="icono">' + paso.icono + '</span><span class="paso">Paso ' + (i + 1) + ' de ' + total + '</span></div>'
+      + '<div class="tour-titulo">' + this._esc(paso.titulo) + '</div>'
+      + '<div class="tour-texto">' + this._esc(paso.texto) + '</div>'
+      + '<div class="tour-progreso-track"><div class="tour-progreso-fill" style="width:' + Math.round(((i + 1) / total) * 100) + '%;"></div></div>'
+      + '<div class="tour-acciones">'
+      + (i > 0 ? '<button class="tour-btn tour-btn-atras" id="_tAtras">← Atrás</button>' : '')
+      + '<button class="tour-btn tour-btn-siguiente" id="_tSiguiente">' + (ultimo ? '¡Listo! ✔' : 'Siguiente →') + '</button>'
+      + '</div>'
+      + '<div class="tour-fila-cierre">'
+      + '<button class="tour-saltar" id="_tSaltar">Saltar recorrido</button>'
+      + '<button class="tour-cerrar" id="_tCerrar" aria-label="Cerrar recorrido">✕</button>'
+      + '</div>'
+      + '</div>';
+    const bAtras = document.getElementById('_tAtras');
+    if (bAtras) bAtras.onclick = () => this._pasoTour(i - 1);
+    document.getElementById('_tSiguiente').onclick = () => { if (ultimo) this._cerrarTour(); else this._pasoTour(i + 1); };
+    document.getElementById('_tCerrar').onclick = () => this._cerrarTour();
+    document.getElementById('_tSaltar').onclick = async () => {
+      if (i === 0) { this._cerrarTour(); return; }
+      // El catcher (z-index 9490) queda por encima del modal de confirmar
+      // (.modal-fondo, z-index 200): sin bajarle pointer-events, se comería
+      // el toque en "Sí/No" y el modal se vería pero no respondería a nada.
+      const catcher = document.getElementById('tourCatcher');
+      if (catcher) catcher.style.pointerEvents = 'none';
+      const ok = await this.confirmar('Salir del recorrido', '¿Seguro? Puede volver a verlo cuando quiera desde ℹ️ Acerca de.');
+      if (catcher) catcher.style.pointerEvents = 'auto';
+      if (ok) this._cerrarTour();
+    };
+  },
+
+  _cerrarTour() {
+    if (!this._tourActivo) return;
+    this._tourActivo = false;
+    try { document.documentElement.style.scrollPaddingBottom = ''; } catch (e) {}
+    ['tourPanel', 'tourAnillo', 'tourCatcher'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
+    const origen = this._tourOrigen || 'pantallaHome';
+    this._tourOrigen = null;
+    this._tourPasos = null;
+    if (this.pantallaActual !== origen) this.irA(origen, true);
+  },
+
+  /* ═══════════════ IMPORTAR PERSONAL (pegar desde Excel) ═══════════════
+     No se sube archivo: leer .xlsx pesa ~500KB y el .csv de Excel en LATAM viene
+     en Windows-1252 y rompe tildes/ñ. Pegar entrega texto limpio, sin dependencias. */
+  _COLUMNAS_IMPORT: {
+    nombre:   ['nombre', 'nombres', 'nombre completo', 'apellidos y nombres', 'nombres y apellidos', 'unidad', 'bombero'],
+    apellido: ['apellido', 'apellidos'],
+    cedula:   ['cedula', 'cc', 'documento', 'identificacion', 'nit', 'numero de cedula', 'documento de identidad'],
+    rango:    ['rango', 'grado', 'jerarquia'],
+    telefono: ['telefono', 'celular', 'movil', 'tel'],
+    email:    ['email', 'mail', 'correo', 'correo electronico']
+  },
+
+  /* Normaliza un título de columna: sin tildes, minúsculas, sin puntuación.
+     Así "CÉDULA", "cedula" y "C.C." caen en la misma llave. */
+  _normTitulo(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  },
+
+  /* Casa un título YA normalizado contra los alias de un campo. Alias de UNA
+     palabra: casa si aparece como token; de VARIAS: como subcadena. Antes se exigía
+     igualdad EXACTA del título completo, y por eso "Cédula (CC)" no casaba con
+     "cedula" y la cédula se perdía. */
+  _tituloCoincide(tituloNorm, alias) {
+    const tokens = tituloNorm.split(' ').filter(Boolean);
+    return alias.some((a) => a.indexOf(' ') !== -1
+      ? tituloNorm.indexOf(a) !== -1
+      : tokens.indexOf(a) !== -1);
+  },
+
+  _parsearPegado(texto) {
+    const lineas = String(texto || '').split(/\r?\n/).filter((l) => l.trim());
+    if (lineas.length < 2) return { error: 'Pegue al menos la fila de títulos y una persona.' };
+
+    // Excel copia separando por TAB. El punto y coma o la coma son respaldo.
+    const sep = lineas[0].indexOf('\t') !== -1 ? '\t' : (lineas[0].indexOf(';') !== -1 ? ';' : ',');
+    const celdas = (l) => l.split(sep).map((c) => c.trim().replace(/^"|"$/g, ''));
+
+    const titulos = celdas(lineas[0]).map((t) => this._normTitulo(t));
+    const mapa = {};
+    Object.keys(this._COLUMNAS_IMPORT).forEach((campo) => {
+      const alias = this._COLUMNAS_IMPORT[campo];
+      const i = titulos.findIndex((t) => t && this._tituloCoincide(t, alias));
+      if (i !== -1) mapa[campo] = i;
+    });
+
+    // Si el roster trae "Apellidos" pero no "Nombres", esa columna ES el nombre.
+    if (mapa.nombre === undefined && mapa.apellido !== undefined) { mapa.nombre = mapa.apellido; delete mapa.apellido; }
+
+    if (mapa.nombre === undefined) {
+      return { error: 'No se encontró una columna de nombres. Títulos detectados: ' +
+                      (titulos.filter(Boolean).join(', ') || '(ninguno)') };
+    }
+
+    const filas = [];
+    for (let i = 1; i < lineas.length; i++) {
+      const c = celdas(lineas[i]);
+      const p = {};
+      Object.keys(mapa).forEach((campo) => { p[campo] = (c[mapa[campo]] || '').trim(); });
+      // "Nombres" + "Apellidos" en columnas DISTINTAS → se unen en el nombre completo.
+      if (p.apellido !== undefined) {
+        if (mapa.apellido !== mapa.nombre) p.nombre = (p.nombre + ' ' + p.apellido).trim().replace(/\s+/g, ' ');
+        delete p.apellido;
+      }
+      if (p.nombre) filas.push(p);
+    }
+    return { filas: filas, columnas: Object.keys(mapa) };
+  },
+
+  previsualizarImportacion() {
+    const cont = document.getElementById('impResumen');
+    const btn = document.getElementById('btnImportarConfirmar');
+    const r = this._parsearPegado(document.getElementById('impPegar').value);
+    this._filasImport = null;
+    btn.style.display = 'none';
+
+    if (r.error) {
+      cont.innerHTML = '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;font-size:13px;">'
+                     + this._esc(r.error) + '</div>';
+      return;
+    }
+
+    this._filasImport = r.filas;
+    const sinCedula = r.filas.filter((p) => !String(p.cedula || '').replace(/\D/g, '')).length;
+
+    let h = '<div style="background:#e8f5e9;padding:10px;border-radius:6px;font-size:13px;">'
+          + '<b>' + r.filas.length + ' personas</b> detectadas.<br>'
+          + 'Columnas reconocidas: <b>' + this._esc(r.columnas.join(', ')) + '</b></div>';
+
+    if (sinCedula) {
+      h += '<div style="background:#fff3e0;padding:10px;border-radius:6px;font-size:12px;margin-top:8px;">'
+         + '⚠️ <b>' + sinCedula + '</b> sin cédula. Entran igual, pero se identifican solo por el nombre: '
+         + 'si dos personas se llaman parecido, el sistema no las puede distinguir.</div>';
+    }
+
+    h += '<div style="margin-top:10px;font-size:12px;"><b>Primeras filas:</b><table style="width:100%;border-collapse:collapse;margin-top:4px;">';
+    r.filas.slice(0, 5).forEach((p) => {
+      h += '<tr><td style="border-bottom:1px solid #eee;padding:3px;">' + this._esc(p.nombre) + '</td>'
+         + '<td style="border-bottom:1px solid #eee;padding:3px;color:#666;">' + this._esc(p.cedula || '—') + '</td>'
+         + '<td style="border-bottom:1px solid #eee;padding:3px;color:#666;">' + this._esc(p.rango || 'BOMBERO') + '</td></tr>';
+    });
+    h += '</table></div>';
+    h += '<p style="font-size:11px;color:#666;margin-top:8px;">No se borra ni se pisa nada: '
+       + 'solo se agrega quien todavía no esté en el sistema.</p>';
+
+    cont.innerHTML = h;
+    btn.style.display = '';
+  },
+
+  async confirmarImportacion(btn) {
+    if (!this._filasImport || !this._filasImport.length) return;
+    await this._conBloqueo(btn, 'Importando...', async () => {
+      try {
+        const r = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'importarPersonal', filas: this._filasImport, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        });
+        const d = await r.json();
+        if (!d || !d.ok) return this.toast((d && d.error) || 'No se pudo importar', 'error');
+
+        let msg = d.agregados + ' agregadas';
+        if (d.duplicados.length) msg += ', ' + d.duplicados.length + ' ya estaban';
+        if (d.rechazados.length) msg += ', ' + d.rechazados.length + ' rechazadas';
+        this.toast(msg, 'exito');
+        this.cerrarModalImportar();
+        this._cargarRosterDesdeHoja().catch(() => {});
+      this._cargarFlota().catch(() => {});   // v6.19: flota lista para el formulario
+      } catch (e) {
+        this.toast('Sin conexión: ' + e.message, 'error');
+      }
+    });
+  },
+
+  abrirModalImportar() {
+    document.getElementById('impPegar').value = '';
+    document.getElementById('impResumen').innerHTML = '';
+    document.getElementById('btnImportarConfirmar').style.display = 'none';
+    document.getElementById('modalImportar').classList.add('visible');
+  },
+
+  cerrarModalImportar() {
+    document.getElementById('modalImportar').classList.remove('visible');
+  },
+
+  /* ═══════════════ FLOTA DEL CUERPO (vehículos editables) ═══════════════
+     Los vehículos viven en la hoja del cuerpo (indicativo + clase). Se cargan una vez
+     por sesión en this._flota; si NO cargan (sin señal), el formulario cae a la lista
+     fija VEHICULOS_CBVI, así nadie queda bloqueado para reportar una emergencia. */
+  async _cargarFlota(forzar) {
+    if (this._flota && !forzar) return this._flota;
+    try {
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarVehiculos', adminEmail: (this.usuario && this.usuario.email) || '', adminPassword: this._adminPwdSession || '' })
+      });
+      const d = await r.json();
+      if (d && d.ok && Array.isArray(d.vehiculos)) {
+        this._flota = d.vehiculos;
+        this._flotaError = false;
+      } else {
+        // v6.32: el servidor respondió pero no trajo la lista (ok:false, sin
+        // red interna, etc.) — NO es lo mismo que "de verdad no hay vehículos".
+        // Antes esto se confundía con la flota vacía y la tarjeta decía
+        // "Todavía no hay vehículos" aunque sí los hubiera: parecía que se
+        // habían borrado. Se distingue para avisar "no se pudo cargar" en vez
+        // de mentir sobre el estado real.
+        this._flotaError = true;
+        this._flota = this._flota || [];
+      }
+      if (d && d.ok && Array.isArray(d.clases)) this._flotaClases = d.clases;
+    } catch (e) {
+      this._flotaError = true;   // sin red: tampoco es "vacío" (ver nota arriba)
+      this._flota = this._flota || [];
+    }
+    return this._flota;
+  },
+
+  /* v6.46 (PLAN-20260915-01): el PDF saca CLASE y PLACA del catálogo (hoja Vehiculos) por indicativo —
+     dato maestro, no se vuelve a digitar en cada reporte. Cruce exacto y, si no, por prefijo
+     ("Móvil 3 — máquina extintora" → "Móvil 3"; NO confunde Móvil 1 con Móvil 10 porque exige espacio
+     tras el indicativo). Sin flota cargada (sin señal) devuelve null: el PDF nunca se bloquea. */
+  _vehiculoDeRecurso(nombre) {
+    const n = String(nombre || '').trim().toUpperCase();
+    if (!n) return null;
+    const flota = this._flota || [];
+    const exacto = flota.find(v => String(v.indicativo || '').trim().toUpperCase() === n);
+    if (exacto) return exacto;
+    return flota.find(v => { const ind = String(v.indicativo || '').trim().toUpperCase(); return ind && n.indexOf(ind + ' ') === 0; }) || null;
+  },
+
+  _flotaDisponible() {
+    return (this._flota || []).filter((v) => v.estado !== 'DE BAJA' && v.estado !== 'FUERA DE SERVICIO');
+  },
+
+  /* Los indicativos elegibles hoy. Si la flota no cargó (o está vacía) cae a la lista
+     fija de siempre — el registro de una emergencia NUNCA se bloquea por esto. */
+  _flotaIndicativos() {
+    const lista = this._flotaDisponible();
+    return lista.length ? lista.map((v) => v.indicativo) : VEHICULOS_CBVI.slice();
+  },
+
+  /* <option> de la flota (value = indicativo; etiqueta = "indicativo — clase").
+     Fallback a la lista fija. Se usa en el <select> de recursos del formulario. */
+  _flotaOpciones() {
+    const lista = this._flotaDisponible();
+    if (!lista.length) return VEHICULOS_CBVI.map((v) => '<option>' + app._esc(v) + '</option>').join('');
+    return lista.map((v) => {
+      const et = v.indicativo + (v.clase ? ' — ' + v.clase.toLowerCase() : '');
+      return '<option value="' + app._esc(v.indicativo) + '">' + app._esc(et) + '</option>';
+    }).join('');
+  },
+
+  /* Modal para elegir UNA opción (I4: nada de prompt nativo). Devuelve el valor o null. */
+  _pedirOpcion(titulo, ayuda, opciones, valorActual) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.className = 'cbvi-modal-js';
+      const ops = (opciones || []).map((o) =>
+        '<option value="' + app._esc(o) + '"' + (o === valorActual ? ' selected' : '') + '>' + app._esc(o) + '</option>'
+      ).join('');
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">' + app._esc(titulo || '') + '</div>'
+        + (ayuda ? '<div style="font-size:12px;color:#666;margin-bottom:12px;text-align:center;">' + app._esc(ayuda) + '</div>' : '')
+        + '<select id="_opcSel" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:14px;">' + ops + '</select>'
+        + '<div style="display:flex;gap:10px;">'
+        + '<button id="_opcCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
+        + '<button id="_opcOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Continuar</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      const sel = modal.querySelector('#_opcSel');
+      const fin = (v) => { try { app._cerrarModalJS(modal); } catch (e) {} resolve(v); };
+      modal.querySelector('#_opcCancel').onclick = () => fin(null);
+      modal.querySelector('#_opcOk').onclick = () => fin(sel.value || '');
+    });
+  },
+
+  /* ── Administración de la flota (Panel de Admin) ── */
+  async cargarFlotaAdmin(btn) {
+    await this._conBloqueo(btn, 'Cargando...', async () => {
+      await this._cargarFlota(true);
+      this._renderFlotaAdmin();
+    });
+  },
+
+  _renderFlotaAdmin() {
+    const cont = document.getElementById('listaFlota');
+    if (!cont) return;
+    const lista = this._flota || [];
+    if (!lista.length) {
+      // v6.32: distingue "no se pudo cargar" de "de verdad no hay vehículos"
+      // (ver _cargarFlota) — antes las dos se veían igual y una falla de red
+      // silenciosa parecía que la flota se había borrado.
+      cont.innerHTML = this._flotaError
+        ? '<div style="color:#c00;font-size:12px;text-align:center;padding:10px;">⚠️ No se pudo cargar la flota. Revise su conexión y toque "🔄 Actualizar".</div>'
+        : '<div style="color:#166534;font-size:12px;text-align:center;padding:10px;opacity:.8;">Todavía no hay vehículos. Agregue el primero para que aparezca al reportar.</div>';
+      return;
+    }
+    // I5: todo texto por _esc. I10: data-* en vez de meter el indicativo en el onclick.
+    cont.innerHTML = lista.map((v) => {
+      const fuera = v.estado === 'DE BAJA' || v.estado === 'FUERA DE SERVICIO';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#fff;border-radius:8px;margin-bottom:6px;'
+        + (fuera ? 'opacity:.55;' : '') + '">'
+        + '<div style="min-width:0;">'
+        +   '<strong style="font-size:14px;">' + app._esc(v.indicativo) + '</strong>'
+        +   (fuera ? ' <span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:4px;">' + app._esc(v.estado) + '</span>' : '')
+        +   '<div style="font-size:11px;color:#666;">' + app._esc(v.clase || 'sin clase')
+        +     (v.capacidad ? ' · ' + app._esc(v.capacidad) : '')
+        +     (v.placa ? ' · ' + app._esc(v.placa) : '') + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:4px;flex-shrink:0;">'
+        +   '<button data-v="' + app._esc(v.indicativo) + '" onclick="app.agregarVehiculo(this.dataset.v)" title="Editar" style="background:none;border:none;font-size:16px;cursor:pointer;">&#9998;</button>'
+        +   '<button data-v="' + app._esc(v.indicativo) + '" onclick="app.quitarVehiculo(this.dataset.v)" title="Eliminar" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;">&#x2715;</button>'
+        + '</div></div>';
+    }).join('');
+  },
+
+  /* Alta y edición: si llega un indicativo, se precargan sus datos. El backend decide
+     por el indicativo si actualiza o agrega. */
+  async agregarVehiculo(indicativoExistente) {
+    const clases = (this._flotaClases && this._flotaClases.length) ? this._flotaClases : ['OTRO'];
+    const previo = (this._flota || []).find((v) => v.indicativo === indicativoExistente) || {};
+
+    const indicativo = await this._pedirTexto(
+      '<div style="text-align:left;font-weight:400;font-size:13px;">Indicativo del vehículo<div style="font-size:11px;color:#666;margin-top:3px;">Como lo nombran en la radio: Móvil 1, M-3, Tanque 2…</div></div>',
+      { placeholder: 'Móvil 1', maxlength: 40, boton: 'Siguiente', valor: previo.indicativo || '' });
+    if (!indicativo || !indicativo.trim()) return;
+
+    const clase = await this._pedirOpcion('Clase del vehículo',
+      'Es lo que entiende el RUE. Si ninguna encaja, elija OTRO.', clases, previo.clase || '');
+    if (clase === null) return;
+
+    const capacidad = await this._pedirTexto(
+      '<div style="text-align:left;font-weight:400;font-size:13px;">Capacidad (opcional)<div style="font-size:11px;color:#666;margin-top:3px;">Ej: 1.000 galones, 500 GPM.</div></div>',
+      { placeholder: 'Opcional', maxlength: 60, boton: 'Guardar', valor: previo.capacidad || '' });
+    if (capacidad === null) return;
+
+    const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+    if (!pw) return;
+    try {
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'guardarVehiculo', indicativo: indicativo.trim(),
+          clase: clase, capacidad: capacidad, placa: previo.placa || '',
+          estado: previo.estado || 'DISPONIBLE',
+          adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'No se pudo guardar');
+      this.toast('🚒 ' + d.mensaje, 'exito');
+      await this._cargarFlota(true);
+      this._renderFlotaAdmin();
+    } catch (e) { this.toast('Error: ' + e.message, 'error'); }
+  },
+
+  quitarVehiculo(indicativo) {
+    this._confirmarAccion(
+      '¿Eliminar ' + app._esc(indicativo) + '?<div style="font-weight:400;font-size:12px;color:#666;margin-top:8px;">Dejará de aparecer al reportar. Los reportes anteriores que lo nombran NO cambian.</div>',
+      async () => {
+        const pw = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+        if (!pw) return;
+        try {
+          const r = await fetch(URL_BACKEND, {
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ accion: 'eliminarVehiculo', indicativo: indicativo,
+              adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+          });
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.error || 'No se pudo eliminar');
+          this.toast(d.mensaje, 'exito');
+          await this._cargarFlota(true);
+          this._renderFlotaAdmin();
+        } catch (e) { this.toast('Error: ' + e.message, 'error'); }
+      });
+  },
+
+  /* ═══════════════ VISTA RUE (ordena un reporte como el formulario oficial) ═══════════════
+     No automatiza el envío al RUE (se llena a mano en su plataforma): solo acomoda los
+     datos del reporte en el orden del formulario, con un botón Copiar por campo. */
+  async verVistaRUE(btn) {
+    // Mismas fuentes que el botón Imprimir de al lado.
+    const r = this._reporteAdminViendo || this.reporteActual;
+    if (!r || !r.id) return this.toast('Abra primero un reporte', 'error');
+    await this._conBloqueo(btn, 'Preparando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'vistaRUE', id: r.id, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        });
+        const d = await resp.json();
+        if (!d || !d.ok) return this.toast((d && d.error) || 'No se pudo preparar la vista', 'error');
+        this._pintarVistaRUE(d);
+        document.getElementById('modalRUE').classList.add('visible');
+      } catch (e) {
+        this.toast('Sin conexión: ' + e.message, 'error');
+      }
+    });
+  },
+
+  _pintarVistaRUE(d) {
+    const esc = (v) => this._esc(v == null ? '' : String(v));
+    let h = '';
+    if (d.faltantes && d.faltantes.length) {
+      h += '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;margin-bottom:12px;font-size:13px;">'
+         + '<b>⚠️ Faltan datos que el RUE exige:</b><ul style="margin:6px 0 0 18px;">'
+         + d.faltantes.map((f) => '<li>' + esc(f) + '</li>').join('') + '</ul></div>';
+    }
+    h += '<div style="background:#fff3e0;border-left:4px solid #e65100;padding:8px 10px;border-radius:4px;font-size:12px;margin-bottom:14px;">' + esc(d.advertencia) + '</div>';
+    const bloque = (titulo, campos) => {
+      let s = '<div style="font-weight:700;margin:14px 0 6px;">' + esc(titulo) + '</div>';
+      campos.forEach((c) => {
+        const alerta = c.aproximado
+          ? '<div style="color:#92400e;font-size:11px;margin-top:3px;">⚠️ ' + esc(c.nota || 'Verifique este dato.') + '</div>'
+          : (c.nota ? '<div style="color:#666;font-size:11px;margin-top:3px;">' + esc(c.nota) + '</div>' : '');
+        s += '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #eee;">'
+           + '<div style="flex:0 0 40%;font-size:12px;color:#444;">' + esc(c.campo)
+           + (c.obligatorio ? ' <span style="color:#c00;">*</span>' : '') + '</div>'
+           + '<div style="flex:1;font-size:13px;"><b>' + (c.valor ? esc(c.valor) : '<span style="color:#999;">(vacío)</span>') + '</b>' + alerta + '</div>'
+           /* data-* en vez de meter el valor en el onclick: un texto con comillas o
+              caracteres raros no rompe el HTML (invariante I10). */
+           + '<button class="btn btn-secundario" style="padding:3px 8px;font-size:11px;" '
+           + 'data-copiar="' + esc(c.valor) + '" onclick="app._copiarCampoRUE(this)">Copiar</button>'
+           + '</div>';
+      });
+      return s;
+    };
+    h += bloque('1 · Nueva Emergencia', d.emergencia);
+    h += bloque('2 · Nuevo Detalle Emergencia', d.detalle);
+    // v6.20: recursos desplegados con su clase del RUE (solo si el reporte trae vehículos).
+    if (d.recursos && d.recursos.length) h += bloque('3 · Recursos desplegados (clase para el RUE)', d.recursos);
+    document.getElementById('modalRUECuerpo').innerHTML = h;
+  },
+
+  _copiarCampoRUE(btn) {
+    const txt = btn.getAttribute('data-copiar') || '';
+    const listo = () => { const o = btn.textContent; btn.textContent = '✓ Copiado'; setTimeout(() => { btn.textContent = o; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(listo).catch(() => this.toast('No se pudo copiar', 'error'));
+    } else {
+      // Respaldo para WebView antiguo del APK, donde clipboard puede no existir.
+      const ta = document.createElement('textarea');
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); listo(); } catch (e) { this.toast('No se pudo copiar', 'error'); }
+      document.body.removeChild(ta);
+    }
+  },
+
+  cerrarModalRUE() {
+    document.getElementById('modalRUE').classList.remove('visible');
   },
 
   async _imprimirReporteEnVentanaNueva(r) {
@@ -6277,7 +5906,7 @@ const app = {
           <div class="header-mini">
             <img src="${app._logoImpresion()}" alt="">
             <div>
-              <strong>CUERPO DE BOMBEROS VOLUNTARIOS</strong><br>
+              <strong>CUERPO DE BOMBEROS VOLUNTARIOS — INÍRIDA, GUAINÍA</strong><br>
               <span style="font-size: 9pt;">Anexo fotográfico — Reporte ${app._esc(r.consecutivo || '')} — Hoja ${etiquetaHoja}/${totalHojas}</span>
             </div>
           </div>
@@ -6433,15 +6062,15 @@ const app = {
     <img class="logo-h" src="${app._logoImpresion()}" alt="">
     <div class="info">
       <h2>CUERPO DE BOMBEROS VOLUNTARIOS</h2>
-      <div>${app._esc((app._inst().municipio||"")+(app._inst().departamento?" - "+app._inst().departamento:""))}</div>
-      <div>${app._esc(app._inst().personeria||"")}</div>
-      <div>${app._membrete()}</div>
+      <div>INÍRIDA – GUAINÍA</div>
+      <div>Personería Jurídica N° 3561 del 5 de Agosto de 1976</div>
+      <div>NIT: 843000056-0  |  Tel. ${TELEFONO_ESTACION}  |  Calle 15 N° 5-07 Zona Indígena</div>
     </div>
     <div class="invisible"></div>
   </div>
 
   <div class="titulo">REPORTE OFICIAL DE EMERGENCIAS</div>
-  <div class="lema">${app._esc(app._inst().lema || '')}</div>
+  <div class="lema">"ABNEGACIÓN Y DISCIPLINA"</div>
 
   <div class="seccion">
     <div class="seccion-titulo">1. DATOS GENERALES DEL INCIDENTE</div>
@@ -6580,7 +6209,7 @@ const app = {
         <td>${r.firmas?.afectado ? `<img src="${app._esc(this._imgDrive(r.firmas.afectado))}" class="firma-img">` : '&nbsp;'}</td>
       </tr>
     </table>
-    <div class="aviso">⚠ Aviso Ley 1581 de 2012 (Habeas Data): Los datos personales recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del ${app._esc(app._inst().nombre || 'cuerpo de bomberos')}, conforme a la Ley 1575 de 2012. El titular puede conocer, actualizar y rectificar sus datos ante ${app._esc(app._inst().nombre || 'el cuerpo de bomberos')}.</div>
+    <div class="aviso">⚠ Aviso Ley 1581 de 2012 (Habeas Data): Los datos personales recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos Voluntarios de Inírida.</div>
   </div>
 </div>
 
@@ -6665,8 +6294,8 @@ const app = {
 
   <div class="pie-pagina">
     Documento bajo Ley 1575 de 2012 (Ley General de Bomberos de Colombia) | Ley 1581 de 2012 (Habeas Data)<br>
-    ${app._esc(app._inst().nombre || "")}${app._membrete() ? " | " + app._membrete() : ""}
-    <span class="credito">— App desarrollada por ${CREDITO_AUTOR.nombre} —</span>
+    Cuerpo de Bomberos Voluntarios Inírida – Guainía | "ABNEGACIÓN Y DISCIPLINA" | Calle 15 N° 5-07 Zona Indígena | Tel. ${TELEFONO_ESTACION}
+    <span class="credito">— App desarrollada por ${CREDITO_AUTOR.nombre} · ${CREDITO_AUTOR.cuerpo} —</span>
   </div>
 </div>
 
@@ -6683,7 +6312,7 @@ ${paginaFotos}
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `respaldo_${(app._inst().sigla || 'bomberos').toLowerCase().replace(/[^a-z0-9]+/g,'_')}_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `bomberos_inirida_${new Date().toISOString().slice(0,10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     this.toast(`${reportes.length} reportes exportados`, 'exito');
@@ -6708,32 +6337,6 @@ ${paginaFotos}
     return String(v == null ? '' : v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  },
-
-  /* 14/08/2026 — _normNombre y _cedKey SE MUDARON ACÁ, junto a _esc.
-
-     Vivían dentro del bloque de "Asistencia de domingos", que es exclusivo de
-     de la estación de origen y salió del producto. Pero las usan poblarRosterBomberos y el buscador
-     de personal: borrar el bloque con ellas adentro rompía el autocompletado de
-     personal en toda la app.
-
-     Son el par del backend (_normFuerteBackend / _cedKey) y definen cómo se decide
-     que dos registros son LA MISMA PERSONA. Es el invariante que más ha reincidido
-     en este proyecto — comparar cédulas en crudo. Viven en zona de utilidades para
-     que ningún borrado futuro se las lleve. */
-
-  // Normaliza un nombre igual que el backend (_normFuerteBackend): mayúsculas,
-  // espacios colapsados y sin tildes/Ñ → para comparar personas de forma fiable.
-  _normNombre(s) {
-    return String(s || '').trim().toUpperCase().replace(/\s+/g, ' ')
-      .replace(/[ÁÀÄÂ]/g, 'A').replace(/[ÉÈËÊ]/g, 'E').replace(/[ÍÌÏÎ]/g, 'I')
-      .replace(/[ÓÒÖÔ]/g, 'O').replace(/[ÚÙÜÛ]/g, 'U').replace(/Ñ/g, 'N');
-  },
-
-  // Equivalente front de _cedKey del backend: cédula a SOLO dígitos, para que
-  // "1.234.567", "1 234 567" y "1234567" crucen como la misma persona.
-  _cedKey(x) {
-    return String(x == null ? '' : x).replace(/\D/g, '');
   },
 
   // ── Decodificar el payload de un JWT de Google (APK-safe) ──────────────────
@@ -6799,17 +6402,19 @@ ${paginaFotos}
     this._veloTimer = setTimeout(() => el.classList.remove('activo'), 320);
   },
 
-  /* Anima la entrada de CUALQUIER contenedor, sin depender de .pantalla. Es lo
-     que faltaba para que el Panel de Admin animara: sus sub-vistas se conmutan
-     con style.display dentro de una pantalla que YA está activa, así que
-     appFadeIn (atada a .pantalla.activa) no se re-disparaba jamás.
-     El void offsetWidth NO es adorno: fuerza el reflow que reinicia la
-     animación. Mismo patrón que _veloCierre acá arriba. */
+  /* v6.11: anima la entrada de CUALQUIER contenedor, sin depender de `.pantalla`.
+     Es lo que faltaba para que el Panel de Admin animara: sus sub-vistas se
+     conmutan con style.display dentro de una pantalla que YA está activa, así que
+     cbviFadeIn (atada a `.pantalla.activa`) no se re-disparaba jamás.
+     El `void offsetWidth` NO es adorno: fuerza el reflow que reinicia la
+     animación. Sin él, entrar dos veces seguidas a la misma sub-vista no la
+     vuelve a disparar, porque el navegador ve que la clase ya estaba. Es el mismo
+     motivo —y el mismo patrón— que _veloCierre acá arriba. */
   _animarEntrada(el) {
     if (!el) return;
-    el.classList.remove('entra');
+    el.classList.remove('cbvi-entra');
     void el.offsetWidth;
-    el.classList.add('entra');
+    el.classList.add('cbvi-entra');
   },
 
   _flashAccion(texto) {
@@ -6828,17 +6433,17 @@ ${paginaFotos}
     document.getElementById('modalTitulo').textContent = titulo;
     document.getElementById('modalMensaje').textContent = mensaje;
     const _mc = document.getElementById('modalConfirmar');
-    // v1.39: si venía cerrándose (fade en curso), cancelarlo para que no se oculte
-    // encima del modal nuevo que estamos abriendo.
+    // v6.34: si venía cerrándose (fade en curso), cancelarlo para que no se
+    // oculte encima del modal nuevo que estamos abriendo.
     if (_mc._tCerrar) { clearTimeout(_mc._tCerrar); _mc._tCerrar = null; }
-    _mc.classList.remove('cerrando');
+    _mc.classList.remove('cbvi-cerrando');
     _mc.classList.add('visible');
     const btnConfirmar = document.getElementById('modalConfirmarBtn');
     return new Promise(resolve => {
       // Función única que resuelve y cierra (sin doble llamada)
       this._modalResolve = (valor) => {
         const el = document.getElementById('modalConfirmar');
-        this._animarCierre(el, () => el.classList.remove('visible'));   // v1.39: cierre animado
+        this._animarCierre(el, () => el.classList.remove('visible'));   // v6.34: cierre animado
         const r = this._modalResolve;
         this._modalResolve = null;
         if (r) resolve(valor);
@@ -6856,29 +6461,30 @@ ${paginaFotos}
     }
   },
 
-  /* v1.39: cierre ANIMADO de un modal reutilizable. Agrega .cerrando (fade +
+  /* v6.34: cierre ANIMADO de un modal reutilizable. Agrega .cbvi-cerrando (fade +
      pop-out por CSS) y recién a los 160ms hace el cierre real (quitar .visible o
      removeChild). El timer se guarda en el propio elemento: si el modal se REABRE
      antes de terminar el fade, quien reabre lo cancela para no cerrarse encima del
-     contenido nuevo. Respeta reduced-motion. La lógica NO espera este tiempo: quien
+     contenido nuevo. Respeta reduced-motion (ahí el CSS no anima; el cierre igual
+     ocurre a los 160ms, imperceptible). La lógica NO espera este tiempo: quien
      llama resuelve/sigue de una; esto solo demora sacar el nodo del DOM. */
   _animarCierre(el, hacer) {
     if (!el) { if (hacer) hacer(); return; }
     if (el._tCerrar) return;   // ya está cerrando
-    el.classList.add('cerrando');
+    el.classList.add('cbvi-cerrando');
     el._tCerrar = setTimeout(() => {
       el._tCerrar = null;
-      el.classList.remove('cerrando');
+      el.classList.remove('cbvi-cerrando');
       if (hacer) hacer();
     }, 160);
   },
 
-  /* v1.40: cierre ANIMADO de los modales creados por JS (los que hacen removeChild).
-     Cada uno es un elemento NUEVO (createElement); el único riesgo es que el MISMO
-     tipo de modal se reabra dentro de los 160ms del fade y el getElementById encuentre
-     el que se está yendo por su id fijo. Por eso se le QUITAN los id al instante: queda
-     inerte, mientras el CSS lo desvanece y se lo saca del DOM. La lógica que sigue
-     (resolve/callback) NO espera: corre ya. */
+  /* v6.35: cierre ANIMADO de los modales creados por JS (los que hacen removeChild).
+     Cada uno es un elemento NUEVO (createElement), así que no hay reuso del nodo; el
+     único riesgo es que el MISMO tipo de modal se reabra dentro de los 160ms del fade
+     y el getElementById encuentre el que se está yendo por su id fijo. Por eso se le
+     QUITAN los id al instante: queda inerte, mientras el CSS lo desvanece y se lo saca
+     del DOM. La lógica que sigue (resolve/callback) NO espera: corre ya. */
   _cerrarModalJS(modal) {
     if (!modal || modal._cerrando) return;
     modal._cerrando = true;
@@ -6886,25 +6492,26 @@ ${paginaFotos}
       modal.removeAttribute('id');
       modal.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
     } catch (e) {}
-    modal.classList.add('cerrando');
+    modal.classList.add('cbvi-cerrando');
     setTimeout(() => { try { if (modal.parentNode) modal.parentNode.removeChild(modal); } catch (e) {} }, 160);
   },
 
-  /* v1.41: stagger de una lista UNA sola vez (al cargarse), no en cada tecla de un
-     filtro. Se llama DESPUÉS de pintar el innerHTML: agrega .stagger (los hijos entran
-     escalonados por CSS) y quita la clase a los 700ms, así un re-render por filtro
-     posterior NO vuelve a escalonar. Sirve para las listas del Panel Admin y de
-     Operatividad, que se pintan por display/innerHTML dentro de una pantalla ya activa
-     (por eso el fade no se re-dispara y quedaban sin movimiento). */
+  /* v6.36: stagger de una lista UNA sola vez (al cargarse), no en cada tecla de un
+     filtro. Se llama DESPUÉS de pintar el innerHTML: agrega .cbvi-stagger (los hijos
+     entran escalonados por CSS) y quita la clase a los 700ms, así un re-render por
+     filtro posterior NO vuelve a escalonar. Sirve para las listas del Panel Admin,
+     Operatividad y Deudores, que se pintan por display/innerHTML dentro de una
+     pantalla que ya está activa (por eso cbviFadeIn no se re-dispara y quedaban sin
+     movimiento). */
   _animarEntradaLista(cont) {
     if (!cont) return;
-    cont.classList.add('stagger');
+    cont.classList.add('cbvi-stagger');
     clearTimeout(cont._tStagger);
-    cont._tStagger = setTimeout(() => cont.classList.remove('stagger'), 700);
+    cont._tStagger = setTimeout(() => cont.classList.remove('cbvi-stagger'), 700);
   },
 
-  /* v1.42: un número que SUBE desde 0 hasta su valor (count-up), con un pop al llegar.
-     Respeta reducir movimiento (pone el valor directo). */
+  /* v6.38: un número que SUBE desde 0 hasta su valor (count-up), con un pop al llegar.
+     Dirige la mirada al dato. Respeta reducir movimiento (pone el valor directo). */
   _countUp(el, to) {
     if (!el) return;
     to = Number(to) || 0;
@@ -6914,30 +6521,30 @@ ${paginaFotos}
     const paso = (ts) => {
       if (ini === null) ini = ts;
       const p = Math.min((ts - ini) / dur, 1);
-      el.textContent = Math.round(to * (0.5 - Math.cos(p * Math.PI) / 2));
+      el.textContent = Math.round(to * (0.5 - Math.cos(p * Math.PI) / 2));   // easing suave
       if (p < 1) requestAnimationFrame(paso);
       else { el.textContent = to; this._pop(el); }
     };
     requestAnimationFrame(paso);
   },
 
-  /* v1.42: pop breve de un elemento (para resaltar un número que cambió). */
+  /* v6.38: pop breve de un elemento (para resaltar un número o dato que cambió). */
   _pop(el) {
     if (!el) return;
-    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    el.classList.remove('cbvi-pop'); void el.offsetWidth; el.classList.add('cbvi-pop');
   },
 
-  /* v1.42: marca un campo obligatorio vacío (rojo + sacudida) y limpia la marca en
+  /* v6.38: marca un campo obligatorio vacío (rojo + sacudida) y limpia la marca en
      cuanto el usuario empieza a escribir en él. */
   _marcarCampoFalta(id) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.classList.remove('campo-error'); void el.offsetWidth; el.classList.add('campo-error');
-    const limpiar = () => { el.classList.remove('campo-error'); el.removeEventListener('input', limpiar); };
+    el.classList.remove('cbvi-campo-error'); void el.offsetWidth; el.classList.add('cbvi-campo-error');
+    const limpiar = () => { el.classList.remove('cbvi-campo-error'); el.removeEventListener('input', limpiar); };
     el.addEventListener('input', limpiar);
   },
 
-  /* v1.44: loader "con carácter" para el centro de una pantalla/sección que carga.
+  /* v6.41: loader "con carácter" para el centro de una pantalla/sección que carga.
      Reparte SOLO entre sirena / despacho / sincronizando (rota en cada llamada si no
      se fija el tipo), así distintos puntos de carga muestran loaders distintos. Los
      skeletons (shimmer) siguen siendo el 4º tipo donde ya se usan. */
@@ -6991,17 +6598,13 @@ ${paginaFotos}
   // MÓDULO ACTIVIDADES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async iniciarNuevaActividad() {
+  iniciarNuevaActividad() {
     this._actPersonal = [];
     this._actRecursos = [];
     this._actAtenciones = [];
-    this._actIdCliente = null; // v1.45: nueva actividad = nuevo recibo de idempotencia
+    this._actIdCliente = null; // v6.42: nueva actividad = nuevo recibo de idempotencia (evita reusar el de un intento anterior)
     this._actFotos = { inicio: null, medio: null, fin: null, f4: null, f5: null, f6: null };
     this.irA('pantallaActividades');
-    // Acá SÍ se espera la flota: una actividad se registra con calma, no en una
-    // emergencia, así que vale la pena que el desplegable salga completo.
-    await this._cargarFlota();
-    this.poblarSelectFlota('actRecursoTipo');
     // reset form fields
     setTimeout(() => {
       ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades',
@@ -7010,7 +6613,7 @@ ${paginaFotos}
       });
       const rv = document.querySelector('input[name="actModalidad"][value="Voluntaria"]'); if (rv) rv.checked = true;
       this._renderPersonalActividad();
-      this._renderRecursosActividad();   // antes nadie pintaba #actRecursosLista
+      this._renderRecursosActividad();   // v6.09: antes nadie pintaba #actRecursosLista
       this._renderAtenciones();
       ['prevFotoInicio','prevFotoMedio','prevFotoFin','prevFotoF4','prevFotoF5','prevFotoF6'].forEach(id => {
         const el = document.getElementById(id);
@@ -7042,10 +6645,11 @@ ${paginaFotos}
     }
   },
 
-  // ═══ v1.45: ATENCIONES MÚLTIPLES dentro de una actividad ═══
+  // ═══ v6.42: ATENCIONES MÚLTIPLES dentro de una actividad ═══
   // Cada atención lleva datos básicos + hasta 3 fotos propias (aparte de las 6 de la
   // actividad). Viven en this._actAtenciones y viajan como JSON al backend. Los inputs de
-  // texto actualizan el modelo EN EL SITIO (sin re-render) para no perder el foco al escribir.
+  // texto actualizan el modelo EN EL SITIO (sin re-render) para no perder el foco al escribir;
+  // solo agregar/quitar atención o foto vuelve a pintar la lista.
   _actAtencionTipos: ['Primeros auxilios','Traslado a centro médico','Valoración','Otro'],
 
   agregarAtencion() {
@@ -7087,6 +6691,7 @@ ${paginaFotos}
     this._renderAtenciones();
   },
 
+  // Solo las atenciones con algún dato (evita mandar tarjetas vacías que el usuario abrió y no llenó).
   _atencionesParaEnviar() {
     return (this._actAtenciones || []).filter(a => a && (a.tipo || a.paciente || a.documento || a.hora || a.descripcion || (a.fotos && a.fotos.length)));
   },
@@ -7101,7 +6706,7 @@ ${paginaFotos}
       const fotos = (a.fotos || []).map((f, j) =>
         `<div style="position:relative;width:60px;height:60px;">
            <img src="${f}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">
-           <button type="button" onclick="app.quitarFotoAtencion(${i},${j})" style="position:absolute;top:-6px;right:-6px;background:#c41e3a;color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:1;cursor:pointer;font-size:12px;">×</button>
+           <button type="button" onclick="app.quitarFotoAtencion(${i},${j})" style="position:absolute;top:-6px;right:-6px;background:#d81f27;color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:1;cursor:pointer;font-size:12px;">×</button>
          </div>`).join('');
       const btnFoto = (a.fotos || []).length < 3
         ? `<label style="width:60px;height:60px;background:#f5f5f5;border:2px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;">
@@ -7140,7 +6745,7 @@ ${paginaFotos}
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'buscarPersonal', q })
+        body: JSON.stringify({ accion: 'buscarPersonalCBVI', q })
       });
       const data = await resp.json();
       if (!data.ok || !data.resultados.length) {
@@ -7227,7 +6832,7 @@ ${paginaFotos}
     this._renderPersonalActividad();
   },
 
-  /* ═══════ RECURSOS / VEHÍCULOS DE UNA ACTIVIDAD ═══════
+  /* ═══════ v6.09: RECURSOS / VEHÍCULOS DE UNA ACTIVIDAD ═══════
      Lo reportó Jeferson ("pongo Germán y no me aparece el autocompletado").
      Al buscar la causa apareció algo más grande: la sección entera era
      DECORADO. El HTML estaba completo (#actRecursoTipo, #actRecursoCodigo,
@@ -7245,16 +6850,8 @@ ${paginaFotos}
     const elTipo = document.getElementById('actRecursoTipo');
     const elCod  = document.getElementById('actRecursoCodigo');
     const elResp = document.getElementById('actRecursoResponsable');
-    let tipo = (elTipo && elTipo.value || '').trim();
-    if (!tipo) { this.toast('Elige el vehículo', 'error'); return; }
-    /* __OTRO__ es el marcador interno de _opcionesFlota, no un nombre. Sin esto
-       se guardaría la cadena "__OTRO__" como si fuera una máquina. Cuando lo
-       eligen, el nombre real va en el campo de código. */
-    if (tipo === '__OTRO__') {
-      const libre = (elCod && elCod.value || '').trim();
-      if (!libre) { this.toast('Escribe cuál vehículo en el campo de al lado', 'error'); return; }
-      tipo = libre;
-    }
+    const tipo = (elTipo && elTipo.value || '').trim();
+    if (!tipo) { this.toast('Elige el tipo de vehículo', 'error'); return; }
     const codigo = (elCod && elCod.value || '').trim();
     const responsable = (elResp && elResp.value || '').toUpperCase().trim();
     // La cédula sale del autocompletado (data-ced). Si el nombre se escribió a
@@ -7362,8 +6959,8 @@ ${paginaFotos}
       this._actIdCliente = null; // ← próximo registro tendrá su propio id
       // Reset form
       this._actPersonal = [];
-      this._actRecursos = [];   // faltaba: los vehículos quedaban pegados al
-                                // formulario y se repetían en la actividad siguiente
+      this._actRecursos = [];   // v6.09: faltaba — los vehículos quedaban pegados
+                                // al formulario y se repetían en la actividad siguiente
       this._actAtenciones = [];
       this._actFotos = { inicio: null, medio: null, fin: null, f4: null, f5: null, f6: null };
       ['actTipo','actDescripcion','actFecha','actLugar','actHoraInicio','actHoraFin','actNovedades',
@@ -7390,7 +6987,7 @@ ${paginaFotos}
     if (!cont) return;
     cont.innerHTML = this._skeleton(3);
     const esAdm = this.esAdmin();
-    let htmlAct = '';
+    let htmlAct = '', htmlDom = '';
 
     // 1) Actividades
     try {
@@ -7417,13 +7014,32 @@ ${paginaFotos}
       }
     } catch(e) { htmlAct = '<div style="color:#c00;padding:14px;">Error cargando actividades</div>'; }
 
-    /* 14/08/2026: acá iba un segundo bloque que listaba la ASISTENCIA DE DOMINGOS.
-       La formación dominical y el régimen de sanciones por inasistencia son de
-       de la estación de origen, no del gremio: un cuerpo que no los usa no tiene por qué encontrar
-       esa sección en su app. Salió con el módulo completo. */
+    // 2) Asistencia de domingos (con presentes / excusa / sin excusa)
+    try {
+      const rD = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarDomingos' })
+      });
+      const dD = await rD.json();
+      if (dD.ok && dD.domingos && dD.domingos.length) {
+        htmlDom = dD.domingos.map(d =>
+          '<div class="ops-log-item ops-log-attendance" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1e8449;cursor:pointer;" data-f="'+d.fecha+'" onclick="app.verAsistenciaDomingo(this.dataset.f)">'
+          +'<div style="font-weight:700;color:#1e8449;">📅 '+d.fecha+(d.tipo?' — '+d.tipo:'')+'</div>'
+          +(d.tema?'<div style="font-size:12px;color:#666;margin:2px 0;">'+app._esc(d.tema)+'</div>':'')
+          +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
+          +'<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">✅ Presentes: '+(d.presentes||0)+'</span>'
+          +'<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">📝 Con excusa: '+(d.excusados||0)+'</span>'
+          +'<span style="background:#ffebee;color:#c00;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">❌ Sin excusa: '+(d.sinExcusa||0)+'</span>'
+          +'</div></div>'
+        ).join('');
+      } else {
+        htmlDom = '<div style="text-align:center;padding:20px;color:#999;">No hay domingos registrados</div>';
+      }
+    } catch(e) { htmlDom = '<div style="color:#c00;padding:14px;">Error cargando domingos</div>'; }
 
     cont.innerHTML =
-      '<div class="ops-section-label" style="font-size:13px;font-weight:700;color:#1a5276;margin:4px 0 8px;letter-spacing:.5px;">📋 Actividades</div>' + htmlAct;
+      '<div class="ops-section-label" style="font-size:13px;font-weight:700;color:#1a5276;margin:4px 0 8px;letter-spacing:.5px;">📋 Actividades</div>' + htmlAct
+      + '<div class="ops-section-label ops-section-attendance" style="font-size:13px;font-weight:700;color:#1e8449;margin:18px 0 8px;letter-spacing:.5px;">📅 Asistencia de domingos</div>' + htmlDom;
   },
 
   async verDetalleActividad(id) {
@@ -7471,7 +7087,7 @@ ${paginaFotos}
     } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
   },
 
-  // v1.45: tarjetas de atenciones para el detalle en pantalla (fotos como URL de Drive).
+  // v6.42: tarjetas de atenciones para el detalle en pantalla (fotos como URL de Drive).
   _atencionesDetalleHTML(ats) {
     if (!Array.isArray(ats) || !ats.length) return '';
     const cards = ats.map((a, i) => {
@@ -7488,7 +7104,7 @@ ${paginaFotos}
       <div style="font-weight:700;margin-bottom:8px;">🩹 Atenciones (${ats.length})</div>${cards}</div>`;
   },
 
-  // v1.45: atenciones para el PDF oficial.
+  // v6.42: mismas atenciones para el PDF (estilo de impresión).
   _atencionesPDFHTML(ats) {
     if (!Array.isArray(ats) || !ats.length) return '';
     const bloques = ats.map((a, i) => {
@@ -7512,22 +7128,22 @@ ${paginaFotos}
     if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
     try { w.opener = null; } catch (e) {}
     const logo = app._logoImpresion();
-    const tel = (typeof TELEFONO_ESTACION !== 'undefined') ? TELEFONO_ESTACION : '';
+    const tel = (typeof TELEFONO_ESTACION !== 'undefined') ? TELEFONO_ESTACION : '314 531 1605';
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
       <title>Actividad ${a.id}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:12pt;margin:15mm;color:#000;}
-        .header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #7A1010;padding-bottom:10px;}
+        .header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #d81f27;padding-bottom:10px;}
         .header img{width:80px;height:80px;object-fit:contain;}
         .header .info{flex:1;text-align:center;}
         .header h2{margin:0;font-size:14pt;}
         .header .info div{font-size:9pt;}
-        .titulo{text-align:center;font-size:15pt;font-weight:700;color:#7A1010;margin:10px 0 2px;}
+        .titulo{text-align:center;font-size:15pt;font-weight:700;color:#d81f27;margin:10px 0 2px;}
         .lema{text-align:center;font-style:italic;font-size:10pt;margin-bottom:12px;}
-        h2.sec{color:#7A1010;font-size:13pt;border-bottom:1px solid #ccc;margin-top:18px;}
+        h2.sec{color:#d81f27;font-size:13pt;border-bottom:1px solid #ccc;margin-top:18px;}
         table{width:100%;border-collapse:collapse;margin:8px 0;}
         th,td{border:1px solid #000;padding:6px 8px;font-size:10pt;}
-        th{background:#7A1010;color:#fff;}
+        th{background:#d81f27;color:#fff;}
         .fotos{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0;}
         .fotos img{width:100%;max-height:80mm;object-fit:contain;border:1px solid #ccc;}
         .pie{margin-top:24px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#666;text-align:center;}
@@ -7537,14 +7153,14 @@ ${paginaFotos}
         <img src="${logo}" alt="">
         <div class="info">
           <h2>CUERPO DE BOMBEROS VOLUNTARIOS</h2>
-          <div>${app._esc((app._inst().municipio||"")+(app._inst().departamento?" - "+app._inst().departamento:""))}</div>
-          <div>${app._esc(app._inst().personeria||"")}</div>
-          <div>${app._membrete()}</div>
+          <div>INÍRIDA – GUAINÍA</div>
+          <div>Personería Jurídica N° 3561 del 5 de Agosto de 1976</div>
+          <div>NIT: 843000056-0 | Tel. ${tel} | Calle 15 N° 5-07 Zona Indígena</div>
         </div>
         <div style="width:80px;"></div>
       </div>
       <div class="titulo">REGISTRO OFICIAL DE ACTIVIDAD</div>
-      <div class="lema">${app._esc(app._inst().lema || '')}</div>
+      <div class="lema">"ABNEGACIÓN Y DISCIPLINA"</div>
 
       <h2 class="sec">${app._esc(a.tipo)} <span style="font-size:10pt;font-weight:700;">· ${a.modalidad === 'Paga' ? 'PAGA (contratada)' : 'VOLUNTARIA'}</span></h2>
       <p><strong>Descripción:</strong> ${app._esc(a.descripcion)}</p>
@@ -7566,7 +7182,7 @@ ${paginaFotos}
       <div class="pie">
         Registrado por: ${a.registradoPor||'-'}<br>
         Documento bajo Ley 1575 de 2012 (Ley General de Bomberos de Colombia) | Ley 1581 de 2012 (Habeas Data)<br>
-        ${app._esc(app._inst().nombre || "")}
+        Cuerpo de Bomberos Voluntarios Inírida – Guainía | "ABNEGACIÓN Y DISCIPLINA"
       </div>
       </body></html>`);
     w.document.close();
@@ -7577,8 +7193,761 @@ ${paginaFotos}
   // MÓDULO ASISTENCIA
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // _normNombre y _cedKey se movieron junto a _esc el 14/08/2026, para que la
-  // eliminación de este bloque no se las llevara.
+  _asistRegistros: {},
+
+  async cargarPantallaAsistencia() {
+    const esAdmin = this.esAdmin();
+    const adminPanel = document.getElementById('asistenciaAdminPanel');
+    if (adminPanel) adminPanel.style.display = esAdmin ? 'block' : 'none';
+    const sanPanel = document.getElementById('asistSancionesPanel');
+
+    // Cargar historial de domingos
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarDomingos' })
+      });
+      const data = await resp.json();
+      const hist = document.getElementById('asistHistorial');
+      if (!data.ok || !data.domingos.length) {
+        hist.innerHTML = '<div style="color:#999;text-align:center;padding:10px;">Sin registros aún</div>'; return;
+      }
+      hist.innerHTML = data.domingos.slice(0,10).map(d => {
+        const f = typeof d === 'string' ? d : d.fecha;
+        const tipo = typeof d === 'object' ? (d.tipo||'') : '';
+        const tema = typeof d === 'object' ? (d.tema||'') : '';
+        const esAdmH = this.esAdmin();
+        return '<div class="ops-history-row" style="padding:10px;border-bottom:1px solid #f0f0f0;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
+          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;">📅 '+f+(tipo?' — '+app._esc(tipo):'')+'</span>'
+          + (esAdmH
+            ? '<button data-f="'+f+'" onclick="app.editarDomingo(this.dataset.f)" style="background:#1a5276;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">✏️</button>'
+              + '<button data-f="'+f+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">🗑️</button>'
+            : '')
+          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="color:#1a5276;font-size:13px;cursor:pointer;">Ver →</span>'
+          + '</div>'
+          + (tema ? '<div style="font-size:12px;color:#666;margin-top:2px;">'+app._esc(tema)+'</div>' : '')
+          + '</div>';
+      }).join('');
+    } catch(e) {}
+
+    // v5.64 (BUG 1): la lista editable de deudores se movió a su propia
+    // pantalla (Ver Deudores). Aquí solo queda un aviso compacto con enlace.
+    if (esAdmin) {
+      try {
+        const resp2 = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'listarSanciones', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        });
+        const d2 = await resp2.json();
+        if (d2.ok && d2.sanciones.length) {
+          sanPanel.style.display = 'block';
+          document.getElementById('asistSanciones').innerHTML =
+            '<div onclick="app.abrirDeudores()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
+            + '<span>' + d2.sanciones.length + ' unidad(es) con horas de sanción pendientes</span>'
+            + '<span style="color:#c00;font-weight:700;">Ver Deudores →</span></div>';
+        } else {
+          sanPanel.style.display = 'none';
+        }
+      } catch(e) {}
+    }
+  },
+
+  async cargarListaAsistencia() {
+    const fecha = document.getElementById('asistFecha').value;
+    if (!fecha) return;
+    const cont = document.getElementById('asistListaPersonal');
+    cont.innerHTML = app._cargador('Cargando el personal…');
+    document.getElementById('btnGuardarAsistencia').style.display = 'block';
+    const _nb=document.getElementById('btnMostrarNuevoBombero');if(_nb)_nb.style.display='block';
+    this._asistRegistros = {};
+    this._asistDirty = false;   // v6.33: recién cargado desde el servidor, nada sin guardar
+    try {
+      const [r1,r2]=await Promise.all([
+        fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'listarTodoPersonal'})}),
+        fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'listarAsistenciaDomingo',fecha})})
+      ]);
+      const [d1,d2]=await Promise.all([r1.json(),r2.json()]);
+      // v5.81: se restaura también la observación previa (no solo el estado)
+      const prev={}; if(d2.ok) d2.registros.forEach(r=>{prev[r.cedula||r.nombre]={estado:r.estado,observacion:String(r.observacion||'')};});
+      /* v6.00 FIX (pérdida de datos) — precargar la CABECERA del domingo.
+         Estos 5 campos se LEÍAN en guardarAsistencia pero no se rellenaban nunca
+         desde lo ya guardado. Como guardarAsistencia manda replaceAll:true, al
+         abrir un domingo existente y pulsar Guardar el backend escribía los 5
+         VACÍOS en todas las filas: se borraban tipo de reunión, tema, lugar,
+         encargado y guardia. listarAsistenciaDomingo ya devolvía estos datos
+         (es lo que consume el modal de ✏️), solo faltaba usarlos acá.
+         Se asignan SIEMPRE, también en blanco cuando el domingo es nuevo: así
+         cambiar de fecha no arrastra el tema del domingo anterior al siguiente. */
+      const _cab = (d2.ok && d2.registros.length) ? d2.registros[0] : {};
+      const _setCab = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+      _setCab('asistTipoReunion', _cab.tipoReunion);
+      _setCab('asistTema', _cab.tema);
+      _setCab('asistLugar', _cab.lugarReunion);
+      _setCab('asistEncargado', _cab.encargado);
+      _setCab('asistComandanteGuardia', _cab.comandanteGuardia);
+      // v5.81: se guarda rango + orden (fila en Personal_CBVI) para llamar a
+      // lista por rangos y en el orden de la hoja (antes el objeto ordenaba
+      // por cédula numérica y el orden quedaba "raro").
+      if(d1.ok) d1.personal.forEach((p,ix)=>{
+        const k=p.cedula||p.nombre; const pv=prev[k]||{};
+        this._asistRegistros[k]={nombre:p.nombre,cedula:p.cedula,rango:p.rango||'BOMBERO',
+          orden:(p.orden!==undefined&&p.orden!==null)?Number(p.orden):(ix+1),
+          estado:pv.estado||'PRESENTE',observacion:pv.observacion||''};
+      });
+    }catch(e){cont.innerHTML='<div style="color:#c00;padding:10px;">Error: '+app._esc(e.message)+'</div>';return;}
+    this._renderAsistencia(fecha);
+  },
+
+  // v5.81: categoría jerárquica para el llamado a lista.
+  // 0=OFICIALES, 1=SUBOFICIALES, 2=BOMBEROS (y desconocidos), 3=ASPIRANTES.
+  // SUBTENIENTE contiene "TENIENTE" → cae en Oficiales igual (correcto).
+  _catRango(rango) {
+    const r = this._normNombre(rango || '');
+    if (r.indexOf('COMANDANTE') !== -1 || r.indexOf('CAPITAN') !== -1 || r.indexOf('TENIENTE') !== -1) return 0;
+    if (r.indexOf('SARGENTO') !== -1 || r.indexOf('CABO') !== -1) return 1;
+    if (r.indexOf('ASPIRANTE') !== -1) return 3;
+    return 2;
+  },
+
+  _ROTULOS_CAT: ['🎖️ OFICIALES', '🪖 SUBOFICIALES', '🚒 BOMBEROS', '🎓 ASPIRANTES'],
+
+  _renderAsistencia(fecha) {
+    const cont = document.getElementById('asistListaPersonal');
+    if (!cont) return;
+    // v5.81: llamado a lista por rangos (Oficiales → Suboficiales → Bomberos →
+    // Aspirantes) y, dentro de cada rango, por el orden de fila de la hoja
+    // Personal_CBVI. Antes Object.values() ordenaba por cédula numérica.
+    const lista = Object.values(this._asistRegistros).sort((a, b) => {
+      const ca = this._catRango(a.rango), cb = this._catRango(b.rango);
+      if (ca !== cb) return ca - cb;
+      return (a.orden || 999999) - (b.orden || 999999);
+    });
+    const filaHTML = (p) => {
+      const key = String(p.cedula || p.nombre || '').replace(/"/g, '&quot;');
+      const conExcusa = p.estado === 'AUSENTE_EXCUSA';
+      return '<div class="ops-attendance-row" data-row="'+key+'" style="padding:8px;border-bottom:1px solid #f0f0f0;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+        + '<div style="flex:1;"><div style="font-size:14px;font-weight:600;">'+app._esc(p.nombre||'(sin nombre)')+'</div>'
+        + '<div style="font-size:11px;color:#999;">CC: '+app._esc(p.cedula||'-')+'</div></div>'
+        + '<select data-k="'+key+'" data-n="'+app._esc(p.nombre||'')+'" onchange="app._setAsistencia(this.dataset.k,this.dataset.n,this.value)" '
+        + 'style="padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:'+(p.estado==='PRESENTE'?'#e8f5e9':p.estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee')+'">'
+        + '<option value="PRESENTE" '+(p.estado==='PRESENTE'?'selected':'')+'>Presente</option>'
+        + '<option value="AUSENTE_EXCUSA" '+(p.estado==='AUSENTE_EXCUSA'?'selected':'')+'>C/excusa</option>'
+        + '<option value="AUSENTE_SIN_EXCUSA" '+(p.estado==='AUSENTE_SIN_EXCUSA'?'selected':'')+'>Sin excusa</option>'
+        + '</select>'
+        + '<button data-k="'+key+'" onclick="app._quitarAsistencia(this.dataset.k)" style="background:none;border:none;color:#c00;font-size:16px;cursor:pointer;padding:4px;margin-left:4px;">X</button>'
+        + '</div>'
+        // v5.81: observación de la excusa visible y editable con un toque
+        + (conExcusa
+          ? '<div data-k="'+key+'" onclick="app._editarObsExcusa(this.dataset.k)" style="margin-top:5px;background:#fff8e1;border:1px dashed #e6a23c;border-radius:6px;padding:5px 8px;font-size:12px;color:#8a5a00;cursor:pointer;">'
+            + (p.observacion ? '📝 ' + app._esc(p.observacion) : '📝 <em>Toca aquí para escribir la observación de la excusa…</em>')
+            + '</div>'
+          : '')
+        + '</div>';
+    };
+    let cuerpo = '';
+    if (lista.length === 0) {
+      cuerpo = '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal cargado aun</div>';
+    } else {
+      const conteo = [0,0,0,0];
+      lista.forEach(p => { conteo[this._catRango(p.rango)]++; });
+      let catPrev = -1;
+      for (const p of lista) {
+        const c = this._catRango(p.rango);
+        if (c !== catPrev) {
+          cuerpo += '<div class="ops-roster-heading" style="margin:12px 0 4px;padding:6px 10px;background:#1e8449;color:#fff;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.5px;">'
+            + this._ROTULOS_CAT[c] + ' (' + conteo[c] + ')</div>';
+          catPrev = c;
+        }
+        cuerpo += filaHTML(p);
+      }
+    }
+    cont.innerHTML = '<div style="font-size:12px;color:#555;margin-bottom:10px;">Registrando asistencia para el <strong>'+fecha+'</strong></div>'
+      + cuerpo
+      + '<div style="position:relative;margin-top:10px;">'
+      + '<input type="text" id="asistBuscar" placeholder="Buscar y agregar bombero..." autocomplete="off" '
+      + 'style="width:100%;padding:10px;border:1px solid #1e8449;border-radius:8px;font-size:14px;box-sizing:border-box;" '
+      + 'oninput="app.buscarPersonalAsistencia(this.value)">'
+      + '<div id="asistSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;"></div>'
+      + '</div>';
+  },
+
+  _quitarAsistencia(key) {
+    delete this._asistRegistros[key];
+    this._asistDirty = true;   // v6.33
+    const fecha = document.getElementById('asistFecha').value;
+    this._renderAsistencia(fecha);
+  },
+
+  _buscarAsistTimer: null,
+  buscarPersonalAsistencia(q) {
+    clearTimeout(this._buscarAsistTimer);
+    const sug = document.getElementById('asistSugerencias');
+    if (!q || q.trim().length < 1) { sug.style.display = 'none'; return; }
+    sug.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:13px;">Buscando...</div>'; sug.style.display = 'block';
+    this._buscarAsistTimer = setTimeout(async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'buscarPersonalCBVI', q: q.trim() })
+        });
+        const data = await resp.json();
+        if (!data.ok || !data.resultados.length) { sug.style.display = 'none'; return; }
+        sug.innerHTML = data.resultados.map(per =>
+          `<div onclick='app.agregarAsistente(${JSON.stringify(per).replace(/'/g,"&#39;")})'
+            style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;">
+            <strong>${app._esc(per.nombre)}</strong> <span style="color:#666;font-size:12px;">CC: ${app._esc(per.cedula)}</span>
+          </div>`
+        ).join('');
+        sug.style.display = 'block';
+      } catch(e) { sug.style.display = 'none'; }
+    }, 400);
+  },
+
+  agregarAsistente(p) {
+    const _sug = document.getElementById('asistSugerencias'); if (_sug) _sug.style.display = 'none';
+    const _bus = document.getElementById('asistBuscar'); if (_bus) _bus.value = '';
+    const fecha = document.getElementById('asistFecha').value;
+    const ced = String(p.cedula || '').trim();
+    // v5.72/v5.73: dedup ROBUSTO por cédula O nombre normalizado + aviso claro si
+    // la cédula ya pertenece a OTRA persona (cédula duplicada en la base).
+    const exist = this._buscarAsistExistente(ced, p.nombre);
+    if (exist) {
+      this._renderAsistencia(fecha);
+      this._avisarAsistExistente(exist, ced, p.nombre);
+      this._flashAsistItem(exist.key);
+      return;
+    }
+    const key = ced || p.nombre;
+    // v5.81: conserva el rango (para el grupo correcto) y lo pone al final de
+    // su categoría (orden alto = después de los que vienen de la hoja).
+    this._asistRegistros[key] = { nombre: p.nombre, cedula: ced, rango: p.rango || 'BOMBERO', orden: this._sigOrdenAsist(), estado: 'PRESENTE' };
+    this._asistDirty = true;   // v6.33
+    this._renderAsistencia(fecha);
+    this._flashAsistItem(key);
+  },
+
+  // v5.81: orden incremental para los agregados a mano — quedan al final de su
+  // categoría de rango, después del personal que viene de la hoja.
+  _sigOrdenAsist() {
+    this._asistSeqAdd = (this._asistSeqAdd || 0) + 1;
+    return 100000 + this._asistSeqAdd;
+  },
+
+  // Busca en la lista actual a alguien que coincida por cédula O por nombre
+  // normalizado. Devuelve {key, entry} o null.
+  _buscarAsistExistente(cedula, nombre) {
+    const ced = this._cedKey(cedula); // v5.95: solo dígitos — "1.234.567" == "1234567"
+    const nn = this._normNombre(nombre);
+    for (const k in this._asistRegistros) {
+      const e = this._asistRegistros[k];
+      if ((ced && this._cedKey(e.cedula) === ced) || (nn && this._normNombre(e.nombre) === nn)) {
+        return { key: k, entry: e };
+      }
+    }
+    return null;
+  },
+
+  // Mensaje al usuario cuando la persona "ya está". Si la CÉDULA coincide pero el
+  // NOMBRE es distinto → es una cédula duplicada (dos personas, misma cédula):
+  // se avisa con claridad para que corrija el dato.
+  _avisarAsistExistente(exist, cedula, nombre) {
+    const ced = this._cedKey(cedula); // v5.95: solo dígitos, igual que _buscarAsistExistente
+    const mismoNombre = this._normNombre(exist.entry.nombre) === this._normNombre(nombre);
+    if (ced && !mismoNombre) {
+      this.toast('⚠️ La cédula ' + ced + ' ya está en la lista como "' + exist.entry.nombre
+        + '". Dos personas NO pueden tener la misma cédula: corrige el dato en la base.', 'error');
+    } else {
+      this.toast(nombre + ' ya está en la lista (resaltado)', 'info');
+    }
+  },
+
+  // Normaliza un nombre igual que el backend (_normFuerteBackend): mayúsculas,
+  // espacios colapsados y sin tildes/Ñ → para comparar personas de forma fiable.
+  _normNombre(s) {
+    return String(s || '').trim().toUpperCase().replace(/\s+/g, ' ')
+      .replace(/[ÁÀÄÂ]/g, 'A').replace(/[ÉÈËÊ]/g, 'E').replace(/[ÍÌÏÎ]/g, 'I')
+      .replace(/[ÓÒÖÔ]/g, 'O').replace(/[ÚÙÜÛ]/g, 'U').replace(/Ñ/g, 'N');
+  },
+
+  // Equivalente front de _cedKey del backend: cédula a SOLO dígitos, para que
+  // "1.234.567", "1 234 567" y "1234567" crucen como la misma persona.
+  _cedKey(x) {
+    return String(x == null ? '' : x).replace(/\D/g, '');
+  },
+
+  // Lleva la vista a una fila de asistencia y la resalta un momento.
+  _flashAsistItem(key) {
+    requestAnimationFrame(() => {
+      const cont = document.getElementById('asistListaPersonal');
+      if (!cont) return;
+      let sel;
+      try { sel = '[data-row="' + (window.CSS && CSS.escape ? CSS.escape(String(key)) : String(key)) + '"]'; } catch (e) { return; }
+      let row; try { row = cont.querySelector(sel); } catch (e) { row = null; }
+      if (!row) return;
+      try { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { try { row.scrollIntoView(); } catch (e2) {} }
+      const bgPrev = row.style.background;
+      row.style.transition = 'background 0.3s';
+      row.style.background = '#fff3cd';
+      setTimeout(() => { row.style.background = bgPrev || ''; }, 1600);
+    });
+  },
+
+  // v5.54 FIX: faltaba esta función (el botón "Agregar y registrar" no hacía nada).
+  // Registra el bombero en la base de datos del personal Y lo suma a la lista del domingo.
+  async agregarNuevoBomberoAsistencia(btn) {
+    const nombre = (document.getElementById('asistNuevoNombre').value || '').toUpperCase().trim();
+    const cedula = (document.getElementById('asistNuevoCedula').value || '').trim();
+    const tel    = (document.getElementById('asistNuevoTel').value || '').trim();
+    const correo = (document.getElementById('asistNuevoCorreo').value || '').trim();
+    const rango  = (document.getElementById('asistNuevoRango').value || 'BOMBERO');
+    if (!nombre || !cedula) { this.toast('Nombre y cédula son obligatorios', 'error'); return; }
+    const key = cedula || nombre;
+    // v5.73: dedup robusto + aviso claro si la cédula ya es de otra persona.
+    const _yaAsist = this._buscarAsistExistente(cedula, nombre);
+    if (_yaAsist) {
+      const fechaR = document.getElementById('asistFecha').value;
+      this._renderAsistencia(fechaR);
+      this._avisarAsistExistente(_yaAsist, cedula, nombre);
+      this._flashAsistItem(_yaAsist.key);
+      return;
+    }
+
+    await this._conBloqueo(btn, 'Registrando...', async () => {
+    try {
+      const r = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'agregarPersonalCBVI',
+          nombre, cedula, telefono: tel, email: correo, rango,
+          adminEmail: this.usuario?.email || ''
+        })
+      });
+      const d = await r.json();
+      if (!d.ok) { this.toast('Error: ' + (d.error || 'no se pudo registrar'), 'error'); return; }
+
+      // Sumarlo a la lista del domingo actual (Presente)
+      // v5.81: con rango y orden para que caiga en su grupo del llamado a lista
+      this._asistRegistros[key] = { nombre, cedula, rango, orden: this._sigOrdenAsist(), estado: 'PRESENTE' };
+      // Disponible en autocompletar de inmediato
+      // v5.98: se agrega a la lista VIGENTE (la que viene de la hoja), no a la
+      // semilla del código. En el próximo arranque llega ya desde Personal_CBVI.
+      if (!this._rosterVigente().includes(nombre)) {
+        if (!Array.isArray(this._rosterVivo)) this._rosterVivo = this._rosterVigente().slice();
+        this._rosterVivo.push(nombre);
+        this.poblarRosterBomberos();
+      }
+      // Limpiar y ocultar el formulario
+      ['asistNuevoNombre','asistNuevoCedula','asistNuevoTel','asistNuevoCorreo'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+      });
+      const form = document.getElementById('asistFormNuevoBombero');
+      if (form) form.style.display = 'none';
+
+      const fecha = document.getElementById('asistFecha').value;
+      this._renderAsistencia(fecha);
+      this.toast('✅ ' + nombre + (d.yaExiste ? ' (ya existía)' : ' registrado'), 'exito');
+    } catch (e) {
+      this.toast('Sin conexión. Intenta de nuevo con internet.', 'error');
+      console.error(e);
+    }
+    });
+  },
+
+  _setAsistencia(key, nombre, estado) {
+    // v5.81: se conserva la entrada existente (rango, orden, observación) —
+    // antes se reemplazaba el objeto entero y se perdían esos campos.
+    const e = this._asistRegistros[key] || { nombre, cedula: key };
+    e.estado = estado;
+    this._asistRegistros[key] = e;
+    this._asistDirty = true;   // v6.33: hay marcado sin guardar (guard al salir)
+    // cambiar color del select
+    const fecha = document.getElementById('asistFecha') ? document.getElementById('asistFecha').value : '';
+    const cont = document.getElementById('asistListaPersonal');
+    let sel = null;
+    try { sel = cont ? cont.querySelector('select[data-k="' + (window.CSS && CSS.escape ? CSS.escape(String(key)) : String(key)) + '"]') : null; } catch (er) {}
+    if (sel) sel.style.background = estado==='PRESENTE'?'#e8f5e9':estado==='AUSENTE_EXCUSA'?'#fff8e1':'#ffebee';
+    // v5.81 (punto 4): al marcar C/excusa se pide la observación AL INSTANTE
+    if (estado === 'AUSENTE_EXCUSA') {
+      this._editarObsExcusa(key);
+    } else if (e.observacion) {
+      // Si se corrige el estado (ya no es excusa), la observación de la excusa
+      // se limpia para no guardar un motivo que ya no aplica.
+      e.observacion = '';
+      this._renderAsistencia(fecha);
+    }
+  },
+
+  // v5.81 (punto 4): cuadro propio (I4: nada de prompt() nativo) para escribir
+  // o corregir la observación de una excusa ANTES de subir la asistencia.
+  _editarObsExcusa(key) {
+    const e = this._asistRegistros[key];
+    if (!e) return;
+    const viejo = document.getElementById('_obsExcModal');
+    if (viejo) viejo.remove();
+    const modal = document.createElement('div');
+    modal.id = '_obsExcModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
+    modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+      + '<div style="font-size:15px;font-weight:700;color:#e65100;margin-bottom:4px;">📝 Excusa de ' + app._esc(e.nombre || '') + '</div>'
+      + '<div style="font-size:12px;color:#777;margin-bottom:10px;">Escribe el motivo de la excusa (queda guardado con la asistencia).</div>'
+      + '<textarea id="_obsExcTxt" rows="3" placeholder="Ej: incapacidad médica, viaje, trabajo..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>'
+      + '<div style="display:flex;gap:10px;margin-top:12px;">'
+      + '<button id="_obsExcOmitir" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Sin observación</button>'
+      + '<button id="_obsExcGuardar" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Guardar</button>'
+      + '</div></div>';
+    document.body.appendChild(modal);
+    const txt = modal.querySelector('#_obsExcTxt');
+    txt.value = e.observacion || '';
+    setTimeout(() => { try { txt.focus(); } catch (er) {} }, 50);
+    const cerrar = () => { try { app._cerrarModalJS(modal); } catch (er) {} };
+    const fecha = document.getElementById('asistFecha') ? document.getElementById('asistFecha').value : '';
+    modal.querySelector('#_obsExcOmitir').onclick = () => { cerrar(); this._renderAsistencia(fecha); this._flashAsistItem(key); };
+    modal.querySelector('#_obsExcGuardar').onclick = () => {
+      e.observacion = (txt.value || '').trim();
+      this._asistDirty = true;   // v6.33: la observación es un cambio sin guardar
+      cerrar();
+      this._renderAsistencia(fecha);
+      this._flashAsistItem(key);
+    };
+  },
+
+  async guardarAsistencia(btn) {
+    // v5.63 (BUG doble click): bloqueo mientras se guarda
+    if (this._guardandoAsistencia) return;
+    const fecha = document.getElementById('asistFecha').value;
+    if (!fecha) { this.toast('Selecciona la fecha', 'error'); return; }
+    const registros = Object.values(this._asistRegistros);
+    if (!registros.length) { this.toast('Agrega personal primero', 'error'); return; }
+    /* v6.09: SOLO USUARIO + PIN, sin la contraseña de administrador.
+       El celular de la estación lo comparten los tres turnos y la contraseña es
+       de la comandancia: pedirla para anotar la asistencia de un domingo obligaba
+       a repartirla. Ahora firma quien está de turno con su PIN personal, que
+       además deja constancia de QUIÉN anotó (la contraseña, al ser una sola para
+       todos, no decía nada de eso). El backend lo exige de verdad: registrarAsistencia
+       pasó a _esGuardiaConPin en v6.00. */
+    const _firmaOk = await this._exigirFirma();
+    if (!_firmaOk) return;
+    const tipoReunion = document.getElementById('asistTipoReunion') ? document.getElementById('asistTipoReunion').value : '';
+    const tema = document.getElementById('asistTema') ? document.getElementById('asistTema').value : '';
+    const lugarReunion = document.getElementById('asistLugar') ? document.getElementById('asistLugar').value : '';
+    this._guardandoAsistencia = true;
+    let _htmlBtnAsist = '';
+    if (btn) { _htmlBtnAsist = btn.innerHTML; btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="ld-sirena"></span> Guardando asistencia...'; }
+    this.toast('⏳ Guardando asistencia...', 'info');
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          accion: 'registrarAsistencia', fecha, registros, replaceAll: true,
+          tipoReunion, tema, lugarReunion,
+          encargado: document.getElementById('asistEncargado') ? document.getElementById('asistEncargado').value : '',
+          comandanteGuardia: document.getElementById('asistComandanteGuardia') ? document.getElementById('asistComandanteGuardia').value : '',
+          fotos: this._asistFotos || {},
+          adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || ''
+        })
+      });
+      const data = await resp.json();
+      if (!data.ok) {
+        if (data.error === 'No autorizado') {
+          this._adminPwdSession = null; // limpiar para reintentar
+          throw new Error('Contraseña incorrecta. Intenta de nuevo.');
+        }
+        throw new Error(data.error);
+      }
+      const ausentes = registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
+      this._asistFotos = { inicio:null, medio:null, fin:null };
+      this._asistDirty = false;   // v6.33: ya quedó guardado en el servidor
+      this.toast('✅ Asistencia guardada — ' + ausentes + ' ausentes sin excusa', 'exito');
+      setTimeout(() => this.cargarPantallaAsistencia(), 1000);
+    } catch(e) { this.toast('Error: ' + e.message, 'error'); }
+    finally {
+      this._guardandoAsistencia = false;
+      if (btn) { btn.disabled = false; btn.style.opacity=''; btn.innerHTML = _htmlBtnAsist; }
+    }
+  },
+
+  async verAsistenciaDomingo(fecha) {
+    // v5.57: modal que funciona desde CUALQUIER pantalla (antes escribía en
+    // #asistHistorial, que solo existe en la pantalla de Asistencia → fallaba
+    // silenciosamente desde "Mis Actividades").
+    // v5.81 (punto 1): el modal aparece AL INSTANTE con "Abriendo asistencia..."
+    // y animación — antes el toque no mostraba nada mientras respondía el
+    // servidor (en Inírida eso pueden ser varios segundos).
+    const _prevM = document.getElementById('_domModal');
+    if (_prevM) _prevM.remove();
+    const m = document.createElement('div');
+    m.id = '_domModal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;overflow-y:auto;padding:14px;';
+    m.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:26px 18px;max-width:460px;margin:auto;text-align:center;">'
+      + '<div class="ld-sirena-g" style="margin:0 auto;"></div>'
+      + '<div style="margin-top:12px;font-weight:700;color:var(--navy);font-size:14px;">Abriendo asistencia del ' + app._esc(fecha) + '…</div>'
+      + '<div style="font-size:12px;color:#999;margin-top:4px;">Espera un momento</div>'
+      + '</div>';
+    document.body.appendChild(m);
+    m.onclick = (e) => { if (e.target === m) m.remove(); };
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarAsistenciaDomingo', fecha })
+      });
+      const data = await resp.json();
+      if (!data.ok) { m.remove(); this.toast('No se pudo cargar el domingo', 'error'); return; }
+      const regs = data.registros || [];
+      const fotos = data.fotos || [];
+      const pres = regs.filter(r => r.estado === 'PRESENTE');
+      const exc  = regs.filter(r => r.estado === 'AUSENTE_EXCUSA');
+      const sin  = regs.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA');
+      const _enc = regs[0] && regs[0].encargado || '';
+      const _grd = regs[0] && regs[0].comandanteGuardia || '';
+      const esAdm = this.esAdmin();
+
+      const grupo = (titulo, arr, color, bg) =>
+        '<div style="margin-top:10px;"><div style="font-weight:700;font-size:13px;color:'+color+';">'+titulo+' ('+arr.length+')</div>'
+        + (arr.length ? arr.map(r => '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:'+bg+';border-radius:6px;margin-top:4px;font-size:13px;"><span>'+app._esc(r.nombre)+'</span>'+(r.observacion?'<span style="color:#666;font-size:11px;">'+app._esc(r.observacion)+'</span>':'')+'</div>').join('')
+                      : '<div style="color:#999;font-size:12px;padding:4px;">Ninguno</div>')
+        + '</div>';
+
+      const fotosHTML = fotos.length
+        ? '<div style="margin-top:12px;"><div style="font-weight:700;font-size:13px;color:#1a5276;">📸 Fotos del domingo</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;">'
+          + fotos.map(f => '<img src="'+f+'" style="width:100%;border-radius:6px;border:1px solid #eee;">').join('') + '</div></div>'
+        : '';
+
+      // v5.58: notificación de sanciones de los inasistentes sin excusa
+      const sanc = data.sanciones || [];
+      const msgAlerta = (s) => {
+        if (s.alerta === 'DESERCION' || s.alerta === 'RETIRO') return '🚨 ALERTA EXTREMA: DESERCIÓN — gestionar retiro de la institución';
+        if (s.alerta === 'LLAMADO_ESCRITO') return '📄 Llamado de atención ESCRITO';
+        if (s.alerta === 'LLAMADO_VERBAL')  return '🗣️ Llamado de atención VERBAL';
+        return '';
+      };
+      const sancHTML = sanc.length
+        ? '<div style="margin-top:14px;border-top:2px solid #ffcdd2;padding-top:10px;">'
+          + '<div style="font-weight:700;font-size:13px;color:#c00;">⚠️ Estado de sanciones (inasistencias sin excusa)</div>'
+          + sanc.map(s => {
+              const al = msgAlerta(s);
+              return '<div style="background:#fff5f5;border:1px solid #ffcdd2;border-radius:8px;padding:8px;margin-top:6px;font-size:13px;">'
+                + '<strong>'+app._esc(s.nombre||'')+'</strong>'
+                + '<div style="font-size:12px;color:#c00;margin-top:2px;">Debe <strong>'+s.horas+'h</strong> de sanción · '+s.inasist+' inasistencia(s)</div>'
+                + (al ? '<div style="font-size:12px;font-weight:700;color:var(--rojo);margin-top:2px;">'+al+'</div>' : '')
+                + '</div>';
+            }).join('')
+          + '</div>'
+        : '';
+
+      // v5.81: el modal ya está en pantalla (con la animación de carga) —
+      // aquí solo se reemplaza su contenido por el detalle del domingo.
+      m.innerHTML =
+        '<div style="background:#fff;border-radius:16px;padding:18px;max-width:460px;margin:auto;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        +   '<div style="font-weight:700;font-size:16px;color:#1e8449;">📅 '+fecha+'</div>'
+        +   '<button onclick="document.getElementById(\'_domModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;">×</button>'
+        + '</div>'
+        + (regs[0] && regs[0].tipoReunion ? '<div style="font-size:13px;color:#555;">'+app._esc(regs[0].tipoReunion)+(regs[0].tema?' — '+app._esc(regs[0].tema):'')+'</div>' : '')
+        + (_enc ? '<div style="font-size:12px;color:#555;margin-top:4px;">Encargado: <strong>'+app._esc(_enc)+'</strong></div>' : '')
+        + (_grd ? '<div style="font-size:12px;color:#555;">Guardia: <strong>'+app._esc(_grd)+'</strong></div>' : '')
+        + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
+        +   '<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">✅ Presentes: '+pres.length+'</span>'
+        +   '<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">📝 Con excusa: '+exc.length+'</span>'
+        +   '<span style="background:#ffebee;color:#c00;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">❌ Sin excusa: '+sin.length+'</span>'
+        + '</div>'
+        + grupo('🔴 SIN EXCUSA (acumulan sanción)', sin, '#c00', '#ffebee')
+        + grupo('🟡 CON EXCUSA', exc, '#e65100', '#fff8e1')
+        + grupo('✅ PRESENTES', pres, '#1e8449', '#e8f5e9')
+        + fotosHTML
+        + sancHTML
+        + (esAdm
+            ? '<div style="display:flex;gap:8px;margin-top:14px;">'
+              + '<button data-f="'+fecha+'" onclick="document.getElementById(\'_domModal\').remove();app.editarDomingo(this.dataset.f)" style="flex:1;background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">✏️ Editar</button>'
+              + '<button data-f="'+fecha+'" onclick="app.eliminarDomingo(this.dataset.f)" style="flex:1;background:#c00;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">🗑️ Eliminar</button>'
+              + '</div>'
+            : '')
+        + '</div>';
+    } catch(e) { m.remove(); this.toast('Error: ' + e.message, 'error'); }
+  },
+
+  // v5.90: modal propio (invariante I4 — nada de prompt() nativo, falla en el
+  // APK) para registrar el cumplimiento de horas. Además de las horas pide la
+  // ACTIVIDAD QUE REALIZÓ la unidad, que queda como constancia escrita en la
+  // hoja Sanciones_Cumplidas. Devuelve Promise<{horas, actividad} | null>.
+  _pedirCumplimientoSancion(nombre, horasPendientes) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;';
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
+      const pend = Number(horasPendientes) || 0;
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
+        + '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:4px;">✅ Registrar horas cumplidas</div>'
+        + '<div style="font-size:13px;color:#666;margin-bottom:16px;">' + this._esc(nombre || 'Unidad')
+        + (pend > 0 ? ' — <strong style="color:#c00;">' + pend + 'h pendientes</strong>' : '') + '</div>'
+        + '<label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:5px;">Horas a descontar</label>'
+        + '<input id="_csHoras" type="number" min="1" ' + (pend > 0 ? 'max="' + pend + '"' : '')
+        + ' inputmode="numeric" placeholder="Ej: 4" style="width:100%;box-sizing:border-box;padding:11px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:14px;">'
+        + '<label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:5px;">Actividad que realizó <span style="color:#c00;">*</span></label>'
+        + '<textarea id="_csAct" rows="3" maxlength="300" placeholder="Ej: Aseo y mantenimiento de la máquina 01, apoyo logístico en simulacro..." style="width:100%;box-sizing:border-box;padding:11px;border:1px solid #ddd;border-radius:8px;font-size:15px;resize:vertical;margin-bottom:4px;"></textarea>'
+        + '<div style="font-size:11px;color:#999;margin-bottom:14px;">Queda como constancia permanente de en qué cumplió la sanción.</div>'
+        + '<div style="display:flex;gap:10px;">'
+        + '<button id="_csCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
+        + '<button id="_csOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Registrar</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      const inpH = modal.querySelector('#_csHoras');
+      const inpA = modal.querySelector('#_csAct');
+      setTimeout(() => { try { inpH.focus(); } catch (e) {} }, 50);
+      const fin = (val) => { try { app._cerrarModalJS(modal); } catch (e) {} resolve(val); };
+      modal.querySelector('#_csCancel').onclick = () => fin(null);
+      modal.querySelector('#_csOk').onclick = () => {
+        const horas = Number(inpH.value);
+        const actividad = (inpA.value || '').trim();
+        if (!horas || horas <= 0) { this.toast('Ingresa las horas cumplidas', 'error'); inpH.focus(); return; }
+        if (pend > 0 && horas > pend) { this.toast('No puede descontar más de ' + pend + 'h pendientes', 'error'); inpH.focus(); return; }
+        if (!actividad) { this.toast('Escribe qué actividad realizó', 'error'); inpA.focus(); return; }
+        fin({ horas: horas, actividad: actividad });
+      };
+    });
+  },
+
+  async cumplirSancion(btn, cedula, nombre, horasPendientes) {
+    // v5.70 FIX + v5.71 IDEMPOTENCIA + v5.90 CONSTANCIA:
+    //  (1) Descontar horas exige contraseña admin; se pide DENTRO de _conBloqueo
+    //      (un doble-toque no abre dos modales ni descuenta dos veces).
+    //  (2) idCliente = "recibo" único. Si la red falla tras descontar y reintentas
+    //      el MISMO descuento, va el mismo recibo → el servidor NO resta de nuevo.
+    //      Se genera recibo nuevo solo si cambian los datos o tras un éxito.
+    //  (3) v5.90: se pide la actividad realizada ANTES de la contraseña (si el
+    //      admin cancela el formulario, ni siquiera se le molesta con la clave).
+    await this._conBloqueo(btn, 'Guardando...', async () => {
+      const datos = await this._pedirCumplimientoSancion(nombre, horasPendientes);
+      if (!datos) return; // canceló → no se hace nada
+      const horas = datos.horas, actividad = datos.actividad;
+      // v6.09: solo usuario + PIN (ver guardarAsistencia). Queda registrado quién
+      // descontó, y si se descuenta horas a sí mismo el log lo marca aparte.
+      const _firmaOk = await this._exigirFirma();
+      if (!_firmaOk) return; // canceló o sin PIN → no se hace nada
+      this._idCumplir = this._idCumplir || {};
+      let reg = this._idCumplir[cedula];
+      // El recibo se reusa SOLO si se reintenta exactamente lo mismo (horas Y
+      // actividad). Si el admin corrige cualquiera de los dos, es otro registro.
+      if (!reg || reg.horas !== horas || reg.actividad !== actividad) {
+        reg = { id: 'cs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), horas: horas, actividad: actividad };
+        this._idCumplir[cedula] = reg;
+      }
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'cumplirSancion', cedula, horas, actividad,
+            idCliente: reg.id, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+        });
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error);
+        delete this._idCumplir[cedula]; // éxito → el próximo descuento usa recibo nuevo
+        this.toast('✅ ' + data.mensaje, 'exito');
+        setTimeout(() => this.cargarPantallaDeudores(), 1000);
+      } catch(e) { this.toast('Error: ' + e.message, 'error'); } // error → conserva el recibo para reintento seguro
+    });
+  },
+
+  // ═══ v5.64 (BUG 1+2): pantalla dedicada "Ver Deudores" ═══
+  // Antes vivía embebida (con edición) dentro de Asistencia. Ahora es su
+  // propia pantalla con accordion: toca un nombre para ver EXACTAMENTE
+  // qué domingos (fecha + tema) le generaron la deuda.
+  abrirDeudores() {
+    if (!this.esAdmin()) { this.toast('Solo administradores pueden ver esto', 'error'); return; }
+    this.irA('pantallaDeudores');
+  },
+
+  async cargarPantallaDeudores() {
+    const cont = document.getElementById('deudoresContenido');
+    if (!cont) return;
+    if (!this.esAdmin()) {
+      cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;">🔒</div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver esto</div></div>';
+      return;
+    }
+    cont.innerHTML = this._skeleton(3);
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarSanciones', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const data = await resp.json();
+      if (!data.ok) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + app._esc(data.error||'desconocido') + '</div>'; return; }
+      const sanc = (data.sanciones || []).filter(s => Number(s.horasPendientes) > 0);
+      if (!sanc.length) {
+        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#1e8449;background:#fff;border-radius:12px;"><div style="font-size:40px;">✅</div><div style="margin-top:10px;font-weight:700;">Sin deudores pendientes</div></div>';
+        return;
+      }
+      sanc.sort((a,b) => Number(b.horasPendientes) - Number(a.horasPendientes));
+      // v5.91: la regla a la vista, para no tener que explicarla cada vez que
+      // alguien pregunta por qué le subieron las horas si sí asistió.
+      const reglaHTML = '<div style="background:#fff8e1;border:1px solid #ffe082;border-left:4px solid #f4c430;border-radius:10px;padding:11px 13px;margin-bottom:12px;font-size:12px;line-height:1.55;color:#5d4037;">'
+        + '<strong>⚠️ Cómo crecen estas horas</strong><br>'
+        + 'Cada domingo que pasa sin cumplirlas, la deuda se <strong>duplica</strong> (2h → 4h → 8h → 16h…), con tope de <strong>32h</strong>.<br>'
+        + 'Asistir <strong>no</strong> detiene la duplicación, y la excusa <strong>tampoco</strong>: justifica no haber venido, no haber dejado de cumplir. Solo cumplir las horas la detiene.'
+        + '</div>';
+      const badge = (s) => {
+        if (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO')
+          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>';
+        if (s.tipoAlerta === 'LLAMADO_ESCRITO')
+          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>';
+        if (s.tipoAlerta === 'LLAMADO_VERBAL')
+          return '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>';
+        return '';
+      };
+      cont.innerHTML = reglaHTML + sanc.map((s,i) => {
+        const uid = 'deu_' + i;
+        return '<div style="background:#fff;border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #c00;">'
+          + '<div data-uid="'+uid+'" data-ced="'+app._esc(s.cedula||'')+'" data-nom="'+app._esc(s.nombre||'')+'" data-hp="'+app._esc(String(s.horasPendientes||''))+'" onclick="app._toggleDeudorAccordion(this.dataset.uid,this.dataset.ced,this.dataset.nom,this.dataset.hp)" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
+          + '<div><strong>'+app._esc(s.nombre||'')+'</strong>'+badge(s)+'<div style="font-size:12px;color:#666;margin-top:2px;">CC: '+app._esc(s.cedula||'-')+'</div></div>'
+          + '<div style="text-align:right;"><div style="color:#c00;font-weight:700;">'+s.horasPendientes+'h</div><div style="font-size:11px;color:#999;"><span class="cbvi-caret" id="'+uid+'_car">▼</span> ver domingos</div></div>'
+          + '</div>'
+          + '<div id="'+uid+'_det" style="display:none;padding:0 14px 14px;border-top:1px solid #f5f5f5;"></div>'
+          + '</div>';
+      }).join('');
+      this._animarEntradaLista(cont);   // v6.36: las tarjetas de deudor entran escalonadas
+    } catch(e) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + e.message + '</div>'; }
+  },
+
+  // v5.90: recibe también nombre (nom) y horas pendientes (hp) para poder
+  // mostrarlos en el modal de registro de cumplimiento sin volver a consultar.
+  async _toggleDeudorAccordion(uid, cedula, nom, hp) {
+    const det = document.getElementById(uid + '_det');
+    if (!det) return;
+    const car = document.getElementById(uid + '_car');   // v6.36: caret que gira
+    const abierto = det.style.display !== 'none';
+    if (abierto) { det.style.display = 'none'; if (car) car.classList.remove('abierto'); return; }
+    det.style.display = 'block';
+    if (car) car.classList.add('abierto');
+    // v6.36: el detalle aparece con un fade (reutiliza .cbvi-entra ya existente).
+    det.classList.remove('cbvi-entra'); void det.offsetWidth; det.classList.add('cbvi-entra');
+    if (det.dataset.cargado === '1') return;
+    det.innerHTML = app._cargador('Cargando los domingos…');
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'obtenerFaltasDomingoPersona', cedula, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const data = await resp.json();
+      if (!data.ok) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+app._esc(data.error)+'</div>'; return; }
+      det.dataset.cargado = '1';
+      const faltas = data.faltas || [];
+      det.innerHTML = '<div style="padding-top:10px;">'
+        + (faltas.length
+          ? faltas.map(f => '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;"><strong>📅 '+app._esc(f.fecha)+'</strong><div style="color:#666;margin-top:2px;">'+app._esc(f.tema)+'</div></div>').join('')
+          : '<div style="padding:8px 0;color:#999;font-size:13px;">Sin domingos sin excusa registrados</div>')
+        // v5.90: el input suelto de horas se reemplazó por un modal que además
+        // pide la ACTIVIDAD REALIZADA. El botón pasa los datos por data-* en vez
+        // de interpolar la cédula dentro del string del onclick (invariante I10:
+        // una cédula con comilla o carácter raro rompía el handler entero).
+        + '<div style="margin-top:12px;">'
+        + '<button data-ced="'+app._esc(cedula||'')+'" data-nom="'+app._esc(nom||'')+'" data-hp="'+app._esc(String(hp||''))+'"'
+        + ' onclick="app.cumplirSancion(this,this.dataset.ced,this.dataset.nom,this.dataset.hp)"'
+        + ' style="background:#1e8449;color:#fff;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;font-weight:700;width:100%;">✅ Registrar horas cumplidas</button>'
+        + '</div></div>';
+    } catch(e) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+app._esc(e.message)+'</div>'; }
+  },
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MÓDULO OPERATIVIDAD
@@ -7606,7 +7975,7 @@ ${paginaFotos}
       this._operData = data.operatividad || [];
       this._operStats = data.stats || null;
       this._renderOperatividad();
-      this._animarEntradaLista(document.getElementById('operatividadContenido'));   // v1.41: entra escalonado
+      this._animarEntradaLista(document.getElementById('operatividadContenido'));   // v6.36: entra escalonado
     } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
   }
 
@@ -7626,8 +7995,8 @@ ${paginaFotos}
     const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const filtros = '<div class="ops-filterbar" style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
       + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
-      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
-      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#6e2fa0':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
+      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
+      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
       + '</div>'
       + '<div style="display:flex;gap:8px;">'
       + '<select onchange="app._operMes=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
@@ -7644,13 +8013,13 @@ ${paginaFotos}
       const mesNom0 = this._operMes ? mesesN[parseInt(this._operMes)-1] : 'Todo el año';
       const card0 = (n,lbl,col) => '<div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;"><div style="font-size:28px;font-weight:700;color:'+col+';">'+n+'</div><div style="font-size:12px;color:#666;">'+lbl+'</div></div>';
       cont.innerHTML = filtros
-        + '<div class="ops-period" style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">'
+        + '<div class="ops-period" style="background:#d81f27;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">'
         + '<div style="font-size:13px;opacity:.8;">Período</div>'
         + '<div style="font-size:18px;font-weight:700;">'+mesNom0+' '+this._operAnio+'</div>'
-        + '<div style="font-size:12px;opacity:.7;margin-top:2px;">' + app._esc(app._inst().nombre || '') + '</div></div>'
+        + '<div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div></div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
         + card0(0,'Unidades con registros','#1a5276') + card0(0,'Emergencias únicas','#c0392b')
-        + card0('0h','Horas en actividades','#1e8449')
+        + card0('0h','Horas en actividades','#1e8449') + card0(0,'Domingos realizados','#e67e22')
         + '</div>'
         + '<div style="text-align:center;padding:20px;color:#999;background:#fff;border-radius:12px;">Sin registros en este período</div>';
       return;
@@ -7672,20 +8041,23 @@ ${paginaFotos}
     const totalPersonas = d.length;
     const totalEmerg = d.reduce((s,p) => s + (p.emergencias||0), 0);
     const totalHoras = d.reduce((s,p) => s + (p.horasActividades||0), 0);
+    const totalDomingos = (this._operStats && this._operStats.totalDomingos !== undefined) ? this._operStats.totalDomingos : d.reduce((s,p) => s + (p.domingosPresente||0), 0);
+    const totalSancion = d.filter(p => p.horasSancion > 0).length;
     const top = [...d].sort((a,b) => {
-      const pa = a.emergencias*2 + a.horasActividades;
-      const pb = b.emergencias*2 + b.horasActividades;
+      const pa = a.emergencias*2 + a.horasActividades + a.domingosPresente;
+      const pb = b.emergencias*2 + b.horasActividades + b.domingosPresente;
       return pb - pa;
     });
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
 
     const topEmerg = [...d].sort((a,b)=>b.emergencias-a.emergencias).filter(p=>p.emergencias>0);
     const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades).filter(p=>p.horasActividades>0);
+    const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente).filter(p=>p.domingosPresente>0);
     const medallas = ['🥇','🥈','🥉'];
     const rankRow = (p,i,val,lbl) => '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
       + '<div><span style="font-size:15px;">'+(medallas[i]||('<span style="font-size:11px;color:#999;">#'+(i+1)+'</span>'))+'</span>'
       + '<strong style="margin-left:6px;font-size:13px;">'+app._esc(p.nombre||'')+'</strong></div>'
-      + '<span style="font-weight:700;color:#6e2fa0;">'+val+' '+lbl+'</span></div>';
+      + '<span style="font-weight:700;color:#d81f27;">'+val+' '+lbl+'</span></div>';
     const rankList = (lista, getId, getVal, lbl, color) => {
       if(!lista.length) return '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin datos en este período</div>';
       const top3 = lista.slice(0,3).map((p,i)=>rankRow(p,i,getVal(p),lbl)).join('');
@@ -7699,28 +8071,41 @@ ${paginaFotos}
     };
 
     cont.innerHTML = `
-      <div class="ops-period" style="background:#6e2fa0;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
+      <div class="ops-period" style="background:#d81f27;color:#fff;border-radius:12px;padding:16px;margin-bottom:10px;">
         <div style="font-size:13px;opacity:.8;">Período</div>
         <div style="font-size:18px;font-weight:700;">${mesNombre} ${this._operAnio}</div>
-        <div style="font-size:12px;opacity:.7;margin-top:2px;">${app._esc(app._inst().nombre || '')}</div>
+        <div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
-          <div class="op-cifra" style="font-size:28px;font-weight:700;color:#1a5276;">${totalPersonas}</div>
+          <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#1a5276;">${totalPersonas}</div>
           <div style="font-size:12px;color:#666;">Unidades con registros</div>
           ${this._operStats && this._operStats.unidadesBase !== undefined ? '<div style="font-size:11px;color:#999;margin-top:2px;">Base activa: '+this._operStats.unidadesBase+'</div>' : ''}
         </div>
         <div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
-          <div class="op-cifra" style="font-size:28px;font-weight:700;color:#c0392b;">${this._operStats ? this._operStats.totalEmergenciasUnicas : totalEmerg}</div>
+          <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#c0392b;">${this._operStats ? this._operStats.totalEmergenciasUnicas : totalEmerg}</div>
           <div style="font-size:12px;color:#666;">Emergencias únicas</div>
         </div>
         <div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
           <div style="font-size:28px;font-weight:700;color:#1e8449;">${this._r1((this._operStats && this._operStats.totalHorasActividades !== undefined) ? this._operStats.totalHorasActividades : totalHoras)}h</div>
           <div style="font-size:12px;color:#666;">Horas en actividades</div>
         </div>
+        <div class="ops-metric" style="background:#fff;border-radius:10px;padding:14px;text-align:center;">
+          <div class="cbvi-num" style="font-size:28px;font-weight:700;color:#e67e22;">${totalDomingos}</div>
+          <div style="font-size:12px;color:#666;">Domingos realizados</div>
+        </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;">
+        <div class="ops-metric" style="background:#fff;border-radius:10px;padding:12px;text-align:center;">
+          <div class="cbvi-num" style="font-size:22px;font-weight:700;color:var(--navy-2);">${this._operStats && this._operStats.asistenciasTotales !== undefined ? this._operStats.asistenciasTotales : d.reduce((s,p)=>s+(p.domingosPresente||0),0)}</div>
+          <div style="font-size:12px;color:#666;">Asistencias totales (suma individual)</div>
+        </div>
+      </div>
+
       ${this._operStats && this._operStats.sinCruce > 0 ? '<div style="background:#fff8e1;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #f9a825;"><div style="font-weight:700;color:#8d6e00;font-size:13px;">⚠️ '+this._operStats.sinCruce+' registro(s) no cruzan con la base de personal</div><div style="font-size:12px;color:#8d6e00;margin-top:2px;">Son nombres o cédulas escritos distinto en los registros (por eso hay más tarjetas que unidades reales). Búscalos en "Por Unidad": están marcados en ámbar — corrige la escritura en la hoja para que se fusionen.</div></div>' : ''}
+
+      ${totalSancion > 0 ? '<div style="background:#ffebee;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #c00;"><div style="font-weight:700;color:#c00;">⚠️ '+totalSancion+' unidad(es) con sanciones pendientes</div></div>' : ''}
 
       <div class="ops-rank ops-rank-emergency" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-weight:700;color:#c0392b;margin-bottom:8px;">🚨 Ranking Emergencias</div>
@@ -7730,9 +8115,14 @@ ${paginaFotos}
         <div style="font-weight:700;color:#1e8449;margin-bottom:8px;">🎯 Ranking Actividades</div>
         ${rankList(topActiv,'rk_activ',p=>this._r1(p.horasActividades)+'h','activ.','#1e8449')}
       </div>
-      <button onclick="app._imprimirReporteGeneral()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
-    // v1.43: las cifras de las tarjetas SUBEN desde 0.
-    cont.querySelectorAll('.op-cifra').forEach(el => this._countUp(el, el.textContent));
+      <div class="ops-rank ops-rank-attendance" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
+        ${rankList(topDomin,'rk_domin',p=>p.domingosPresente,'dom.','#e67e22')}
+      </div>
+      <button onclick="app._imprimirReporteGeneral()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
+    // v6.39: las cifras de las tarjetas SUBEN desde 0 (el valor final ya está en el
+    // textContent; _countUp lo toma como destino y anima desde 0).
+    cont.querySelectorAll('.cbvi-num').forEach(el => this._countUp(el, el.textContent));
   },
 
   _renderPorUnidad() {
@@ -7751,7 +8141,7 @@ ${paginaFotos}
       <div id="listaUnidades">
         ${d.map(p => this._cardUnidad(p, mesNombre)).join('')}
       </div>
-      <button onclick="app._imprimirReportePorUnidad()" style="background:#6e2fa0;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:4px;">🖨️ Imprimir Informe por Unidad</button>
+      <button onclick="app._imprimirReportePorUnidad()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:4px;">🖨️ Imprimir Informe por Unidad</button>
       <button onclick="app._operVista='general';app.cargarOperatividad()" style="background:#f0f0f0;color:#333;border:none;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">← Ver Resumen General</button>`;
   },
 
@@ -7764,27 +8154,37 @@ ${paginaFotos}
   },
 
   _cardUnidad(p, mesNombre) {
-    const pts = this._r1(p.emergencias*2 + p.horasActividades);
+    const pts = this._r1(p.emergencias*2 + p.horasActividades + p.domingosPresente);
+    const pctDom = p.domingosPresente + p.domingosAusente > 0
+      ? Math.round(p.domingosPresente/(p.domingosPresente+p.domingosAusente)*100) : 0;
+    const colorAlerta = (p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#ff9800':null;
     const nom = String(p.nombre||'');
     const uid = 'u_'+nom.replace(/[^a-zA-Z]/g,'').substring(0,12);
-    return '<div class="ops-unit" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #6e2fa0;">'
+    return '<div class="ops-unit" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #d81f27;">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       +'<div><div style="font-weight:700;font-size:15px;">'+app._esc(nom||'(sin nombre)')+'</div>'
       +'<div style="font-size:12px;color:#666;">CC: '+app._esc(p.cedula||'-')+'</div>'
       +(p.enBase===false?'<div style="font-size:11px;background:#fff8e1;color:#8d6e00;border:1px solid #f9a825;border-radius:6px;padding:2px 6px;margin-top:3px;display:inline-block;">⚠️ No cruza con la base (revisar escritura)</div>':'')
       +'</div>'
-      +'<div style="text-align:right;"><div style="font-weight:700;color:#6e2fa0;font-size:16px;">'+pts+' pts</div>'
+      +'<div style="text-align:right;"><div style="font-weight:700;color:#d81f27;font-size:16px;">'+pts+' pts</div>'
+      +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
       +'</div></div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
       +'<div class="ops-unit-metric" style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
       +'<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
       +'<div class="ops-unit-metric" style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#1e8449;">'+this._r1(p.horasActividades)+'h</div>'
       +'<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
+      +'<div class="ops-unit-metric" style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
+      +'<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
+      +'<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div></div>'
       +'</div>'
       +'<div id="'+uid+'_det" style="display:none;margin-bottom:8px;"></div>'
-      +'</div>';
+      +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">'
+      +'<span>Asistencia domingos: <strong>'+pctDom+'%</strong></span>'
+      +(p.horasSancion>0?'<span style="color:#c00;font-weight:700;">⚠️ '+p.horasSancion+'h sanción</span>':'<span style="color:#1e8449;">✅ Sin sanciones</span>')
+      +'</div></div>';
   },
 
   async _expandirDetalle(tipo, uid, nombre, cedula) {
@@ -7793,7 +8193,7 @@ ${paginaFotos}
     if (cont.style.display!=='none' && cont.dataset.tipo===tipo) { cont.style.display='none'; return; }
     cont.style.display='block'; cont.dataset.tipo=tipo;
     cont.innerHTML = app._cargador('Cargando…');
-    const accion = tipo==='emerg'?'obtenerEmergenciasPersona':'obtenerActividadesPersona';
+    const accion = tipo==='emerg'?'obtenerEmergenciasPersona':tipo==='activ'?'obtenerActividadesPersona':'obtenerDomingosPersona';
     try {
       const resp=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({accion,nombre,cedula:cedula||'',mes:this._operMes,anio:this._operAnio})});
@@ -7825,12 +8225,12 @@ ${paginaFotos}
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-      modal.className = 'modal-js';   // sin esto ninguna regla CSS lo alcanza
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div id="_pwdAdmCaja" style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
         + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:12px;text-align:center;">'+(mensaje||'🔐 Contraseña de administrador')+'</div>'
         + '<input id="_pwdAdmInput" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:8px;" placeholder="Contraseña">'
-        // acá se escribe el motivo exacto del rechazo. Nace oculto y su texto se
-        // pone con textContent, nunca con innerHTML (I5).
+        // v6.09: acá se escribe el motivo exacto del rechazo. Nace oculto y su
+        // texto se pone con textContent, nunca con innerHTML (I5).
         + '<div id="_pwdAdmErr" style="display:none;color:#c0392b;font-size:13px;font-weight:600;text-align:center;margin-bottom:10px;"></div>'
         + '<div style="display:flex;gap:10px;">'
         + '<button id="_pwdAdmCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Cancelar</button>'
@@ -7842,7 +8242,7 @@ ${paginaFotos}
       const fin = (val) => { try { app._cerrarModalJS(modal); } catch(e){} resolve(val); };
       modal.querySelector('#_pwdAdmCancel').onclick = () => fin(null);
 
-      /* ═══ LA CONTRASEÑA SE COMPRUEBA ACÁ, NO DESPUÉS ═══
+      /* ═══ v6.09: LA CONTRASEÑA SE COMPRUEBA ACÁ, NO DESPUÉS ═══
          Lo reportó Jeferson: ponía una contraseña equivocada, no salía ningún
          aviso, la app seguía de largo hasta el PIN y recién al final tiraba un
          "No autorizado" seco. La causa: nadie validaba la contraseña en el
@@ -7858,9 +8258,9 @@ ${paginaFotos}
         err.textContent = txt;                 // textContent, no innerHTML (I5)
         err.style.display = 'block';
         inp.style.borderColor = '#c0392b';
-        caja.classList.remove('sacudir');
+        caja.classList.remove('cbvi-sacudir');
         void caja.offsetWidth;                 // reflow: sin esto, dos errores
-        caja.classList.add('sacudir');    // seguidos no re-disparan la animación
+        caja.classList.add('cbvi-sacudir');    // seguidos no re-disparan la animación
         try { inp.focus(); inp.select(); } catch(e) {}
       };
       const intentar = async () => {
@@ -7912,7 +8312,7 @@ ${paginaFotos}
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-      modal.className = 'modal-js';   // sin esto ninguna regla CSS lo alcanza
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       const attrs = (o.maxlength ? ' maxlength="' + o.maxlength + '"' : '')
                   + (o.inputmode ? ' inputmode="' + o.inputmode + '"' : '');
       // El título va como HTML a propósito (los llamadores le pasan un <div> con
@@ -7946,53 +8346,40 @@ ${paginaFotos}
        acciones de administrador. Devolver null bloquea el flujo entero sin tener
        que tocar las ~15 pantallas que llaman a esta función: todas ya hacen
        `if (!pwd) return;`.
-       Reportar emergencias NO pasa por acá, así que eso sigue funcionando sin PIN. */
+       Reportar emergencias NO pasa por acá, así que eso sigue funcionando sin PIN.
+       v6.32: `contexto` es opcional — solo lo pasa abrirPanelAdmin() (ver
+       _pedirOperador) para que el modal de firma pregunte "qué administrador
+       entra" en vez de "quién está de guardia": entrar al Panel es cosa de
+       administrador, no de guardia — ese lenguaje sí aplica en sanciones,
+       asistencia, etc. (los ~14 llamadores restantes, sin cambios). */
     if (this._adminPwdSession) return (await this._exigirFirma(contexto)) ? this._adminPwdSession : null;
-    try { const s = sessionStorage.getItem('adm_pwd'); if (s) { this._adminPwdSession = s; return (await this._exigirFirma(contexto)) ? s : null; } } catch(e) {}
+    try { const s = sessionStorage.getItem('cbvi_admin_pwd'); if (s) { this._adminPwdSession = s; return (await this._exigirFirma(contexto)) ? s : null; } } catch(e) {}
+    // v6.09: _pedirPwdAdmin ya NO devuelve lo que se tecleó sin más: solo
+    // devuelve una contraseña que el servidor confirmó. Por eso guardarla acá
+    // pasó a ser seguro; antes se guardaba una contraseña sin comprobar y
+    // quedaba pegada en el teléfono (ver _olvidarPwdAdmin).
     const pwd = await this._pedirPwdAdmin(mensaje);
     if (!pwd || !pwd.trim()) return null;
     this._adminPwdSession = pwd.trim();
-    try { sessionStorage.setItem('adm_pwd', this._adminPwdSession); } catch(e) {}
+    try { sessionStorage.setItem('cbvi_admin_pwd', this._adminPwdSession); } catch(e) {}
     return (await this._exigirFirma(contexto)) ? this._adminPwdSession : null;
   },
 
-  /* OLVIDAR LA CONTRASEÑA — las DOS copias.
+  /* v6.09: OLVIDAR LA CONTRASEÑA — las DOS copias.
      El bug que dejaba trancada la app: la contraseña vive en dos lados (memoria
-     y sessionStorage) y al fallar solo se limpiaba la de memoria. En la
-     siguiente vuelta se leía otra vez desde sessionStorage y NUNCA se volvía a
-     preguntar: bucle infinito de "No autorizado" del que solo se salía cerrando
-     la app. */
+     y sessionStorage) y al fallar solo se limpiaba la de memoria
+     (`this._adminPwdSession = null`). En la siguiente vuelta se leía otra vez
+     desde sessionStorage y NUNCA se volvía a preguntar: bucle infinito de
+     "No autorizado" del que solo se salía cerrando la app.
+     En todo app.js el único removeItem que existía era el de 'cbvi_oper'; el de
+     la contraseña no estaba escrito en ninguna parte. */
   _olvidarPwdAdmin() {
     this._adminPwdSession = null;
-    try { sessionStorage.removeItem('adm_pwd'); } catch(e) {}
+    try { sessionStorage.removeItem('cbvi_admin_pwd'); } catch(e) {}
   },
 
   // Devuelve true solo si hay una firma verificada en esta sesión.
   async _exigirFirma(contexto) {
-    /* ═══ EL FUNDADOR NO PUEDE QUEDAR AFUERA DE SU PROPIA INSTALACIÓN ═══
-
-       Lo reportó Jeferson el 15/08/2026 probando la instalación de un cuerpo nuevo:
-       acababa de instalar, entró como fundador, y el Panel Admin le pidió un PIN.
-       Pero los PINes los asigna el administrador DESDE el Panel Admin. Círculo cerrado:
-       la instalación quedaba inutilizable el mismo minuto de nacer.
-
-       Es el mismo callejón que tenía ADMIN_PASSWORD, y por el mismo motivo: se diseñó
-       pensando en una estación que YA venía funcionando, donde los PINes existían desde
-       antes. En una instalación nueva no existe ninguno.
-
-       El PIN resuelve un problema concreto: el celular de la guardia tiene UNA sesión de
-       Google compartida por varias personas, así que la cuenta no dice quién operó. Al
-       fundador eso no le aplica: entró con SU cuenta, verificada por Google. Pedirle un
-       PIN además no agrega trazabilidad — solo lo deja afuera. */
-    if (this.esSuperAdmin()) return true;
-
-    /* ═══ FIRMA APAGADA = LA IDENTIDAD DE GOOGLE BASTA ═══
-       En el producto cada admin entra con su propia cuenta, así que ya se sabe quién es.
-       El PIN solo suma cuando VARIAS personas comparten un teléfono; ese cuerpo lo
-       enciende (FIRMA_OPERADOR='SI' en el backend). Mientras esté apagado —el caso normal—
-       no se pide nada: pedirlo dejaba al segundo admin fuera igual que al fundador. */
-    if (!this._firmaObligatoria) return true;
-
     const oper = await this._obtenerOperador(contexto);
     if (oper) {
       // Avisar una vez si se pasó sin firmar por backend antiguo, para que no
@@ -8019,7 +8406,7 @@ ${paginaFotos}
      propio antes de tocar sanciones, y (c) cruzar contra el registro de guardia
      del domingo, que la app ya guarda. NO bloquea: si se cancela, la acción sigue
      y el log queda marcado como "operador NO declarado", que en sí es una señal. */
-  /* ═══════ LA FIRMA CADUCA ═══════
+  /* ═══════ v6.09: LA FIRMA CADUCA ═══════
      Lo planteó Jeferson con el caso exacto: *"yo puedo estar de comandante de
      guardia, tengo el celular, inicié sesión con usuario y PIN, lo dejé en la
      mesa, y otra persona entró e hizo cambios a mi nombre."* Con la firma
@@ -8054,7 +8441,7 @@ ${paginaFotos}
   _borrarFirma() {
     this._operadorSesion = null; this._operadorCedula = null;
     this._operadorPin = null; this._operadorLlave = null; this._firmaTs = 0;
-    try { sessionStorage.removeItem('app_oper'); } catch(e) {}
+    try { sessionStorage.removeItem('cbvi_oper'); } catch(e) {}
   },
 
   async _obtenerOperador(contexto) {
@@ -8063,10 +8450,10 @@ ${paginaFotos}
       this.toast('🔒 Pasaron 30 minutos sin actividad: vuelve a firmar con tu PIN.', 'info');
     }
     if (this._operadorSesion) { this._tocarFirma(); return this._operadorSesion; }
-    // Ya NO se lee de sessionStorage. Se limpia lo que hubiera quedado de una
-    // versión anterior, para que un PIN viejo guardado en texto plano no siga
-    // dando firma después de actualizar.
-    try { sessionStorage.removeItem('app_oper'); } catch(e) {}
+    /* v6.09: ya NO se lee de sessionStorage. Se limpia lo que hubiera quedado
+       de una versión anterior, para que un PIN viejo guardado en texto plano no
+       siga dando firma después de actualizar. */
+    try { sessionStorage.removeItem('cbvi_oper'); } catch(e) {}
     /* v6.03 ANTI-BLOQUEO — comprobar que el backend sepa de PINes ANTES de exigirlos.
        Si el backend desplegado es anterior a v5.96 no conoce la acción
        `verificarOperador`, así que nadie podría firmar nunca... y como la firma es
@@ -8095,10 +8482,12 @@ ${paginaFotos}
        en el celular de la guardia después de una recarga. Con esto, quien la usó
        tiene que volver a ponerla si la app se reinicia. */
     this._operadorLlave = r.llave || '';
-    /* La firma tampoco se guarda ya. Antes acá iba un setItem que dejaba el PIN
-       escrito en texto plano en el teléfono de la guardia y hacía que la firma
-       sobreviviera a cerrar la app. Mismo criterio que la llave de comandancia
-       de la línea de arriba: memoria y nada más. */
+    /* v6.09: la firma tampoco se guarda ya. Antes acá iba
+       `sessionStorage.setItem('cbvi_oper', JSON.stringify(r))`, que dejaba el
+       PIN escrito en texto plano en el teléfono de la guardia y hacía que la
+       firma sobreviviera a cerrar la app. Ahora sigue exactamente el mismo
+       criterio que la llave de comandancia de la línea de arriba: memoria y
+       nada más. */
     this._firmaTs = Date.now();
     return r.nombre;
   },
@@ -8107,7 +8496,9 @@ ${paginaFotos}
      Si no existiera esto, el turno entrante quedaría operando bajo la firma del
      turno saliente — justo lo que el PIN vino a evitar. */
   async cambiarOperador() {
-    this._borrarFirma();   // una sola función limpia las 5 cosas
+    this._borrarFirma();   // v6.09: una sola función limpia las 5 cosas
+    // v6.32: vive solo dentro del Panel Admin (relevo de QUIÉN ADMINISTRA
+    // este dispositivo, no de guardia) — mismo contexto que abrirPanelAdmin().
     const nom = await this._obtenerOperador('panelAdmin');
     if (nom) this.toast('🪪 Ahora opera: ' + nom, 'exito');
     const et = document.getElementById('operActualTxt');
@@ -8129,7 +8520,7 @@ ${paginaFotos}
           // operadores administrativos, que viven en otra hoja y no salían acá.
           // Solo lo pide ESTE modal: en el autocompletado de reportes y
           // actividades no deben aparecer (no son unidades bomberiles).
-          body: JSON.stringify({ accion:'buscarPersonal', q: q.trim(), incluirAdministrativos: true }) });
+          body: JSON.stringify({ accion:'buscarPersonalCBVI', q: q.trim(), incluirAdministrativos: true }) });
         const data = await resp.json();
         if (!data.ok || !data.resultados.length) {
           // v6.06: antes se ocultaba la lista y quedaba una pantalla muda: la
@@ -8154,20 +8545,20 @@ ${paginaFotos}
   },
 
   _pedirOperador(contexto) {
-    /* v1.37 (deuda portada de la app de referencia): al Panel Admin NO entra la
-       guardia, entran administradores — preguntar "quién está de guardia" ahí
-       confundía a Jeferson (guardias no llegan a este modal desde ese flujo).
-       En sanciones/asistencia/etc. sí opera la guardia, así que ahí el texto
-       original sigue aplicando sin cambios. */
-    const esPanel = contexto === 'panelAdmin';
-    const titulo = esPanel ? '🪪 ¿Qué administrador entra?' : '🪪 ¿Quién está de guardia?';
-    const cuerpo = esPanel
-      ? 'Este teléfono puede compartirse entre varios administradores. Su nombre queda registrado junto a lo que haga en el Panel. Por eso hace falta <b>su PIN</b> — así nadie firma en su nombre.'
-      : 'Cuando varias personas comparten el mismo teléfono, la cuenta de Google no alcanza para saber quién hizo qué. Su nombre queda registrado junto a cada informe, actividad o edición que haga. Por eso el <b>PIN</b>: para que nadie pueda firmar en su nombre.';
     return new Promise((resolve) => {
+      // v6.32: entrar al Panel de Administrador es cosa de administrador, no
+      // de guardia — "¿quién está de guardia?" confundía porque los guardias
+      // (unidades sin permisos admin) nunca llegan a este modal desde acá. En
+      // sanciones, asistencia y demás SÍ es la guardia quien firma, así que
+      // ese texto (el de siempre) se queda para todo lo que no pase `contexto`.
+      const esPanel = contexto === 'panelAdmin';
+      const titulo = esPanel ? '🪪 ¿Qué administrador entra?' : '🪪 ¿Quién está de guardia?';
+      const cuerpo = esPanel
+        ? 'Este celular puede compartirse entre varios administradores. Tu nombre queda registrado junto a lo que hagas en el Panel. Por eso hace falta <b>tu PIN</b> — así nadie firma en tu nombre.'
+        : 'Este celular lo usa la guardia y el turno cambia. Tu nombre queda registrado junto a lo que hagas: sanciones, asistencias y ediciones. Por eso hace falta <b>tu PIN</b> — así nadie puede firmar en tu nombre.';
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-      modal.className = 'modal-js';   // sin esto ninguna regla CSS lo alcanza
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
         + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:6px;text-align:center;">' + titulo + '</div>'
         + '<div style="font-size:11px;color:#666;margin-bottom:12px;text-align:center;line-height:1.45;">' + cuerpo + '</div>'
@@ -8191,19 +8582,19 @@ ${paginaFotos}
       const btn = modal.querySelector('#_operOk');
       setTimeout(() => { try { inp.focus(); } catch(e){} }, 50);
       const fin = (val) => { try { app._cerrarModalJS(modal); } catch(e){} resolve(val); };
-      /* v1.40: el error ahora SACUDE la caja (como el modal de contraseña) además de
+      /* v6.35: el error ahora SACUDE la caja (como el modal de contraseña) además de
          mostrar el texto — antes un PIN malo no daba ninguna señal de movimiento. */
       const mostrarErr = (t) => {
         err.textContent = t; err.style.display = 'block';
         const caja = modal.querySelector('div');
-        if (caja) { caja.classList.remove('sacudir'); void caja.offsetWidth; caja.classList.add('sacudir'); }
+        if (caja) { caja.classList.remove('cbvi-sacudir'); void caja.offsetWidth; caja.classList.add('cbvi-sacudir'); }
       };
       const intentar = async () => {
         const ced = inp.dataset.ced || '';
         const p = (pin.value || '').trim();
         if (!ced) { mostrarErr('Toca tu nombre en la lista que aparece al escribir.'); return; }
         if (!/^\d{4}$/.test(p)) { mostrarErr('El PIN son 4 dígitos.'); return; }
-        // v1.40: spinner girando en "Verificando..." (igual que _pedirPwdAdmin).
+        // v6.35: spinner girando en "Verificando..." (igual que _pedirPwdAdmin).
         btn.disabled = true; btn.style.opacity = '0.65'; btn.innerHTML = '<span class="ld-sincro"></span> Verificando...';
         try {
           // Se valida ANTES de aceptar la firma, para avisar en el momento y no
@@ -8247,7 +8638,7 @@ ${paginaFotos}
   _confirmarAccion(mensaje, onConfirmar) {
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-    modal.className = 'modal-js';   // sin esto ninguna regla CSS lo alcanza
+    modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
     modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
       + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:16px;text-align:center;">'+mensaje+'</div>'
       + '<div style="display:flex;gap:10px;">'
@@ -8279,11 +8670,40 @@ ${paginaFotos}
     });
   },
 
+  async eliminarDomingo(fecha) {
+    this._confirmarAccion('\u00BFEliminar asistencia del '+fecha+'?', async () => {
+      if (!this._eliminandoFechas) this._eliminandoFechas = new Set();
+      if (this._eliminandoFechas.has(fecha)) return; // v5.64 (BUG 2): anti doble-click
+      this._eliminandoFechas.add(fecha);
+      try {
+        const _pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+        if (!_pwd) return;
+        /* v6.01: CANDADO DE COMANDANCIA. Borrar un domingo completo arrasa la
+           asistencia de ~34 unidades y, al recalcular, altera las sanciones de
+           todos. Es lo más destructivo de la app y casi nunca es lo que hace
+           falta: para corregir un domingo se EDITA, y eso sigue libre.
+           La contraseña de comandancia NO se guarda en la sesión a propósito: se
+           pide cada vez. Si se cacheara, quedaría viva en el celular de la
+           guardia y el candado no serviría para nada. */
+        const _pwdCom = await this._pedirTexto('🎖️ Contraseña de COMANDANCIA<div style="font-size:11px;font-weight:400;color:#666;margin-top:6px;">Borrar un domingo completo borra la asistencia de todas las unidades de ese día y recalcula las sanciones. Para corregirlo sin borrarlo, usa Editar (✏️).</div>',
+          { tipo:'password', placeholder:'Contraseña de comandancia', boton:'Borrar domingo' });
+        if (!_pwdCom || !_pwdCom.trim()) { this.toast('Cancelado — borrar un domingo lo autoriza solo la comandancia','info'); return; }
+        this.toast('Eliminando...','info');
+        const r=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body:JSON.stringify({accion:'eliminarDomingo',fecha,adminEmail:this.usuario.email,adminPassword:this._adminPwdSession,pwdComandancia:_pwdCom.trim()})});
+        const d=await r.json();
+        if(!d.ok)throw new Error(d.error);
+        this.toast('\u2705 Domingo eliminado','exito');
+        setTimeout(()=>this.cargarPantallaAsistencia(),800);
+      }catch(e){this.toast('Error: '+e.message,'error');}
+      finally { this._eliminandoFechas.delete(fecha); }
+    });
+  },
 
   _imprimirReporteGeneral() {
     const d = this._operData;
     const mesNombre = this._operMes ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(this._operMes)-1] : 'Todo el año';
-    const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades)-(a.emergencias*2+a.horasActividades));
+    const top = [...d].sort((a,b)=>(b.emergencias*2+b.horasActividades+b.domingosPresente)-(a.emergencias*2+a.horasActividades+a.domingosPresente));
     // opener nulo, NO 'noopener' — ver nota en _imprimirReporteEnVentanaNueva.
     const w = window.open('', '_blank', 'width=900,height=1200');
     if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
@@ -8292,14 +8712,14 @@ ${paginaFotos}
       <title>Informe General Operatividad — ${mesNombre} ${this._operAnio}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
-        h1{color:#6e2fa0;font-size:15pt;margin-bottom:4px;}
-        h2{color:#333;font-size:12pt;border-bottom:2px solid #6e2fa0;padding-bottom:4px;margin-top:16px;}
+        h1{color:#d81f27;font-size:15pt;margin-bottom:4px;}
+        h2{color:#333;font-size:12pt;border-bottom:2px solid #d81f27;padding-bottom:4px;margin-top:16px;}
         .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:12px 0;}
         .stat{border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center;}
-        .stat .num{font-size:20pt;font-weight:700;color:#6e2fa0;}
+        .stat .num{font-size:20pt;font-weight:700;color:#d81f27;}
         .stat .lbl{font-size:9pt;color:#666;}
         table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10pt;}
-        th{background:#6e2fa0;color:#fff;padding:7px 8px;text-align:left;}
+        th{background:#d81f27;color:#fff;padding:7px 8px;text-align:left;}
         td{padding:6px 8px;border-bottom:1px solid #eee;}
         tr:nth-child(even){background:#f9f9f9;}
         .alerta{background:#ffebee;color:#c00;padding:2px 6px;border-radius:4px;font-size:9pt;}
@@ -8307,20 +8727,22 @@ ${paginaFotos}
         @media print{body{margin:8mm;}}
       </style></head><body>
       <h1>📊 Informe de Operatividad Institucional</h1>
-      <p style="color:#666;margin:0 0 12px;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | ${app._esc(app._inst().nombre || '')}</p>
+      <p style="color:#666;margin:0 0 12px;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | Cuerpo de Bomberos Voluntarios de Inírida</p>
       <div class="stats">
         <div class="stat"><div class="num">${d.length}</div><div class="lbl">Unidades con registros</div></div>
         <div class="stat"><div class="num">${this._operStats ? this._operStats.totalEmergenciasUnicas : d.reduce((s,p)=>s+p.emergencias,0)}</div><div class="lbl">Emergencias únicas</div></div>
         <div class="stat"><div class="num">${this._r1(this._operStats && this._operStats.totalHorasActividades !== undefined ? this._operStats.totalHorasActividades : d.reduce((s,p)=>s+p.horasActividades,0))}h</div><div class="lbl">Horas en actividades</div></div>
+        <div class="stat"><div class="num">${this._operStats && this._operStats.totalDomingos !== undefined ? this._operStats.totalDomingos : '-'}</div><div class="lbl">Domingos realizados</div></div>
+        <div class="stat"><div class="num">${this._operStats && this._operStats.asistenciasTotales !== undefined ? this._operStats.asistenciasTotales : d.reduce((s,p)=>s+p.domingosPresente,0)}</div><div class="lbl">Asistencias totales</div></div>
       </div>
       <h2>🏆 Ranking General</h2>
-      <table><tr><th>#</th><th>Nombre</th><th>Incidentes</th><th>Horas Act.</th><th>Puntos</th></tr>
+      <table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th><th>Sanciones</th></tr>
       ${top.map((p,i)=>{
-        const pts=this._r1(p.emergencias*2+p.horasActividades);
-        return `<tr><td>${i+1}</td><td><strong>${app._esc(p.nombre)}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${this._r1(p.horasActividades)}h</td><td style="text-align:center;font-weight:700;color:#6e2fa0;">${pts}</td></tr>`;
+        const pts=this._r1(p.emergencias*2+p.horasActividades+p.domingosPresente);
+        return `<tr><td>${i+1}</td><td><strong>${app._esc(p.nombre)}</strong></td><td style="text-align:center;">${p.emergencias}</td><td style="text-align:center;">${this._r1(p.horasActividades)}h</td><td style="text-align:center;">${p.domingosPresente}</td><td style="text-align:center;font-weight:700;color:#d81f27;">${pts}</td><td style="text-align:center;">${p.horasSancion>0?`<span class="alerta">${p.horasSancion}h</span>`:'-'}</td></tr>`;
       }).join('')}
       </table>
-      <footer>${app._esc(app._rotuloApp())} | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
+      <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
       </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),800);
@@ -8337,11 +8759,11 @@ ${paginaFotos}
       <title>Informe por Unidad — ${mesNombre} ${this._operAnio}</title>
       <style>
         body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm;}
-        h1{color:#6e2fa0;font-size:14pt;}
+        h1{color:#d81f27;font-size:14pt;}
         .ficha{border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px;page-break-inside:avoid;}
-        .ficha-header{display:flex;justify-content:space-between;border-bottom:2px solid #6e2fa0;padding-bottom:8px;margin-bottom:10px;}
+        .ficha-header{display:flex;justify-content:space-between;border-bottom:2px solid #d81f27;padding-bottom:8px;margin-bottom:10px;}
         .nombre{font-size:13pt;font-weight:700;}
-        .pts{font-size:18pt;font-weight:700;color:#6e2fa0;}
+        .pts{font-size:18pt;font-weight:700;color:#d81f27;}
         .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0;}
         .item{border:1px solid #eee;border-radius:6px;padding:8px;text-align:center;}
         .item .num{font-size:16pt;font-weight:700;}
@@ -8351,21 +8773,29 @@ ${paginaFotos}
         @media print{body{margin:8mm;}.ficha{page-break-inside:avoid;}}
       </style></head><body>
       <h1>👤 Informe de Operatividad por Unidad</h1>
-      <p style="color:#666;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | ${app._esc(app._inst().nombre || '')}</p>
+      <p style="color:#666;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | CBVI — Inírida</p>
       ${d.map(p=>{
-        const pts=this._r1(p.emergencias*2+p.horasActividades);
+        const pts=this._r1(p.emergencias*2+p.horasActividades+p.domingosPresente);
+        const pct=p.domingosPresente+p.domingosAusente>0?Math.round(p.domingosPresente/(p.domingosPresente+p.domingosAusente)*100):0;
+        const colorAlerta=(p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#e67e22':null;
         return `<div class="ficha">
           <div class="ficha-header">
             <div><div class="nombre">${app._esc(p.nombre)}</div><div style="font-size:10pt;color:#666;">CC: ${app._esc(p.cedula||'-')} ${p.rango?'| '+app._esc(p.rango):''}</div></div>
-            <div style="text-align:right;"><div class="pts">${pts} pts</div></div>
+            <div style="text-align:right;"><div class="pts">${pts} pts</div>${colorAlerta?`<div class="alerta" style="background:${colorAlerta};color:#fff;">${(p.tipoAlerta||'').replace('_',' ')}</div>`:''}</div>
           </div>
           <div class="grid">
             <div class="item"><div class="num" style="color:#c0392b;">${p.emergencias}</div><div class="lbl">Emergencias</div></div>
             <div class="item"><div class="num" style="color:#1e8449;">${this._r1(p.horasActividades)}h</div><div class="lbl">En actividades</div></div>
+            <div class="item"><div class="num" style="color:#e67e22;">${p.domingosPresente}</div><div class="lbl">Domingos pres.</div></div>
+          </div>
+          <div style="font-size:10pt;color:#555;">
+            Asistencia domingos: <strong>${pct}%</strong> (${p.domingosPresente} de ${p.domingosPresente+p.domingosAusente}) |
+            Ausencias sin excusa: <strong>${p.domingosAusente}</strong> |
+            Sanciones: <strong style="color:${p.horasSancion>0?'#c00':'#1e8449'}">${p.horasSancion>0?p.horasSancion+'h pendientes':'Sin sanciones'}</strong>
           </div>
         </div>`;
       }).join('')}
-      <footer>${app._esc(app._rotuloApp())} | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
+      <footer>CBVI — ABNEGACIÓN Y DISCIPLINA | Generado: ${new Date().toLocaleDateString('es-CO')}</footer>
       </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),800);
@@ -8426,7 +8856,7 @@ ${paginaFotos}
       + '<path d="M15 0C6.7 0 0 6.7 0 15c0 11.2 15 25 15 25s15-13.8 15-25C30 6.7 23.3 0 15 0z" fill="'+regla.color+'" stroke="#fff" stroke-width="2"/>'
       + '<circle cx="15" cy="15" r="10" fill="#fff"/>'
       + '</svg>';
-    const html = '<div class="pin-cae" style="position:relative;width:30px;height:40px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));">' + svg
+    const html = '<div class="cbvi-pin-cae" style="position:relative;width:30px;height:40px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));">' + svg
       + '<span style="position:absolute;top:5px;left:0;width:30px;text-align:center;font-size:13px;line-height:20px;">' + regla.emoji + '</span></div>';
     return L.divIcon({ html: html, className: '', iconSize: [30,40], iconAnchor: [15,40], popupAnchor: [0,-36] });
   },
@@ -8444,7 +8874,7 @@ ${paginaFotos}
     }
     if (typeof L === 'undefined') {
       estado.style.display = 'block';
-      // v5.87: antes era texto muerto — la señal va y viene, así
+      // v5.87: antes era texto muerto — en Inírida la señal va y viene, así
       // que el error ahora trae botón de reintento (recarga solo esta pantalla).
       estado.innerHTML = '⚠️ No se pudo cargar el mapa (revisa tu conexión a internet).'
         + '<br><button onclick="app.cargarPantallaMapa()" style="margin-top:10px;padding:10px 18px;background:#1a7a5e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>';
@@ -8472,7 +8902,7 @@ ${paginaFotos}
       if (!this._reportesAdmin) this._reportesAdmin = [];
       reportes.forEach(r => { if (!this._reportesAdmin.some(x => x.id === r.id)) this._reportesAdmin.push(r); });
 
-      const estCoord = this._estacionCoord();   // v1.22: estación configurada ([lat,lng]) o null
+      const estCoord = this._estacionCoord();   // v6.26: estación configurada ([lat,lng]) o null
       // v5.82: filtros por año/mes (poblados con las fechas reales) + contador
       const filtros = document.getElementById('mapaFiltros');
       if (filtros) {
@@ -8482,7 +8912,7 @@ ${paginaFotos}
         const estiloSel = 'padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12px;background:#fff;';
         const estiloTog = 'padding:6px 10px;border:1px solid #b9c6d0;border-radius:8px;background:#eef0f2;color:#1a5276;font-size:12px;font-weight:700;cursor:pointer;';
         const estiloChip = 'padding:5px 9px;border:1px solid #cfd6dc;border-radius:12px;background:#fff;font-size:11px;cursor:pointer;';
-        // v1.21: barra compacta; lo demás vive en menús que se despliegan (⚙️/🏷️) para no
+        // v6.25: barra compacta; lo demás vive en menús que se despliegan (⚙️/🏷️) para no
         // saturar la pantalla — antes eran ~6 botones + 16 chips siempre a la vista.
         filtros.innerHTML =
           '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
@@ -8527,21 +8957,21 @@ ${paginaFotos}
 
       if (this._leafletMapa) { this._leafletMapa.remove(); this._leafletMapa = null; this._mapaCapaPines = null; }
       this._leafletMapa = L.map(cont).setView([reportes[0].lat, reportes[0].lng], 12);
-      // v1.19: dos capas base con selector arriba a la derecha. El satélite (Esri)
+      // v6.23: dos capas base con selector arriba a la derecha. El satélite (Esri)
       // ayuda en zona rural/ríos donde el callejero (OSM) no marca calles.
       const capaCalles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19, attribution: '© OpenStreetMap'
       });
       const capaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        // Esri no tiene imagen más allá del z17 en zonas remotas (z18+ devuelve un tile
-        // gris "no data available"). maxNativeZoom hace que Leaflet ESTIRE la imagen del
-        // z17 al acercar más (borrosa pero visible) en vez del cartel.
+        // Esri no tiene imagen más allá del z17 en zonas remotas (verificado en Inírida:
+        // z18+ devuelve un tile gris "no data available"). maxNativeZoom hace que Leaflet
+        // ESTIRE la imagen del z17 al acercar más (borrosa pero visible) en vez del cartel.
         maxZoom: 19, maxNativeZoom: 17, attribution: 'Imágenes © Esri'
       });
       capaCalles.addTo(this._leafletMapa);
       L.control.layers({ '🗺️ Calles': capaCalles, '🛰️ Satélite': capaSatelite }, null, { position: 'topright', collapsed: false }).addTo(this._leafletMapa);
 
-      // v1.24: los pines viven en un GRUPO DE CLUSTER — se agrupan cuando se amontonan
+      // v6.28: los pines viven en un GRUPO DE CLUSTER — se agrupan cuando se amontonan
       // (círculo con el número) y se abren al acercar. Si la librería no cargó, cae al
       // mapa directo (misma interfaz addLayer/hasLayer/removeLayer). La estación y el
       // calor NO se agrupan: van directo sobre el mapa.
@@ -8554,8 +8984,8 @@ ${paginaFotos}
       // poder filtrar sin volver a pedir nada al servidor.
       this._mapaMarkers = [];
       this._mapaEtiquetasOff = new Set();
-      this._mapaDesde = null;   // v1.21: corte para "últimos 30 días" (null = sin corte)
-      this._mapaHeat = null;    // v1.23: capa de mapa de calor (null = apagada)
+      this._mapaDesde = null;   // v6.25: corte para "últimos 30 días" (null = sin corte)
+      this._mapaHeat = null;    // v6.27: capa de mapa de calor (null = apagada)
       reportes.forEach(r => {
         const regla = this._reglaPorClasificacion(r.clasificacion);
         const clas = (r.clasificacion || []).join(', ') || 'Sin clasificar';
@@ -8569,25 +8999,25 @@ ${paginaFotos}
           + '<div><b>Dirección:</b> ' + app._esc(r.direccion || '-') + '</div>'
           + (estCoord && r.lat && r.lng ? '<div><b>🚒 A la estación:</b> ~' + this._distanciaKm(estCoord[0], estCoord[1], r.lat, r.lng).toFixed(1) + ' km</div>' : '')
           + '<div><b>Clasificación:</b> ' + app._esc(clas) + '</div>'
-          + '<button data-id="' + String(r.id||'').replace(/"/g,'&quot;') + '" onclick="app._verReporteDesdeMapa(this.dataset.id)" style="margin-top:8px;background:#6e2fa0;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
+          + '<button data-id="' + String(r.id||'').replace(/"/g,'&quot;') + '" onclick="app._verReporteDesdeMapa(this.dataset.id)" style="margin-top:8px;background:#d81f27;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
           + '</div>';
         const marker = L.marker([r.lat, r.lng], { icon: this._iconoMapa(regla) }).bindPopup(popupHtml);
-        // v1.24: NO se agrega al mapa acá; _aplicarFiltroMapa lo mete en la capa de pines
+        // v6.28: NO se agrega al mapa acá; _aplicarFiltroMapa lo mete en la capa de pines
         // (cluster) según el filtro. Antes se agregaba directo y luego se filtraba.
         this._mapaMarkers.push({ marker: marker, etiqueta: regla.etiqueta, anio: f.substring(0,4), mes: f.substring(5,7), fecha: f.substring(0,10) });
       });
-      // v1.22: marcador fijo de la estación (si está configurada).
+      // v6.26: marcador fijo de la estación (si está configurada).
       if (this._mapaMarcadorEstacion) { try { this._leafletMapa.removeLayer(this._mapaMarcadorEstacion); } catch (e) {} this._mapaMarcadorEstacion = null; }
       if (estCoord) {
         this._mapaMarcadorEstacion = L.marker(estCoord, { icon: L.divIcon({ html: '<div style="font-size:26px;line-height:26px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45));">🚒</div>', className: '', iconSize: [26, 26], iconAnchor: [13, 13] }) })
           .bindPopup('🚒 Estación de bomberos').addTo(this._leafletMapa);
       }
       this._pintarLeyendaMapa();
-      const _ley = document.getElementById('mapaLeyenda'); if (_ley) _ley.style.display = 'none';  // v1.21: cerrada por defecto
+      const _ley = document.getElementById('mapaLeyenda'); if (_ley) _ley.style.display = 'none';  // v6.25: cerrada por defecto
       this._aplicarFiltroMapa(true);
     } catch(e) {
       estado.style.display = 'block'; cont.style.display = 'none';
-      // v5.87: error con reintento (red intermitente) — e.message
+      // v5.87: error con reintento (red intermitente en Inírida) — e.message
       // pasa por _esc porque va a innerHTML.
       estado.innerHTML = 'Error: ' + app._esc(e.message)
         + '<br><button onclick="app.cargarPantallaMapa()" style="margin-top:10px;padding:10px 18px;background:#1a7a5e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>';
@@ -8606,7 +9036,7 @@ ${paginaFotos}
     // vayan en (0) — antes solo salían los tipos con al menos un reporte.
     this._MAPA_COLORES.forEach(r => { if (!vistas.has(r.etiqueta)) { vistas.add(r.etiqueta); reglas.push(r); } });
     if (conteo[this._REGLA_SIN_CLASIFICAR.etiqueta]) reglas.push(this._REGLA_SIN_CLASIFICAR);
-    // v1.19: botonera de acciones rápidas. Antes, para ver un SOLO tipo había que
+    // v6.23: botonera de acciones rápidas. Antes, para ver un SOLO tipo había que
     // apagar todos los demás uno por uno. Ahora "Todos"/"Ninguno" y "solo" por chip.
     const botonera = '<div style="display:flex;gap:6px;margin-bottom:6px;">'
       + '<button onclick="app._mapaMostrarTodos()" style="flex:1;padding:5px 8px;border:1px solid #1a7a5e;background:#1a7a5e;color:#fff;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">✓ Todos</button>'
@@ -8634,7 +9064,7 @@ ${paginaFotos}
     this._aplicarFiltroMapa();
   },
 
-  // v1.19: todas las etiquetas posibles de la leyenda (para "Ninguno" y "solo").
+  // v6.23: todas las etiquetas posibles de la leyenda (para "Ninguno" y "solo").
   _mapaTodasEtiquetas() {
     const set = new Set();
     this._MAPA_COLORES.forEach(r => set.add(r.etiqueta));
@@ -8657,7 +9087,7 @@ ${paginaFotos}
     this._pintarLeyendaMapa(); this._aplicarFiltroMapa();
   },
 
-  // v1.19: centra el mapa en la ubicación GPS del dispositivo (útil en terreno).
+  // v6.23: centra el mapa en la ubicación GPS del dispositivo (útil en terreno).
   _mapaMiUbicacion() {
     if (!this._leafletMapa) return;
     if (!navigator.geolocation) { this.toast('Tu dispositivo no permite ubicación', 'error'); return; }
@@ -8683,7 +9113,7 @@ ${paginaFotos}
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   },
 
-  // v1.21: menús desplegables del mapa (para no saturar la pantalla con botones).
+  // v6.25: menús desplegables del mapa (para no saturar la pantalla con botones).
   _mapaTogglePanel(cual) {
     const cfg = { herr:  ['mapaPanelHerr', 'mapaBtnHerr',  '⚙️ Herramientas'],
                   tipos: ['mapaLeyenda',   'mapaBtnTipos', '🏷️ Tipos'] }[cual];
@@ -8698,7 +9128,7 @@ ${paginaFotos}
     setTimeout(() => { if (this._leafletMapa) this._leafletMapa.invalidateSize(); }, 60);
   },
 
-  // v1.21: filtros rápidos de fecha. Usan un CORTE inferior (_mapaDesde); como no hay
+  // v6.25: filtros rápidos de fecha. Usan un CORTE inferior (_mapaDesde); como no hay
   // reportes futuros, "desde X" equivale al periodo pedido. '30d' es un rango rodante
   // que los desplegables año/mes no pueden hacer.
   _mapaFechaRapida(tipo) {
@@ -8715,10 +9145,10 @@ ${paginaFotos}
     this._aplicarFiltroMapa();
   },
 
-  // v1.21: elegir año/mes a mano anula el rango rodante de "últimos 30 días".
+  // v6.25: elegir año/mes a mano anula el rango rodante de "últimos 30 días".
   _mapaSelectFecha() { this._mapaDesde = null; this._aplicarFiltroMapa(); },
 
-  // v1.23: mapa de calor (leaflet.heat, incrustado en index.html). Pinta dónde se
+  // v6.27: mapa de calor (leaflet.heat, incrustado en index.html). Pinta dónde se
   // concentran los incidentes; respeta el filtro (solo cuentan los visibles).
   _mapaToggleCalor() {
     if (typeof L === 'undefined' || typeof L.heatLayer !== 'function') { this.toast('El mapa de calor no cargó', 'error'); return; }
@@ -8740,9 +9170,10 @@ ${paginaFotos}
     this._mapaHeat = L.heatLayer(pts, { radius: 25, blur: 18, maxZoom: 17 }).addTo(this._leafletMapa);
   },
 
-  // v1.22: estación de bomberos en el mapa. Se fija con el GPS (parado EN la estación)
+  // v6.26: estación de bomberos en el mapa. Se fija con el GPS (parado EN la estación)
   // y se guarda en el dispositivo (localStorage). Con eso el mapa muestra un 🚒 y, en
-  // cada reporte, a cuántos km está de la estación. Cada cuerpo guarda la suya.
+  // cada reporte, a cuántos km está de la estación. Sirve igual para Inírida y para
+  // cada cuerpo del producto (cada uno guarda la suya en su teléfono).
   _EST_KEY: 'mapa_estacion_coord',
   _estacionCoord() {
     try {
@@ -8777,7 +9208,7 @@ ${paginaFotos}
   // v5.82: aplica leyenda + año + mes sobre los marcadores ya creados.
   // ajustarVista=true solo en la carga inicial (no le mueve el zoom al admin
   // cada vez que cambia un filtro).
-  // v1.23: ¿este marcador pasa los filtros actuales? (tipo + año/mes + rango rodante).
+  // v6.27: ¿este marcador pasa los filtros actuales? (tipo + año/mes + rango rodante).
   // Extraído para que el mapa de calor use EXACTAMENTE el mismo criterio que los pines.
   _mapaMarcadorPasa(m) {
     const selA = document.getElementById('mapaFiltroAnio');
@@ -8793,7 +9224,7 @@ ${paginaFotos}
   _aplicarFiltroMapa(ajustarVista) {
     if (!this._leafletMapa || !this._mapaMarkers) return;
     const bounds = []; let visibles = 0;
-    const capa = this._mapaCapaPines || this._leafletMapa;   // v1.24: cluster (o mapa si no cargó)
+    const capa = this._mapaCapaPines || this._leafletMapa;   // v6.28: cluster (o mapa si no cargó)
     this._mapaMarkers.forEach(m => {
       if (this._mapaMarcadorPasa(m)) {
         if (!capa.hasLayer(m.marker)) capa.addLayer(m.marker);
@@ -8806,7 +9237,7 @@ ${paginaFotos}
     const contador = document.getElementById('mapaContador');
     if (contador) contador.textContent = '📍 ' + visibles + ' de ' + this._mapaMarkers.length;
     if (ajustarVista === true && bounds.length > 1) this._leafletMapa.fitBounds(bounds, { padding: [30, 30] });
-    if (this._mapaHeat) this._mapaConstruirCalor();   // v1.23: el calor sigue el filtro
+    if (this._mapaHeat) this._mapaConstruirCalor();   // v6.27: el calor sigue el filtro
   },
 
   // v5.82: reencuadra el mapa para ver todos los pines visibles.
@@ -8863,7 +9294,7 @@ ${paginaFotos}
       try {
         const resp = await fetch(URL_BACKEND, { method:'POST',
           headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body: JSON.stringify({ accion:'buscarPersonal', q:q.trim() }) });
+          body: JSON.stringify({ accion:'buscarPersonalCBVI', q:q.trim() }) });
         const data = await resp.json();
         if (!data.ok || !data.resultados.length) { sug.style.display='none'; return; }
         sug.innerHTML = data.resultados.map(per =>
@@ -8883,7 +9314,6 @@ ${paginaFotos}
   // ══ EDITAR ACTIVIDAD COMPLETA (admin): texto + personal + fotos + recursos ══
   async editarActividad(id) {
     this.toast('Cargando actividad...','info');
-    await this._cargarFlota();   // el modal pinta el <select> de vehículos al armarse
     try {
       const resp = await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({accion:'obtenerActividad',id})});
@@ -8911,7 +9341,7 @@ ${paginaFotos}
       const modal = document.createElement('div');
       modal.id = '_editActModal';
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
-      modal.className = 'modal-js';   // sin esto ninguna regla CSS lo alcanza
+      modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:440px;margin:auto;">'
         +'<div style="font-weight:700;font-size:16px;color:#1a5276;margin-bottom:14px;">✏️ Editar Actividad</div>'
         +'<label style="font-size:12px;font-weight:700;">Tipo</label>'
@@ -8954,15 +9384,29 @@ ${paginaFotos}
         +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">🚒 Recursos / Vehículos</div>'
         +'<div id="_eaRecursosLista" style="margin-bottom:6px;"></div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">'
-        /* Editar daba un formulario PEOR que crear: acá el vehículo era texto
-           libre, así que "Móvil 1", "movil 1" y "MÓVIL 1" quedaban como tres
-           máquinas distintas en la hoja. Ahora sale de la flota, igual que al crear. */
+        /* v6.09: era un campo de texto libre mientras que al CREAR la actividad
+           es una lista desplegable. Editar daba un formulario peor que crear, y
+           encima el tipo escrito a mano no cruzaba con el de la lista ("Ambulancia"
+           vs "ambulancia" vs "AMBULANCIA" = tres vehículos distintos en la hoja).
+           v6.10: la lista pasó a ser VEHICULOS_CBVI (única fuente, ver su
+           definición) en vez de repetir acá una tercera copia de las opciones. */
         +'<select id="_eaRecTipo" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
-        +  app._opcionesFlota('')
+        +  '<option value="">Tipo de vehículo...</option>'
+        +  app._flotaIndicativos().concat(['Otro'])
+             .map(v => '<option value="'+app._esc(v)+'">'+app._esc(v)+'</option>').join('')
         +'</select>'
         +'<input type="text" id="_eaRecCodigo" placeholder="Código/Placa" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
         +'</div>'
-        +'<input type="text" id="_eaRecResp" placeholder="Maquinista / Responsable" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:6px;">'
+        /* v6.09: acá NO había autocompletado de ninguna clase (ni list= ni
+           oninput=), así que el maquinista se escribía a mano y su cédula se
+           guardaba siempre vacía. Mismo patrón que el resto: wrapper con
+           position:relative + caja de sugerencias + _buscarAsistCampo. */
+        +'<div style="position:relative;margin-bottom:6px;">'
+        +'<input type="text" id="_eaRecResp" placeholder="Maquinista / Responsable (escriba la inicial)" autocomplete="off"'
+        +' oninput="app._buscarAsistCampo(\'_eaRecResp\',\'_eaRecRespSug\',this.value)"'
+        +' style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_eaRecRespSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
+        +'</div>'
         +'<button onclick="app._eaAgregarRecurso()" style="width:100%;padding:9px;background:#eef5fb;color:#1a5276;border:1px dashed #1a5276;border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:14px;">+ Agregar vehículo</button>'
         // ── BOTONES ──
         +'<div style="display:flex;gap:10px;">'
@@ -9061,7 +9505,7 @@ ${paginaFotos}
     sug.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:13px;">Buscando...</div>'; sug.style.display='block';
     this._eaBuscarTimer = setTimeout(async () => {
       try {
-        const resp = await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'buscarPersonal',q:q.trim()})});
+        const resp = await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'buscarPersonalCBVI',q:q.trim()})});
         const data = await resp.json();
         if (!data.ok || !data.resultados.length) { sug.innerHTML='<div style="padding:8px 12px;color:#999;font-size:12px;">Sin resultados</div>'; return; }
         sug.innerHTML = data.resultados.map(per =>
@@ -9094,25 +9538,150 @@ ${paginaFotos}
   },
 
   _eaAgregarRecurso() {
-    let tipo = (document.getElementById('_eaRecTipo').value||'').trim();
-    const codigo = (document.getElementById('_eaRecCodigo').value||'').trim();
-    const resp = (document.getElementById('_eaRecResp').value||'').trim();
-    if (!tipo) { this.toast('Elige el vehículo','error'); return; }
-    // Mismo marcador interno que en el formulario de creación (ver
-    // agregarRecursoActividad): __OTRO__ no es un nombre de máquina.
-    if (tipo === '__OTRO__') {
-      if (!codigo) { this.toast('Escribe cuál vehículo en Código/Placa','error'); return; }
-      tipo = codigo;
-    }
-    this._eaRecursos.push({ tipo, codigo, responsable:resp, responsableCedula:'' });
-    document.getElementById('_eaRecTipo').value='';
-    document.getElementById('_eaRecCodigo').value='';
-    document.getElementById('_eaRecResp').value='';
+    const elT = document.getElementById('_eaRecTipo');
+    const elC = document.getElementById('_eaRecCodigo');
+    const elR = document.getElementById('_eaRecResp');
+    const tipo = (elT && elT.value||'').trim();
+    const codigo = (elC && elC.value||'').trim();
+    const resp = (elR && elR.value||'').toUpperCase().trim();
+    if (!tipo) { this.toast('Elige el tipo de vehículo','error'); return; }
+    // v6.09: mismas dos mejoras que al crear — la cédula sale del autocompletado
+    // (antes iba SIEMPRE vacía) y no se deja meter dos veces la misma unidad.
+    const ced = (elR && elR.dataset && elR.dataset.ced || '').trim();
+    const yaEsta = this._eaRecursos.some(r =>
+      String(r.tipo||'').toUpperCase() === tipo.toUpperCase() &&
+      String(r.codigo||'').toUpperCase() === codigo.toUpperCase());
+    if (yaEsta) { this.toast('Ese vehículo ya está en la lista','error'); return; }
+    this._eaRecursos.push({ tipo, codigo, responsable:resp, responsableCedula:ced });
+    if (elT) elT.value='';
+    if (elC) elC.value='';
+    if (elR) { elR.value=''; elR.dataset.ced=''; }
+    const sug = document.getElementById('_eaRecRespSug');
+    if (sug) sug.style.display='none';
     this._eaRenderRecursos();
   },
 
   _eaQuitarRecurso(i) { this._eaRecursos.splice(i,1); this._eaRenderRecursos(); },
 
+  // ── Editar domingo (admin) ────────────────────────────────────────────────
+  async editarDomingo(fecha) {
+    this.toast('Cargando...','info');
+    try {
+      const resp=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({accion:'listarAsistenciaDomingo',fecha})});
+      const data=await resp.json();
+      if(!data.ok)throw new Error(data.error||'Error');
+      const regs=data.registros; if(!regs.length){this.toast('Sin registros','error');return;}
+      /* v6.00: la lista pasa a ser MUTABLE para poder agregar personas. Antes
+         era un regs.map() fijo: solo se editaban los que ya estaban guardados,
+         así que para sumar a alguien había que borrar el domingo entero y
+         recrearlo a mano (34 estados reescritos). Se copia cada registro para
+         no mutar la respuesta del servidor. */
+      this._ednRegs = regs.map(r => Object.assign({}, r));
+      this._ednNuevos = {};   // cédulas agregadas en esta edición (se pueden quitar)
+      const enc=regs[0].encargado||''; const grd=regs[0].comandanteGuardia||'';
+      const tipoActual=regs[0].tipoReunion||''; const temaActual=regs[0].tema||''; const lugarActual=regs[0].lugarReunion||'';
+      const sts={'PRESENTE':'Presente','AUSENTE_EXCUSA':'C/excusa','AUSENTE_SIN_EXCUSA':'Sin excusa'};
+      const tiposReunion=['Capacitación','Entrenamiento','Reunión ordinaria','Simulacro','Jornada comunitaria','Otra'];
+      const esc=(s)=>app._esc(s);
+
+      // v5.65 (BUG: fotos de domingo no editables): mismo patrón que Actividades
+      this._ednFotosNuevas = { inicio:null, medio:null, fin:null };
+      const fl = data.fotosLabeled || {};
+      const fotoSlot = (k, lbl, src) =>
+        '<div style="text-align:center;">'
+        + '<div style="font-size:10px;color:#666;">'+lbl+'</div>'
+        + '<div id="_ednFotoPrev'+k+'" style="width:80px;height:80px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5 center/cover no-repeat;display:flex;align-items:center;justify-content:center;overflow:hidden;">'
+        + (src ? '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:20px;">📷</span>')
+        + '</div>'
+        + '<label style="display:block;margin-top:4px;font-size:11px;color:#1e8449;cursor:pointer;text-decoration:underline;">Cambiar'
+        +   '<input type="file" accept="image/*" style="display:none;" onchange="app._ednCargarFoto(\''+k+'\',this)"></label>'
+        + '</div>';
+
+      const modal=document.createElement('div');
+      modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
+      // v6.00: las filas se pintan en _ednRenderFilas() para poder re-render al
+      // agregar a alguien. El bloque de búsqueda va justo encima de la lista.
+      const buscador='<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:8px;">'
+        +'<div style="font-size:12px;font-weight:700;color:#1e8449;margin-bottom:5px;">➕ Agregar persona a este domingo</div>'
+        +'<div style="position:relative;">'
+        +'<input type="text" id="_ednBuscar" autocomplete="off" placeholder="Escribe el nombre..." oninput="app._ednBuscarPersona(this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_ednBuscarSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
+        +'</div>'
+        +'<div style="font-size:10px;color:#888;margin-top:4px;">Entra como <b>Presente</b>; cámbialo abajo si corresponde. Si no aparece, primero hay que darlo de alta en el personal.</div>'
+        +'</div>';
+      modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;margin:auto;">'
+        +'<div style="font-weight:700;font-size:16px;color:#1e8449;margin-bottom:14px;">✏️ Domingo '+fecha+'</div>'
+        +'<label style="font-size:12px;font-weight:700;">Tipo de reunión</label>'
+        +'<select id="_ednTipo" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<option value="">Seleccionar...</option>'
+        +tiposReunion.map(t=>'<option value="'+t+'"'+(tipoActual===t?' selected':'')+'>'+t+'</option>').join('')
+        +'</select>'
+        +'<label style="font-size:12px;font-weight:700;">Tema tratado</label>'
+        +'<input type="text" id="_ednTema" value="'+esc(temaActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
+        +'<input type="text" id="_ednLugar" value="'+esc(lugarActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
+        +'<div><label style="font-size:12px;font-weight:700;">👤 Encargado</label><div style="position:relative;">'
+        +'<input type="text" id="_ednE" value="'+esc(enc)+'" autocomplete="off" oninput="app._buscarAsistCampo(\'_ednE\',\'_ednESug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_ednESug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
+        +'</div></div>'
+        +'<div><label style="font-size:12px;font-weight:700;">🛡️ Guardia</label><div style="position:relative;">'
+        +'<input type="text" id="_ednG" value="'+esc(grd)+'" autocomplete="off" oninput="app._buscarAsistCampo(\'_ednG\',\'_ednGSug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_ednGSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
+        +'</div></div>'
+        +'</div>'
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1e8449;">📸 Fotos de la reunión</div>'
+        +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:space-around;">'
+        + fotoSlot('inicio','Inicio',fl.inicio||'')
+        + fotoSlot('medio','Intermedio',fl.medio||'')
+        + fotoSlot('fin','Final',fl.fin||'')
+        +'</div>'
+        +buscador
+        +'<div style="font-size:12px;font-weight:700;margin-bottom:8px;color:#555;">Estado individual:</div>'
+        +'<div id="_ednFilas"></div>'
+        +'<div style="display:flex;gap:10px;margin-top:14px;">'
+        +'<button id="_ednCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
+        +'<button id="_ednGuard" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>'
+        +'</div></div>';
+      document.body.appendChild(modal);
+      this._ednRenderFilas();
+      modal.querySelector('#_ednCancel').onclick=()=>app._cerrarModalJS(modal);
+      modal.querySelector('#_ednGuard').onclick=async()=>{
+        await this._conBloqueo(modal.querySelector('#_ednGuard'), 'Guardando...', async () => {
+        /* v6.09: corregir un domingo mal anotado es trabajo de la guardia, así
+           que va con usuario + PIN, sin la contraseña de la comandancia. Esto
+           manda registrarAsistencia con replaceAll:true, la MISMA acción que
+           usa el registro, así que ambas quedan cubiertas por _esGuardiaConPin.
+           Borrar el domingo entero es otra cosa y SÍ sigue pidiendo contraseña. */
+        const _firmaDN = await this._exigirFirma();
+        if(!_firmaDN) return;
+        // v6.00: volcar a memoria lo que está en pantalla (incluye las filas
+        // agregadas en esta edición) y mandar eso.
+        this._ednSync();
+        const newRegs=this._ednRegs;
+        const fotosPayload={};
+        ['inicio','medio','fin'].forEach(k=>{ if(this._ednFotosNuevas[k]) fotosPayload[k]=this._ednFotosNuevas[k]; });
+        try{
+          const r2=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body:JSON.stringify({accion:'registrarAsistencia',fecha,registros:newRegs,replaceAll:true,
+              tipoReunion:document.getElementById('_ednTipo').value,
+              tema:document.getElementById('_ednTema').value,
+              lugarReunion:document.getElementById('_ednLugar').value,
+              encargado:document.getElementById('_ednE').value,
+              comandanteGuardia:document.getElementById('_ednG').value,
+              fotos: fotosPayload,
+              adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
+          const d2=await r2.json();
+          if(!d2.ok)throw new Error(d2.error);
+          app._cerrarModalJS(modal);
+          this.toast('✅ Domingo actualizado','exito');
+          setTimeout(()=>this.cargarPantallaAsistencia(),800);
+        }catch(e){this.toast('Error: '+e.message,'error');}
+        });
+      };
+    }catch(e){this.toast('Error: '+e.message,'error');}
+  },
 
   /* ═══════ v6.00: AGREGAR PERSONAS A UN DOMINGO YA GUARDADO ═══════
      Antes, el modal de ✏️ solo mostraba a los que ya estaban guardados, así que
@@ -9123,8 +9692,164 @@ ${paginaFotos}
      incluidos los que no estaban. Lo único que faltaba era poder añadirlos acá. */
 
   // Cédula normalizada a solo dígitos — equivalente en el front de _cedKey del
-  // backend. "1.234.567.890" y "1234567890" son la misma persona.
+  // backend. "1.121.720.941" y "1121720941" son la misma persona.
   _cedDigitos(x) { return String(x == null ? '' : x).replace(/\D/g, ''); },
+
+  // Vuelca a this._ednRegs lo que el usuario tiene en pantalla. Hay que llamarlo
+  // ANTES de re-renderizar o de guardar; si no, se pierde lo tocado a mano.
+  _ednSync() {
+    (this._ednRegs || []).forEach((r, i) => {
+      const sel = document.getElementById('_edn_' + i);
+      const obs = document.getElementById('_edno_' + i);
+      if (sel) r.estado = sel.value;
+      if (obs) r.observacion = obs.value;
+    });
+  },
+
+  _ednRenderFilas() {
+    const cont = document.getElementById('_ednFilas');
+    if (!cont) return;
+    const sts = { 'PRESENTE':'Presente', 'AUSENTE_EXCUSA':'C/excusa', 'AUSENTE_SIN_EXCUSA':'Sin excusa' };
+    cont.innerHTML = (this._ednRegs || []).map((r, i) => {
+      const ced = this._cedDigitos(r.cedula);
+      const esNuevo = !!(this._ednNuevos && this._ednNuevos[ced]);
+      // Solo se puede quitar lo agregado en ESTA edición. Sacar a alguien que ya
+      // estaba guardado afecta su historial y sus sanciones: es otra decisión,
+      // no se resuelve de contrabando en un botón ×.
+      const btnQuitar = esNuevo
+        ? '<button data-ced="' + app._esc(ced) + '" onclick="app._ednQuitarPersona(this.dataset.ced)" title="Quitar" style="background:#991b1b;color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;padding:0;margin-left:6px;">×</button>'
+        : '';
+      return '<div id="_ednfila_' + i + '" style="padding:7px 0;border-bottom:1px solid #f0f0f0;' + (esNuevo ? 'background:#f0fdf4;border-left:3px solid #16a34a;padding-left:6px;' : '') + '">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+        + '<div style="flex:1;font-size:13px;font-weight:600;">' + app._esc(r.nombre || '(sin nombre)')
+        + (esNuevo ? '<span style="font-size:10px;color:#16a34a;font-weight:700;margin-left:5px;">NUEVO</span>' : '')
+        + '<div style="font-size:11px;color:#999;">CC: ' + app._esc(r.cedula || '-') + '</div></div>'
+        + '<select id="_edn_' + i + '" style="padding:5px;border:1px solid #ddd;border-radius:6px;font-size:12px;">'
+        + Object.keys(sts).map(v => '<option value="' + v + '"' + (r.estado === v ? ' selected' : '') + '>' + sts[v] + '</option>').join('')
+        + '</select>' + btnQuitar + '</div>'
+        + '<input type="text" id="_edno_' + i + '" value="' + app._esc(r.observacion || '') + '" placeholder="Observación (opcional)" style="width:100%;margin-top:5px;padding:6px 8px;border:1px solid #eee;border-radius:6px;font-size:12px;box-sizing:border-box;">'
+        + '</div>';
+    }).join('');
+  },
+
+  _ednBuscarPersona(q) {
+    const sug = document.getElementById('_ednBuscarSug');
+    if (!sug) return;
+    if (!q || q.trim().length < 1) { sug.style.display = 'none'; return; }
+    clearTimeout(this._t_ednBuscar);
+    this._t_ednBuscar = setTimeout(async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, { method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({ accion:'buscarPersonalCBVI', q: q.trim() }) });
+        const data = await resp.json();
+        if (!data.ok || !data.resultados.length) {
+          sug.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:#999;">Sin coincidencias en el personal.</div>';
+          sug.style.display = 'block'; return;
+        }
+        // I10: los datos van en data-*, nunca dentro del string del onclick.
+        sug.innerHTML = data.resultados.map(per =>
+          '<div data-n="' + app._esc(per.nombre||'') + '" data-c="' + app._esc(per.cedula||'') + '" data-r="' + app._esc(per.rango||'') + '" '
+          + 'onclick="app._ednAgregarPersona(this.dataset.n, this.dataset.c, this.dataset.r)" '
+          + 'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">' + app._esc(per.nombre||'')
+          + '<span style="color:#999;font-size:11px;margin-left:6px;">CC:' + app._esc(per.cedula||'-') + '</span></div>'
+        ).join('');
+        sug.style.display = 'block';
+      } catch(e) { sug.style.display = 'none'; }
+    }, 350);
+  },
+
+  _ednAgregarPersona(nombre, cedula, rango) {
+    const sug = document.getElementById('_ednBuscarSug');
+    const inp = document.getElementById('_ednBuscar');
+    if (sug) sug.style.display = 'none';
+    if (inp) inp.value = '';
+    const ced = this._cedDigitos(cedula);
+    const nom = this._normNombre(nombre || '');
+    // Anti-duplicado por cédula (dígitos) O nombre normalizado — CLAUDE.md §4.3.
+    const yaIdx = (this._ednRegs || []).findIndex(r =>
+      (ced && this._cedDigitos(r.cedula) === ced) || (!ced && this._normNombre(r.nombre || '') === nom));
+    if (yaIdx >= 0) {
+      // Ya está en la lista: en vez de decir "ya está" sobre algo que no se ve,
+      // llevarlo a la fila y resaltarla (mismo criterio que _flashAsistItem).
+      this.toast('Ya está en este domingo', 'info');
+      const caja = document.getElementById('_ednfila_' + yaIdx);
+      if (caja) {
+        caja.scrollIntoView({ behavior:'smooth', block:'center' });
+        const antes = caja.style.background;
+        caja.style.background = '#fef9c3';
+        setTimeout(() => { caja.style.background = antes; }, 1600);
+      }
+      return;
+    }
+    this._ednSync();   // no perder lo que ya tocó a mano antes de re-render
+    this._ednRegs.push({ nombre: nombre || '', cedula: cedula || '', rango: rango || 'BOMBERO',
+      estado: 'PRESENTE', observacion: '' });
+    if (ced) this._ednNuevos[ced] = true;
+    this._ednRenderFilas();
+    this.toast('➕ ' + (nombre || 'Persona') + ' agregado. Falta Guardar.', 'exito');
+  },
+
+  _ednQuitarPersona(ced) {
+    this._ednSync();
+    const i = (this._ednRegs || []).findIndex(r => this._cedDigitos(r.cedula) === String(ced));
+    if (i < 0) return;
+    const nom = this._ednRegs[i].nombre || 'Persona';
+    this._ednRegs.splice(i, 1);
+    if (this._ednNuevos) delete this._ednNuevos[String(ced)];
+    this._ednRenderFilas();
+    this.toast('Quitado: ' + nom, 'info');
+  },
+
+  async _ednCargarFoto(tipo, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const prev = document.getElementById('_ednFotoPrev'+tipo);
+    if (prev) prev.innerHTML = '<span style="font-size:11px;color:#999;">...</span>';
+    try {
+      const dataUrl = await this.comprimirImagen(file, 1280, 0.7);
+      this._ednFotosNuevas[tipo] = dataUrl;
+      if (prev) prev.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;">';
+    } catch(e) {
+      if (prev) prev.innerHTML = '<span style="font-size:11px;color:#c00;">Error</span>';
+    }
+  },
+  // ── Asistencia solo admin ─────────────────────────────────────────────────
+  abrirAsistencia() {
+    if (!this.esAdmin()) {
+      this.toast('Solo los administradores pueden registrar asistencia','error');
+      return;
+    }
+    this._asistFotos = { inicio:null, medio:null, fin:null };
+    this.irA('pantallaAsistencia');
+  },
+
+  _asistFotos: { inicio:null, medio:null, fin:null },
+
+  _fotoAsistencia(tipo, input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Redimensionar a max 1200px para no exceder límites
+        const canvas = document.createElement('canvas');
+        const maxW = 1200;
+        const scale = Math.min(1, maxW / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        this._asistFotos[tipo] = canvas.toDataURL('image/jpeg', 0.75);
+        const okId = 'asistFoto' + (tipo==='inicio'?'Inicio':tipo==='medio'?'Medio':'Fin') + 'Ok';
+        const ok = document.getElementById(okId);
+        if (ok) ok.style.display = 'block';
+        this.toast('Foto ' + tipo + ' cargada','exito');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
 
 };
 
@@ -9141,15 +9866,17 @@ document.addEventListener('click', (e) => {
 
 window.addEventListener('DOMContentLoaded', () => app.init());
 
-/* v1.42: RIPPLE global — una onda en el punto del toque sobre CUALQUIER botón.
-   Delegado en captura. No toca la lógica: solo agrega/quita un <span> decorativo. */
+/* v6.38: RIPPLE global — una onda en el punto del toque sobre CUALQUIER botón.
+   Delegado en captura (funciona aunque el botón corte la propagación). No toca la
+   lógica: solo agrega/quita un <span> decorativo. Se respeta reduced-motion (el CSS
+   lo oculta). */
 document.addEventListener('pointerdown', (e) => {
   const b = e.target.closest && e.target.closest('button');
   if (!b || b.disabled) return;
   try {
     const r = b.getBoundingClientRect();
     const s = document.createElement('span');
-    s.className = 'ripple';
+    s.className = 'cbvi-ripple';
     const size = Math.max(r.width, r.height);
     s.style.width = s.style.height = size + 'px';
     s.style.left = (e.clientX - r.left - size / 2) + 'px';
@@ -9166,9 +9893,9 @@ document.addEventListener('change', (e) => {
   if (e.target.closest('#pantallaForm')) { app.actualizarProgreso(); app._programarAutoguardado(); }
 });
 
-/* v1.38: red de seguridad extra del autoguardado — vaciar YA cuando la app pasa a
-   segundo plano o se está por cerrar (el WebView de gama baja mata la app sin avisar).
-   Mejor un guardado de más que perder un reporte a medio dictar. */
+/* v6.33: red de seguridad extra del autoguardado — vaciar YA cuando la app pasa
+   a segundo plano o se está por cerrar (el WebView de gama baja mata la app sin
+   avisar). Mejor un guardado de más que perder un reporte a medio dictar. */
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') app._autoguardarBorrador();
 });
