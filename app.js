@@ -24,185 +24,186 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.51';
+const APP_VERSION = '6.52';
 const APP_VERSION_NOTAS = [
-  'v6.51: 👆 Los botones de las ventanas de confirmación tienen un área táctil mínima de 44 px para facilitar su uso en el teléfono.',
-  'v6.50: ✅ Si falta un dato obligatorio en una sección cerrada del formulario, la app la abre y muestra el campo que debe completar. Sus datos y las demás funciones no cambian.',
-  'v6.49: 🛡️ La última tanda visual convierte acceso, ayuda, configuración y administración en un puesto de mando más claro. Los vacíos, errores, cargas y ventanas tienen señales operativas consistentes; los cuatro accesos de ayuda ahora funcionan correctamente con teclado. No cambia datos, permisos ni servidor.',
-  'v6.48: 📟 Mesa de operaciones más clara. Actividades y asistencias se leen como una bitácora; los detalles parecen expedientes; la asistencia resalta la fila en uso; Operatividad organiza mejor filtros, cifras y rankings; y el mapa reúne sus controles en un panel más limpio. También se ampliaron a 44 px los botones pequeños de firma. No cambia datos ni permisos.',
-  'v6.47: 🧭 Reportar un incidente ahora es más fácil de recorrer: las 13 secciones están agrupadas en tres fases (aviso, respuesta y cierre), la sección abierta se distingue mejor y las filas, fotos, firmas y botones son más cómodos en el celular. No cambia tus datos ni la forma de guardarlos.',
-  'v6.46: 🧾 Formulario más simple: en Recursos ya no se piden "Cantidad" ni "Placa" — la placa y la clase del vehículo salen del catálogo de la estación y van al PDF solas. Se aclaró quién es el afectado que firma y quiénes son las víctimas. Tus reportes anteriores no cambian.',
-  'v6.45: 🚒 Diseño operativo en toda la app: formularios, asistencia, administración, consultas, ayuda y ventanas más legibles; controles cómodos y una sirena visible al navegar. Conserva tus datos y la forma de trabajar.',
-  'v6.44: 🛡️ Blindaje de seguridad. El prefijo del consecutivo (Configuración) ahora solo acepta letras y números, y todos los números de reporte se muestran de forma segura en la app y en el PDF. No cambia cómo trabajas ni tus datos.',
-  'v6.43: 🚒 Inicio operativo renovado. Nuevo incidente destaca como acción principal. Registrar actividades, asistencia y consultar están ahora antes del historial, con textos más legibles y los colores del CBVI. Se conservan las funciones, los permisos y tus datos.',
-  'v6.42: 🚒 Reporte de incidente + Nueva Actividad mejorados. En el REPORTE ahora se registra la HORA DE SALIDA de la estación (además de llamada, llegada y cierre). En NUEVA ACTIVIDAD: ahora son 6 fotos (antes 3); se agregó el tipo "Pernotar" (servicio nocturno — las horas cuentan aunque el turno cruce la medianoche); podés indicar si la actividad fue VOLUNTARIA o PAGA (contratada); y una misma actividad puede registrar VARIAS ATENCIONES (p. ej. varios primeros auxilios en unos Juegos), cada una con sus datos y hasta 3 fotos propias. Todo sale en el detalle y el PDF. Nada de lo anterior se pierde.',
-  'v6.41: 🚨 Cargas con carácter. Los "girando…" genéricos se reemplazaron por animaciones del oficio, repartidas por toda la app: una SIRENA que parpadea, un DESPACHO de puntos que rebotan, y una barra de SINCRONIZANDO. Se ven al enviar un reporte, guardar asistencia, abrir un reporte, cargar el personal, verificar el PIN, etc. — cada acción muestra una distinta. Los skeletons (barras que brillan) siguen para las listas. Solo cambia el aspecto.',
-  'v6.40: 🎨 Diseño "Minimalista" a tono. El otro diseño (el que se elige en el menú → Tema) ahora usa el AZUL MARINO de tus escudos en vez del azul genérico que traía, para que combine con la imagen nueva. Solo cambia el aspecto de ese tema; si usás el diseño Original, nada cambia.',
-  'v6.39: ✨ Cierre de las animaciones. Los pines del Mapa de Emergencias ahora CAEN al aparecer, y las cifras de la pantalla de Operatividad (unidades, emergencias, domingos, asistencias) SUBEN desde 0 al abrir. Además, se corrigió el último morado fuera de marca (la tarjeta "Asistencias totales" quedó en azul). Todo respeta el modo "reducir movimiento".',
-  'v6.38: ✨ Animaciones que SE NOTAN. Ahora CADA botón, al tocarlo, hace una onda (ripple) que confirma el toque. Los números del Inicio (total, pendientes, enviados) SUBEN desde 0 al abrir. Y al enviar un reporte con un campo obligatorio vacío, ese campo se MARCA EN ROJO, se SACUDE, y la app te LLEVA directo a él (antes había que buscarlo en un formulario largo). Todo respeta el modo "reducir movimiento".',
-  'v6.37: 🎨 NUEVA IMAGEN. La app se rediseñó con los colores de tus DOS escudos: el azul marino del escudo Nacional como base (el header ahora es azul), el rojo bombero de tu escudo de Inírida como color de acción (más brillante, más parecido a tu escudo real que el rojo vino anterior) y el oro de seguridad como acento. Además, la pantalla de Operatividad ya NO sale morada (estaba fuera de tu marca, hasta en los PDF impresos): ahora va en tu rojo. Solo cambia el aspecto: la lógica y tus datos NO cambian.',
-  'v6.36: ✨ Movimiento en el Panel de Administrador y más. Antes el Panel entraba sin animación; ahora las listas de reportes, de personal pendiente, de Operatividad y de Deudores entran escalonadas (una tarjeta tras otra) al abrirlas. Además, en Ver Deudores, la flechita ▼ de cada persona gira y el detalle de sus domingos se despliega con un suavizado. Todo liviano y respeta el modo "reducir movimiento".',
-  'v6.35: ✨ Más movimiento (Fase 2). Ahora TODAS las ventanas emergentes se cierran con una animación suave (antes algunas desaparecían de golpe), el PIN muestra una rueda girando mientras verifica y SACUDE si te equivocás, el aviso verde de nueva versión baja y sube suave, y en el reporte la foto recién tomada y cada vehículo/víctima que agregás entran con una pequeña animación. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
-  'v6.34: ✨ La app se siente más viva. Se agregó movimiento en las piezas que se usan en todos lados: las ventanas de confirmación y el menú ahora también se cierran con una animación suave (antes desaparecían de golpe), los avisos suben al aparecer, las listas de reportes y actividades entran escalonadas, los botones "ocupados" se atenúan suave, y los campos muestran mejor cuál está activo. Todo liviano para que no trabe, y respeta el modo "reducir movimiento" del celular. No cambia ningún dato ni cómo funciona: solo cómo se ve.',
-  'v6.33: 🛟 Menos riesgo de perder trabajo. (1) Al salir de Asistencia o de una Actividad sin haber guardado, ahora la app avisa antes de descartar lo que marcaste (antes se perdía de un toque). (2) El reporte que estás llenando se autoguarda solo: si el celular cierra la app de golpe, no pierdes lo dictado. (3) Los reportes que quedaron "pendientes" por falta de señal ahora se envían solos al reabrir la app con internet, sin tener que forzarlos a mano. Además, un ajuste interno de seguridad al mostrar las fotos y firmas.',
-  'v6.32: 🪪 Al entrar al Panel de Administrador, el PIN ahora pregunta "¿qué administrador entra?" en vez de "¿quién está de guardia?" — esa pregunta se queda donde sí aplica (sanciones, asistencia, etc.), porque a Panel Admin solo entran administradores. Además, si "🚒 Vehículos del cuerpo" no logra cargar (sin señal, servidor ocupado), ahora avisa "no se pudo cargar" en vez de decir "todavía no hay vehículos" como si se hubieran borrado.',
-  'v6.31: 🧭 Tour interactivo + 👥 Unidades vinculadas. El recorrido de ayuda ya no es una tarjeta de texto: ahora se mueve de verdad por la app y señala cada botón real, con uno para unidades y otro, más completo, para administradores (escudo, PIN, relevo, nómina, flota, Asistencia, Deudores, Operatividad, Mapa). Además, en el Panel de Administrador → "Unidades vinculadas" (solo el administrador principal), vea todo correo que ya usa la app y bloquéele el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.',
-  'v6.30: 🎨 Rediseño visual "Acta Oficial" (el mismo de la app de Cruz de Malta). Tipografía de imprenta (Oswald + Barlow), el rojo institucional del CBVI usado con disciplina y un dorado de seguridad como acento. La app se ve como un instrumento oficial de bomberos. Cambia solo el aspecto: la lógica, la estructura y tus datos NO cambian. Los emojis siguen a color.',
-  'v6.29: ✅ Arreglado "Registrar horas cumplidas" en Ver Deudores. Daba el error "_pwd is not defined" y no descontaba la sanción; ahora funciona con tu usuario y PIN, como el resto. (No afectaba a ninguna otra acción.)',
-  'v6.28: ⭕ Los pines del mapa ahora se AGRUPAN cuando están amontonados: en vez de muchos marcadores encimados, ves un círculo con el número, y al acercar el zoom se abren. La estación (🚒) y el mapa de calor no se agrupan.',
-  'v6.27: 🔥 Mapa de calor. En ⚙️ Herramientas → ✨ Vistas, el botón "Mapa de calor" pinta en rojo las zonas donde más se repiten los incidentes. Respeta el filtro que tengas puesto (tipo y fecha).',
-  'v6.26: 🚒 Estación en el mapa. En ⚙️ Herramientas → "Fijar estación (mi ubicación)" guardás dónde queda la estación (parado ahí, una sola vez). Después el mapa muestra un 🚒 y, en cada reporte, a cuántos km está de la estación.',
-  'v6.25: 🗺️ Mapa más ordenado: los controles ahora se despliegan en dos menús — "⚙️ Herramientas" (fechas y acciones) y "🏷️ Tipos" (la leyenda) — para no saturar la pantalla. Además, filtros rápidos de fecha: Últimos 30 días, Este mes, Este año.',
-  'v6.24: 🗺️ Ajustes al mapa: la capa 🛰️ Satélite ahora deja acercar más (antes salía "sin datos" al hacer zoom, porque el satélite de Inírida llega hasta cierto nivel), y el botón 📍 Mi ubicación dibuja un círculo con la precisión — en el celular con GPS es exacta; en el computador es aproximada (no tiene GPS).',
-  'v6.23: 🗺️ Mapa de Incidentes mejorado. Botones "✓ Todos" y "✕ Ninguno", y un "solo" en cada tipo para ver únicamente ese de un toque (antes había que apagar los demás uno por uno). Nueva capa 🛰️ Satélite (además de calles) y botón 📍 Mi ubicación.',
-  'v6.22: 📥 Importar personal, más robusto: reconoce cuando el nombre y el apellido vienen en columnas separadas (los une en el nombre completo) y detecta la cédula aunque el título diga "Cédula (CC)", "Documento" u otras variantes. Antes esas columnas se perdían.',
-  'v6.21: ⚡ Nuevo tipo "Incendio en red eléctrica" (transformadores, loncheras, cables y redes del servicio público; en el RUE es FALLA ELÉCTRICA). El término "Incendio de interfaz" vuelve a su significado real: fuego donde el monte se junta con el pueblo.',
-  'v6.20: 📋 La Vista RUE ahora muestra los recursos desplegados con su CLASE. Al ver un reporte y tocar "Ver para RUE", un tercer bloque cruza los vehículos que atendieron con la flota del cuerpo y muestra la clase de cada uno (lo que el RUE pide para categorizar). Si un vehículo no está registrado con clase, lo avisa.',
-  'v6.19: 🚒 Vehículos editables. En el Panel de Administrador ahora puede registrar cada vehículo con su indicativo (Móvil 1, M-3…) y su clase (lo que entiende el RUE), sin tocar código. La lista arranca con la flota de siempre; edítela cuando quiera. El indicativo es lo que aparece al reportar. Si un vehículo no carga por falta de señal, el formulario sigue mostrando la lista de siempre.',
-  'v6.18: 🔤 Vocabulario alineado con el Sistema Comando de Incidentes (SCI, Res. 358/2014): el botón principal ahora dice "NUEVO INCIDENTE", y la app habla de "incidente" en vez de "emergencia" en las pantallas principales. El nombre de la app (CBVI Reportes) y las citas legales no cambian.',
-  'v6.17: 📋 Vista "Ver para RUE". Al ver un reporte en el Panel de Administrador, un botón ordena sus datos en el MISMO orden del formulario oficial del RUE, con un botón Copiar por campo. Avisa qué datos exige el RUE y cuáles conviene verificar. No envía nada solo: el RUE se sigue llenando a mano en su plataforma.',
-  'v6.16: 📥 Importar personal desde Excel. En el Panel de Administrador puede pegar las filas de su Excel (con la fila de títulos) y la app reconoce las columnas por el nombre y agrega solo a quien falte, sin borrar ni pisar a nadie. Muestra un resumen antes de confirmar.',
-  'v6.15: 🎬 Recorrido de bienvenida. La primera vez que entra al inicio, la app ofrece un tour rápido de 6 pasos (se puede omitir). Después queda disponible en ℹ️ Acerca de, junto a un botón para el video con el paso a paso (estará pronto).',
-  'v6.14: ℹ️ Nueva pantalla "Acerca de" (tarjeta en el Inicio, junto a Manual y Bases legales): muestra la versión de la app, el logo del cuerpo, la autoría y los derechos de autor.',
-  'v6.13: 🎖️ Ya puede subir el escudo del cuerpo desde el Panel de Administrador. Reemplaza el logo en el encabezado, la pantalla de inicio y los informes en PDF. Si lo quita, vuelve el escudo por defecto de la estación. La imagen se reduce sola antes de guardarse.',
-  'v6.12: 🖨️ Arreglada la impresión desde el navegador. En la app del celular funcionaba, pero al imprimir desde un navegador se abría una pestaña EN BLANCO: ya genera el informe correctamente. Además, el pie de los informes ya no muestra el correo ni el teléfono de contacto del autor.',
-  'v6.11: ✅ IMPORTANTE — Corregir una emergencia ya se guarda de verdad. Hasta ahora, cuando el autor editaba su propio reporte dentro de las 24 horas, el cambio se veía en el celular pero NO llegaba a la base de datos: la app decía que había guardado y no era cierto. Si alguna vez corregiste un reporte y después seguía apareciendo el dato viejo, era por esto. Ya quedó arreglado. Las fotos y las firmas nunca se tocan al editar.',
-  'v6.11: 🏷️ El campo "Otra clasificación" tampoco se guardaba al editar un reporte como administrador. Se descartaba en silencio por un error interno de nombres. Ya se guarda.',
-  'v6.11: 🎬 Las animaciones del Panel de Administrador ya funcionan. Al cambiar entre la lista de reportes, ver un reporte y editarlo, las secciones ahora aparecen con una transición en vez de saltar de golpe. Los cuadros de contraseña, PIN y confirmación también entran suavemente. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no muestra ninguna.',
-  'v6.10: 🚒 Los vehículos ya no se eligen por "Máquina extintora 1", "Máquina extintora 2"... ahora aparecen con su nombre real de estación: Móvil 1, Móvil 2, Móvil 3, Móvil 5, Móvil 6, Móvil 8, Motocarguero y Lancha/Voladora, cada uno con su tipo. Se usa igual al registrar una actividad, al editarla y al reportar una emergencia — es la misma lista en los tres lugares. Los reportes viejos no cambian: se siguen viendo con el nombre que tenían.',
-  'v6.09: 🪪 Para anotar o corregir la asistencia de un domingo, y para descontar horas de sanción, ya NO se pide la contraseña de administrador: basta tu usuario y tu PIN. La guardia puede hacer su trabajo sin depender de la comandancia, y de paso queda registrado QUIÉN lo hizo (la contraseña es una sola para todos y no decía nada de eso). Borrar un domingo o una actividad sí sigue pidiendo contraseña.',
-  'v6.09: 🔐 Si escribes mal la contraseña de administrador, ahora te lo dice de una vez: el cuadro se sacude, marca el error en rojo y te deja intentar de nuevo ahí mismo. Antes seguía de largo sin avisar y el error aparecía mucho después, con un mensaje que no explicaba nada — y peor, la contraseña equivocada quedaba guardada y todo lo demás fallaba hasta cerrar la app.',
-  'v6.09: ⏱️ Tu firma ahora se cierra sola: al cerrar la aplicación y a los 30 minutos sin usarla. Si dejas el celular en la mesa, nadie puede seguir haciendo cambios a tu nombre. Mientras estés trabajando no se vence, porque cada acción reinicia el tiempo.',
-  'v6.09: ✏️ La ventana de editar una actividad quedó igual de completa que la de crearla: el tipo de vehículo se elige de la lista (antes se escribía a mano) y el maquinista tiene autocompletado.',
-  'v6.09: 🚒 Los vehículos de una ACTIVIDAD ya se guardan. Hasta ahora esa parte del formulario estaba desconectada por dentro: se podía escribir el vehículo y el maquinista, pero al registrar la actividad NO se guardaba nada y no había ningún aviso. Si revisas actividades viejas y no aparecen vehículos, es por esto — el dato no llegó a la base. De aquí en adelante sí queda, con su maquinista y su cédula.',
-  'v6.09: 🔎 El campo "Maquinista / Responsable" de las actividades ya autocompleta. Escribe la inicial y elige de la lista, igual que en Encargado y Comandante de guardia. Antes no salía nada por más que escribieras.',
-  'v6.09: ➕ El botón "Agregar vehículo" de las actividades ahora sí muestra el vehículo en pantalla, se puede quitar con la ✕, y no deja agregar dos veces la misma unidad.',
-  'v6.08: 🎬 Al tocar "volver" ahora se ve una transición: un oscurecido suave que cruza la pantalla y se va. Antes la pantalla anterior desaparecía de golpe, sin ningún aviso de que estabas saliendo. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no la muestra.',
-  'v6.07: 🔑 La lista de PIN de las unidades ya no es un rollo interminable. Ahora tiene BUSCADOR (por nombre o cédula), las unidades que todavía NO tienen PIN salen de primeras, y la lista tiene su propio desplazamiento: ya no empuja el resto del Panel hacia abajo. Arriba se ve cuántas faltan.',
-  'v6.07: 🔄 Los botones "Ver / asignar" y "Ver / cambiar" del Panel ahora se llaman "Actualizar" y muestran la rueda de carga mientras trabajan. Antes no daban ninguna señal al tocarlos —la lista ya venía cargada— y parecía que estaban dañados.',
-  'v6.07: ⏳ El aviso de "Abriendo.../Cerrando..." al cambiar de pantalla ahora dura lo suficiente para alcanzar a leerlo, y la aparición de cada pantalla es un poco más notoria. Estaba tan rápido que pasaba desapercibido.',
-  'v6.06: 🪪 ARREGLADO: el personal administrativo (Secretaría) no podía firmar. Al escribir su nombre en "¿Quién está de guardia?" el buscador no lo encontraba —solo buscaba entre las unidades bomberiles— así que no podía tocarse a sí misma y quedaba trabada sin poder hacer nada, aunque ya tuviera su PIN. Ahora sí aparece.',
-  'v6.06: 🔎 Si escribes un nombre y no aparece nadie, ahora la app te lo DICE en vez de quedarse muda. Antes no se sabía si el nombre estaba mal escrito o si la app se había colgado.',
-  'v6.05: 🛡️ ARREGLADO lo importante: agregar o quitar un administrador ya surte efecto de verdad. Antes la app escribía el cambio en la base de datos pero seguía preguntándole a una lista fija escrita dentro del programa, así que a la persona agregada nunca se le habilitaba nada. Ahora quien manda es la lista del Panel. La persona lo ve la próxima vez que abra la app con señal.',
-  'v6.05: 🛡️ La caja de Administradores y la de PIN de las unidades ahora se llenan solas al abrir el Panel. Antes salían vacías y había que adivinar que tocaba presionar "Ver / cambiar": parecía un adorno.',
-  'v6.05: ⏳ Las siluetas animadas de carga ahora sí se ven en TODAS las listas, incluido el Panel de Administrador. Estaban puestas desde la v5.89 pero la app las borraba de inmediato y las cambiaba por un "Cargando..." quieto, así que casi nunca alcanzaban a verse.',
-  'v6.04: 🩹 Corregido: al agregar un operador administrativo o un administrador, la app pedía los datos en un cuadro de CONTRASEÑA — el nombre salía con puntitos y el botón decía \"Entrar\". Ahora cada dato se pide con su propio cuadro: el nombre se lee mientras lo escribes, la cédula abre el teclado numérico y el botón dice lo que realmente hace.',
-  'v6.04: 🔑 Al asignar un PIN ahora se ve mientras lo escribes (antes salía oculto), porque eres tú quien se lo tiene que dictar a esa unidad.',
+  'v6.52: ◇ La interfaz estrena un sistema propio de iconos SVG: más nítido, consistente y legible en distintos teléfonos, sin descargar recursos externos.',
+  'v6.51: Los botones de las ventanas de confirmación tienen un área táctil mínima de 44 px para facilitar su uso en el teléfono.',
+  'v6.50: Si falta un dato obligatorio en una sección cerrada del formulario, la app la abre y muestra el campo que debe completar. Sus datos y las demás funciones no cambian.',
+  'v6.49: La última tanda visual convierte acceso, ayuda, configuración y administración en un puesto de mando más claro. Los vacíos, errores, cargas y ventanas tienen señales operativas consistentes; los cuatro accesos de ayuda ahora funcionan correctamente con teclado. No cambia datos, permisos ni servidor.',
+  'v6.48: Mesa de operaciones más clara. Actividades y asistencias se leen como una bitácora; los detalles parecen expedientes; la asistencia resalta la fila en uso; Operatividad organiza mejor filtros, cifras y rankings; y el mapa reúne sus controles en un panel más limpio. También se ampliaron a 44 px los botones pequeños de firma. No cambia datos ni permisos.',
+  'v6.47: Reportar un incidente ahora es más fácil de recorrer: las 13 secciones están agrupadas en tres fases (aviso, respuesta y cierre), la sección abierta se distingue mejor y las filas, fotos, firmas y botones son más cómodos en el celular. No cambia tus datos ni la forma de guardarlos.',
+  'v6.46: Formulario más simple: en Recursos ya no se piden "Cantidad" ni "Placa" — la placa y la clase del vehículo salen del catálogo de la estación y van al PDF solas. Se aclaró quién es el afectado que firma y quiénes son las víctimas. Tus reportes anteriores no cambian.',
+  'v6.45: Diseño operativo en toda la app: formularios, asistencia, administración, consultas, ayuda y ventanas más legibles; controles cómodos y una sirena visible al navegar. Conserva tus datos y la forma de trabajar.',
+  'v6.44: Blindaje de seguridad. El prefijo del consecutivo (Configuración) ahora solo acepta letras y números, y todos los números de reporte se muestran de forma segura en la app y en el PDF. No cambia cómo trabajas ni tus datos.',
+  'v6.43: Inicio operativo renovado. Nuevo incidente destaca como acción principal. Registrar actividades, asistencia y consultar están ahora antes del historial, con textos más legibles y los colores del CBVI. Se conservan las funciones, los permisos y tus datos.',
+  'v6.42: Reporte de incidente + Nueva Actividad mejorados. En el REPORTE ahora se registra la HORA DE SALIDA de la estación (además de llamada, llegada y cierre). En NUEVA ACTIVIDAD: ahora son 6 fotos (antes 3); se agregó el tipo "Pernotar" (servicio nocturno — las horas cuentan aunque el turno cruce la medianoche); podés indicar si la actividad fue VOLUNTARIA o PAGA (contratada); y una misma actividad puede registrar VARIAS ATENCIONES (p. ej. varios primeros auxilios en unos Juegos), cada una con sus datos y hasta 3 fotos propias. Todo sale en el detalle y el PDF. Nada de lo anterior se pierde.',
+  'v6.41: Cargas con carácter. Los "girando…" genéricos se reemplazaron por animaciones del oficio, repartidas por toda la app: una SIRENA que parpadea, un DESPACHO de puntos que rebotan, y una barra de SINCRONIZANDO. Se ven al enviar un reporte, guardar asistencia, abrir un reporte, cargar el personal, verificar el PIN, etc. — cada acción muestra una distinta. Los skeletons (barras que brillan) siguen para las listas. Solo cambia el aspecto.',
+  'v6.40: Diseño "Minimalista" a tono. El otro diseño (el que se elige en el menú → Tema) ahora usa el AZUL MARINO de tus escudos en vez del azul genérico que traía, para que combine con la imagen nueva. Solo cambia el aspecto de ese tema; si usás el diseño Original, nada cambia.',
+  'v6.39: Cierre de las animaciones. Los pines del Mapa de Emergencias ahora CAEN al aparecer, y las cifras de la pantalla de Operatividad (unidades, emergencias, domingos, asistencias) SUBEN desde 0 al abrir. Además, se corrigió el último morado fuera de marca (la tarjeta "Asistencias totales" quedó en azul). Todo respeta el modo "reducir movimiento".',
+  'v6.38: Animaciones que SE NOTAN. Ahora CADA botón, al tocarlo, hace una onda (ripple) que confirma el toque. Los números del Inicio (total, pendientes, enviados) SUBEN desde 0 al abrir. Y al enviar un reporte con un campo obligatorio vacío, ese campo se MARCA EN ROJO, se SACUDE, y la app te LLEVA directo a él (antes había que buscarlo en un formulario largo). Todo respeta el modo "reducir movimiento".',
+  'v6.37: NUEVA IMAGEN. La app se rediseñó con los colores de tus DOS escudos: el azul marino del escudo Nacional como base (el header ahora es azul), el rojo bombero de tu escudo de Inírida como color de acción (más brillante, más parecido a tu escudo real que el rojo vino anterior) y el oro de seguridad como acento. Además, la pantalla de Operatividad ya NO sale morada (estaba fuera de tu marca, hasta en los PDF impresos): ahora va en tu rojo. Solo cambia el aspecto: la lógica y tus datos NO cambian.',
+  'v6.36: Movimiento en el Panel de Administrador y más. Antes el Panel entraba sin animación; ahora las listas de reportes, de personal pendiente, de Operatividad y de Deudores entran escalonadas (una tarjeta tras otra) al abrirlas. Además, en Ver Deudores, la flechita ▼ de cada persona gira y el detalle de sus domingos se despliega con un suavizado. Todo liviano y respeta el modo "reducir movimiento".',
+  'v6.35: Más movimiento (Fase 2). Ahora TODAS las ventanas emergentes se cierran con una animación suave (antes algunas desaparecían de golpe), el PIN muestra una rueda girando mientras verifica y SACUDE si te equivocás, el aviso verde de nueva versión baja y sube suave, y en el reporte la foto recién tomada y cada vehículo/víctima que agregás entran con una pequeña animación. Todo liviano y respeta el modo "reducir movimiento". No cambia datos ni cómo funciona.',
+  'v6.34: La app se siente más viva. Se agregó movimiento en las piezas que se usan en todos lados: las ventanas de confirmación y el menú ahora también se cierran con una animación suave (antes desaparecían de golpe), los avisos suben al aparecer, las listas de reportes y actividades entran escalonadas, los botones "ocupados" se atenúan suave, y los campos muestran mejor cuál está activo. Todo liviano para que no trabe, y respeta el modo "reducir movimiento" del celular. No cambia ningún dato ni cómo funciona: solo cómo se ve.',
+  'v6.33: Menos riesgo de perder trabajo. (1) Al salir de Asistencia o de una Actividad sin haber guardado, ahora la app avisa antes de descartar lo que marcaste (antes se perdía de un toque). (2) El reporte que estás llenando se autoguarda solo: si el celular cierra la app de golpe, no pierdes lo dictado. (3) Los reportes que quedaron "pendientes" por falta de señal ahora se envían solos al reabrir la app con internet, sin tener que forzarlos a mano. Además, un ajuste interno de seguridad al mostrar las fotos y firmas.',
+  'v6.32: Al entrar al Panel de Administrador, el PIN ahora pregunta "¿qué administrador entra?" en vez de "¿quién está de guardia?" — esa pregunta se queda donde sí aplica (sanciones, asistencia, etc.), porque a Panel Admin solo entran administradores. Además, si "🚒 Vehículos del cuerpo" no logra cargar (sin señal, servidor ocupado), ahora avisa "no se pudo cargar" en vez de decir "todavía no hay vehículos" como si se hubieran borrado.',
+  'v6.31: Tour interactivo + 👥 Unidades vinculadas. El recorrido de ayuda ya no es una tarjeta de texto: ahora se mueve de verdad por la app y señala cada botón real, con uno para unidades y otro, más completo, para administradores (escudo, PIN, relevo, nómina, flota, Asistencia, Deudores, Operatividad, Mapa). Además, en el Panel de Administrador → "Unidades vinculadas" (solo el administrador principal), vea todo correo que ya usa la app y bloquéele el acceso a quien haga falta — sin borrar sus datos, y siempre reversible.',
+  'v6.30: Rediseño visual "Acta Oficial" (el mismo de la app de Cruz de Malta). Tipografía de imprenta (Oswald + Barlow), el rojo institucional del CBVI usado con disciplina y un dorado de seguridad como acento. La app se ve como un instrumento oficial de bomberos. Cambia solo el aspecto: la lógica, la estructura y tus datos NO cambian. Los emojis siguen a color.',
+  'v6.29: Arreglado "Registrar horas cumplidas" en Ver Deudores. Daba el error "_pwd is not defined" y no descontaba la sanción; ahora funciona con tu usuario y PIN, como el resto. (No afectaba a ninguna otra acción.)',
+  'v6.28: Los pines del mapa ahora se AGRUPAN cuando están amontonados: en vez de muchos marcadores encimados, ves un círculo con el número, y al acercar el zoom se abren. La estación (🚒) y el mapa de calor no se agrupan.',
+  'v6.27: Mapa de calor. En ⚙️ Herramientas → ✨ Vistas, el botón "Mapa de calor" pinta en rojo las zonas donde más se repiten los incidentes. Respeta el filtro que tengas puesto (tipo y fecha).',
+  'v6.26: Estación en el mapa. En ⚙️ Herramientas → "Fijar estación (mi ubicación)" guardás dónde queda la estación (parado ahí, una sola vez). Después el mapa muestra un 🚒 y, en cada reporte, a cuántos km está de la estación.',
+  'v6.25: Mapa más ordenado: los controles ahora se despliegan en dos menús — "⚙️ Herramientas" (fechas y acciones) y "🏷️ Tipos" (la leyenda) — para no saturar la pantalla. Además, filtros rápidos de fecha: Últimos 30 días, Este mes, Este año.',
+  'v6.24: Ajustes al mapa: la capa 🛰️ Satélite ahora deja acercar más (antes salía "sin datos" al hacer zoom, porque el satélite de Inírida llega hasta cierto nivel), y el botón 📍 Mi ubicación dibuja un círculo con la precisión — en el celular con GPS es exacta; en el computador es aproximada (no tiene GPS).',
+  'v6.23: Mapa de Incidentes mejorado. Botones "✓ Todos" y "✕ Ninguno", y un "solo" en cada tipo para ver únicamente ese de un toque (antes había que apagar los demás uno por uno). Nueva capa 🛰️ Satélite (además de calles) y botón 📍 Mi ubicación.',
+  'v6.22: Importar personal, más robusto: reconoce cuando el nombre y el apellido vienen en columnas separadas (los une en el nombre completo) y detecta la cédula aunque el título diga "Cédula (CC)", "Documento" u otras variantes. Antes esas columnas se perdían.',
+  'v6.21: Nuevo tipo "Incendio en red eléctrica" (transformadores, loncheras, cables y redes del servicio público; en el RUE es FALLA ELÉCTRICA). El término "Incendio de interfaz" vuelve a su significado real: fuego donde el monte se junta con el pueblo.',
+  'v6.20: La Vista RUE ahora muestra los recursos desplegados con su CLASE. Al ver un reporte y tocar "Ver para RUE", un tercer bloque cruza los vehículos que atendieron con la flota del cuerpo y muestra la clase de cada uno (lo que el RUE pide para categorizar). Si un vehículo no está registrado con clase, lo avisa.',
+  'v6.19: Vehículos editables. En el Panel de Administrador ahora puede registrar cada vehículo con su indicativo (Móvil 1, M-3…) y su clase (lo que entiende el RUE), sin tocar código. La lista arranca con la flota de siempre; edítela cuando quiera. El indicativo es lo que aparece al reportar. Si un vehículo no carga por falta de señal, el formulario sigue mostrando la lista de siempre.',
+  'v6.18: Vocabulario alineado con el Sistema Comando de Incidentes (SCI, Res. 358/2014): el botón principal ahora dice "NUEVO INCIDENTE", y la app habla de "incidente" en vez de "emergencia" en las pantallas principales. El nombre de la app (CBVI Reportes) y las citas legales no cambian.',
+  'v6.17: Vista "Ver para RUE". Al ver un reporte en el Panel de Administrador, un botón ordena sus datos en el MISMO orden del formulario oficial del RUE, con un botón Copiar por campo. Avisa qué datos exige el RUE y cuáles conviene verificar. No envía nada solo: el RUE se sigue llenando a mano en su plataforma.',
+  'v6.16: Importar personal desde Excel. En el Panel de Administrador puede pegar las filas de su Excel (con la fila de títulos) y la app reconoce las columnas por el nombre y agrega solo a quien falte, sin borrar ni pisar a nadie. Muestra un resumen antes de confirmar.',
+  'v6.15: Recorrido de bienvenida. La primera vez que entra al inicio, la app ofrece un tour rápido de 6 pasos (se puede omitir). Después queda disponible en ℹ️ Acerca de, junto a un botón para el video con el paso a paso (estará pronto).',
+  'v6.14: Nueva pantalla "Acerca de" (tarjeta en el Inicio, junto a Manual y Bases legales): muestra la versión de la app, el logo del cuerpo, la autoría y los derechos de autor.',
+  'v6.13: Ya puede subir el escudo del cuerpo desde el Panel de Administrador. Reemplaza el logo en el encabezado, la pantalla de inicio y los informes en PDF. Si lo quita, vuelve el escudo por defecto de la estación. La imagen se reduce sola antes de guardarse.',
+  'v6.12: Arreglada la impresión desde el navegador. En la app del celular funcionaba, pero al imprimir desde un navegador se abría una pestaña EN BLANCO: ya genera el informe correctamente. Además, el pie de los informes ya no muestra el correo ni el teléfono de contacto del autor.',
+  'v6.11: IMPORTANTE — Corregir una emergencia ya se guarda de verdad. Hasta ahora, cuando el autor editaba su propio reporte dentro de las 24 horas, el cambio se veía en el celular pero NO llegaba a la base de datos: la app decía que había guardado y no era cierto. Si alguna vez corregiste un reporte y después seguía apareciendo el dato viejo, era por esto. Ya quedó arreglado. Las fotos y las firmas nunca se tocan al editar.',
+  'v6.11: El campo "Otra clasificación" tampoco se guardaba al editar un reporte como administrador. Se descartaba en silencio por un error interno de nombres. Ya se guarda.',
+  'v6.11: Las animaciones del Panel de Administrador ya funcionan. Al cambiar entre la lista de reportes, ver un reporte y editarlo, las secciones ahora aparecen con una transición en vez de saltar de golpe. Los cuadros de contraseña, PIN y confirmación también entran suavemente. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no muestra ninguna.',
+  'v6.10: Los vehículos ya no se eligen por "Máquina extintora 1", "Máquina extintora 2"... ahora aparecen con su nombre real de estación: Móvil 1, Móvil 2, Móvil 3, Móvil 5, Móvil 6, Móvil 8, Motocarguero y Lancha/Voladora, cada uno con su tipo. Se usa igual al registrar una actividad, al editarla y al reportar una emergencia — es la misma lista en los tres lugares. Los reportes viejos no cambian: se siguen viendo con el nombre que tenían.',
+  'v6.09: Para anotar o corregir la asistencia de un domingo, y para descontar horas de sanción, ya NO se pide la contraseña de administrador: basta tu usuario y tu PIN. La guardia puede hacer su trabajo sin depender de la comandancia, y de paso queda registrado QUIÉN lo hizo (la contraseña es una sola para todos y no decía nada de eso). Borrar un domingo o una actividad sí sigue pidiendo contraseña.',
+  'v6.09: Si escribes mal la contraseña de administrador, ahora te lo dice de una vez: el cuadro se sacude, marca el error en rojo y te deja intentar de nuevo ahí mismo. Antes seguía de largo sin avisar y el error aparecía mucho después, con un mensaje que no explicaba nada — y peor, la contraseña equivocada quedaba guardada y todo lo demás fallaba hasta cerrar la app.',
+  'v6.09: Tu firma ahora se cierra sola: al cerrar la aplicación y a los 30 minutos sin usarla. Si dejas el celular en la mesa, nadie puede seguir haciendo cambios a tu nombre. Mientras estés trabajando no se vence, porque cada acción reinicia el tiempo.',
+  'v6.09: La ventana de editar una actividad quedó igual de completa que la de crearla: el tipo de vehículo se elige de la lista (antes se escribía a mano) y el maquinista tiene autocompletado.',
+  'v6.09: Los vehículos de una ACTIVIDAD ya se guardan. Hasta ahora esa parte del formulario estaba desconectada por dentro: se podía escribir el vehículo y el maquinista, pero al registrar la actividad NO se guardaba nada y no había ningún aviso. Si revisas actividades viejas y no aparecen vehículos, es por esto — el dato no llegó a la base. De aquí en adelante sí queda, con su maquinista y su cédula.',
+  'v6.09: El campo "Maquinista / Responsable" de las actividades ya autocompleta. Escribe la inicial y elige de la lista, igual que en Encargado y Comandante de guardia. Antes no salía nada por más que escribieras.',
+  'v6.09: El botón "Agregar vehículo" de las actividades ahora sí muestra el vehículo en pantalla, se puede quitar con la ✕, y no deja agregar dos veces la misma unidad.',
+  'v6.08: Al tocar "volver" ahora se ve una transición: un oscurecido suave que cruza la pantalla y se va. Antes la pantalla anterior desaparecía de golpe, sin ningún aviso de que estabas saliendo. Si tienes activado "reducir animaciones" en tu teléfono, la app lo respeta y no la muestra.',
+  'v6.07: La lista de PIN de las unidades ya no es un rollo interminable. Ahora tiene BUSCADOR (por nombre o cédula), las unidades que todavía NO tienen PIN salen de primeras, y la lista tiene su propio desplazamiento: ya no empuja el resto del Panel hacia abajo. Arriba se ve cuántas faltan.',
+  'v6.07: Los botones "Ver / asignar" y "Ver / cambiar" del Panel ahora se llaman "Actualizar" y muestran la rueda de carga mientras trabajan. Antes no daban ninguna señal al tocarlos —la lista ya venía cargada— y parecía que estaban dañados.',
+  'v6.07: El aviso de "Abriendo.../Cerrando..." al cambiar de pantalla ahora dura lo suficiente para alcanzar a leerlo, y la aparición de cada pantalla es un poco más notoria. Estaba tan rápido que pasaba desapercibido.',
+  'v6.06: ARREGLADO: el personal administrativo (Secretaría) no podía firmar. Al escribir su nombre en "¿Quién está de guardia?" el buscador no lo encontraba —solo buscaba entre las unidades bomberiles— así que no podía tocarse a sí misma y quedaba trabada sin poder hacer nada, aunque ya tuviera su PIN. Ahora sí aparece.',
+  'v6.06: Si escribes un nombre y no aparece nadie, ahora la app te lo DICE en vez de quedarse muda. Antes no se sabía si el nombre estaba mal escrito o si la app se había colgado.',
+  'v6.05: ARREGLADO lo importante: agregar o quitar un administrador ya surte efecto de verdad. Antes la app escribía el cambio en la base de datos pero seguía preguntándole a una lista fija escrita dentro del programa, así que a la persona agregada nunca se le habilitaba nada. Ahora quien manda es la lista del Panel. La persona lo ve la próxima vez que abra la app con señal.',
+  'v6.05: La caja de Administradores y la de PIN de las unidades ahora se llenan solas al abrir el Panel. Antes salían vacías y había que adivinar que tocaba presionar "Ver / cambiar": parecía un adorno.',
+  'v6.05: Las siluetas animadas de carga ahora sí se ven en TODAS las listas, incluido el Panel de Administrador. Estaban puestas desde la v5.89 pero la app las borraba de inmediato y las cambiaba por un "Cargando..." quieto, así que casi nunca alcanzaban a verse.',
+  'v6.04: Corregido: al agregar un operador administrativo o un administrador, la app pedía los datos en un cuadro de CONTRASEÑA — el nombre salía con puntitos y el botón decía \"Entrar\". Ahora cada dato se pide con su propio cuadro: el nombre se lee mientras lo escribes, la cédula abre el teclado numérico y el botón dice lo que realmente hace.',
+  'v6.04: Al asignar un PIN ahora se ve mientras lo escribes (antes salía oculto), porque eres tú quien se lo tiene que dictar a esa unidad.',
 
-  'v6.03: 🔒 El PIN pasa a ser OBLIGATORIO para todo lo de administrador. Sin firmar no se puede descontar sanciones, ni registrar o editar asistencias, ni borrar nada. Reportar emergencias NO cambió: eso sigue funcionando sin PIN, como siempre.',
-  'v6.03: 🎖️ Si una unidad de guardia todavía no tiene PIN y el administrador principal no está disponible, existe una llave de comandancia para desbloquear en el momento. Cada uso queda registrado como excepción.',
-  'v6.03: 🛡️ El administrador principal ahora puede agregar y quitar administradores desde el Panel, sin depender de nadie. Su propio correo no se puede quitar, para que nunca quede la app sin administrador.',
-  'v6.03: 👤 Se puede dar acceso a personal administrativo que no es bombero (Secretaría, por ejemplo): firma y queda auditado igual, pero NO entra a la base de personal, así que no aparece en el llamado a lista de los domingos ni suma horas en Operatividad.',
-  'v6.03: 📧 El resumen de sanciones ahora también le llega al Sargento Eliodoro López Martínez.',
+  'v6.03: El PIN pasa a ser OBLIGATORIO para todo lo de administrador. Sin firmar no se puede descontar sanciones, ni registrar o editar asistencias, ni borrar nada. Reportar emergencias NO cambió: eso sigue funcionando sin PIN, como siempre.',
+  'v6.03: Si una unidad de guardia todavía no tiene PIN y el administrador principal no está disponible, existe una llave de comandancia para desbloquear en el momento. Cada uso queda registrado como excepción.',
+  'v6.03: El administrador principal ahora puede agregar y quitar administradores desde el Panel, sin depender de nadie. Su propio correo no se puede quitar, para que nunca quede la app sin administrador.',
+  'v6.03: Se puede dar acceso a personal administrativo que no es bombero (Secretaría, por ejemplo): firma y queda auditado igual, pero NO entra a la base de personal, así que no aparece en el llamado a lista de los domingos ni suma horas en Operatividad.',
+  'v6.03: El resumen de sanciones ahora también le llega al Sargento Eliodoro López Martínez.',
 
-  'v6.02: 🔑 La firma de guardia ahora pide PIN. Antes bastaba escribir un nombre, así que cualquiera podía firmar con el nombre de otro compañero — y el registro habría culpado a quien no fue. Ahora cada unidad tiene su PIN de 4 dígitos y el sistema comprueba que coincida con la cédula: nadie puede registrar acciones a nombre ajeno.',
-  'v6.02: 🔄 Botón "Cambiar (relevo)" arriba del Panel de Administrador, para que el turno que entra firme sin tener que cerrar la app. Arriba se ve siempre quién está operando.',
-  'v6.02: 🛡️ El administrador asigna y cambia los PIN desde el Panel. Se guardan cifrados: ni abriendo la hoja de cálculo se pueden ver, solo reemplazar. Si alguien olvida el suyo, el administrador le pone uno nuevo.',
-  'v6.01: 🪪 El celular de la guardia lo usan distintas unidades, así que al entrar al Panel de Administrador la app ahora pregunta QUIÉN está operando. Ese nombre queda registrado junto a lo que se haga (descontar sanciones, registrar o editar asistencias). Se pregunta una sola vez por sesión.',
-  'v6.01: 🎖️ Borrar la asistencia de un domingo COMPLETO ahora pide la contraseña de comandancia, porque eso borra el registro de todas las unidades de ese día y recalcula las sanciones. Para corregir un domingo sin borrarlo sigue estando Editar (✏️), que no cambió y no pide nada nuevo.',
-  'v6.01: 🛟 Si se corta el internet justo al aprobar o descartar a alguien de la lista de "esperando alta", la app ya no muestra un error falso: revisa cómo quedó de verdad y te lo dice.',
-  'v6.01: 📋 En la lista de "esperando alta" hay un botón nuevo para ver la actividad donde apareció esa persona, y así corregirla si el nombre quedó mal escrito.',
-  'v6.00: 👥 Nuevo en el Panel de Administrador: si alguien registra una actividad con un compañero que todavía no está en la base de personal, esa persona YA NO SE PIERDE. Queda en una lista de "esperando alta" arriba del Panel, y el administrador la aprueba (o la descarta) con un toque. Antes no entraba a la base y después no aparecía en el autocompletado ni la reconocía el aviso de "nombre desconocido".',
-  'v6.00: 🪪 Las cédulas escritas con puntos o espacios ya no crean personas repetidas en la base de personal: "1.234.567" y "1234567" ahora se reconocen como la misma persona al registrarla, tanto desde Actividades como desde Asistencia.',
-  'v6.00: 🛠️ Arreglo interno: dos administradores trabajando al mismo tiempo ya no pueden duplicar por accidente la misma persona en la base.',
-  'v6.00: 🗓️ Al editar un domingo ya guardado (botón ✏️) ahora se puede AGREGAR a alguien que quedó fuera de la lista: buscas el nombre, entra como "Presente" y le cambias el estado si hace falta. Antes tocaba borrar el domingo entero y volver a registrarlo persona por persona.',
-  'v6.00: 🛟 Corregido un problema serio: si abrías un domingo YA guardado desde la pantalla de Asistencia y volvías a guardar, se BORRABAN el tipo de reunión, el tema, el lugar, el encargado y el comandante de guardia. Ahora esos datos se cargan solos y se conservan.',
-  'v5.99: 🗺️ El mapa ahora carga desde la propia app y no desde un servidor de terceros. Es más seguro y arranca más rápido; el mapa ya no depende de que ese servidor externo esté disponible.',
-  'v5.99: 🔒 Refuerzo de seguridad: se quitó el permiso que la app le daba a ese servidor externo para ejecutar código.',
-  'v5.98: 👥 La lista de nombres que sale al escribir (en reportes, actividades y asistencia) ahora se toma DIRECTO de la hoja del personal. Antes venía de una lista fija dentro de la app: por eso seguían apareciendo compañeros que ya no están y NO aparecían los que se agregaron después. Ahora se actualiza sola.',
-  'v5.98: ✅ El aviso de "nombre desconocido" al enviar un reporte ya no se equivoca: dejó de alertar con personal que sí está en la hoja, y dejó de dejar pasar en silencio a quien ya no está.',
-  'v5.98: 📴 Sigue funcionando sin señal: la lista queda guardada en el teléfono y se usa igual cuando no hay internet.',
-  'v5.97: 🛡️ Ajustes internos de seguridad y de configuración del sitio. No cambia nada de lo que ves, ni cómo inicias sesión, ni cómo se usa la app.',
-  'v5.96: 🗺️ La leyenda del Mapa de Emergencias ahora muestra TODAS las clasificaciones con su emoji, aunque vayan en cero — antes solo salían los tipos que ya tenían reportes.',
-  'v5.96: 🏷️ Corregido: los reportes con VARIAS clasificaciones marcadas salían como "Sin clasificar" en el mapa (solo cruzaba bien cuando era una sola). Ahora se leen todas y el pin toma su color/emoji correcto. Al editar un reporte, las casillas de clasificación ya aparecen marcadas como corresponde.',
-  'v5.96: 📊 En Operatividad, las cédulas escritas con puntos o espacios ya no crean tarjetas duplicadas de la misma persona. La tarjeta grande ahora dice "Unidades con registros" y muestra aparte cuántas unidades tiene la base activa; los registros con el nombre escrito distinto salen marcados en ámbar para poder corregirlos.',
-  'v5.96: 📸 Corregido: algunos reportes viejos no mostraban sus fotos (el enlace quedó guardado en un formato antiguo). Ahora se leen también esos formatos. Y si al ENVIAR un reporte alguna foto no se puede subir, la app lo avisa de inmediato en vez de callar.',
-  'v5.95: 📊 Corregido en Operatividad: al tocar "Ver emerg. / Ver activ. / Ver dom." de una unidad, el detalle ahora muestra TODO lo que suma el total, aunque el nombre esté escrito distinto en registros viejos (ahora se cruza también por cédula). Antes el total podía decir 6.3h y el detalle mostrar menos.',
-  'v5.95: ✏️ Al EDITAR la asistencia de un domingo, los campos 👤 Encargado y 🛡️ Guardia ahora AUTOCOMPLETAN buscando en el personal (escribe las iniciales y toca el nombre), igual que al registrar.',
-  'v5.95: 🧾 Al agregar personal a la asistencia ya no se cuela una persona repetida por tener la cédula escrita con puntos o espacios (ej: 1.234.567 y 1234567 ya se reconocen como la misma).',
-  'v5.95: 🏅 En las bonificaciones, los nombres con tilde o Ñ ya no se duplican ("JOSÉ" y "JOSE" son la misma persona) y el botón de quitar elimina bien ambas formas.',
-  'v5.95: 🛡️ Refuerzos internos de seguridad y estabilidad en varias pantallas y en el servidor.',
-  'v5.94: 🏷️ Nuevos tipos de emergencia en la Clasificación: Incendio de interfaz, Búsqueda y rescate, Traslado, Atención de árbol caído y Atención de abejas / avispas. Si marcas "Búsqueda y rescate", escribe en "Otra" la modalidad exacta (extraviado, acuática, colapso, etc.). En el Mapa de Emergencias cada uno tiene su propio pin (las abejas van con 🐝).',
-  'v5.94: ⚠️ Ahora cada unidad ve en su Inicio ÚNICAMENTE su propia sanción pendiente (antes solo el admin veía la lista). Toca el aviso para ver de qué domingos viene tu deuda. Nadie ve la de los demás.',
-  'v5.94: 🗺️ Corregido: al abrir "Ver reporte completo" desde el Mapa a veces salía el reporte vacío o pedía la contraseña sin cargar. Ahora la sesión se valida mejor, y si la descarga falla se muestra un aviso con botón de reintentar en vez de un reporte en blanco. Al reentrar al Panel ya no queda abierto el reporte anterior.',
-  'v5.93: 🧾 Corregido (sanciones): al descontar horas cumplidas, ahora el pago SIEMPRE se cruza con la deuda aunque la cédula esté escrita distinto (con puntos, espacios o como número) en la asistencia y en el registro. Antes, en esos casos, salía "✅ registrado" pero la deuda no bajaba. Ya no hay que corregir la cédula a mano.',
-  'v5.92: 👁️ NUEVO: al escribir las coordenadas a mano aparece una VISTA PREVIA EN VIVO debajo de los campos que muestra cómo quedará el pin (en decimal y en grados) o te avisa si algo está mal — así lo confirmas antes de enviar el reporte, sin depender de tener señal.',
-  'v5.92: 📍 Corregido: al escribir las coordenadas A MANO ahora se aceptan con COMA o con punto decimal (ej: 3,8650 o 3.8650). Antes, si se escribía con coma, la app las guardaba mal y el pin caía en el lugar equivocado del Mapa de Emergencias. También reconoce si pegas las dos coordenadas juntas en un solo campo y el formato de grados (3°51\'54"N). Al guardar, muestra cómo quedaron interpretadas para que las revises.',
-  'v5.91: ⚠️ CAMBIO IMPORTANTE EN LAS SANCIONES. Por cada domingo que pase sin que cumplas tus horas, la deuda se DUPLICA (2h → 4h → 8h → 16h...), con un tope de 32 horas. Asistir NO detiene la duplicación y presentar excusa TAMPOCO: la excusa justifica que no viniste, no que dejaste de cumplir lo que ya debías. Lo único que la detiene es cumplir las horas antes del próximo domingo.',
-  'v5.91: 🤝 Ajuste por única vez: como antes el sistema no aplicaba bien esta regla, a quienes les habría subido de golpe se les dejó la deuda en el valor que ya venían viendo duplicado una sola vez, y no en el total que les correspondía. De aquí en adelante la regla corre normal para todos.',
-  'v5.91: 📋 Las alertas quedan igual: 3 domingos seguidos = llamado de atención verbal · 4 = llamado escrito con copia a la hoja de vida · 5 = deserción, con retiro de las actividades bomberiles y a consideración del Capitán el reingreso.',
-  'v5.91: ✉️ El correo de sanción ahora explica cómo crece la deuda y hasta qué tope, además de los domingos que faltaste.',
-  'v5.90: 🧭 Se QUITÓ la barra de navegación inferior que se agregó en la v5.89. Devolvía accesos que ya estaban en el Inicio y quitaba espacio de pantalla. Todo se navega igual que antes desde el Inicio.',
-  'v5.90: 🎨 Diseño renovado del tema 🚒 Original: encabezado con más profundidad y filo dorado, tarjetas con relieve suave, botones con volumen, campos que se iluminan en rojo al escribir y esquinas más redondeadas. El tema 🍎 Minimalista quedó exactamente igual.',
-  'v5.90: ✅ Al descontar horas de sanción en "Ver Deudores" ahora se abre un cuadro que pide LA ACTIVIDAD QUE REALIZÓ la unidad (aseo, mantenimiento, apoyo, etc.). Queda como constancia permanente junto con las horas.',
-  'v5.90: ✉️ Los correos de sanción que le llegan a cada unidad ahora DICEN EXACTAMENTE qué domingos faltó (fecha y tema de cada uno), no solo el total de horas. Si una fecha está mal, ya se puede reclamar con el dato en la mano.',
-  'v5.90: 📱 El ícono al abrir la app ya no sale dentro de un cuadro blanco: el escudo se ve recortado sobre el fondo rojo institucional.',
-  'v5.89: 🧭 NUEVO: barra de navegación inferior con acceso directo a 🏠 Inicio, 🎯 Nueva Actividad, 🚨 Nuevo Reporte (botón central), 📋 Registros y ⚙️ Ajustes. Ya no hay que devolverse al Inicio para cambiar de sección.',
-  'v5.89: ✨ Animaciones suaves al cambiar de pantalla y al tocar botones (estilo app profesional). Si tu teléfono tiene activada la opción "reducir movimiento" (accesibilidad), la app la respeta y no anima.',
-  'v5.89: ⏳ Mientras cargan los Registros, la Operatividad o los Deudores ahora se ve una "silueta" animada en vez del texto "Cargando..." — se nota que la app está trabajando.',
-  'v5.89: 💻 Mejorado en pantallas grandes (PC y tabletas): la barra inferior se centra y no se estira a todo lo ancho.',
-  'v5.88: 🎨 NUEVO: ahora puedes elegir el DISEÑO de la app — 🚒 Original o 🍎 Minimalista (estilo limpio tipo Apple). Está en el menú de tu avatar (arriba a la derecha) y en Configuración → Diseño de la app. Tu elección se guarda solo en este dispositivo.',
-  'v5.88: ✨ Diseño Minimalista: fondo claro, tarjetas con bordes redondeados, sombras suaves, encabezado translúcido y transiciones suaves. TODO funciona exactamente igual — solo cambia el aspecto.',
-  'v5.87: ✅ Los avisos de éxito (actividad guardada, asistencia registrada, foto cargada...) ahora salen en VERDE como corresponde — antes salían en negro neutro.',
-  'v5.87: 🗺️ Si el Mapa de Emergencias falla por falta de señal, ahora aparece un botón 🔄 Reintentar en vez de quedarse pegado en el error.',
-  'v5.87: 🛡️ Blindaje interno: la pantalla de Operatividad "Por Unidad" ya no puede romperse completa si llega un registro sin nombre, y se reforzó el escape de texto en más listas (sanciones, deudores, personal).',
-  'v5.86: 🔳 El Mapa de Emergencias ahora se puede ampliar a pantalla completa (botón ⛶) para ver mejor los pines, con botón ✕ para regresar al tamaño normal.',
-  'v5.86: 🛡️ Refuerzos internos de seguridad: se reforzó el escape de texto libre (nombres, víctimas, recursos) en varias vistas y en el PDF del reporte.',
-  'v5.85: 🗺️ Corregido: una coordenada GPS mal escrita (sin punto decimal) podía "romper" el Mapa de Emergencias y dejar TODOS los pines fuera de la vista. Ahora se valida el rango y se avisa si el dato es inválido.',
-  'v5.84: 📤 Corregido (importante): reenviar un reporte "Pendiente" ya NO lo duplica en la base — el servidor ahora reconoce los reintentos aunque lleguen varios toques seguidos.',
-  'v5.84: ⏳ El botón "Enviar" del reporte pendiente ahora muestra "Enviando..." y se bloquea mientras trabaja — se acabó tocar varias veces "porque no pasaba nada".',
-  'v5.84: ➕ Los botones "+ Agregar recurso / víctima / organización" del formulario ahora se ven claros y grandes (antes quedaban casi invisibles).',
-  'v5.83: 🛡️ Refuerzos internos de seguridad en el servidor.',
-  'v5.82: 🗺️ Mapa de Emergencias renovado: cada pin lleva el EMOJI de su tipo (🔥 incendio, 🚑 primeros auxilios, 🚗 rescate vehicular...) con colores más fáciles de distinguir.',
-  'v5.82: 🗺️ La leyenda ahora FILTRA: toca un tipo para ocultar/mostrar sus pines. Nuevos filtros por año y mes, contador de emergencias visibles y botón 🎯 para reencuadrar el mapa.',
-  'v5.82: 🗺️ Corregido: la fecha en los pines del mapa se veía en formato técnico feo — ahora sale como día normal (2026-07-13).',
-  'v5.82: 📨 El resumen general de sancionados ahora llega también a un tercer correo administrativo autorizado.',
-  'v5.81: ⏳ Al abrir una asistencia de domingo (desde Mis Actividades o el historial) ahora aparece DE INMEDIATO la ventana "Abriendo asistencia..." con animación — antes parecía que el toque no hacía nada.',
-  'v5.81: 🎖️ El llamado a lista ahora va por rangos: OFICIALES (Capitán, Teniente, Subteniente) → SUBOFICIALES (Sargento, Cabo) → BOMBEROS → ASPIRANTES. Dentro de cada rango se respeta el orden de las filas de la hoja Personal_CBVI (1, 2, 3...): ordena la hoja y la app llama a lista en ese orden.',
-  'v5.81: 📝 Al marcar a alguien "C/excusa" se abre al instante el cuadro para escribir la observación (motivo de la excusa) — ya no toca guardar y luego editar el domingo. La observación queda visible bajo el nombre y se corrige tocándola.',
-  'v5.81: ➕ Nuevos rangos disponibles al registrar bombero: Subteniente y Cabo.',
-  'v5.76: 📨 NUEVO: alerta de sanciones por correo. Cada viernes 9:30 AM la estación recibe el resumen de unidades que deben horas y cada deudor su recordatorio personal. El admin también puede enviarla al instante desde Configuración → Zona Administrador.',
-  'v5.76: 🛡️ El servidor ahora deja registro permanente de seguridad (intentos no autorizados y acciones administrativas) y avisa por correo a la estación si detecta actividad sospechosa.',
-  'v5.75: 👥 Nueva cuenta de administración habilitada (Tesorería CBVI) para apoyar la gestión de la estación.',
-  'v5.74: 📨 Corregido (importante): si el servidor rechazaba un reporte (mala señal, mantenimiento…), la app lo marcaba como "Enviado" igual y el reporte se perdía en silencio. Ahora queda "Pendiente" y se reenvía solo al volver la señal — sin duplicarse.',
-  'v5.74: 🔐 Blindaje del servidor: enviar, actualizar o eliminar reportes y consultar la base de personal ahora exige sesión válida. Si un día te pide volver a iniciar sesión, es normal — tu reporte no se pierde.',
-  'v5.74: 🧹 Corregido: al entrar con OTRA cuenta de Google en el mismo teléfono ya no se mezclan las sesiones (antes podía quedar activa la identidad anterior).',
-  'v5.74: 🖥️ Los mensajes de error del servidor ahora se muestran de forma segura en pantalla.',
-  'v5.73: 🪪 Ahora, si dos bomberos quedaron con la misma cédula, la app te avisa con claridad (te dice con quién choca) en vez de un confuso “ya está”. Corrige la cédula repetida en la base y listo.',
-  'v5.72: 🧩 Corregido en Asistencia: al agregar un bombero que ya estaba, la app te lleva a su fila y la resalta (se acabó el “ya está pero no lo veo”). Búsqueda de duplicados más precisa (por cédula o nombre).',
-  'v5.71: 🛡️ Blindaje profesional: descontar horas de sanción ahora es a prueba de fallos de red. Si se cae el internet justo al guardar y reintentas, ya NUNCA se descuenta dos veces.',
-  'v5.70: 🔧 Corregido: al marcar horas de sanción cumplidas en "Ver Deudores" ya no sale "No autorizado". Ahora pide la contraseña de administrador si hace falta, y se evita cualquier doble descuento por doble toque.',
-  'v5.69: 🔐 Seguridad del servidor reforzada: ahora solo tú puedes editar tu propio perfil, y agregar personal a la base es exclusivo del administrador. Registrar actividades exige sesión válida.',
-  'v5.69: 🎫 Tu sesión ahora dura más sin pedirte iniciar sesión tan seguido. Si una vez te pide volver a entrar, es normal por esta mejora.',
-  'v5.68: 🔐 Seguridad reforzada: los textos que se escriben (temas, lugares, novedades, narrativa, dirección) ahora se muestran de forma segura en toda la app.',
-  'v5.68: 🔤 Corregido el inicio de sesión con Google para nombres con tildes o Ñ (antes podía fallar o mostrarse con símbolos raros).',
-  'v5.68: 📱 Avisos que no se veían en el APK (cerrar la app, aviso de foto no guardada) ahora usan las ventanas propias de la app.',
-  'v5.68: ⚡ Mejora de estabilidad sin conexión.',
-  'v5.67: 📍 Corregido: las coordenadas GPS ahora se editan SOLO desde la sección 3 (Ubicación) al usar ✏️ Editar — ya se guardan correctamente y se reflejan en el Mapa.',
-  'v5.67: 👁️ La vista "Ver" de bonificaciones ahora es solo lectura — para agregar o quitar bomberos usa ✏️ Editar.',
-  'v5.66: 📸 Fotos del domingo AHORA editables (Inicio/Intermedio/Final) — antes no aparecían al editar. También Tipo de reunión, Tema, Lugar y Observación por persona.',
-  'v5.66: 📍 Admin puede corregir las coordenadas GPS de un reporte si quedaron mal capturadas (aparece al editar en el Panel Admin).',
-  'v5.66: 🎨 Mapa de Emergencias: cada pin tiene el color según el tipo de emergencia (incendio, primeros auxilios, rescate...) + leyenda con la tabla de colores.',
-  'v5.65: 🗺️ Arreglado: el Mapa de Emergencias no cargaba (la política de seguridad del sitio bloqueaba la librería del mapa). Ya carga con internet normal.',
-  'v5.65: 🆕 Aviso de "nueva versión" corregido: ya no tapa el botón de cerrar (antes crecía con TODO el historial; ahora solo muestra lo nuevo de esta versión, y tiene scroll si hace falta).',
-  'v5.65: ⏳ Mensaje breve "Abriendo.../Cerrando..." al navegar entre pantallas, además de "Cargando.../Guardando..." que ya existían.',
-  'v5.65: 🔄 Si ves pantallas viejas en la PC (ej. deudores dentro de Asistencia), es caché del navegador — Ctrl+Shift+R para forzar la versión nueva.',
-  'v5.64: ⚠️ NUEVA pantalla "Ver Deudores": toca un nombre y mira EXACTAMENTE qué domingos (fecha + tema) generaron la deuda.',
-  'v5.64: 🗺️ NUEVO "Mapa de Emergencias" (solo admin): ubica en un mapa cada emergencia con GPS registrado.',
-  'v5.64: 🚫 Doble click corregido en TODAS las acciones (antes solo 3): eliminar, editar, sanciones, cierre de mes, bonificaciones, etc.',
-  'v5.64: 📊 Corregido: los totales de Emergencias y Horas en Operatividad ya no se inflaban al multiplicarse por el número de asistentes.',
-  'v5.64: 📅 Ahora se muestran por separado "Domingos realizados" y "Asistencias totales" (antes se mezclaban).',
-  'v5.64: 🔐 3 ventanas de confirmación que fallaban en silencio en el APK (cerrar sesión, cancelar edición, quitar bombero de bonificación) ahora usan el modal seguro de la app.',
-  'v5.63: 🚫 Doble click corregido — los botones se bloquean y muestran "Cargando..." mientras envían (no más registros duplicados).',
-  'v5.63: 📊 Se acabaron los números feos tipo "28.09999h" — todo redondeado a 1 decimal.',
-  'v5.63: 👥 Autocompletado sin nombres duplicados (tildes y Ñ ya no crean personas dobles).',
-  'v5.63: ⚠️ NUEVO recordatorio de sanciones en la pantalla de inicio (solo admins): quién debe horas y su nivel de alerta.',
-  'v5.63: 📐 Nueva regla de sanciones: la deuda se duplica si no se cumple (2h→4h→8h→16h→32h). Alertas por faltas consecutivas: 3=verbal, 4=escrito, 5=DESERCIÓN.',
-  'v5.63: ✅ Las horas de sanción cumplidas ya quedan registradas para siempre (no se pierden al registrar más domingos).',
-  'v5.63: 🎯 Nuevos tipos de actividad: Bomberitos Junior y Arreglos/Reparaciones (institución).',
-  'v5.63: 🔐 La sesión de admin se renueva sola al abrir la app — adiós al "cierra y vuelve a iniciar sesión".',
-  'v5.63: 🛡️ Aviso al enviar emergencias con nombres que no están en la base (evita duplicados en Operatividad).',
-  'v5.63: 📖 Manual y "Cómo funciona" actualizados.',
+  'v6.02: La firma de guardia ahora pide PIN. Antes bastaba escribir un nombre, así que cualquiera podía firmar con el nombre de otro compañero — y el registro habría culpado a quien no fue. Ahora cada unidad tiene su PIN de 4 dígitos y el sistema comprueba que coincida con la cédula: nadie puede registrar acciones a nombre ajeno.',
+  'v6.02: Botón "Cambiar (relevo)" arriba del Panel de Administrador, para que el turno que entra firme sin tener que cerrar la app. Arriba se ve siempre quién está operando.',
+  'v6.02: El administrador asigna y cambia los PIN desde el Panel. Se guardan cifrados: ni abriendo la hoja de cálculo se pueden ver, solo reemplazar. Si alguien olvida el suyo, el administrador le pone uno nuevo.',
+  'v6.01: El celular de la guardia lo usan distintas unidades, así que al entrar al Panel de Administrador la app ahora pregunta QUIÉN está operando. Ese nombre queda registrado junto a lo que se haga (descontar sanciones, registrar o editar asistencias). Se pregunta una sola vez por sesión.',
+  'v6.01: Borrar la asistencia de un domingo COMPLETO ahora pide la contraseña de comandancia, porque eso borra el registro de todas las unidades de ese día y recalcula las sanciones. Para corregir un domingo sin borrarlo sigue estando Editar (✏️), que no cambió y no pide nada nuevo.',
+  'v6.01: Si se corta el internet justo al aprobar o descartar a alguien de la lista de "esperando alta", la app ya no muestra un error falso: revisa cómo quedó de verdad y te lo dice.',
+  'v6.01: En la lista de "esperando alta" hay un botón nuevo para ver la actividad donde apareció esa persona, y así corregirla si el nombre quedó mal escrito.',
+  'v6.00: Nuevo en el Panel de Administrador: si alguien registra una actividad con un compañero que todavía no está en la base de personal, esa persona YA NO SE PIERDE. Queda en una lista de "esperando alta" arriba del Panel, y el administrador la aprueba (o la descarta) con un toque. Antes no entraba a la base y después no aparecía en el autocompletado ni la reconocía el aviso de "nombre desconocido".',
+  'v6.00: Las cédulas escritas con puntos o espacios ya no crean personas repetidas en la base de personal: "1.234.567" y "1234567" ahora se reconocen como la misma persona al registrarla, tanto desde Actividades como desde Asistencia.',
+  'v6.00: Arreglo interno: dos administradores trabajando al mismo tiempo ya no pueden duplicar por accidente la misma persona en la base.',
+  'v6.00: Al editar un domingo ya guardado (botón ✏️) ahora se puede AGREGAR a alguien que quedó fuera de la lista: buscas el nombre, entra como "Presente" y le cambias el estado si hace falta. Antes tocaba borrar el domingo entero y volver a registrarlo persona por persona.',
+  'v6.00: Corregido un problema serio: si abrías un domingo YA guardado desde la pantalla de Asistencia y volvías a guardar, se BORRABAN el tipo de reunión, el tema, el lugar, el encargado y el comandante de guardia. Ahora esos datos se cargan solos y se conservan.',
+  'v5.99: El mapa ahora carga desde la propia app y no desde un servidor de terceros. Es más seguro y arranca más rápido; el mapa ya no depende de que ese servidor externo esté disponible.',
+  'v5.99: Refuerzo de seguridad: se quitó el permiso que la app le daba a ese servidor externo para ejecutar código.',
+  'v5.98: La lista de nombres que sale al escribir (en reportes, actividades y asistencia) ahora se toma DIRECTO de la hoja del personal. Antes venía de una lista fija dentro de la app: por eso seguían apareciendo compañeros que ya no están y NO aparecían los que se agregaron después. Ahora se actualiza sola.',
+  'v5.98: El aviso de "nombre desconocido" al enviar un reporte ya no se equivoca: dejó de alertar con personal que sí está en la hoja, y dejó de dejar pasar en silencio a quien ya no está.',
+  'v5.98: Sigue funcionando sin señal: la lista queda guardada en el teléfono y se usa igual cuando no hay internet.',
+  'v5.97: Ajustes internos de seguridad y de configuración del sitio. No cambia nada de lo que ves, ni cómo inicias sesión, ni cómo se usa la app.',
+  'v5.96: La leyenda del Mapa de Emergencias ahora muestra TODAS las clasificaciones con su emoji, aunque vayan en cero — antes solo salían los tipos que ya tenían reportes.',
+  'v5.96: Corregido: los reportes con VARIAS clasificaciones marcadas salían como "Sin clasificar" en el mapa (solo cruzaba bien cuando era una sola). Ahora se leen todas y el pin toma su color/emoji correcto. Al editar un reporte, las casillas de clasificación ya aparecen marcadas como corresponde.',
+  'v5.96: En Operatividad, las cédulas escritas con puntos o espacios ya no crean tarjetas duplicadas de la misma persona. La tarjeta grande ahora dice "Unidades con registros" y muestra aparte cuántas unidades tiene la base activa; los registros con el nombre escrito distinto salen marcados en ámbar para poder corregirlos.',
+  'v5.96: Corregido: algunos reportes viejos no mostraban sus fotos (el enlace quedó guardado en un formato antiguo). Ahora se leen también esos formatos. Y si al ENVIAR un reporte alguna foto no se puede subir, la app lo avisa de inmediato en vez de callar.',
+  'v5.95: Corregido en Operatividad: al tocar "Ver emerg. / Ver activ. / Ver dom." de una unidad, el detalle ahora muestra TODO lo que suma el total, aunque el nombre esté escrito distinto en registros viejos (ahora se cruza también por cédula). Antes el total podía decir 6.3h y el detalle mostrar menos.',
+  'v5.95: Al EDITAR la asistencia de un domingo, los campos 👤 Encargado y 🛡️ Guardia ahora AUTOCOMPLETAN buscando en el personal (escribe las iniciales y toca el nombre), igual que al registrar.',
+  'v5.95: Al agregar personal a la asistencia ya no se cuela una persona repetida por tener la cédula escrita con puntos o espacios (ej: 1.234.567 y 1234567 ya se reconocen como la misma).',
+  'v5.95: En las bonificaciones, los nombres con tilde o Ñ ya no se duplican ("JOSÉ" y "JOSE" son la misma persona) y el botón de quitar elimina bien ambas formas.',
+  'v5.95: Refuerzos internos de seguridad y estabilidad en varias pantallas y en el servidor.',
+  'v5.94: Nuevos tipos de emergencia en la Clasificación: Incendio de interfaz, Búsqueda y rescate, Traslado, Atención de árbol caído y Atención de abejas / avispas. Si marcas "Búsqueda y rescate", escribe en "Otra" la modalidad exacta (extraviado, acuática, colapso, etc.). En el Mapa de Emergencias cada uno tiene su propio pin (las abejas van con 🐝).',
+  'v5.94: Ahora cada unidad ve en su Inicio ÚNICAMENTE su propia sanción pendiente (antes solo el admin veía la lista). Toca el aviso para ver de qué domingos viene tu deuda. Nadie ve la de los demás.',
+  'v5.94: Corregido: al abrir "Ver reporte completo" desde el Mapa a veces salía el reporte vacío o pedía la contraseña sin cargar. Ahora la sesión se valida mejor, y si la descarga falla se muestra un aviso con botón de reintentar en vez de un reporte en blanco. Al reentrar al Panel ya no queda abierto el reporte anterior.',
+  'v5.93: Corregido (sanciones): al descontar horas cumplidas, ahora el pago SIEMPRE se cruza con la deuda aunque la cédula esté escrita distinto (con puntos, espacios o como número) en la asistencia y en el registro. Antes, en esos casos, salía "✅ registrado" pero la deuda no bajaba. Ya no hay que corregir la cédula a mano.',
+  'v5.92: NUEVO: al escribir las coordenadas a mano aparece una VISTA PREVIA EN VIVO debajo de los campos que muestra cómo quedará el pin (en decimal y en grados) o te avisa si algo está mal — así lo confirmas antes de enviar el reporte, sin depender de tener señal.',
+  'v5.92: Corregido: al escribir las coordenadas A MANO ahora se aceptan con COMA o con punto decimal (ej: 3,8650 o 3.8650). Antes, si se escribía con coma, la app las guardaba mal y el pin caía en el lugar equivocado del Mapa de Emergencias. También reconoce si pegas las dos coordenadas juntas en un solo campo y el formato de grados (3°51\'54"N). Al guardar, muestra cómo quedaron interpretadas para que las revises.',
+  'v5.91: CAMBIO IMPORTANTE EN LAS SANCIONES. Por cada domingo que pase sin que cumplas tus horas, la deuda se DUPLICA (2h → 4h → 8h → 16h...), con un tope de 32 horas. Asistir NO detiene la duplicación y presentar excusa TAMPOCO: la excusa justifica que no viniste, no que dejaste de cumplir lo que ya debías. Lo único que la detiene es cumplir las horas antes del próximo domingo.',
+  'v5.91: Ajuste por única vez: como antes el sistema no aplicaba bien esta regla, a quienes les habría subido de golpe se les dejó la deuda en el valor que ya venían viendo duplicado una sola vez, y no en el total que les correspondía. De aquí en adelante la regla corre normal para todos.',
+  'v5.91: Las alertas quedan igual: 3 domingos seguidos = llamado de atención verbal · 4 = llamado escrito con copia a la hoja de vida · 5 = deserción, con retiro de las actividades bomberiles y a consideración del Capitán el reingreso.',
+  'v5.91: El correo de sanción ahora explica cómo crece la deuda y hasta qué tope, además de los domingos que faltaste.',
+  'v5.90: Se QUITÓ la barra de navegación inferior que se agregó en la v5.89. Devolvía accesos que ya estaban en el Inicio y quitaba espacio de pantalla. Todo se navega igual que antes desde el Inicio.',
+  'v5.90: Diseño renovado del tema 🚒 Original: encabezado con más profundidad y filo dorado, tarjetas con relieve suave, botones con volumen, campos que se iluminan en rojo al escribir y esquinas más redondeadas. El tema 🍎 Minimalista quedó exactamente igual.',
+  'v5.90: Al descontar horas de sanción en "Ver Deudores" ahora se abre un cuadro que pide LA ACTIVIDAD QUE REALIZÓ la unidad (aseo, mantenimiento, apoyo, etc.). Queda como constancia permanente junto con las horas.',
+  'v5.90: Los correos de sanción que le llegan a cada unidad ahora DICEN EXACTAMENTE qué domingos faltó (fecha y tema de cada uno), no solo el total de horas. Si una fecha está mal, ya se puede reclamar con el dato en la mano.',
+  'v5.90: El ícono al abrir la app ya no sale dentro de un cuadro blanco: el escudo se ve recortado sobre el fondo rojo institucional.',
+  'v5.89: NUEVO: barra de navegación inferior con acceso directo a 🏠 Inicio, 🎯 Nueva Actividad, 🚨 Nuevo Reporte (botón central), 📋 Registros y ⚙️ Ajustes. Ya no hay que devolverse al Inicio para cambiar de sección.',
+  'v5.89: Animaciones suaves al cambiar de pantalla y al tocar botones (estilo app profesional). Si tu teléfono tiene activada la opción "reducir movimiento" (accesibilidad), la app la respeta y no anima.',
+  'v5.89: Mientras cargan los Registros, la Operatividad o los Deudores ahora se ve una "silueta" animada en vez del texto "Cargando..." — se nota que la app está trabajando.',
+  'v5.89: Mejorado en pantallas grandes (PC y tabletas): la barra inferior se centra y no se estira a todo lo ancho.',
+  'v5.88: NUEVO: ahora puedes elegir el DISEÑO de la app — 🚒 Original o 🍎 Minimalista (estilo limpio tipo Apple). Está en el menú de tu avatar (arriba a la derecha) y en Configuración → Diseño de la app. Tu elección se guarda solo en este dispositivo.',
+  'v5.88: Diseño Minimalista: fondo claro, tarjetas con bordes redondeados, sombras suaves, encabezado translúcido y transiciones suaves. TODO funciona exactamente igual — solo cambia el aspecto.',
+  'v5.87: Los avisos de éxito (actividad guardada, asistencia registrada, foto cargada...) ahora salen en VERDE como corresponde — antes salían en negro neutro.',
+  'v5.87: Si el Mapa de Emergencias falla por falta de señal, ahora aparece un botón 🔄 Reintentar en vez de quedarse pegado en el error.',
+  'v5.87: Blindaje interno: la pantalla de Operatividad "Por Unidad" ya no puede romperse completa si llega un registro sin nombre, y se reforzó el escape de texto en más listas (sanciones, deudores, personal).',
+  'v5.86: El Mapa de Emergencias ahora se puede ampliar a pantalla completa (botón ⛶) para ver mejor los pines, con botón ✕ para regresar al tamaño normal.',
+  'v5.86: Refuerzos internos de seguridad: se reforzó el escape de texto libre (nombres, víctimas, recursos) en varias vistas y en el PDF del reporte.',
+  'v5.85: Corregido: una coordenada GPS mal escrita (sin punto decimal) podía "romper" el Mapa de Emergencias y dejar TODOS los pines fuera de la vista. Ahora se valida el rango y se avisa si el dato es inválido.',
+  'v5.84: Corregido (importante): reenviar un reporte "Pendiente" ya NO lo duplica en la base — el servidor ahora reconoce los reintentos aunque lleguen varios toques seguidos.',
+  'v5.84: El botón "Enviar" del reporte pendiente ahora muestra "Enviando..." y se bloquea mientras trabaja — se acabó tocar varias veces "porque no pasaba nada".',
+  'v5.84: Los botones "+ Agregar recurso / víctima / organización" del formulario ahora se ven claros y grandes (antes quedaban casi invisibles).',
+  'v5.83: Refuerzos internos de seguridad en el servidor.',
+  'v5.82: Mapa de Emergencias renovado: cada pin lleva el EMOJI de su tipo (🔥 incendio, 🚑 primeros auxilios, 🚗 rescate vehicular...) con colores más fáciles de distinguir.',
+  'v5.82: La leyenda ahora FILTRA: toca un tipo para ocultar/mostrar sus pines. Nuevos filtros por año y mes, contador de emergencias visibles y botón 🎯 para reencuadrar el mapa.',
+  'v5.82: Corregido: la fecha en los pines del mapa se veía en formato técnico feo — ahora sale como día normal (2026-07-13).',
+  'v5.82: El resumen general de sancionados ahora llega también a un tercer correo administrativo autorizado.',
+  'v5.81: Al abrir una asistencia de domingo (desde Mis Actividades o el historial) ahora aparece DE INMEDIATO la ventana "Abriendo asistencia..." con animación — antes parecía que el toque no hacía nada.',
+  'v5.81: El llamado a lista ahora va por rangos: OFICIALES (Capitán, Teniente, Subteniente) → SUBOFICIALES (Sargento, Cabo) → BOMBEROS → ASPIRANTES. Dentro de cada rango se respeta el orden de las filas de la hoja Personal_CBVI (1, 2, 3...): ordena la hoja y la app llama a lista en ese orden.',
+  'v5.81: Al marcar a alguien "C/excusa" se abre al instante el cuadro para escribir la observación (motivo de la excusa) — ya no toca guardar y luego editar el domingo. La observación queda visible bajo el nombre y se corrige tocándola.',
+  'v5.81: Nuevos rangos disponibles al registrar bombero: Subteniente y Cabo.',
+  'v5.76: NUEVO: alerta de sanciones por correo. Cada viernes 9:30 AM la estación recibe el resumen de unidades que deben horas y cada deudor su recordatorio personal. El admin también puede enviarla al instante desde Configuración → Zona Administrador.',
+  'v5.76: El servidor ahora deja registro permanente de seguridad (intentos no autorizados y acciones administrativas) y avisa por correo a la estación si detecta actividad sospechosa.',
+  'v5.75: Nueva cuenta de administración habilitada (Tesorería CBVI) para apoyar la gestión de la estación.',
+  'v5.74: Corregido (importante): si el servidor rechazaba un reporte (mala señal, mantenimiento…), la app lo marcaba como "Enviado" igual y el reporte se perdía en silencio. Ahora queda "Pendiente" y se reenvía solo al volver la señal — sin duplicarse.',
+  'v5.74: Blindaje del servidor: enviar, actualizar o eliminar reportes y consultar la base de personal ahora exige sesión válida. Si un día te pide volver a iniciar sesión, es normal — tu reporte no se pierde.',
+  'v5.74: Corregido: al entrar con OTRA cuenta de Google en el mismo teléfono ya no se mezclan las sesiones (antes podía quedar activa la identidad anterior).',
+  'v5.74: Los mensajes de error del servidor ahora se muestran de forma segura en pantalla.',
+  'v5.73: Ahora, si dos bomberos quedaron con la misma cédula, la app te avisa con claridad (te dice con quién choca) en vez de un confuso “ya está”. Corrige la cédula repetida en la base y listo.',
+  'v5.72: Corregido en Asistencia: al agregar un bombero que ya estaba, la app te lleva a su fila y la resalta (se acabó el “ya está pero no lo veo”). Búsqueda de duplicados más precisa (por cédula o nombre).',
+  'v5.71: Blindaje profesional: descontar horas de sanción ahora es a prueba de fallos de red. Si se cae el internet justo al guardar y reintentas, ya NUNCA se descuenta dos veces.',
+  'v5.70: Corregido: al marcar horas de sanción cumplidas en "Ver Deudores" ya no sale "No autorizado". Ahora pide la contraseña de administrador si hace falta, y se evita cualquier doble descuento por doble toque.',
+  'v5.69: Seguridad del servidor reforzada: ahora solo tú puedes editar tu propio perfil, y agregar personal a la base es exclusivo del administrador. Registrar actividades exige sesión válida.',
+  'v5.69: Tu sesión ahora dura más sin pedirte iniciar sesión tan seguido. Si una vez te pide volver a entrar, es normal por esta mejora.',
+  'v5.68: Seguridad reforzada: los textos que se escriben (temas, lugares, novedades, narrativa, dirección) ahora se muestran de forma segura en toda la app.',
+  'v5.68: Corregido el inicio de sesión con Google para nombres con tildes o Ñ (antes podía fallar o mostrarse con símbolos raros).',
+  'v5.68: Avisos que no se veían en el APK (cerrar la app, aviso de foto no guardada) ahora usan las ventanas propias de la app.',
+  'v5.68: Mejora de estabilidad sin conexión.',
+  'v5.67: Corregido: las coordenadas GPS ahora se editan SOLO desde la sección 3 (Ubicación) al usar ✏️ Editar — ya se guardan correctamente y se reflejan en el Mapa.',
+  'v5.67: La vista "Ver" de bonificaciones ahora es solo lectura — para agregar o quitar bomberos usa ✏️ Editar.',
+  'v5.66: Fotos del domingo AHORA editables (Inicio/Intermedio/Final) — antes no aparecían al editar. También Tipo de reunión, Tema, Lugar y Observación por persona.',
+  'v5.66: Admin puede corregir las coordenadas GPS de un reporte si quedaron mal capturadas (aparece al editar en el Panel Admin).',
+  'v5.66: Mapa de Emergencias: cada pin tiene el color según el tipo de emergencia (incendio, primeros auxilios, rescate...) + leyenda con la tabla de colores.',
+  'v5.65: Arreglado: el Mapa de Emergencias no cargaba (la política de seguridad del sitio bloqueaba la librería del mapa). Ya carga con internet normal.',
+  'v5.65: Aviso de "nueva versión" corregido: ya no tapa el botón de cerrar (antes crecía con TODO el historial; ahora solo muestra lo nuevo de esta versión, y tiene scroll si hace falta).',
+  'v5.65: Mensaje breve "Abriendo.../Cerrando..." al navegar entre pantallas, además de "Cargando.../Guardando..." que ya existían.',
+  'v5.65: Si ves pantallas viejas en la PC (ej. deudores dentro de Asistencia), es caché del navegador — Ctrl+Shift+R para forzar la versión nueva.',
+  'v5.64: NUEVA pantalla "Ver Deudores": toca un nombre y mira EXACTAMENTE qué domingos (fecha + tema) generaron la deuda.',
+  'v5.64: NUEVO "Mapa de Emergencias" (solo admin): ubica en un mapa cada emergencia con GPS registrado.',
+  'v5.64: Doble click corregido en TODAS las acciones (antes solo 3): eliminar, editar, sanciones, cierre de mes, bonificaciones, etc.',
+  'v5.64: Corregido: los totales de Emergencias y Horas en Operatividad ya no se inflaban al multiplicarse por el número de asistentes.',
+  'v5.64: Ahora se muestran por separado "Domingos realizados" y "Asistencias totales" (antes se mezclaban).',
+  'v5.64: 3 ventanas de confirmación que fallaban en silencio en el APK (cerrar sesión, cancelar edición, quitar bombero de bonificación) ahora usan el modal seguro de la app.',
+  'v5.63: Doble click corregido — los botones se bloquean y muestran "Cargando..." mientras envían (no más registros duplicados).',
+  'v5.63: Se acabaron los números feos tipo "28.09999h" — todo redondeado a 1 decimal.',
+  'v5.63: Autocompletado sin nombres duplicados (tildes y Ñ ya no crean personas dobles).',
+  'v5.63: NUEVO recordatorio de sanciones en la pantalla de inicio (solo admins): quién debe horas y su nivel de alerta.',
+  'v5.63: Nueva regla de sanciones: la deuda se duplica si no se cumple (2h→4h→8h→16h→32h). Alertas por faltas consecutivas: 3=verbal, 4=escrito, 5=DESERCIÓN.',
+  'v5.63: Las horas de sanción cumplidas ya quedan registradas para siempre (no se pierden al registrar más domingos).',
+  'v5.63: Nuevos tipos de actividad: Bomberitos Junior y Arreglos/Reparaciones (institución).',
+  'v5.63: La sesión de admin se renueva sola al abrir la app — adiós al "cierra y vuelve a iniciar sesión".',
+  'v5.63: Aviso al enviar emergencias con nombres que no están en la base (evita duplicados en Operatividad).',
+  'v5.63: Manual y "Cómo funciona" actualizados.',
   'v5.59: ARREGLADO: las fotos de las actividades ahora SÍ se guardan y se ven (se comprimen antes de subir). Detalle del domingo con sanciones.',
   'v5.56: "Mis Actividades" ahora muestra TAMBIÉN la asistencia de domingos (presentes, con/sin excusa). El admin ya no se desloguea seguido. Ranking sin duplicados.',
   'v5.49: Horas en actividades cuenta actividades únicas. Sesión expira cada 8h. Dirección GPS arreglada.',
@@ -1464,7 +1465,7 @@ const app = {
     if (reportes.length === 0) {
       lista.innerHTML = `
         <div class="vacio-estado">
-          <div class="icono">📋</div>
+          <div class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"/></svg></div>
           <div>No hay reportes aún</div>
           <div style="font-size: 12px; margin-top: 4px;">Toque "Nuevo incidente" para empezar</div>
         </div>`;
@@ -1516,9 +1517,9 @@ const app = {
       sanc.sort((a,b) => Number(b.horasPendientes) - Number(a.horasPendientes));
       const badge = (s) => {
         if (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO')
-          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>';
+          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 17h12l-1-8a5 5 0 0 0-10 0zM4 20h16M12 2v2M3 8l2 1M21 8l-2 1"/></svg> DESERCIÓN</span>';
         if (s.tipoAlerta === 'LLAMADO_ESCRITO')
-          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>';
+          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg> ESCRITO</span>';
         if (s.tipoAlerta === 'LLAMADO_VERBAL')
           return '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>';
         return '';
@@ -1532,7 +1533,7 @@ const app = {
         ? '<div style="font-size:11px;color:#c00;margin-top:4px;">+ ' + (sanc.length - 5) + ' más — toca para ver todas</div>' : '';
       cont.innerHTML =
         '<div onclick="app.abrirDeudores()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
-        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:6px;">⚠️ Sanciones pendientes (' + sanc.length + ')</div>'
+        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Sanciones pendientes (' + sanc.length + ')</div>'
         + filas + resto
         + '</div>';
       cont.style.display = 'block';
@@ -1554,14 +1555,14 @@ const app = {
       this._miSancionCache = data;
       const s = data.sancion;
       const badge =
-        (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO') ? '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>'
-        : (s.tipoAlerta === 'LLAMADO_ESCRITO') ? '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>'
+        (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO') ? '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 17h12l-1-8a5 5 0 0 0-10 0zM4 20h16M12 2v2M3 8l2 1M21 8l-2 1"/></svg> DESERCIÓN</span>'
+        : (s.tipoAlerta === 'LLAMADO_ESCRITO') ? '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg> ESCRITO</span>'
         : (s.tipoAlerta === 'LLAMADO_VERBAL') ? '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>'
         : '';
       cont.innerHTML =
         '<div onclick="app.abrirMiSancion()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
-        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:4px;">⚠️ Tienes ' + app._esc(String(s.horasPendientes)) + ' horas de sanción pendientes' + badge + '</div>'
-        + '<div style="font-size:12px;color:#c00;">Toca para ver de qué domingos vienen →</div>'
+        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Tienes ' + app._esc(String(s.horasPendientes)) + ' horas de sanción pendientes' + badge + '</div>'
+        + '<div style="font-size:12px;color:#c00;">Toca para ver de qué domingos vienen <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg></div>'
         + '</div>';
       cont.style.display = 'block';
     } catch (e) { cont.style.display = 'none'; }
@@ -1585,7 +1586,7 @@ const app = {
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
     modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
     modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
-      + '<div style="font-size:16px;font-weight:800;color:#c00;text-align:center;margin-bottom:4px;">⚠️ Mi sanción</div>'
+      + '<div style="font-size:16px;font-weight:800;color:#c00;text-align:center;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Mi sanción</div>'
       + '<div style="text-align:center;font-size:14px;color:#333;margin-bottom:12px;">Debes <b style="color:#c00;">' + app._esc(String(s.horasPendientes)) + ' horas</b></div>'
       + '<div style="font-size:12px;color:#666;margin-bottom:6px;">Domingos sin excusa que generaron tu deuda:</div>'
       + filas
@@ -1704,7 +1705,7 @@ const app = {
     document.getElementById('f_municipio').value = 'Inírida';
     document.getElementById('f_comandante_estacion').value = NOMBRE_ESTACION;
     document.querySelectorAll('.foto-slot').forEach((slot, i) => {
-      slot.innerHTML = `<span class="icono">📷</span><span>Foto ${i+1}</span>`;
+      slot.innerHTML = `<span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto ${i+1}</span>`;
       slot.classList.remove('con-foto');
     });
     this.limpiarFirma('firmaAfectado');
@@ -1886,7 +1887,7 @@ const app = {
     if (c.latOk && c.lngOk) {
       const gms = `${this.decimalAGMS(c.lat, true)} ${this.decimalAGMS(c.lng, false)}`;
       box.className = 'gps-preview ok';
-      box.innerHTML = '📍 <b>Así se guardará el pin:</b><br>' +
+      box.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> <b>Así se guardará el pin:</b><br>' +
         `🌐 <span class="val">${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}</span><br>` +
         `📐 <span class="val">${gms}</span>`;
     } else {
@@ -1897,7 +1898,7 @@ const app = {
       } else {
         msg = 'Aún no se entienden. Escriba con coma o punto decimal (ej: 3,8650 y -67,9239).';
       }
-      box.innerHTML = `⚠️ ${msg}`;
+      box.innerHTML = `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> ${msg}`;
     }
   },
 
@@ -1950,12 +1951,12 @@ const app = {
         if (detalles) {
           detalles.style.display = 'block';
           detalles.innerHTML = `
-            <div class="gps-fila"><span class="gps-etiq">📍 Coords GMS:</span><span class="gps-val">${gmsTexto}</span></div>
+            <div class="gps-fila"><span class="gps-etiq"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> Coords GMS:</span><span class="gps-val">${gmsTexto}</span></div>
             <div class="gps-fila"><span class="gps-etiq">🌐 Decimal:</span><span class="gps-val">${lat.toFixed(6)}, ${lng.toFixed(6)}</span></div>
-            <div class="gps-fila"><span class="gps-etiq">🎯 Precisión:</span><span class="gps-val">±${Math.round(acc)} m</span></div>
+            <div class="gps-fila"><span class="gps-etiq"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg> Precisión:</span><span class="gps-val">±${Math.round(acc)} m</span></div>
             ${altitude !== null && altitude !== undefined ? `<div class="gps-fila"><span class="gps-etiq">⛰️ Altitud:</span><span class="gps-val">${altitude.toFixed(1)} msnm</span></div>` : ''}
             ${speedKmh !== null && speedKmh !== undefined ? `<div class="gps-fila"><span class="gps-etiq">💨 Velocidad:</span><span class="gps-val">${speedKmh.toFixed(1)} km/h</span></div>` : ''}
-            ${headingTxt ? `<div class="gps-fila"><span class="gps-etiq">🧭 Orientación:</span><span class="gps-val">${headingTxt}</span></div>` : '<div class="gps-fila"><span class="gps-etiq">🧭 Orientación:</span><button onclick="app.activarBrujula()" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:3px 8px;border-radius:3px;font-size:10px;cursor:pointer;">Activar brújula</button></div>'}
+            ${headingTxt ? `<div class="gps-fila"><span class="gps-etiq">🧭 Orientación:</span><span class="gps-val">${headingTxt}</span></div>` : '<div class="gps-fila"><span class="gps-etiq"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m15 9-2 4-4 2 2-4z"/></svg> Orientación:</span><button onclick="app.activarBrujula()" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:3px 8px;border-radius:3px;font-size:10px;cursor:pointer;">Activar brújula</button></div>'}
             <div class="gps-fila"><span class="gps-etiq">🕒 Capturado:</span><span class="gps-val">${new Date().toLocaleString('es-CO')}</span></div>
           `;
         }
@@ -2085,16 +2086,16 @@ const app = {
       const aviso = document.getElementById('autoCompletarInfo');
       if (huboCambio) {
         aviso.classList.add('visible');
-        aviso.innerHTML = '✅ Datos detectados automáticamente. Puede editar abajo si necesita corregir.';
+        aviso.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Datos detectados automáticamente. Puede editar abajo si necesita corregir.';
       } else {
         aviso.classList.add('visible');
-        aviso.innerHTML = '⚠️ El GPS detectó la zona pero <strong>no tiene la dirección detallada</strong> registrada. Por favor escriba la dirección manualmente abajo. Las coordenadas SÍ quedaron guardadas.';
+        aviso.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> El GPS detectó la zona pero <strong>no tiene la dirección detallada</strong> registrada. Por favor escriba la dirección manualmente abajo. Las coordenadas SÍ quedaron guardadas.';
       }
     } catch (err) {
       console.log('No se pudo auto-completar dirección:', err);
       const aviso = document.getElementById('autoCompletarInfo');
       aviso.classList.add('visible');
-      aviso.innerHTML = '⚠️ Sin internet o falló auto-completado. Escriba la dirección manualmente. Las coordenadas SÍ quedaron guardadas.';
+      aviso.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Sin internet o falló auto-completado. Escriba la dirección manualmente. Las coordenadas SÍ quedaron guardadas.';
     }
   },
 
@@ -2110,7 +2111,7 @@ const app = {
       const slotEl = document.querySelector(`.foto-slot[data-foto="${slot}"]`);
       slotEl.innerHTML = `
         <img src="${dataUrl}" alt="">
-        <button class="quitar" onclick="event.stopPropagation(); app.quitarFoto(${slot})">×</button>
+        <button class="quitar" onclick="event.stopPropagation(); app.quitarFoto(${slot})"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       `;
       slotEl.classList.add('con-foto');
       e.target.value = '';
@@ -2142,7 +2143,7 @@ const app = {
   quitarFoto(slot) {
     this.fotosTemp[slot] = null;
     const slotEl = document.querySelector(`.foto-slot[data-foto="${slot}"]`);
-    slotEl.innerHTML = `<span class="icono">📷</span><span>Foto ${slot+1}</span>`;
+    slotEl.innerHTML = `<span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto ${slot+1}</span>`;
     slotEl.classList.remove('con-foto');
     this.actualizarProgreso();
   },
@@ -2286,7 +2287,7 @@ const app = {
     const div = document.createElement('div');
     div.className = 'fila';
     div.innerHTML = `
-      <button class="quitar-fila" onclick="this.parentElement.remove()">×</button>
+      <button class="quitar-fila" onclick="this.parentElement.remove()"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       <div class="campo">
         <label>Recurso</label>
         <select data-campo="recurso" onchange="app.cambioTipoRecurso(this)">
@@ -2301,7 +2302,7 @@ const app = {
         <label>Responsable / Maquinista</label>
         <div class="nombre-con-ci">
           <input type="text" data-campo="responsable" list="rosterBomberos" placeholder="Nombre del bombero a cargo (escriba inicial)" oninput="app.recalcularPersonal()">
-          <button type="button" class="btn-ci" title="Marcar como Comandante de Incidente (quien dirigió en el lugar)" onclick="app.marcarComandante(this)">⭐</button>
+          <button type="button" class="btn-ci" title="Marcar como Comandante de Incidente (quien dirigió en el lugar)" onclick="app.marcarComandante(this)"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg></button>
         </div>
       </div>
       <div class="campo personal-bloque">
@@ -2357,8 +2358,8 @@ const app = {
     item.className = 'item-personal';
     item.innerHTML = `
       <input type="text" list="rosterBomberos" placeholder="Nombre del tripulante (escriba inicial)" value="${app._esc(String(nombre || ''))}" oninput="app.recalcularPersonal()">
-      <button type="button" class="btn-ci" title="Marcar como Comandante de Incidente (quien dirigió en el lugar)" onclick="app.marcarComandante(this)">⭐</button>
-      <button type="button" class="quitar-personal" onclick="this.parentElement.remove(); app.recalcularPersonal();">×</button>
+      <button type="button" class="btn-ci" title="Marcar como Comandante de Incidente (quien dirigió en el lugar)" onclick="app.marcarComandante(this)"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg></button>
+      <button type="button" class="quitar-personal" onclick="this.parentElement.remove(); app.recalcularPersonal();"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     `;
     lista.appendChild(item);
     this.recalcularPersonal();
@@ -2421,7 +2422,7 @@ const app = {
       .map(n => `<option value="${String(n).replace(/"/g, '&quot;')}"></option>`).join('');
   },
 
-  /* v6.10: llena el <select> de "Nueva Actividad → Recursos / Vehículos" desde
+  /* v6.10: llena el <select> de "Nueva Actividad <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg> Recursos / Vehículos" desde
      VEHICULOS_CBVI (única fuente). El HTML solo trae el placeholder; el resto se
      pinta acá, igual que inicializarCheckboxes() pinta TIPOS_EVENTO. Los otros
      dos usos (reporte de emergencia, editor de actividad) mapean el mismo
@@ -2585,7 +2586,7 @@ const app = {
     const div = document.createElement('div');
     div.className = 'fila';
     div.innerHTML = `
-      <button class="quitar-fila" onclick="this.parentElement.remove()">×</button>
+      <button class="quitar-fila" onclick="this.parentElement.remove()"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       <div class="campo-fila">
         <div class="campo"><label>Nombre</label><input type="text" data-campo="nombre" placeholder="Nombre de la víctima"></div>
         <div class="campo"><label>Edad</label><input type="number" data-campo="edad" min="0"></div>
@@ -2613,7 +2614,7 @@ const app = {
     const div = document.createElement('div');
     div.className = 'fila';
     div.innerHTML = `
-      <button class="quitar-fila" onclick="this.parentElement.remove()">×</button>
+      <button class="quitar-fila" onclick="this.parentElement.remove()"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       <div class="campo"><label>Entidad / Persona</label><input type="text" data-campo="entidad" placeholder="Ej. Policía Nacional, Defensa Civil"></div>
       <div class="campo"><label>Rol / Función</label><input type="text" data-campo="rol" placeholder="Ej. Acordonamiento, traslado de heridos"></div>
       <div class="campo"><label>Contacto</label><input type="text" data-campo="contacto" placeholder="Nombre y teléfono"></div>
@@ -2817,7 +2818,7 @@ const app = {
     // tengan foto), si no quedan visibles las del reporte anterior.
     this.fotosTemp = [null, null, null, null, null, null];
     document.querySelectorAll('.foto-slot').forEach((slot, i) => {
-      slot.innerHTML = `<span class="icono">📷</span><span>Foto ${i+1}</span>`;
+      slot.innerHTML = `<span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto ${i+1}</span>`;
       slot.classList.remove('con-foto');
     });
     (r.fotos || []).forEach((f, i) => {
@@ -2827,7 +2828,7 @@ const app = {
         if (slotEl) {
           slotEl.innerHTML = `
             <img src="${app._esc(this._imgDrive(f))}" alt="">
-            <button class="quitar" onclick="event.stopPropagation(); app.quitarFoto(${i})">×</button>
+            <button class="quitar" onclick="event.stopPropagation(); app.quitarFoto(${i})"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
           `;
           slotEl.classList.add('con-foto');
         }
@@ -2997,7 +2998,7 @@ const app = {
       await this._enviarReporteInterno(r);
     } finally {
       this._enviandoReporte = false;
-      if (btn) { btn.disabled = false; btn.style.opacity=''; btn.innerHTML='📤 Enviar'; }
+      if (btn) { btn.disabled = false; btn.style.opacity=''; btn.innerHTML='<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 16V3M7 8l5-5 5 5M4 14v7h16v-7"/></svg> Enviar'; }
     }
   },
 
@@ -3193,7 +3194,7 @@ const app = {
     });
   },
 
-  // ========== 🆕 v5.3: CIERRE DE MES POR FECHA DE LLAMADA ==========
+  // ==========  v5.3: CIERRE DE MES POR FECHA DE LLAMADA ==========
   // Renumera SOLO los reportes de un mes específico, ordenándolos
   // cronológicamente por fecha de llamada.
   async abrirCierreMes() {
@@ -3225,7 +3226,7 @@ const app = {
 
     const html = `
       <div style="padding: 20px;">
-        <h3 style="color: var(--rojo); margin-bottom: 12px;">📅 Cierre de mes y renumeración</h3>
+        <h3 style="color: var(--rojo); margin-bottom: 12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> Cierre de mes y renumeración</h3>
         <p style="font-size: 14px; color: #555; margin-bottom: 16px; line-height: 1.5;">
           Esta acción reorganizará los consecutivos del mes seleccionado en <strong>orden cronológico por fecha de llamada</strong>.
           Los reportes de otros meses NO se tocan.
@@ -3245,7 +3246,7 @@ const app = {
         <div id="cierre_previsualizacion" style="margin-top: 12px;"></div>
         <div style="display: flex; gap: 8px; margin-top: 20px;">
           <button class="btn btn-secundario" onclick="app.cerrarModalCierreMes()" style="flex: 1;">Cancelar</button>
-          <button class="btn" onclick="app.previsualizarCierreMes()" style="flex: 1; background: #f59e0b; color: #fff;">👁️ Previsualizar</button>
+          <button class="btn" onclick="app.previsualizarCierreMes()" style="flex: 1; background: #f59e0b; color: #fff;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> Previsualizar</button>
         </div>
         <button id="btn_aplicar_cierre" class="btn btn-completo" onclick="app.aplicarCierreMes()" style="display: none; margin-top: 8px; background: var(--rojo); color: #fff;">
           ✅ Aplicar cambios definitivamente
@@ -3282,7 +3283,7 @@ const app = {
     const mes = parseInt(document.getElementById('cierre_mes').value, 10);
     const anio = parseInt(document.getElementById('cierre_anio').value, 10);
     const cont = document.getElementById('cierre_previsualizacion');
-    cont.innerHTML = '<p style="text-align:center;padding:12px;">⏳ Consultando servidor...</p>';
+    cont.innerHTML = '<p style="text-align:center;padding:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg> Consultando servidor...</p>';
 
     try {
       const resp = await fetch(this.config.urlBackend, {
@@ -3304,7 +3305,7 @@ const app = {
       }
 
       if (data.totalReportesMes === 0) {
-        cont.innerHTML = `<div style="background:#f0f0f0;padding:12px;border-radius:8px;">ℹ️ No hay reportes en ${data.nombreMes} ${data.anio}</div>`;
+        cont.innerHTML = `<div style="background:#f0f0f0;padding:12px;border-radius:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg> No hay reportes en ${data.nombreMes} ${data.anio}</div>`;
         document.getElementById('btn_aplicar_cierre').style.display = 'none';
         return;
       }
@@ -3329,7 +3330,7 @@ const app = {
             <tr>
               <td style="padding:6px;font-size:12px;">${fecha}</td>
               <td style="padding:6px;font-size:12px;color:#999;text-decoration:line-through;">${app._esc(p.consecutivoAnterior)}</td>
-              <td style="padding:6px;font-size:12px;color:#15803d;font-weight:700;">→ ${app._esc(p.consecutivoNuevo)}</td>
+              <td style="padding:6px;font-size:12px;color:#15803d;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg> ${app._esc(p.consecutivoNuevo)}</td>
             </tr>`;
         }).join('');
 
@@ -3486,7 +3487,7 @@ const app = {
   },
 
   // v6.07: `btn` opcional, mismo criterio que cargarEstadoPins — el botón
-  // 🔄 Actualizar tiene que dar señal de que se tocó.
+  //  Actualizar tiene que dar señal de que se tocó.
   async cargarAdministradores(btn) {
     const cont = document.getElementById('listaAdmins');
     if (!cont) return;
@@ -3687,7 +3688,7 @@ const app = {
      su hash, así que desde acá no hay forma de averiguar el de nadie: se puede
      reemplazar, no leer. Los que NO tienen PIN salen primero, porque son los que
      todavía no pueden firmar. */
-  // v6.07: `btn` es opcional. Cuando viene (lo manda el botón 🔄 Actualizar) se
+  // v6.07: `btn` es opcional. Cuando viene (lo manda el botón  Actualizar) se
   // usa _conBloqueo para que el botón muestre el spinner: hasta v6.06 tocarlo no
   // producía NINGUNA señal visible, porque desde v6.05 la lista ya venía cargada
   // al abrir el Panel. Se sentía muerto (lo reportó Jeferson).
@@ -3749,8 +3750,8 @@ const app = {
       const ced = app._esc(p.cedula||'');
       const nom = app._esc(p.nombre||'(sin nombre)');
       const badge = p.tienePin
-        ? '<span style="font-size:10px;color:#065f46;font-weight:700;">✅ con PIN' + (p.desde ? ' · ' + app._esc(p.desde) : '') + '</span>'
-        : '<span style="font-size:10px;color:#b45309;font-weight:700;">⚠️ sin PIN</span>';
+        ? '<span style="font-size:10px;color:#065f46;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> con PIN' + (p.desde ? ' · ' + app._esc(p.desde) : '') + '</span>'
+        : '<span style="font-size:10px;color:#b45309;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> sin PIN</span>';
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #e2e8f0;">'
         + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:600;color:#1f2937;">'+nom+'</div>'
         // Contraste subido de #94a3b8 a #475569: la línea de la cédula era
@@ -3847,7 +3848,7 @@ const app = {
            saliendo en Operatividad, marcada como "no cruza con la base"). Si el
            nombre estaba mal escrito o la persona no debía estar, hay que ir a la
            actividad y corregirla: este botón te lleva directo. */
-        const verAct = p.idActividad ? `<button data-act="${app._esc(p.idActividad)}" onclick="app.verDetalleActividad(this.dataset.act)" style="width:100%;margin-top:6px;padding:7px;background:#fff;color:#92400e;border:1px solid #f59e0b;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;">📋 Ver la actividad donde apareció</button>` : '';
+        const verAct = p.idActividad ? `<button data-act="${app._esc(p.idActividad)}" onclick="app.verDetalleActividad(this.dataset.act)" style="width:100%;margin-top:6px;padding:7px;background:#fff;color:#92400e;border:1px solid #f59e0b;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"/></svg> Ver la actividad donde apareció</button>` : '';
         return `
           <div style="background:#fff;border:1px solid #fcd34d;border-radius:8px;padding:10px;margin-bottom:8px;">
             <div style="font-weight:700;font-size:14px;color:#1f2937;">${nom}</div>
@@ -3856,10 +3857,10 @@ const app = {
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
               <button data-ced="${ced}" data-nom="${nom}"
                       onclick="app.aprobarPendienteRoster(this, this.dataset.ced, this.dataset.nom)"
-                      style="flex:1;min-width:110px;padding:9px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">✅ Aprobar</button>
+                      style="flex:1;min-width:110px;padding:9px;background:#065f46;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Aprobar</button>
               <button data-ced="${ced}" data-nom="${nom}"
                       onclick="app.descartarPendienteRoster(this, this.dataset.ced, this.dataset.nom)"
-                      style="flex:1;min-width:110px;padding:9px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">🗑️ Descartar</button>
+                      style="flex:1;min-width:110px;padding:9px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg> Descartar</button>
             </div>
             ${verAct}
           </div>`;
@@ -4088,10 +4089,10 @@ const app = {
     if (!rCompleto) {
       const _cid = String(idReporte).replace(/"/g, '&quot;');
       cont.innerHTML = '<div style="padding:24px;text-align:center;color:#c00;">'
-        + '<div style="font-size:40px;">⚠️</div>'
+        + '<div style="font-size:40px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg></div>'
         + '<div style="margin-top:8px;font-weight:700;">No se pudo cargar el reporte completo</div>'
         + '<div style="font-size:13px;color:#666;margin-top:6px;">Puede ser la conexión o que la sesión de administrador expiró. Intenta de nuevo.</div>'
-        + '<button data-id="' + _cid + '" onclick="app.verReporteAdmin(this.dataset.id)" style="margin-top:14px;padding:10px 18px;background:#d81f27;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>'
+        + '<button data-id="' + _cid + '" onclick="app.verReporteAdmin(this.dataset.id)" style="margin-top:14px;padding:10px 18px;background:#d81f27;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Reintentar</button>'
         + '</div>';
       this._reporteAdminViendo = null;
       return;
@@ -4138,7 +4139,7 @@ const app = {
               <img src="${app._esc(url)}" alt="Foto ${i+1}"
                    style="width:100%;height:120px;object-fit:cover;background:#f0f0f0;display:block;"
                    onerror="this.style.display='none';this.parentNode.innerHTML+='<div style=&quot;padding:8px;color:#c00;font-size:11px;&quot;>No se pudo cargar la foto ${i+1}</div>';">
-              <div style="padding:4px;font-size:11px;text-align:center;background:#f8f8f8;color:#333;">📷 Foto ${i+1}</div>
+              <div style="padding:4px;font-size:11px;text-align:center;background:#f8f8f8;color:#333;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg> Foto ${i+1}</div>
             </a>
           `).join('')
         }</div>`;
@@ -4174,7 +4175,7 @@ const app = {
     const fila = (label, valor) => `<div><strong>${label}:</strong> ${fmt(valor)}</div>`;
 
     return `
-      <h3 style="color:var(--rojo);margin:0 0 12px 0;">📄 ${app._esc(r.consecutivo || '(sin consecutivo)')}</h3>
+      <h3 style="color:var(--rojo);margin:0 0 12px 0;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg> ${app._esc(r.consecutivo || '(sin consecutivo)')}</h3>
       <div style="font-size:12px;color:#666;margin-bottom:12px;">
         ID: <code>${app._esc(r.id)}</code> · Estación: ${fmt(r.estacion)}
       </div>
@@ -4322,7 +4323,7 @@ const app = {
             <button data-id="${app._esc(idReporte)}" data-nombre="${app._esc(nombre)}"
                     onclick="app.quitarBomberoBonifAdmin(this, this.dataset.id, this.dataset.nombre)"
                     title="Quitar"
-                    style="background:rgba(255,255,255,0.25);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;">×</button>`;
+                    style="background:rgba(255,255,255,0.25);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>`;
         return `
           <span style="display:inline-flex;align-items:center;gap:6px;background:#065f46;color:#fff;padding:5px ${esVistaReadOnly ? '10px' : '8px'} 5px 10px;border-radius:14px;font-size:12px;font-weight:600;">
             ${app._esc(nombre)}${btnQuitar}
@@ -4994,12 +4995,12 @@ const app = {
     m.className = 'cbvi-modal-js';
     m.style.cssText = 'position:fixed;inset:0;background:rgba(26,21,18,.55);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;';
     m.innerHTML = '<div style="background:#fff;border-radius:var(--radio-lg);padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:var(--sombra-fuerte);border-top:4px solid var(--oro);">'
-      + '<div style="font-size:38px;">' + (esAdm ? '🛡️' : '🚒') + '</div>'
+      + '<div style="font-size:38px;">' + (esAdm ? '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg>' : '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg>') + '</div>'
       + '<div style="font-family:var(--disp);font-size:17px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;color:var(--rojo);margin:8px 0 4px;">¡Bienvenido' + (esAdm ? ', administrador' : '') + '!</div>'
       + '<div style="font-size:13px;color:#555;line-height:1.5;margin-bottom:18px;">¿Quiere un recorrido interactivo por la app' + (esAdm ? ', enfocado en lo que solo usted administra' : '') + '? Se mueve por las pantallas reales y lo puede saltar cuando quiera.</div>'
-      + '<button id="_tourVer" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:var(--radio);padding:13px;font-weight:700;cursor:pointer;font-size:15px;margin-bottom:8px;font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;">▶️ Ver recorrido</button>'
+      + '<button id="_tourVer" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:var(--radio);padding:13px;font-weight:700;cursor:pointer;font-size:15px;margin-bottom:8px;font-family:var(--disp);text-transform:uppercase;letter-spacing:.02em;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg> Ver recorrido</button>'
       + '<button id="_tourNo" style="width:100%;background:#f5f5f5;color:#555;border:none;border-radius:var(--radio);padding:11px;font-weight:700;cursor:pointer;font-size:13px;">Omitir</button>'
-      + '<div style="font-size:11px;color:#999;margin-top:12px;">Siempre puede verlo de nuevo en <b>ℹ️ Acerca de</b>.</div>'
+      + '<div style="font-size:11px;color:#999;margin-top:12px;">Siempre puede verlo de nuevo en <b><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg> Acerca de</b>.</div>'
       + '</div>';
     document.body.appendChild(m);
     const cerrar = () => { try { app._cerrarModalJS(m); } catch (e) {} };
@@ -5155,12 +5156,12 @@ const app = {
       + '<div class="tour-texto">' + this._esc(paso.texto) + '</div>'
       + '<div class="tour-progreso-track"><div class="tour-progreso-fill" style="width:' + Math.round(((i + 1) / total) * 100) + '%;"></div></div>'
       + '<div class="tour-acciones">'
-      + (i > 0 ? '<button class="tour-btn tour-btn-atras" id="_tAtras">← Atrás</button>' : '')
-      + '<button class="tour-btn tour-btn-siguiente" id="_tSiguiente">' + (ultimo ? '¡Listo! ✔' : 'Siguiente →') + '</button>'
+      + (i > 0 ? '<button class="tour-btn tour-btn-atras" id="_tAtras"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Atrás</button>' : '')
+      + '<button class="tour-btn tour-btn-siguiente" id="_tSiguiente">' + (ultimo ? '¡Listo! ✔' : 'Siguiente <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg>') + '</button>'
       + '</div>'
       + '<div class="tour-fila-cierre">'
       + '<button class="tour-saltar" id="_tSaltar">Saltar recorrido</button>'
-      + '<button class="tour-cerrar" id="_tCerrar" aria-label="Cerrar recorrido">✕</button>'
+      + '<button class="tour-cerrar" id="_tCerrar" aria-label="Cerrar recorrido"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>'
       + '</div>'
       + '</div>';
     const bAtras = document.getElementById('_tAtras');
@@ -5448,7 +5449,7 @@ const app = {
       // (ver _cargarFlota) — antes las dos se veían igual y una falla de red
       // silenciosa parecía que la flota se había borrado.
       cont.innerHTML = this._flotaError
-        ? '<div style="color:#c00;font-size:12px;text-align:center;padding:10px;">⚠️ No se pudo cargar la flota. Revise su conexión y toque "🔄 Actualizar".</div>'
+        ? '<div style="color:#c00;font-size:12px;text-align:center;padding:10px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> No se pudo cargar la flota. Revise su conexión y toque "🔄 Actualizar".</div>'
         : '<div style="color:#166534;font-size:12px;text-align:center;padding:10px;opacity:.8;">Todavía no hay vehículos. Agregue el primero para que aparezca al reportar.</div>';
       return;
     }
@@ -5558,7 +5559,7 @@ const app = {
     let h = '';
     if (d.faltantes && d.faltantes.length) {
       h += '<div style="background:#fee2e2;color:#991b1b;padding:10px;border-radius:6px;margin-bottom:12px;font-size:13px;">'
-         + '<b>⚠️ Faltan datos que el RUE exige:</b><ul style="margin:6px 0 0 18px;">'
+         + '<b><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Faltan datos que el RUE exige:</b><ul style="margin:6px 0 0 18px;">'
          + d.faltantes.map((f) => '<li>' + esc(f) + '</li>').join('') + '</ul></div>';
     }
     h += '<div style="background:#fff3e0;border-left:4px solid #e65100;padding:8px 10px;border-radius:4px;font-size:12px;margin-bottom:14px;">' + esc(d.advertencia) + '</div>';
@@ -5566,7 +5567,7 @@ const app = {
       let s = '<div style="font-weight:700;margin:14px 0 6px;">' + esc(titulo) + '</div>';
       campos.forEach((c) => {
         const alerta = c.aproximado
-          ? '<div style="color:#92400e;font-size:11px;margin-top:3px;">⚠️ ' + esc(c.nota || 'Verifique este dato.') + '</div>'
+          ? '<div style="color:#92400e;font-size:11px;margin-top:3px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> ' + esc(c.nota || 'Verifique este dato.') + '</div>'
           : (c.nota ? '<div style="color:#666;font-size:11px;margin-top:3px;">' + esc(c.nota) + '</div>' : '');
         s += '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #eee;">'
            + '<div style="flex:0 0 40%;font-size:12px;color:#444;">' + esc(c.campo)
@@ -5589,7 +5590,7 @@ const app = {
 
   _copiarCampoRUE(btn) {
     const txt = btn.getAttribute('data-copiar') || '';
-    const listo = () => { const o = btn.textContent; btn.textContent = '✓ Copiado'; setTimeout(() => { btn.textContent = o; }, 1200); };
+    const listo = () => { const o = btn.textContent; btn.textContent = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Copiado'; setTimeout(() => { btn.textContent = o; }, 1200); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(txt).then(listo).catch(() => this.toast('No se pudo copiar', 'error'));
     } else {
@@ -5681,7 +5682,7 @@ const app = {
 
     const recursosHTML = (r.recursos || []).map(rec => {
       const personalStr = (rec.personal && rec.personal.length)
-        ? `<br><small>👥 ${app._esc(rec.personal.join(', '))}</small>` : '';
+        ? `<br><small><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.7-4 3-6 6-6s5.3 2 6 6M15 15c3 0 5 2 5.5 5"/></svg> ${app._esc(rec.personal.join(', '))}</small>` : '';
       const cantStr = rec.cantidad && String(rec.cantidad) !== '1' ? ` (x${app._esc(rec.cantidad)})` : '';
       return `<li><strong>${app._esc(rec.recurso)}</strong>${cantStr} ${rec.codigo ? '— ' + app._esc(rec.codigo) : ''} ${rec.responsable ? '— ' + app._esc(rec.responsable) : ''}${personalStr}</li>`;
     }).join('');
@@ -5747,7 +5748,7 @@ const app = {
       const banner = document.createElement('div');
       banner.style.cssText = 'margin:0 0 12px 0;padding:12px 14px;background:#fff3cd;border:1px solid #f0b800;border-left:4px solid #f0b800;border-radius:6px;color:#5a4500;font-size:13px;line-height:1.5;';
       banner.innerHTML = `
-        <strong>🔒 Reporte protegido (más de 24 horas)</strong><br>
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> Reporte protegido (más de 24 horas)</strong><br>
         Este reporte ya no puede ser modificado ni eliminado por usted.
         Si necesita corregir información, <strong>comuníquese con el administrador</strong>
         del Cuerpo de Bomberos para que realice el cambio desde el Panel Admin.
@@ -5758,7 +5759,7 @@ const app = {
       const horasRest = (24 - puede.horas).toFixed(1);
       const banner = document.createElement('div');
       banner.style.cssText = 'margin:0 0 12px 0;padding:10px 12px;background:#fef3c7;border-left:4px solid #f0b800;border-radius:6px;color:#5a4500;font-size:12px;';
-      banner.innerHTML = `⏳ <strong>Quedan ~${horasRest} horas</strong> para editar este reporte. Después solo el administrador podrá modificarlo.`;
+      banner.innerHTML = `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg> <strong>Quedan ~${horasRest} horas</strong> para editar este reporte. Después solo el administrador podrá modificarlo.`;
       cont.insertBefore(banner, cont.firstChild);
     }
 
@@ -6211,7 +6212,7 @@ const app = {
         <td>${r.firmas?.afectado ? `<img src="${app._esc(this._imgDrive(r.firmas.afectado))}" class="firma-img">` : '&nbsp;'}</td>
       </tr>
     </table>
-    <div class="aviso">⚠ Aviso Ley 1581 de 2012 (Habeas Data): Los datos personales recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos Voluntarios de Inírida.</div>
+    <div class="aviso"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Aviso Ley 1581 de 2012 (Habeas Data): Los datos personales recolectados serán tratados exclusivamente para la gestión y estadística de emergencias del Cuerpo de Bomberos Voluntarios de Inírida.</div>
   </div>
 </div>
 
@@ -6620,7 +6621,7 @@ ${paginaFotos}
       this._renderAtenciones();
       ['prevFotoInicio','prevFotoMedio','prevFotoFin','prevFotoF4','prevFotoF5','prevFotoF6'].forEach(id => {
         const el = document.getElementById(id);
-        if(el) el.innerHTML = '<span style="font-size:20px;">📷</span>';
+        if(el) el.innerHTML = '<span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span>';
       });
     }, 50);
   },
@@ -6709,16 +6710,16 @@ ${paginaFotos}
       const fotos = (a.fotos || []).map((f, j) =>
         `<div style="position:relative;width:60px;height:60px;">
            <img src="${f}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">
-           <button type="button" onclick="app.quitarFotoAtencion(${i},${j})" style="position:absolute;top:-6px;right:-6px;background:#d81f27;color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:1;cursor:pointer;font-size:12px;">×</button>
+           <button type="button" onclick="app.quitarFotoAtencion(${i},${j})" style="position:absolute;top:-6px;right:-6px;background:#d81f27;color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:1;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
          </div>`).join('');
       const btnFoto = (a.fotos || []).length < 3
         ? `<label style="width:60px;height:60px;background:#f5f5f5;border:2px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;">
-             <span style="font-size:18px;">📷</span>
+             <span style="font-size:18px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span>
              <input type="file" accept="image/*" style="display:none" onchange="app.cargarFotoAtencion(${i},this)">
            </label>` : '';
       return `<div style="border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:10px;background:#fafafa;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <b style="font-size:13px;color:#1a5276;">🩹 Atención ${i+1}</b>
+          <b style="font-size:13px;color:#1a5276;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></svg> Atención ${i+1}</b>
           <button type="button" onclick="app.quitarAtencion(${i})" style="background:#fdecea;color:#c0392b;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;font-weight:700;">Quitar</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
@@ -6791,7 +6792,7 @@ ${paginaFotos}
     if (yaExiste) { this.toast(p.nombre + ' ya está en la lista', 'error'); return; }
     this._actPersonal.push(p);
     this._renderPersonalActividad();
-    this.toast('✅ ' + p.nombre + ' agregado', 'exito');
+    this.toast(' ' + p.nombre + ' agregado', 'exito');
   },
 
   agregarPersonalNuevoActividad() {
@@ -6807,7 +6808,7 @@ ${paginaFotos}
     document.getElementById('actNuevoCedula').value = '';
     document.getElementById('actNuevoTel').value = '';
     document.getElementById('actFormNuevo').style.display = 'none';
-    this.toast('✅ ' + nombre + ' agregado', 'exito');
+    this.toast(' ' + nombre + ' agregado', 'exito');
   },
 
   _renderPersonalActividad() {
@@ -6842,7 +6843,7 @@ ${paginaFotos}
      #actRecursoResponsable, #actRecursoSug, #actRecursosLista) pero NINGUNO
      de esos cinco elementos se leía nunca desde app.js, y `_actRecursos` se
      declaraba, se reseteaba y se enviaba al backend sin recibir jamás un
-     push. Encima el botón "➕ Agregar vehículo" llamaba a `agregarRecurso()`,
+     push. Encima el botón " Agregar vehículo" llamaba a `agregarRecurso()`,
      que pertenece al formulario de EMERGENCIA y escribe en #tablaRecursos:
      la fila se agregaba a otra pantalla, invisible desde acá.
      Consecuencia real: TODO vehículo y maquinista anotado en una actividad se
@@ -6887,7 +6888,7 @@ ${paginaFotos}
     cont.innerHTML = this._actRecursos.map((r,i) =>
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f8f8f8;border-radius:8px;margin-bottom:6px;">'
       +'<div><strong style="font-size:14px;">'+app._esc(r.tipo||'(sin tipo)')+'</strong>'+(r.codigo?' <span style="color:#666;font-size:12px;">('+app._esc(r.codigo)+')</span>':'')
-      +'<div style="font-size:12px;color:#666;">'+(r.responsable ? '👤 '+app._esc(r.responsable)+(r.responsableCedula?' · CC: '+app._esc(r.responsableCedula):'') : '<span style="color:#b98;">sin maquinista</span>')+'</div></div>'
+      +'<div style="font-size:12px;color:#666;">'+(r.responsable ? '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> '+app._esc(r.responsable)+(r.responsableCedula?' · CC: '+app._esc(r.responsableCedula):'') : '<span style="color:#b98;">sin maquinista</span>')+'</div></div>'
       +'<button data-i="'+i+'" onclick="app._quitarRecursoActividad(+this.dataset.i)" style="background:none;border:none;color:#c00;font-size:18px;cursor:pointer;">&#x2715;</button>'
       +'</div>'
     ).join('');
@@ -6972,7 +6973,7 @@ ${paginaFotos}
       });
       const rv2 = document.querySelector('input[name="actModalidad"][value="Voluntaria"]'); if (rv2) rv2.checked = true;
       ['prevFotoInicio','prevFotoMedio','prevFotoFin','prevFotoF4','prevFotoF5','prevFotoF6'].forEach(id => {
-        const el = document.getElementById(id); if(el) el.innerHTML = '<span style="font-size:20px;">📷</span>';
+        const el = document.getElementById(id); if(el) el.innerHTML = '<span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span>';
       });
       this._renderPersonalActividad();
       this._renderRecursosActividad();
@@ -7027,12 +7028,12 @@ ${paginaFotos}
       if (dD.ok && dD.domingos && dD.domingos.length) {
         htmlDom = dD.domingos.map(d =>
           '<div class="ops-log-item ops-log-attendance" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1e8449;cursor:pointer;" data-f="'+d.fecha+'" onclick="app.verAsistenciaDomingo(this.dataset.f)">'
-          +'<div style="font-weight:700;color:#1e8449;">📅 '+d.fecha+(d.tipo?' — '+d.tipo:'')+'</div>'
+          +'<div style="font-weight:700;color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+d.fecha+(d.tipo?' — '+d.tipo:'')+'</div>'
           +(d.tema?'<div style="font-size:12px;color:#666;margin:2px 0;">'+app._esc(d.tema)+'</div>':'')
           +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
-          +'<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">✅ Presentes: '+(d.presentes||0)+'</span>'
-          +'<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">📝 Con excusa: '+(d.excusados||0)+'</span>'
-          +'<span style="background:#ffebee;color:#c00;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">❌ Sin excusa: '+(d.sinExcusa||0)+'</span>'
+          +'<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Presentes: '+(d.presentes||0)+'</span>'
+          +'<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Con excusa: '+(d.excusados||0)+'</span>'
+          +'<span style="background:#ffebee;color:#c00;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg> Sin excusa: '+(d.sinExcusa||0)+'</span>'
           +'</div></div>'
         ).join('');
       } else {
@@ -7041,8 +7042,8 @@ ${paginaFotos}
     } catch(e) { htmlDom = '<div style="color:#c00;padding:14px;">Error cargando domingos</div>'; }
 
     cont.innerHTML =
-      '<div class="ops-section-label" style="font-size:13px;font-weight:700;color:#1a5276;margin:4px 0 8px;letter-spacing:.5px;">📋 Actividades</div>' + htmlAct
-      + '<div class="ops-section-label ops-section-attendance" style="font-size:13px;font-weight:700;color:#1e8449;margin:18px 0 8px;letter-spacing:.5px;">📅 Asistencia de domingos</div>' + htmlDom;
+      '<div class="ops-section-label" style="font-size:13px;font-weight:700;color:#1a5276;margin:4px 0 8px;letter-spacing:.5px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"/></svg> Actividades</div>' + htmlAct
+      + '<div class="ops-section-label ops-section-attendance" style="font-size:13px;font-weight:700;color:#1e8449;margin:18px 0 8px;letter-spacing:.5px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> Asistencia de domingos</div>' + htmlDom;
   },
 
   async verDetalleActividad(id) {
@@ -7068,13 +7069,13 @@ ${paginaFotos}
           </div>
           <div style="color:#333;margin-bottom:6px;">${app._esc(a.descripcion)}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;color:#555;">
-            <div>📅 ${app._esc(a.fecha)}</div><div>📍 ${app._esc(a.lugar||'-')}</div>
-            <div>🕐 ${a.horaInicio||'-'} → ${a.horaFin||'-'}</div><div>⏱️ ${a.duracion}h</div>
+            <div><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> ${app._esc(a.fecha)}</div><div><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> ${app._esc(a.lugar||'-')}</div>
+            <div>🕐 ${a.horaInicio||'-'} <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg> ${a.horaFin||'-'}</div><div>⏱️ ${a.duracion}h</div>
           </div>
           ${a.novedades ? `<div style="margin-top:8px;padding:8px;background:#f5f5f5;border-radius:6px;font-size:13px;">${app._esc(a.novedades)}</div>` : ''}
         </div>
         <div class="ops-dossier-card" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-          <div style="font-weight:700;margin-bottom:8px;">👥 Personal (${a.personal.length})</div>
+          <div style="font-weight:700;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.7-4 3-6 6-6s5.3 2 6 6M15 15c3 0 5 2 5.5 5"/></svg> Personal (${a.personal.length})</div>
           ${a.personal.map(p => `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px;">
             <strong>${app._esc(p.nombre)}</strong> — ${app._esc(p.rango)}<div style="font-size:12px;color:#666;">CC: ${app._esc(p.cedula)}</div>
           </div>`).join('')}
@@ -7097,14 +7098,14 @@ ${paginaFotos}
       const fotos = (a.fotos || []).map(f => `<img src="${app._esc(this._imgDrive(f))}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;">`).join('');
       const meta = [a.paciente ? '👤 ' + app._esc(a.paciente) : '', a.documento ? 'CC ' + app._esc(a.documento) : '', a.hora ? '🕐 ' + app._esc(a.hora) : ''].filter(Boolean).join(' · ');
       return `<div style="border:1px solid #eee;border-radius:8px;padding:10px;margin-bottom:8px;background:#fafafa;">
-        <div style="font-weight:700;color:#1a5276;font-size:13px;">🩹 Atención ${i+1}${a.tipo ? ' — ' + app._esc(a.tipo) : ''}</div>
+        <div style="font-weight:700;color:#1a5276;font-size:13px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></svg> Atención ${i+1}${a.tipo ? ' — ' + app._esc(a.tipo) : ''}</div>
         ${meta ? `<div style="font-size:12px;color:#555;margin-top:2px;">${meta}</div>` : ''}
         ${a.descripcion ? `<div style="font-size:13px;color:#333;margin-top:4px;">${app._esc(a.descripcion)}</div>` : ''}
         ${fotos ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">${fotos}</div>` : ''}
       </div>`;
     }).join('');
     return `<div class="ops-dossier-card" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-weight:700;margin-bottom:8px;">🩹 Atenciones (${ats.length})</div>${cards}</div>`;
+      <div style="font-weight:700;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></svg> Atenciones (${ats.length})</div>${cards}</div>`;
   },
 
   // v6.42: mismas atenciones para el PDF (estilo de impresión).
@@ -7222,12 +7223,12 @@ ${paginaFotos}
         const esAdmH = this.esAdmin();
         return '<div class="ops-history-row" style="padding:10px;border-bottom:1px solid #f0f0f0;">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
-          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;">📅 '+f+(tipo?' — '+app._esc(tipo):'')+'</span>'
+          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+f+(tipo?' — '+app._esc(tipo):'')+'</span>'
           + (esAdmH
-            ? '<button data-f="'+f+'" onclick="app.editarDomingo(this.dataset.f)" style="background:#1a5276;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">✏️</button>'
-              + '<button data-f="'+f+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">🗑️</button>'
+            ? '<button data-f="'+f+'" onclick="app.editarDomingo(this.dataset.f)" style="background:#1a5276;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg></button>'
+              + '<button data-f="'+f+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg></button>'
             : '')
-          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="color:#1a5276;font-size:13px;cursor:pointer;">Ver →</span>'
+          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="color:#1a5276;font-size:13px;cursor:pointer;">Ver <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg></span>'
           + '</div>'
           + (tema ? '<div style="font-size:12px;color:#666;margin-top:2px;">'+app._esc(tema)+'</div>' : '')
           + '</div>';
@@ -7248,7 +7249,7 @@ ${paginaFotos}
           document.getElementById('asistSanciones').innerHTML =
             '<div onclick="app.abrirDeudores()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
             + '<span>' + d2.sanciones.length + ' unidad(es) con horas de sanción pendientes</span>'
-            + '<span style="color:#c00;font-weight:700;">Ver Deudores →</span></div>';
+            + '<span style="color:#c00;font-weight:700;">Ver Deudores <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg></span></div>';
         } else {
           sanPanel.style.display = 'none';
         }
@@ -7279,7 +7280,7 @@ ${paginaFotos}
          abrir un domingo existente y pulsar Guardar el backend escribía los 5
          VACÍOS en todas las filas: se borraban tipo de reunión, tema, lugar,
          encargado y guardia. listarAsistenciaDomingo ya devolvía estos datos
-         (es lo que consume el modal de ✏️), solo faltaba usarlos acá.
+         (es lo que consume el modal de ), solo faltaba usarlos acá.
          Se asignan SIEMPRE, también en blanco cuando el domingo es nuevo: así
          cambiar de fecha no arrastra el tema del domingo anterior al siguiente. */
       const _cab = (d2.ok && d2.registros.length) ? d2.registros[0] : {};
@@ -7594,12 +7595,12 @@ ${paginaFotos}
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
     modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
     modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
-      + '<div style="font-size:15px;font-weight:700;color:#e65100;margin-bottom:4px;">📝 Excusa de ' + app._esc(e.nombre || '') + '</div>'
+      + '<div style="font-size:15px;font-weight:700;color:#e65100;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Excusa de ' + app._esc(e.nombre || '') + '</div>'
       + '<div style="font-size:12px;color:#777;margin-bottom:10px;">Escribe el motivo de la excusa (queda guardado con la asistencia).</div>'
       + '<textarea id="_obsExcTxt" rows="3" placeholder="Ej: incapacidad médica, viaje, trabajo..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>'
       + '<div style="display:flex;gap:10px;margin-top:12px;">'
       + '<button id="_obsExcOmitir" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Sin observación</button>'
-      + '<button id="_obsExcGuardar" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">💾 Guardar</button>'
+      + '<button id="_obsExcGuardar" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-7h8v7"/></svg> Guardar</button>'
       + '</div></div>';
     document.body.appendChild(modal);
     const txt = modal.querySelector('#_obsExcTxt');
@@ -7715,7 +7716,7 @@ ${paginaFotos}
         + '</div>';
 
       const fotosHTML = fotos.length
-        ? '<div style="margin-top:12px;"><div style="font-weight:700;font-size:13px;color:#1a5276;">📸 Fotos del domingo</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;">'
+        ? '<div style="margin-top:12px;"><div style="font-weight:700;font-size:13px;color:#1a5276;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg> Fotos del domingo</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;">'
           + fotos.map(f => '<img src="'+f+'" style="width:100%;border-radius:6px;border:1px solid #eee;">').join('') + '</div></div>'
         : '';
 
@@ -7729,7 +7730,7 @@ ${paginaFotos}
       };
       const sancHTML = sanc.length
         ? '<div style="margin-top:14px;border-top:2px solid #ffcdd2;padding-top:10px;">'
-          + '<div style="font-weight:700;font-size:13px;color:#c00;">⚠️ Estado de sanciones (inasistencias sin excusa)</div>'
+          + '<div style="font-weight:700;font-size:13px;color:#c00;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Estado de sanciones (inasistencias sin excusa)</div>'
           + sanc.map(s => {
               const al = msgAlerta(s);
               return '<div style="background:#fff5f5;border:1px solid #ffcdd2;border-radius:8px;padding:8px;margin-top:6px;font-size:13px;">'
@@ -7746,16 +7747,16 @@ ${paginaFotos}
       m.innerHTML =
         '<div style="background:#fff;border-radius:16px;padding:18px;max-width:460px;margin:auto;">'
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
-        +   '<div style="font-weight:700;font-size:16px;color:#1e8449;">📅 '+fecha+'</div>'
-        +   '<button onclick="document.getElementById(\'_domModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;">×</button>'
+        +   '<div style="font-weight:700;font-size:16px;color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+fecha+'</div>'
+        +   '<button onclick="document.getElementById(\'_domModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>'
         + '</div>'
         + (regs[0] && regs[0].tipoReunion ? '<div style="font-size:13px;color:#555;">'+app._esc(regs[0].tipoReunion)+(regs[0].tema?' — '+app._esc(regs[0].tema):'')+'</div>' : '')
         + (_enc ? '<div style="font-size:12px;color:#555;margin-top:4px;">Encargado: <strong>'+app._esc(_enc)+'</strong></div>' : '')
         + (_grd ? '<div style="font-size:12px;color:#555;">Guardia: <strong>'+app._esc(_grd)+'</strong></div>' : '')
         + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
-        +   '<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">✅ Presentes: '+pres.length+'</span>'
-        +   '<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">📝 Con excusa: '+exc.length+'</span>'
-        +   '<span style="background:#ffebee;color:#c00;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;">❌ Sin excusa: '+sin.length+'</span>'
+        +   '<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Presentes: '+pres.length+'</span>'
+        +   '<span style="background:#fff8e1;color:#e65100;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Con excusa: '+exc.length+'</span>'
+        +   '<span style="background:#ffebee;color:#c00;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg> Sin excusa: '+sin.length+'</span>'
         + '</div>'
         + grupo('🔴 SIN EXCUSA (acumulan sanción)', sin, '#c00', '#ffebee')
         + grupo('🟡 CON EXCUSA', exc, '#e65100', '#fff8e1')
@@ -7764,8 +7765,8 @@ ${paginaFotos}
         + sancHTML
         + (esAdm
             ? '<div style="display:flex;gap:8px;margin-top:14px;">'
-              + '<button data-f="'+fecha+'" onclick="document.getElementById(\'_domModal\').remove();app.editarDomingo(this.dataset.f)" style="flex:1;background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">✏️ Editar</button>'
-              + '<button data-f="'+fecha+'" onclick="app.eliminarDomingo(this.dataset.f)" style="flex:1;background:#c00;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">🗑️ Eliminar</button>'
+              + '<button data-f="'+fecha+'" onclick="document.getElementById(\'_domModal\').remove();app.editarDomingo(this.dataset.f)" style="flex:1;background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Editar</button>'
+              + '<button data-f="'+fecha+'" onclick="app.eliminarDomingo(this.dataset.f)" style="flex:1;background:#c00;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg> Eliminar</button>'
               + '</div>'
             : '')
         + '</div>';
@@ -7783,7 +7784,7 @@ ${paginaFotos}
       modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       const pend = Number(horasPendientes) || 0;
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
-        + '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:4px;">✅ Registrar horas cumplidas</div>'
+        + '<div style="font-size:16px;font-weight:700;color:#333;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Registrar horas cumplidas</div>'
         + '<div style="font-size:13px;color:#666;margin-bottom:16px;">' + this._esc(nombre || 'Unidad')
         + (pend > 0 ? ' — <strong style="color:#c00;">' + pend + 'h pendientes</strong>' : '') + '</div>'
         + '<label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:5px;">Horas a descontar</label>'
@@ -7866,7 +7867,7 @@ ${paginaFotos}
     const cont = document.getElementById('deudoresContenido');
     if (!cont) return;
     if (!this.esAdmin()) {
-      cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;">🔒</div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver esto</div></div>';
+      cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver esto</div></div>';
       return;
     }
     cont.innerHTML = this._skeleton(3);
@@ -7879,22 +7880,22 @@ ${paginaFotos}
       if (!data.ok) { cont.innerHTML = '<div style="color:#c00;padding:20px;">Error: ' + app._esc(data.error||'desconocido') + '</div>'; return; }
       const sanc = (data.sanciones || []).filter(s => Number(s.horasPendientes) > 0);
       if (!sanc.length) {
-        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#1e8449;background:#fff;border-radius:12px;"><div style="font-size:40px;">✅</div><div style="margin-top:10px;font-weight:700;">Sin deudores pendientes</div></div>';
+        cont.innerHTML = '<div style="text-align:center;padding:30px;color:#1e8449;background:#fff;border-radius:12px;"><div style="font-size:40px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg></div><div style="margin-top:10px;font-weight:700;">Sin deudores pendientes</div></div>';
         return;
       }
       sanc.sort((a,b) => Number(b.horasPendientes) - Number(a.horasPendientes));
       // v5.91: la regla a la vista, para no tener que explicarla cada vez que
       // alguien pregunta por qué le subieron las horas si sí asistió.
       const reglaHTML = '<div style="background:#fff8e1;border:1px solid #ffe082;border-left:4px solid #f4c430;border-radius:10px;padding:11px 13px;margin-bottom:12px;font-size:12px;line-height:1.55;color:#5d4037;">'
-        + '<strong>⚠️ Cómo crecen estas horas</strong><br>'
-        + 'Cada domingo que pasa sin cumplirlas, la deuda se <strong>duplica</strong> (2h → 4h → 8h → 16h…), con tope de <strong>32h</strong>.<br>'
+        + '<strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Cómo crecen estas horas</strong><br>'
+        + 'Cada domingo que pasa sin cumplirlas, la deuda se <strong>duplica</strong> (2h <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg> 4h <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg> 8h <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg> 16h…), con tope de <strong>32h</strong>.<br>'
         + 'Asistir <strong>no</strong> detiene la duplicación, y la excusa <strong>tampoco</strong>: justifica no haber venido, no haber dejado de cumplir. Solo cumplir las horas la detiene.'
         + '</div>';
       const badge = (s) => {
         if (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO')
-          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🚨 DESERCIÓN</span>';
+          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 17h12l-1-8a5 5 0 0 0-10 0zM4 20h16M12 2v2M3 8l2 1M21 8l-2 1"/></svg> DESERCIÓN</span>';
         if (s.tipoAlerta === 'LLAMADO_ESCRITO')
-          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">📄 ESCRITO</span>';
+          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg> ESCRITO</span>';
         if (s.tipoAlerta === 'LLAMADO_VERBAL')
           return '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>';
         return '';
@@ -7904,7 +7905,7 @@ ${paginaFotos}
         return '<div style="background:#fff;border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #c00;">'
           + '<div data-uid="'+uid+'" data-ced="'+app._esc(s.cedula||'')+'" data-nom="'+app._esc(s.nombre||'')+'" data-hp="'+app._esc(String(s.horasPendientes||''))+'" onclick="app._toggleDeudorAccordion(this.dataset.uid,this.dataset.ced,this.dataset.nom,this.dataset.hp)" style="padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'
           + '<div><strong>'+app._esc(s.nombre||'')+'</strong>'+badge(s)+'<div style="font-size:12px;color:#666;margin-top:2px;">CC: '+app._esc(s.cedula||'-')+'</div></div>'
-          + '<div style="text-align:right;"><div style="color:#c00;font-weight:700;">'+s.horasPendientes+'h</div><div style="font-size:11px;color:#999;"><span class="cbvi-caret" id="'+uid+'_car">▼</span> ver domingos</div></div>'
+          + '<div style="text-align:right;"><div style="color:#c00;font-weight:700;">'+s.horasPendientes+'h</div><div style="font-size:11px;color:#999;"><span class="cbvi-caret" id="'+uid+'_car"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span> ver domingos</div></div>'
           + '</div>'
           + '<div id="'+uid+'_det" style="display:none;padding:0 14px 14px;border-top:1px solid #f5f5f5;"></div>'
           + '</div>';
@@ -7938,7 +7939,7 @@ ${paginaFotos}
       const faltas = data.faltas || [];
       det.innerHTML = '<div style="padding-top:10px;">'
         + (faltas.length
-          ? faltas.map(f => '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;"><strong>📅 '+app._esc(f.fecha)+'</strong><div style="color:#666;margin-top:2px;">'+app._esc(f.tema)+'</div></div>').join('')
+          ? faltas.map(f => '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;"><strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+app._esc(f.fecha)+'</strong><div style="color:#666;margin-top:2px;">'+app._esc(f.tema)+'</div></div>').join('')
           : '<div style="padding:8px 0;color:#999;font-size:13px;">Sin domingos sin excusa registrados</div>')
         // v5.90: el input suelto de horas se reemplazó por un modal que además
         // pide la ACTIVIDAD REALIZADA. El botón pasa los datos por data-* en vez
@@ -7947,7 +7948,7 @@ ${paginaFotos}
         + '<div style="margin-top:12px;">'
         + '<button data-ced="'+app._esc(cedula||'')+'" data-nom="'+app._esc(nom||'')+'" data-hp="'+app._esc(String(hp||''))+'"'
         + ' onclick="app.cumplirSancion(this,this.dataset.ced,this.dataset.nom,this.dataset.hp)"'
-        + ' style="background:#1e8449;color:#fff;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;font-weight:700;width:100%;">✅ Registrar horas cumplidas</button>'
+        + ' style="background:#1e8449;color:#fff;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;font-weight:700;width:100%;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Registrar horas cumplidas</button>'
         + '</div></div>';
     } catch(e) { det.innerHTML = '<div style="color:#c00;padding:10px 0;font-size:13px;">Error: '+app._esc(e.message)+'</div>'; }
   },
@@ -7960,7 +7961,7 @@ ${paginaFotos}
     const cont = document.getElementById('operatividadContenido');
     if (!cont) return;
     if (!this.esAdmin()) {
-      cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;">🔒</div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver la operatividad</div></div>';
+      cont.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-size:40px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><div style="color:#999;margin-top:10px;">Solo administradores pueden ver la operatividad</div></div>';
       return;
     }
     cont.innerHTML = this._skeleton(1) + this._skeleton(4, 'linea');
@@ -7998,12 +7999,12 @@ ${paginaFotos}
     const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const filtros = '<div class="ops-filterbar" style="background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;">'
       + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
-      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';">📊 General</button>'
-      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';">👤 Por Unidad</button>'
+      + '<button onclick="app._operVista=\'general\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista!=='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista!=='unidad'?'#fff':'#333')+';"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg> General</button>'
+      + '<button onclick="app._operVista=\'unidad\';app.cargarOperatividad()" style="flex:1;padding:8px;border:none;border-radius:8px;font-weight:700;cursor:pointer;background:'+(this._operVista==='unidad'?'#d81f27':'#f0f0f0')+';color:'+(this._operVista==='unidad'?'#fff':'#333')+';"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> Por Unidad</button>'
       + '</div>'
       + '<div style="display:flex;gap:8px;">'
       + '<select onchange="app._operMes=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
-      + '<option value=""'+(!this._operMes?' selected':'')+'>📅 Todo el año</option>'
+      + '<option value=""'+(!this._operMes?' selected':'')+'><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> Todo el año</option>'
       + meses.map((m,i)=>{ const v=String(i+1).padStart(2,'0'); return '<option value="'+v+'"'+(this._operMes===v?' selected':'')+'>'+m+'</option>'; }).join('')
       + '</select>'
       + '<select onchange="app._operAnio=this.value;app.cargarOperatividad()" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">'
@@ -8070,7 +8071,7 @@ ${paginaFotos}
       return top3
         + '<div id="'+masId+'" style="display:none;">'+resto.map((p,i)=>rankRow(p,i+3,getVal(p),lbl)).join('')+'</div>'
         + '<button data-id="'+masId+'" onclick="var e=document.getElementById(this.dataset.id);var v=e.style.display!==\'none\';e.style.display=v?\'none\':\'block\';this.textContent=v?\'▼ Ver más ('+resto.length+')\':\'▲ Ver menos\';" '
-        + 'style="width:100%;padding:6px;margin-top:4px;background:#f5f5f5;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:'+color+';">▼ Ver más ('+resto.length+')</button>';
+        + 'style="width:100%;padding:6px;margin-top:4px;background:#f5f5f5;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:'+color+';"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg> Ver más ('+resto.length+')</button>';
     };
 
     cont.innerHTML = `
@@ -8111,18 +8112,18 @@ ${paginaFotos}
       ${totalSancion > 0 ? '<div style="background:#ffebee;border-radius:10px;padding:12px;margin-bottom:10px;border-left:4px solid #c00;"><div style="font-weight:700;color:#c00;">⚠️ '+totalSancion+' unidad(es) con sanciones pendientes</div></div>' : ''}
 
       <div class="ops-rank ops-rank-emergency" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
-        <div style="font-weight:700;color:#c0392b;margin-bottom:8px;">🚨 Ranking Emergencias</div>
+        <div style="font-weight:700;color:#c0392b;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 17h12l-1-8a5 5 0 0 0-10 0zM4 20h16M12 2v2M3 8l2 1M21 8l-2 1"/></svg> Ranking Emergencias</div>
         ${rankList(topEmerg,'rk_emerg',p=>p.emergencias,'emerg.','#c0392b')}
       </div>
       <div class="ops-rank ops-rank-activity" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
-        <div style="font-weight:700;color:#1e8449;margin-bottom:8px;">🎯 Ranking Actividades</div>
+        <div style="font-weight:700;color:#1e8449;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg> Ranking Actividades</div>
         ${rankList(topActiv,'rk_activ',p=>this._r1(p.horasActividades)+'h','activ.','#1e8449')}
       </div>
       <div class="ops-rank ops-rank-attendance" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;">
-        <div style="font-weight:700;color:#e67e22;margin-bottom:8px;">📅 Ranking Asistencia Domingos</div>
+        <div style="font-weight:700;color:#e67e22;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> Ranking Asistencia Domingos</div>
         ${rankList(topDomin,'rk_domin',p=>p.domingosPresente,'dom.','#e67e22')}
       </div>
-      <button onclick="app._imprimirReporteGeneral()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir Informe General</button>`;
+      <button onclick="app._imprimirReporteGeneral()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></svg> Imprimir Informe General</button>`;
     // v6.39: las cifras de las tarjetas SUBEN desde 0 (el valor final ya está en el
     // textContent; _countUp lo toma como destino y anima desde 0).
     cont.querySelectorAll('.cbvi-num').forEach(el => this._countUp(el, el.textContent));
@@ -8144,8 +8145,8 @@ ${paginaFotos}
       <div id="listaUnidades">
         ${d.map(p => this._cardUnidad(p, mesNombre)).join('')}
       </div>
-      <button onclick="app._imprimirReportePorUnidad()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:4px;">🖨️ Imprimir Informe por Unidad</button>
-      <button onclick="app._operVista='general';app.cargarOperatividad()" style="background:#f0f0f0;color:#333;border:none;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">← Ver Resumen General</button>`;
+      <button onclick="app._imprimirReportePorUnidad()" style="background:#d81f27;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></svg> Imprimir Informe por Unidad</button>
+      <button onclick="app._operVista='general';app.cargarOperatividad()" style="background:#f0f0f0;color:#333;border:none;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Ver Resumen General</button>`;
   },
 
   _filtrarUnidades(q) {
@@ -8167,7 +8168,7 @@ ${paginaFotos}
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       +'<div><div style="font-weight:700;font-size:15px;">'+app._esc(nom||'(sin nombre)')+'</div>'
       +'<div style="font-size:12px;color:#666;">CC: '+app._esc(p.cedula||'-')+'</div>'
-      +(p.enBase===false?'<div style="font-size:11px;background:#fff8e1;color:#8d6e00;border:1px solid #f9a825;border-radius:6px;padding:2px 6px;margin-top:3px;display:inline-block;">⚠️ No cruza con la base (revisar escritura)</div>':'')
+      +(p.enBase===false?'<div style="font-size:11px;background:#fff8e1;color:#8d6e00;border:1px solid #f9a825;border-radius:6px;padding:2px 6px;margin-top:3px;display:inline-block;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> No cruza con la base (revisar escritura)</div>':'')
       +'</div>'
       +'<div style="text-align:right;"><div style="font-weight:700;color:#d81f27;font-size:16px;">'+pts+' pts</div>'
       +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
@@ -8186,7 +8187,7 @@ ${paginaFotos}
       +'<div id="'+uid+'_det" style="display:none;margin-bottom:8px;"></div>'
       +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">'
       +'<span>Asistencia domingos: <strong>'+pctDom+'%</strong></span>'
-      +(p.horasSancion>0?'<span style="color:#c00;font-weight:700;">⚠️ '+p.horasSancion+'h sanción</span>':'<span style="color:#1e8449;">✅ Sin sanciones</span>')
+      +(p.horasSancion>0?'<span style="color:#c00;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> '+p.horasSancion+'h sanción</span>':'<span style="color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Sin sanciones</span>')
       +'</div></div>';
   },
 
@@ -8211,11 +8212,11 @@ ${paginaFotos}
       }else if(tipo==='activ'){
         const lista=data.actividades||[];
         if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin actividades en este período</div>';}
-        else lista.forEach(a=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#1e8449;">'+app._esc(a.tipo||'Actividad')+'</strong><span style="float:right;font-weight:700;color:#1e8449;">'+app._esc(a.horas)+'h</span><div style="color:#555;">'+app._esc(String(a.descripcion||'').substring(0,50))+'</div><div style="font-size:11px;color:#999;">📅 '+app._esc(a.fecha)+'</div></div>';});
+        else lista.forEach(a=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#1e8449;">'+app._esc(a.tipo||'Actividad')+'</strong><span style="float:right;font-weight:700;color:#1e8449;">'+app._esc(a.horas)+'h</span><div style="color:#555;">'+app._esc(String(a.descripcion||'').substring(0,50))+'</div><div style="font-size:11px;color:#999;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+app._esc(a.fecha)+'</div></div>';});
       }else{
         const lista=data.domingos||[];
         if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin domingos en este período</div>';}
-        else lista.forEach(d=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#e67e22;">📅 '+app._esc(d.fecha)+'</strong>'+(d.tipo?'<span style="float:right;font-size:11px;color:#666;">'+app._esc(d.tipo)+'</span>':'')+(d.tema?'<div style="color:#555;">'+app._esc(d.tema)+'</div>':'')+(d.lugar?'<div style="font-size:11px;color:#999;">📍 '+app._esc(d.lugar)+'</div>':'')+'</div>';});
+        else lista.forEach(d=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#e67e22;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+app._esc(d.fecha)+'</strong>'+(d.tipo?'<span style="float:right;font-size:11px;color:#666;">'+app._esc(d.tipo)+'</span>':'')+(d.tema?'<div style="color:#555;">'+app._esc(d.tema)+'</div>':'')+(d.lugar?'<div style="font-size:11px;color:#999;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> '+app._esc(d.lugar)+'</div>':'')+'</div>';});
       }
       html+='</div>'; cont.innerHTML=html;
     }catch(e){cont.innerHTML='<div style="font-size:12px;color:#c00;padding:4px;">Error de red</div>';}
@@ -8230,7 +8231,7 @@ ${paginaFotos}
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
       modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div id="_pwdAdmCaja" style="background:#fff;border-radius:16px;padding:24px;max-width:320px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3);">'
-        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:12px;text-align:center;">'+(mensaje||'🔐 Contraseña de administrador')+'</div>'
+        + '<div style="font-size:15px;font-weight:700;color:#333;margin-bottom:12px;text-align:center;">'+(mensaje||'<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> Contraseña de administrador')+'</div>'
         + '<input id="_pwdAdmInput" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:8px;" placeholder="Contraseña">'
         // v6.09: acá se escribe el motivo exacto del rechazo. Nace oculto y su
         // texto se pone con textContent, nunca con innerHTML (I5).
@@ -8576,7 +8577,7 @@ ${paginaFotos}
         + '<button id="_operOk" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">Firmar</button>'
         + '</div>'
         + '<div style="font-size:10px;color:#999;margin-top:12px;text-align:center;line-height:1.5;">Sin PIN no puedes hacer acciones de administrador.<br>¿No tienes PIN o lo olvidaste? Pídeselo al administrador principal.</div>'
-        + '<div style="text-align:center;margin-top:10px;"><span id="_operLlave" style="font-size:11px;color:#92400e;text-decoration:underline;cursor:pointer;">🎖️ Usar llave de comandancia</span></div>'
+        + '<div style="text-align:center;margin-top:10px;"><span id="_operLlave" style="font-size:11px;color:#92400e;text-decoration:underline;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="9" r="6"/><path d="m8 14-2 8 6-3 6 3-2-8"/></svg> Usar llave de comandancia</span></div>'
         + '</div>';
       document.body.appendChild(modal);
       const inp = modal.querySelector('#_operInput');
@@ -8729,7 +8730,7 @@ ${paginaFotos}
         footer{margin-top:20px;font-size:9pt;color:#999;text-align:center;}
         @media print{body{margin:8mm;}}
       </style></head><body>
-      <h1>📊 Informe de Operatividad Institucional</h1>
+      <h1><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg> Informe de Operatividad Institucional</h1>
       <p style="color:#666;margin:0 0 12px;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | Cuerpo de Bomberos Voluntarios de Inírida</p>
       <div class="stats">
         <div class="stat"><div class="num">${d.length}</div><div class="lbl">Unidades con registros</div></div>
@@ -8738,7 +8739,7 @@ ${paginaFotos}
         <div class="stat"><div class="num">${this._operStats && this._operStats.totalDomingos !== undefined ? this._operStats.totalDomingos : '-'}</div><div class="lbl">Domingos realizados</div></div>
         <div class="stat"><div class="num">${this._operStats && this._operStats.asistenciasTotales !== undefined ? this._operStats.asistenciasTotales : d.reduce((s,p)=>s+p.domingosPresente,0)}</div><div class="lbl">Asistencias totales</div></div>
       </div>
-      <h2>🏆 Ranking General</h2>
+      <h2><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="9" r="6"/><path d="m8 14-2 8 6-3 6 3-2-8"/></svg> Ranking General</h2>
       <table><tr><th>#</th><th>Nombre</th><th>Emergencias</th><th>Horas Act.</th><th>Domingos</th><th>Puntos</th><th>Sanciones</th></tr>
       ${top.map((p,i)=>{
         const pts=this._r1(p.emergencias*2+p.horasActividades+p.domingosPresente);
@@ -8775,7 +8776,7 @@ ${paginaFotos}
         footer{margin-top:20px;font-size:9pt;color:#999;text-align:center;}
         @media print{body{margin:8mm;}.ficha{page-break-inside:avoid;}}
       </style></head><body>
-      <h1>👤 Informe de Operatividad por Unidad</h1>
+      <h1><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> Informe de Operatividad por Unidad</h1>
       <p style="color:#666;">Período: <strong>${mesNombre} ${this._operAnio}</strong> | CBVI — Inírida</p>
       ${d.map(p=>{
         const pts=this._r1(p.emergencias*2+p.horasActividades+p.domingosPresente);
@@ -8820,7 +8821,7 @@ ${paginaFotos}
   // Un reporte puede tener varias clasificaciones marcadas — se usa la
   // PRIMERA que coincida en este orden de prioridad para pintar el pin.
   // v5.94: se suman los tipos nuevos con pin propio (incendio de interfaz,
-  // búsqueda y rescate, traslado, abejas/avispas 🐝, árbol caído). El orden ES
+  // búsqueda y rescate, traslado, abejas/avispas , árbol caído). El orden ES
   // la prioridad de color del pin cuando un reporte tiene varias casillas
   // marcadas — gana la primera que coincida.
   _MAPA_COLORES: [
@@ -8855,7 +8856,7 @@ ${paginaFotos}
 
   // v5.82: pin más grande, con sombra y el emoji del tipo adentro.
   _iconoMapa(regla) {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40">'
+    const svg = '<svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40">'
       + '<path d="M15 0C6.7 0 0 6.7 0 15c0 11.2 15 25 15 25s15-13.8 15-25C30 6.7 23.3 0 15 0z" fill="'+regla.color+'" stroke="#fff" stroke-width="2"/>'
       + '<circle cx="15" cy="15" r="10" fill="#fff"/>'
       + '</svg>';
@@ -8879,8 +8880,8 @@ ${paginaFotos}
       estado.style.display = 'block';
       // v5.87: antes era texto muerto — en Inírida la señal va y viene, así
       // que el error ahora trae botón de reintento (recarga solo esta pantalla).
-      estado.innerHTML = '⚠️ No se pudo cargar el mapa (revisa tu conexión a internet).'
-        + '<br><button onclick="app.cargarPantallaMapa()" style="margin-top:10px;padding:10px 18px;background:#1a7a5e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>';
+      estado.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> No se pudo cargar el mapa (revisa tu conexión a internet).'
+        + '<br><button onclick="app.cargarPantallaMapa()" style="margin-top:10px;padding:10px 18px;background:#1a7a5e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Reintentar</button>';
       cont.style.display = 'none';
       return;
     }
@@ -8915,16 +8916,16 @@ ${paginaFotos}
         const estiloSel = 'padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12px;background:#fff;';
         const estiloTog = 'padding:6px 10px;border:1px solid #b9c6d0;border-radius:8px;background:#eef0f2;color:#1a5276;font-size:12px;font-weight:700;cursor:pointer;';
         const estiloChip = 'padding:5px 9px;border:1px solid #cfd6dc;border-radius:12px;background:#fff;font-size:11px;cursor:pointer;';
-        // v6.25: barra compacta; lo demás vive en menús que se despliegan (⚙️/🏷️) para no
+        // v6.25: barra compacta; lo demás vive en menús que se despliegan (/) para no
         // saturar la pantalla — antes eran ~6 botones + 16 chips siempre a la vista.
         filtros.innerHTML =
           '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
           + '<span id="mapaContador" style="font-size:12px;color:#555;font-weight:700;margin-right:2px;"></span>'
-          + '<button id="mapaBtnHerr" onclick="app._mapaTogglePanel(\'herr\')" style="'+estiloTog+'">⚙️ Herramientas ▾</button>'
-          + '<button id="mapaBtnTipos" onclick="app._mapaTogglePanel(\'tipos\')" style="'+estiloTog+'">🏷️ Tipos ▾</button>'
+          + '<button id="mapaBtnHerr" onclick="app._mapaTogglePanel(\'herr\')" style="'+estiloTog+'"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg> Herramientas ▾</button>'
+          + '<button id="mapaBtnTipos" onclick="app._mapaTogglePanel(\'tipos\')" style="'+estiloTog+'"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 4h8l10 10-7 7L4 11z"/><circle cx="8" cy="8" r="1"/></svg> Tipos ▾</button>'
           + '</div>'
           + '<div id="mapaPanelHerr" style="display:none;margin-top:6px;background:#f7f9fa;border:1px solid #e6eaed;border-radius:10px;padding:9px;">'
-          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin-bottom:5px;">📅 Fechas</div>'
+          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin-bottom:5px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> Fechas</div>'
           +   '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">'
           +     '<select id="mapaFiltroAnio" onchange="app._mapaSelectFecha()" style="'+estiloSel+'">'
           +       '<option value="">Todos los años</option>'
@@ -8939,21 +8940,21 @@ ${paginaFotos}
           +     '<button onclick="app._mapaFechaRapida(\'anio\')" style="'+estiloChip+'">Este año</button>'
           +     '<button onclick="app._mapaFechaRapida(\'todo\')" style="'+estiloChip+'">Todo</button>'
           +   '</div>'
-          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin-bottom:5px;">🧭 Acciones</div>'
+          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin-bottom:5px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m15 9-2 4-4 2 2-4z"/></svg> Acciones</div>'
           +   '<div style="display:flex;gap:5px;flex-wrap:wrap;">'
-          +     '<button onclick="app._centrarMapaTodos()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a7a5e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🎯 Ver todas</button>'
-          +     '<button onclick="app._mapaMiUbicacion()" style="padding:6px 10px;border:none;border-radius:8px;background:#1565c0;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">📍 Mi ubicación</button>'
+          +     '<button onclick="app._centrarMapaTodos()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a7a5e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg> Ver todas</button>'
+          +     '<button onclick="app._mapaMiUbicacion()" style="padding:6px 10px;border:none;border-radius:8px;background:#1565c0;color:#fff;font-size:12px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> Mi ubicación</button>'
           +     '<button id="mapaBtnFullscreen" onclick="app._toggleMapaFullscreen()" style="padding:6px 10px;border:none;border-radius:8px;background:#1a5276;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">⛶ Pantalla completa</button>'
           +   '</div>'
-          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin:9px 0 5px;">🚒 Estación</div>'
+          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin:9px 0 5px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Estación</div>'
           +   '<div style="display:flex;gap:5px;flex-wrap:wrap;">'
           +     (estCoord
-                  ? '<button onclick="app._mapaFijarEstacion()" style="'+estiloChip+'">🚒 Cambiar</button><button onclick="app._mapaQuitarEstacion()" style="'+estiloChip+'">Quitar</button>'
-                  : '<button onclick="app._mapaFijarEstacion()" style="'+estiloChip+'">🚒 Fijar estación (mi ubicación)</button>')
+                  ? '<button onclick="app._mapaFijarEstacion()" style="'+estiloChip+'"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Cambiar</button><button onclick="app._mapaQuitarEstacion()" style="'+estiloChip+'">Quitar</button>'
+                  : '<button onclick="app._mapaFijarEstacion()" style="'+estiloChip+'"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Fijar estación (mi ubicación)</button>')
           +   '</div>'
-          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin:9px 0 5px;">✨ Vistas</div>'
+          +   '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#7a8891;font-weight:700;margin:9px 0 5px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m12 2 2 7 7 3-7 2-2 8-2-8-7-2 7-3z"/></svg> Vistas</div>'
           +   '<div style="display:flex;gap:5px;flex-wrap:wrap;">'
-          +     '<button id="mapaBtnCalor" onclick="app._mapaToggleCalor()" style="'+estiloChip+'">🔥 Mapa de calor</button>'
+          +     '<button id="mapaBtnCalor" onclick="app._mapaToggleCalor()" style="'+estiloChip+'"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M13 2c2 5-2 6 1 9 1-2 3-3 4-4 2 3 3 6 1 10-3 6-12 5-14 0-2-5 2-9 5-12 0 4 1 5 3 6 2-3 0-5 0-9z"/></svg> Mapa de calor</button>'
           +   '</div>'
           + '</div>';
       }
@@ -9000,7 +9001,7 @@ ${paginaFotos}
           + '<div style="font-weight:700;color:'+regla.color+';">'+regla.emoji+' ' + app._esc(String(r.consecutivo || r.id)) + '</div>'
           + '<div style="margin-top:4px;"><b>Fecha:</b> ' + app._esc(f.substring(0,10) || '-') + '</div>'
           + '<div><b>Dirección:</b> ' + app._esc(r.direccion || '-') + '</div>'
-          + (estCoord && r.lat && r.lng ? '<div><b>🚒 A la estación:</b> ~' + this._distanciaKm(estCoord[0], estCoord[1], r.lat, r.lng).toFixed(1) + ' km</div>' : '')
+          + (estCoord && r.lat && r.lng ? '<div><b><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> A la estación:</b> ~' + this._distanciaKm(estCoord[0], estCoord[1], r.lat, r.lng).toFixed(1) + ' km</div>' : '')
           + '<div><b>Clasificación:</b> ' + app._esc(clas) + '</div>'
           + '<button data-id="' + String(r.id||'').replace(/"/g,'&quot;') + '" onclick="app._verReporteDesdeMapa(this.dataset.id)" style="margin-top:8px;background:#d81f27;color:#fff;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;width:100%;">Ver reporte completo</button>'
           + '</div>';
@@ -9012,7 +9013,7 @@ ${paginaFotos}
       // v6.26: marcador fijo de la estación (si está configurada).
       if (this._mapaMarcadorEstacion) { try { this._leafletMapa.removeLayer(this._mapaMarcadorEstacion); } catch (e) {} this._mapaMarcadorEstacion = null; }
       if (estCoord) {
-        this._mapaMarcadorEstacion = L.marker(estCoord, { icon: L.divIcon({ html: '<div style="font-size:26px;line-height:26px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45));">🚒</div>', className: '', iconSize: [26, 26], iconAnchor: [13, 13] }) })
+        this._mapaMarcadorEstacion = L.marker(estCoord, { icon: L.divIcon({ html: '<div style="font-size:26px;line-height:26px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45));"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg></div>', className: '', iconSize: [26, 26], iconAnchor: [13, 13] }) })
           .bindPopup('🚒 Estación de bomberos').addTo(this._leafletMapa);
       }
       this._pintarLeyendaMapa();
@@ -9023,7 +9024,7 @@ ${paginaFotos}
       // v5.87: error con reintento (red intermitente en Inírida) — e.message
       // pasa por _esc porque va a innerHTML.
       estado.innerHTML = 'Error: ' + app._esc(e.message)
-        + '<br><button onclick="app.cargarPantallaMapa()" style="margin-top:10px;padding:10px 18px;background:#1a7a5e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">🔄 Reintentar</button>';
+        + '<br><button onclick="app.cargarPantallaMapa()" style="margin-top:10px;padding:10px 18px;background:#1a7a5e;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Reintentar</button>';
     }
   },
 
@@ -9042,8 +9043,8 @@ ${paginaFotos}
     // v6.23: botonera de acciones rápidas. Antes, para ver un SOLO tipo había que
     // apagar todos los demás uno por uno. Ahora "Todos"/"Ninguno" y "solo" por chip.
     const botonera = '<div style="display:flex;gap:6px;margin-bottom:6px;">'
-      + '<button onclick="app._mapaMostrarTodos()" style="flex:1;padding:5px 8px;border:1px solid #1a7a5e;background:#1a7a5e;color:#fff;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">✓ Todos</button>'
-      + '<button onclick="app._mapaOcultarTodos()" style="flex:1;padding:5px 8px;border:1px solid #bbb;background:#fff;color:#555;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;">✕ Ninguno</button>'
+      + '<button onclick="app._mapaMostrarTodos()" style="flex:1;padding:5px 8px;border:1px solid #1a7a5e;background:#1a7a5e;color:#fff;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Todos</button>'
+      + '<button onclick="app._mapaOcultarTodos()" style="flex:1;padding:5px 8px;border:1px solid #bbb;background:#fff;color:#555;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg> Ninguno</button>'
       + '</div>';
     leyenda.innerHTML = botonera
       + '<div style="font-size:11px;color:#666;margin:2px 0 4px;">👆 Toca un tipo para ocultar/mostrar · toca <b>solo</b> para ver únicamente ese:</div>'
@@ -9111,7 +9112,7 @@ ${paginaFotos}
       // Encuadrar para que se vea todo el círculo; maxZoom evita acercarse de más.
       if (this._mapaPrecisionYo) this._leafletMapa.fitBounds(this._mapaPrecisionYo.getBounds(), { padding: [40, 40], maxZoom: 16 });
       else this._leafletMapa.setView([lat, lng], 15);
-      if (prec > 150) this.toast('📍 Ubicación aproximada (±' + prec + ' m). En el celular con GPS es más precisa.', 'info');
+      if (prec > 150) this.toast('<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> Ubicación aproximada (±' + prec + ' m). En el celular con GPS es más precisa.', 'info');
     }, () => { this.toast('No se pudo obtener tu ubicación (revisa el permiso)', 'error'); },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   },
@@ -9174,7 +9175,7 @@ ${paginaFotos}
   },
 
   // v6.26: estación de bomberos en el mapa. Se fija con el GPS (parado EN la estación)
-  // y se guarda en el dispositivo (localStorage). Con eso el mapa muestra un 🚒 y, en
+  // y se guarda en el dispositivo (localStorage). Con eso el mapa muestra un  y, en
   // cada reporte, a cuántos km está de la estación. Sirve igual para Inírida y para
   // cada cuerpo del producto (cada uno guarda la suya en su teléfono).
   _EST_KEY: 'mapa_estacion_coord',
@@ -9335,7 +9336,7 @@ ${paginaFotos}
         '<div style="text-align:center;">'
         + '<div style="font-size:10px;color:#666;">'+lbl+'</div>'
         + '<div id="_eaFotoPrev'+k+'" style="width:90px;height:90px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5 center/cover no-repeat;display:flex;align-items:center;justify-content:center;overflow:hidden;">'
-        + (src ? '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:22px;">📷</span>')
+        + (src ? '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:22px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span>')
         + '</div>'
         + '<label style="display:block;margin-top:4px;font-size:11px;color:#1a5276;cursor:pointer;text-decoration:underline;">Cambiar'
         +   '<input type="file" accept="image/*" style="display:none;" onchange="app._eaCargarFoto(\''+k+'\',this)"></label>'
@@ -9346,7 +9347,7 @@ ${paginaFotos}
       modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;overflow-y:auto;padding:16px;';
       modal.className = 'cbvi-modal-js';   // v6.11: sin esto ninguna regla CSS lo alcanza
       modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:440px;margin:auto;">'
-        +'<div style="font-weight:700;font-size:16px;color:#1a5276;margin-bottom:14px;">✏️ Editar Actividad</div>'
+        +'<div style="font-weight:700;font-size:16px;color:#1a5276;margin-bottom:14px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Editar Actividad</div>'
         +'<label style="font-size:12px;font-weight:700;">Tipo</label>'
         +'<select id="_eaT" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'+tipos.map(t=>'<option value="'+t+'"'+(a.tipo===t?' selected':'')+'>'+t+'</option>').join('')+'</select>'
         +'<label style="font-size:12px;font-weight:700;">Descripción</label>'
@@ -9361,20 +9362,20 @@ ${paginaFotos}
         +'<input type="text" id="_eaL" value="'+esc(a.lugar)+'" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
         +'<label style="font-size:12px;font-weight:700;">Modalidad</label>'
         +'<select id="_eaMod" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">'
-        +  '<option value="Voluntaria"'+(a.modalidad!=='Paga'?' selected':'')+'>🙋 Voluntaria</option>'
-        +  '<option value="Paga"'+(a.modalidad==='Paga'?' selected':'')+'>💵 Paga (contratada)</option>'
+        +  '<option value="Voluntaria"'+(a.modalidad!=='Paga'?' selected':'')+'> Voluntaria</option>'
+        +  '<option value="Paga"'+(a.modalidad==='Paga'?' selected':'')+'> Paga (contratada)</option>'
         +'</select>'
         +'<label style="font-size:12px;font-weight:700;">Novedades</label>'
         +'<textarea id="_eaN" rows="2" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-bottom:14px;box-sizing:border-box;">'+esc(a.novedades||"")+'</textarea>'
         // ── PERSONAL ──
-        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">👥 Personal asistente</div>'
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.7-4 3-6 6-6s5.3 2 6 6M15 15c3 0 5 2 5.5 5"/></svg> Personal asistente</div>'
         +'<div id="_eaPersonalLista" style="margin-bottom:6px;"></div>'
         +'<div style="position:relative;margin-bottom:14px;">'
         +'<input type="text" id="_eaBuscarPersonal" placeholder="Escribir nombre para agregar..." autocomplete="off" oninput="app._eaBuscarPersonal(this.value)" style="width:100%;padding:9px;border:1px solid #1e8449;border-radius:8px;font-size:14px;box-sizing:border-box;">'
         +'<div id="_eaSugerencias" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;"></div>'
         +'</div>'
         // ── FOTOS ──
-        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">📸 Fotos (hasta 6)</div>'
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg> Fotos (hasta 6)</div>'
         +'<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;justify-content:center;">'
         + fotoSlot('inicio','Foto 1',a.fotoInicio||'')
         + fotoSlot('medio','Foto 2',a.fotoMedio||'')
@@ -9384,7 +9385,7 @@ ${paginaFotos}
         + fotoSlot('f6','Foto 6',a.fotoF6||'')
         +'</div>'
         // ── RECURSOS ──
-        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;">🚒 Recursos / Vehículos</div>'
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1a5276;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Recursos / Vehículos</div>'
         +'<div id="_eaRecursosLista" style="margin-bottom:6px;"></div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">'
         /* v6.09: era un campo de texto libre mientras que al CREAR la actividad
@@ -9414,7 +9415,7 @@ ${paginaFotos}
         // ── BOTONES ──
         +'<div style="display:flex;gap:10px;">'
         +'<button id="_eaCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
-        +'<button id="_eaGuard" style="flex:1;padding:12px;background:#1a5276;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>'
+        +'<button id="_eaGuard" style="flex:1;padding:12px;background:#1a5276;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-7h8v7"/></svg> Guardar</button>'
         +'</div></div>';
       document.body.appendChild(modal);
       this._eaRenderPersonal();
@@ -9595,7 +9596,7 @@ ${paginaFotos}
         '<div style="text-align:center;">'
         + '<div style="font-size:10px;color:#666;">'+lbl+'</div>'
         + '<div id="_ednFotoPrev'+k+'" style="width:80px;height:80px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5 center/cover no-repeat;display:flex;align-items:center;justify-content:center;overflow:hidden;">'
-        + (src ? '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:20px;">📷</span>')
+        + (src ? '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span>')
         + '</div>'
         + '<label style="display:block;margin-top:4px;font-size:11px;color:#1e8449;cursor:pointer;text-decoration:underline;">Cambiar'
         +   '<input type="file" accept="image/*" style="display:none;" onchange="app._ednCargarFoto(\''+k+'\',this)"></label>'
@@ -9606,7 +9607,7 @@ ${paginaFotos}
       // v6.00: las filas se pintan en _ednRenderFilas() para poder re-render al
       // agregar a alguien. El bloque de búsqueda va justo encima de la lista.
       const buscador='<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:8px;">'
-        +'<div style="font-size:12px;font-weight:700;color:#1e8449;margin-bottom:5px;">➕ Agregar persona a este domingo</div>'
+        +'<div style="font-size:12px;font-weight:700;color:#1e8449;margin-bottom:5px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Agregar persona a este domingo</div>'
         +'<div style="position:relative;">'
         +'<input type="text" id="_ednBuscar" autocomplete="off" placeholder="Escribe el nombre..." oninput="app._ednBuscarPersona(this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
         +'<div id="_ednBuscarSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
@@ -9614,7 +9615,7 @@ ${paginaFotos}
         +'<div style="font-size:10px;color:#888;margin-top:4px;">Entra como <b>Presente</b>; cámbialo abajo si corresponde. Si no aparece, primero hay que darlo de alta en el personal.</div>'
         +'</div>';
       modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:420px;margin:auto;">'
-        +'<div style="font-weight:700;font-size:16px;color:#1e8449;margin-bottom:14px;">✏️ Domingo '+fecha+'</div>'
+        +'<div style="font-weight:700;font-size:16px;color:#1e8449;margin-bottom:14px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Domingo '+fecha+'</div>'
         +'<label style="font-size:12px;font-weight:700;">Tipo de reunión</label>'
         +'<select id="_ednTipo" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
         +'<option value="">Seleccionar...</option>'
@@ -9625,16 +9626,16 @@ ${paginaFotos}
         +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
         +'<input type="text" id="_ednLugar" value="'+esc(lugarActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
-        +'<div><label style="font-size:12px;font-weight:700;">👤 Encargado</label><div style="position:relative;">'
+        +'<div><label style="font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> Encargado</label><div style="position:relative;">'
         +'<input type="text" id="_ednE" value="'+esc(enc)+'" autocomplete="off" oninput="app._buscarAsistCampo(\'_ednE\',\'_ednESug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
         +'<div id="_ednESug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
         +'</div></div>'
-        +'<div><label style="font-size:12px;font-weight:700;">🛡️ Guardia</label><div style="position:relative;">'
+        +'<div><label style="font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg> Guardia</label><div style="position:relative;">'
         +'<input type="text" id="_ednG" value="'+esc(grd)+'" autocomplete="off" oninput="app._buscarAsistCampo(\'_ednG\',\'_ednGSug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
         +'<div id="_ednGSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
         +'</div></div>'
         +'</div>'
-        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1e8449;">📸 Fotos de la reunión</div>'
+        +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg> Fotos de la reunión</div>'
         +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:space-around;">'
         + fotoSlot('inicio','Inicio',fl.inicio||'')
         + fotoSlot('medio','Intermedio',fl.medio||'')
@@ -9645,7 +9646,7 @@ ${paginaFotos}
         +'<div id="_ednFilas"></div>'
         +'<div style="display:flex;gap:10px;margin-top:14px;">'
         +'<button id="_ednCancel" style="flex:1;padding:12px;background:#f5f5f5;color:#333;border:none;border-radius:8px;font-weight:700;cursor:pointer;">Cancelar</button>'
-        +'<button id="_ednGuard" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">💾 Guardar</button>'
+        +'<button id="_ednGuard" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-7h8v7"/></svg> Guardar</button>'
         +'</div></div>';
       document.body.appendChild(modal);
       this._ednRenderFilas();
@@ -9687,7 +9688,7 @@ ${paginaFotos}
   },
 
   /* ═══════ v6.00: AGREGAR PERSONAS A UN DOMINGO YA GUARDADO ═══════
-     Antes, el modal de ✏️ solo mostraba a los que ya estaban guardados, así que
+     Antes, el modal de  solo mostraba a los que ya estaban guardados, así que
      para sumar a alguien había que ELIMINAR el domingo y recrearlo entero (34
      estados reescritos a mano, con el riesgo de perderlo todo si algo fallaba a
      mitad). El backend nunca fue el problema: registrarAsistencia con
@@ -9720,7 +9721,7 @@ ${paginaFotos}
       // estaba guardado afecta su historial y sus sanciones: es otra decisión,
       // no se resuelve de contrabando en un botón ×.
       const btnQuitar = esNuevo
-        ? '<button data-ced="' + app._esc(ced) + '" onclick="app._ednQuitarPersona(this.dataset.ced)" title="Quitar" style="background:#991b1b;color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;padding:0;margin-left:6px;">×</button>'
+        ? '<button data-ced="' + app._esc(ced) + '" onclick="app._ednQuitarPersona(this.dataset.ced)" title="Quitar" style="background:#991b1b;color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;padding:0;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>'
         : '';
       return '<div id="_ednfila_' + i + '" style="padding:7px 0;border-bottom:1px solid #f0f0f0;' + (esNuevo ? 'background:#f0fdf4;border-left:3px solid #16a34a;padding-left:6px;' : '') + '">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;">'

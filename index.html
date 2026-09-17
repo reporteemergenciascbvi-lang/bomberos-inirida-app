@@ -28,7 +28,7 @@ try {
 <meta name="apple-mobile-web-app-title" content="CBVI Reportes">
 <title>CBVI Reportes — Bomberos Inírida</title>
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚒</text></svg>">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20100%20100%22%3E%3Ctext%20y=%22.9em%22%20font-size=%2290%22%3E🚒%3C/text%3E%3C/svg%3E">
 
 <!-- Google Identity Services (login con Google) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -40,7 +40,7 @@ try {
      que la CDN responda.
      Motivo 2 (Inírida): el Service Worker ya puede cachearlo, así que el mapa
      deja de depender de una CDN externa para siquiera abrir. -->
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.51">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=6.52">
 <!-- leaflet.markercluster CSS (incrustado) -->
 <style>
 .leaflet-cluster-anim .leaflet-marker-icon, .leaflet-cluster-anim .leaflet-marker-shadow {
@@ -119,7 +119,7 @@ try {
 	line-height: 30px;
 	}
 </style>
-<script src="vendor/leaflet/leaflet.js?v=6.51"></script>
+<script src="vendor/leaflet/leaflet.js?v=6.52"></script>
 <!-- leaflet.markercluster JS (incrustado) -->
 <script>
 !function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t(((e=e||self).Leaflet=e.Leaflet||{},e.Leaflet.markercluster={}))}(this,function(e){"use strict";var t=L.MarkerClusterGroup=L.FeatureGroup.extend({options:{maxClusterRadius:80,iconCreateFunction:null,clusterPane:L.Marker.prototype.options.pane,spiderfyOnEveryZoom:!1,spiderfyOnMaxZoom:!0,showCoverageOnHover:!0,zoomToBoundsOnClick:!0,singleMarkerMode:!1,disableClusteringAtZoom:null,removeOutsideVisibleBounds:!0,animate:!0,animateAddingMarkers:!1,spiderfyShapePositions:null,spiderfyDistanceMultiplier:1,spiderLegPolylineOptions:{weight:1.5,color:"#222",opacity:.5},chunkedLoading:!1,chunkInterval:200,chunkDelay:50,chunkProgress:null,polygonOptions:{}},initialize:function(e){L.Util.setOptions(this,e),this.options.iconCreateFunction||(this.options.iconCreateFunction=this._defaultIconCreateFunction),this._featureGroup=L.featureGroup(),this._featureGroup.addEventParent(this),this._nonPointGroup=L.featureGroup(),this._nonPointGroup.addEventParent(this),this._inZoomAnimation=0,this._needsClustering=[],this._needsRemoving=[],this._currentShownBounds=null,this._queue=[],this._childMarkerEventHandlers={dragstart:this._childMarkerDragStart,move:this._childMarkerMoved,dragend:this._childMarkerDragEnd};var t=L.DomUtil.TRANSITION&&this.options.animate;L.extend(this,t?this._withAnimation:this._noAnimation),this._markerCluster=t?L.MarkerCluster:L.MarkerClusterNonAnimated},addLayer:function(e){if(e instanceof L.LayerGroup)return this.addLayers([e]);if(!e.getLatLng)return this._nonPointGroup.addLayer(e),this.fire("layeradd",{layer:e}),this;if(!this._map)return this._needsClustering.push(e),this.fire("layeradd",{layer:e}),this;if(this.hasLayer(e))return this;this._unspiderfy&&this._unspiderfy(),this._addLayer(e,this._maxZoom),this.fire("layeradd",{layer:e}),this._topClusterLevel._recalculateBounds(),this._refreshClustersIcons();var t=e,i=this._zoom;if(e.__parent)for(;t.__parent._zoom>=i;)t=t.__parent;return this._currentShownBounds.contains(t.getLatLng())&&(this.options.animateAddingMarkers?this._animationAddLayer(e,t):this._animationAddLayerNonAnimated(e,t)),this},removeLayer:function(e){return e instanceof L.LayerGroup?this.removeLayers([e]):(e.getLatLng?this._map?e.__parent&&(this._unspiderfy&&(this._unspiderfy(),this._unspiderfyLayer(e)),this._removeLayer(e,!0),this.fire("layerremove",{layer:e}),this._topClusterLevel._recalculateBounds(),this._refreshClustersIcons(),e.off(this._childMarkerEventHandlers,this),this._featureGroup.hasLayer(e)&&(this._featureGroup.removeLayer(e),e.clusterShow&&e.clusterShow())):(!this._arraySplice(this._needsClustering,e)&&this.hasLayer(e)&&this._needsRemoving.push({layer:e,latlng:e._latlng}),this.fire("layerremove",{layer:e})):(this._nonPointGroup.removeLayer(e),this.fire("layerremove",{layer:e})),this)},addLayers:function(n,s){if(!L.Util.isArray(n))return this.addLayer(n);var o,a=this._featureGroup,h=this._nonPointGroup,l=this.options.chunkedLoading,u=this.options.chunkInterval,_=this.options.chunkProgress,d=n.length,p=0,c=!0;if(this._map){var f=(new Date).getTime(),m=L.bind(function(){var e=(new Date).getTime();for(this._map&&this._unspiderfy&&this._unspiderfy();p<d;p++){if(l&&p%200==0){var t=(new Date).getTime()-e;if(u<t)break}if((o=n[p])instanceof L.LayerGroup)c&&(n=n.slice(),c=!1),this._extractNonGroupLayers(o,n),d=n.length;else if(o.getLatLng){if(!this.hasLayer(o)&&(this._addLayer(o,this._maxZoom),s||this.fire("layeradd",{layer:o}),o.__parent&&2===o.__parent.getChildCount())){var i=o.__parent.getAllChildMarkers(),r=i[0]===o?i[1]:i[0];a.removeLayer(r)}}else h.addLayer(o),s||this.fire("layeradd",{layer:o})}_&&_(p,d,(new Date).getTime()-f),p===d?(this._topClusterLevel._recalculateBounds(),this._refreshClustersIcons(),this._topClusterLevel._recursivelyAddChildrenToMap(null,this._zoom,this._currentShownBounds)):setTimeout(m,this.options.chunkDelay)},this);m()}else for(var e=this._needsClustering;p<d;p++)(o=n[p])instanceof L.LayerGroup?(c&&(n=n.slice(),c=!1),this._extractNonGroupLayers(o,n),d=n.length):o.getLatLng?this.hasLayer(o)||e.push(o):h.addLayer(o);return this},removeLayers:function(e){var t,i,r=e.length,n=this._featureGroup,s=this._nonPointGroup,o=!0;if(!this._map){for(t=0;t<r;t++)(i=e[t])instanceof L.LayerGroup?(o&&(e=e.slice(),o=!1),this._extractNonGroupLayers(i,e),r=e.length):(this._arraySplice(this._needsClustering,i),s.removeLayer(i),this.hasLayer(i)&&this._needsRemoving.push({layer:i,latlng:i._latlng}),this.fire("layerremove",{layer:i}));return this}if(this._unspiderfy){this._unspiderfy();var a=e.slice(),h=r;for(t=0;t<h;t++)(i=a[t])instanceof L.LayerGroup?(this._extractNonGroupLayers(i,a),h=a.length):this._unspiderfyLayer(i)}for(t=0;t<r;t++)(i=e[t])instanceof L.LayerGroup?(o&&(e=e.slice(),o=!1),this._extractNonGroupLayers(i,e),r=e.length):i.__parent?(this._removeLayer(i,!0,!0),this.fire("layerremove",{layer:i}),n.hasLayer(i)&&(n.removeLayer(i),i.clusterShow&&i.clusterShow())):(s.removeLayer(i),this.fire("layerremove",{layer:i}));return this._topClusterLevel._recalculateBounds(),this._refreshClustersIcons(),this._topClusterLevel._recursivelyAddChildrenToMap(null,this._zoom,this._currentShownBounds),this},clearLayers:function(){return this._map||(this._needsClustering=[],this._needsRemoving=[],delete this._gridClusters,delete this._gridUnclustered),this._noanimationUnspiderfy&&this._noanimationUnspiderfy(),this._featureGroup.clearLayers(),this._nonPointGroup.clearLayers(),this.eachLayer(function(e){e.off(this._childMarkerEventHandlers,this),delete e.__parent},this),this._map&&this._generateInitialClusters(),this},getBounds:function(){var e=new L.LatLngBounds;this._topClusterLevel&&e.extend(this._topClusterLevel._bounds);for(var t=this._needsClustering.length-1;0<=t;t--)e.extend(this._needsClustering[t].getLatLng());return e.extend(this._nonPointGroup.getBounds()),e},eachLayer:function(e,t){var i,r,n,s=this._needsClustering.slice(),o=this._needsRemoving;for(this._topClusterLevel&&this._topClusterLevel.getAllChildMarkers(s),r=s.length-1;0<=r;r--){for(i=!0,n=o.length-1;0<=n;n--)if(o[n].layer===s[r]){i=!1;break}i&&e.call(t,s[r])}this._nonPointGroup.eachLayer(e,t)},getLayers:function(){var t=[];return this.eachLayer(function(e){t.push(e)}),t},getLayer:function(t){var i=null;return t=parseInt(t,10),this.eachLayer(function(e){L.stamp(e)===t&&(i=e)}),i},hasLayer:function(e){if(!e)return!1;var t,i=this._needsClustering;for(t=i.length-1;0<=t;t--)if(i[t]===e)return!0;for(t=(i=this._needsRemoving).length-1;0<=t;t--)if(i[t].layer===e)return!1;return!(!e.__parent||e.__parent._group!==this)||this._nonPointGroup.hasLayer(e)},zoomToShowLayer:function(e,t){var i=this._map;"function"!=typeof t&&(t=function(){});var r=function(){!i.hasLayer(e)&&!i.hasLayer(e.__parent)||this._inZoomAnimation||(this._map.off("moveend",r,this),this.off("animationend",r,this),i.hasLayer(e)?t():e.__parent._icon&&(this.once("spiderfied",t,this),e.__parent.spiderfy()))};e._icon&&this._map.getBounds().contains(e.getLatLng())?t():e.__parent._zoom<Math.round(this._map._zoom)?(this._map.on("moveend",r,this),this._map.panTo(e.getLatLng())):(this._map.on("moveend",r,this),this.on("animationend",r,this),e.__parent.zoomToBounds())},onAdd:function(e){var t,i,r;if(this._map=e,!isFinite(this._map.getMaxZoom()))throw"Map has no maxZoom specified";for(this._featureGroup.addTo(e),this._nonPointGroup.addTo(e),this._gridClusters||this._generateInitialClusters(),this._maxLat=e.options.crs.projection.MAX_LATITUDE,t=0,i=this._needsRemoving.length;t<i;t++)(r=this._needsRemoving[t]).newlatlng=r.layer._latlng,r.layer._latlng=r.latlng;for(t=0,i=this._needsRemoving.length;t<i;t++)r=this._needsRemoving[t],this._removeLayer(r.layer,!0),r.layer._latlng=r.newlatlng;this._needsRemoving=[],this._zoom=Math.round(this._map._zoom),this._currentShownBounds=this._getExpandedVisibleBounds(),this._map.on("zoomend",this._zoomEnd,this),this._map.on("moveend",this._moveEnd,this),this._spiderfierOnAdd&&this._spiderfierOnAdd(),this._bindEvents(),i=this._needsClustering,this._needsClustering=[],this.addLayers(i,!0)},onRemove:function(e){e.off("zoomend",this._zoomEnd,this),e.off("moveend",this._moveEnd,this),this._unbindEvents(),this._map._mapPane.className=this._map._mapPane.className.replace(" leaflet-cluster-anim",""),this._spiderfierOnRemove&&this._spiderfierOnRemove(),delete this._maxLat,this._hideCoverage(),this._featureGroup.remove(),this._nonPointGroup.remove(),this._featureGroup.clearLayers(),this._map=null},getVisibleParent:function(e){for(var t=e;t&&!t._icon;)t=t.__parent;return t||null},_arraySplice:function(e,t){for(var i=e.length-1;0<=i;i--)if(e[i]===t)return e.splice(i,1),!0},_removeFromGridUnclustered:function(e,t){for(var i=this._map,r=this._gridUnclustered,n=Math.floor(this._map.getMinZoom());n<=t&&r[t].removeObject(e,i.project(e.getLatLng(),t));t--);},_childMarkerDragStart:function(e){e.target.__dragStart=e.target._latlng},_childMarkerMoved:function(e){if(!this._ignoreMove&&!e.target.__dragStart){var t=e.target._popup&&e.target._popup.isOpen();this._moveChild(e.target,e.oldLatLng,e.latlng),t&&e.target.openPopup()}},_moveChild:function(e,t,i){e._latlng=t,this.removeLayer(e),e._latlng=i,this.addLayer(e)},_childMarkerDragEnd:function(e){var t=e.target.__dragStart;delete e.target.__dragStart,t&&this._moveChild(e.target,t,e.target._latlng)},_removeLayer:function(e,t,i){var r=this._gridClusters,n=this._gridUnclustered,s=this._featureGroup,o=this._map,a=Math.floor(this._map.getMinZoom());t&&this._removeFromGridUnclustered(e,this._maxZoom);var h,l=e.__parent,u=l._markers;for(this._arraySplice(u,e);l&&(l._childCount--,l._boundsNeedUpdate=!0,!(l._zoom<a));)t&&l._childCount<=1?(h=l._markers[0]===e?l._markers[1]:l._markers[0],r[l._zoom].removeObject(l,o.project(l._cLatLng,l._zoom)),n[l._zoom].addObject(h,o.project(h.getLatLng(),l._zoom)),this._arraySplice(l.__parent._childClusters,l),l.__parent._markers.push(h),h.__parent=l.__parent,l._icon&&(s.removeLayer(l),i||s.addLayer(h))):l._iconNeedsUpdate=!0,l=l.__parent;delete e.__parent},_isOrIsParent:function(e,t){for(;t;){if(e===t)return!0;t=t.parentNode}return!1},fire:function(e,t,i){if(t&&t.layer instanceof L.MarkerCluster){if(t.originalEvent&&this._isOrIsParent(t.layer._icon,t.originalEvent.relatedTarget))return;e="cluster"+e}L.FeatureGroup.prototype.fire.call(this,e,t,i)},listens:function(e,t){return L.FeatureGroup.prototype.listens.call(this,e,t)||L.FeatureGroup.prototype.listens.call(this,"cluster"+e,t)},_defaultIconCreateFunction:function(e){var t=e.getChildCount(),i=" marker-cluster-";return i+=t<10?"small":t<100?"medium":"large",new L.DivIcon({html:"<div><span>"+t+"</span></div>",className:"marker-cluster"+i,iconSize:new L.Point(40,40)})},_bindEvents:function(){var e=this._map,t=this.options.spiderfyOnMaxZoom,i=this.options.showCoverageOnHover,r=this.options.zoomToBoundsOnClick,n=this.options.spiderfyOnEveryZoom;(t||r||n)&&this.on("clusterclick clusterkeypress",this._zoomOrSpiderfy,this),i&&(this.on("clustermouseover",this._showCoverage,this),this.on("clustermouseout",this._hideCoverage,this),e.on("zoomend",this._hideCoverage,this))},_zoomOrSpiderfy:function(e){var t=e.layer,i=t;if("clusterkeypress"!==e.type||!e.originalEvent||13===e.originalEvent.keyCode){for(;1===i._childClusters.length;)i=i._childClusters[0];i._zoom===this._maxZoom&&i._childCount===t._childCount&&this.options.spiderfyOnMaxZoom?t.spiderfy():this.options.zoomToBoundsOnClick&&t.zoomToBounds(),this.options.spiderfyOnEveryZoom&&t.spiderfy(),e.originalEvent&&13===e.originalEvent.keyCode&&this._map._container.focus()}},_showCoverage:function(e){var t=this._map;this._inZoomAnimation||(this._shownPolygon&&t.removeLayer(this._shownPolygon),2<e.layer.getChildCount()&&e.layer!==this._spiderfied&&(this._shownPolygon=new L.Polygon(e.layer.getConvexHull(),this.options.polygonOptions),t.addLayer(this._shownPolygon)))},_hideCoverage:function(){this._shownPolygon&&(this._map.removeLayer(this._shownPolygon),this._shownPolygon=null)},_unbindEvents:function(){var e=this.options.spiderfyOnMaxZoom,t=this.options.showCoverageOnHover,i=this.options.zoomToBoundsOnClick,r=this.options.spiderfyOnEveryZoom,n=this._map;(e||i||r)&&this.off("clusterclick clusterkeypress",this._zoomOrSpiderfy,this),t&&(this.off("clustermouseover",this._showCoverage,this),this.off("clustermouseout",this._hideCoverage,this),n.off("zoomend",this._hideCoverage,this))},_zoomEnd:function(){this._map&&(this._mergeSplitClusters(),this._zoom=Math.round(this._map._zoom),this._currentShownBounds=this._getExpandedVisibleBounds())},_moveEnd:function(){if(!this._inZoomAnimation){var e=this._getExpandedVisibleBounds();this._topClusterLevel._recursivelyRemoveChildrenFromMap(this._currentShownBounds,Math.floor(this._map.getMinZoom()),this._zoom,e),this._topClusterLevel._recursivelyAddChildrenToMap(null,Math.round(this._map._zoom),e),this._currentShownBounds=e}},_generateInitialClusters:function(){var e=Math.ceil(this._map.getMaxZoom()),t=Math.floor(this._map.getMinZoom()),i=this.options.maxClusterRadius,r=i;"function"!=typeof i&&(r=function(){return i}),null!==this.options.disableClusteringAtZoom&&(e=this.options.disableClusteringAtZoom-1),this._maxZoom=e,this._gridClusters={},this._gridUnclustered={};for(var n=e;t<=n;n--)this._gridClusters[n]=new L.DistanceGrid(r(n)),this._gridUnclustered[n]=new L.DistanceGrid(r(n));this._topClusterLevel=new this._markerCluster(this,t-1)},_addLayer:function(e,t){var i,r,n=this._gridClusters,s=this._gridUnclustered,o=Math.floor(this._map.getMinZoom());for(this.options.singleMarkerMode&&this._overrideMarkerIcon(e),e.on(this._childMarkerEventHandlers,this);o<=t;t--){i=this._map.project(e.getLatLng(),t);var a=n[t].getNearObject(i);if(a)return a._addChild(e),void(e.__parent=a);if(a=s[t].getNearObject(i)){var h=a.__parent;h&&this._removeLayer(a,!1);var l=new this._markerCluster(this,t,a,e);n[t].addObject(l,this._map.project(l._cLatLng,t)),a.__parent=l;var u=e.__parent=l;for(r=t-1;r>h._zoom;r--)u=new this._markerCluster(this,r,u),n[r].addObject(u,this._map.project(a.getLatLng(),r));return h._addChild(u),void this._removeFromGridUnclustered(a,t)}s[t].addObject(e,i)}this._topClusterLevel._addChild(e),e.__parent=this._topClusterLevel},_refreshClustersIcons:function(){this._featureGroup.eachLayer(function(e){e instanceof L.MarkerCluster&&e._iconNeedsUpdate&&e._updateIcon()})},_enqueue:function(e){this._queue.push(e),this._queueTimeout||(this._queueTimeout=setTimeout(L.bind(this._processQueue,this),300))},_processQueue:function(){for(var e=0;e<this._queue.length;e++)this._queue[e].call(this);this._queue.length=0,clearTimeout(this._queueTimeout),this._queueTimeout=null},_mergeSplitClusters:function(){var e=Math.round(this._map._zoom);this._processQueue(),this._zoom<e&&this._currentShownBounds.intersects(this._getExpandedVisibleBounds())?(this._animationStart(),this._topClusterLevel._recursivelyRemoveChildrenFromMap(this._currentShownBounds,Math.floor(this._map.getMinZoom()),this._zoom,this._getExpandedVisibleBounds()),this._animationZoomIn(this._zoom,e)):this._zoom>e?(this._animationStart(),this._animationZoomOut(this._zoom,e)):this._moveEnd()},_getExpandedVisibleBounds:function(){return this.options.removeOutsideVisibleBounds?L.Browser.mobile?this._checkBoundsMaxLat(this._map.getBounds()):this._checkBoundsMaxLat(this._map.getBounds().pad(1)):this._mapBoundsInfinite},_checkBoundsMaxLat:function(e){var t=this._maxLat;return void 0!==t&&(e.getNorth()>=t&&(e._northEast.lat=1/0),e.getSouth()<=-t&&(e._southWest.lat=-1/0)),e},_animationAddLayerNonAnimated:function(e,t){if(t===e)this._featureGroup.addLayer(e);else if(2===t._childCount){t._addToMap();var i=t.getAllChildMarkers();this._featureGroup.removeLayer(i[0]),this._featureGroup.removeLayer(i[1])}else t._updateIcon()},_extractNonGroupLayers:function(e,t){var i,r=e.getLayers(),n=0;for(t=t||[];n<r.length;n++)(i=r[n])instanceof L.LayerGroup?this._extractNonGroupLayers(i,t):t.push(i);return t},_overrideMarkerIcon:function(e){return e.options.icon=this.options.iconCreateFunction({getChildCount:function(){return 1},getAllChildMarkers:function(){return[e]}})}});L.MarkerClusterGroup.include({_mapBoundsInfinite:new L.LatLngBounds(new L.LatLng(-1/0,-1/0),new L.LatLng(1/0,1/0))}),L.MarkerClusterGroup.include({_noAnimation:{_animationStart:function(){},_animationZoomIn:function(e,t){this._topClusterLevel._recursivelyRemoveChildrenFromMap(this._currentShownBounds,Math.floor(this._map.getMinZoom()),e),this._topClusterLevel._recursivelyAddChildrenToMap(null,t,this._getExpandedVisibleBounds()),this.fire("animationend")},_animationZoomOut:function(e,t){this._topClusterLevel._recursivelyRemoveChildrenFromMap(this._currentShownBounds,Math.floor(this._map.getMinZoom()),e),this._topClusterLevel._recursivelyAddChildrenToMap(null,t,this._getExpandedVisibleBounds()),this.fire("animationend")},_animationAddLayer:function(e,t){this._animationAddLayerNonAnimated(e,t)}},_withAnimation:{_animationStart:function(){this._map._mapPane.className+=" leaflet-cluster-anim",this._inZoomAnimation++},_animationZoomIn:function(n,s){var o,a=this._getExpandedVisibleBounds(),h=this._featureGroup,e=Math.floor(this._map.getMinZoom());this._ignoreMove=!0,this._topClusterLevel._recursively(a,n,e,function(e){var t,i=e._latlng,r=e._markers;for(a.contains(i)||(i=null),e._isSingleParent()&&n+1===s?(h.removeLayer(e),e._recursivelyAddChildrenToMap(null,s,a)):(e.clusterHide(),e._recursivelyAddChildrenToMap(i,s,a)),o=r.length-1;0<=o;o--)t=r[o],a.contains(t._latlng)||h.removeLayer(t)}),this._forceLayout(),this._topClusterLevel._recursivelyBecomeVisible(a,s),h.eachLayer(function(e){e instanceof L.MarkerCluster||!e._icon||e.clusterShow()}),this._topClusterLevel._recursively(a,n,s,function(e){e._recursivelyRestoreChildPositions(s)}),this._ignoreMove=!1,this._enqueue(function(){this._topClusterLevel._recursively(a,n,e,function(e){h.removeLayer(e),e.clusterShow()}),this._animationEnd()})},_animationZoomOut:function(e,t){this._animationZoomOutSingle(this._topClusterLevel,e-1,t),this._topClusterLevel._recursivelyAddChildrenToMap(null,t,this._getExpandedVisibleBounds()),this._topClusterLevel._recursivelyRemoveChildrenFromMap(this._currentShownBounds,Math.floor(this._map.getMinZoom()),e,this._getExpandedVisibleBounds())},_animationAddLayer:function(e,t){var i=this,r=this._featureGroup;r.addLayer(e),t!==e&&(2<t._childCount?(t._updateIcon(),this._forceLayout(),this._animationStart(),e._setPos(this._map.latLngToLayerPoint(t.getLatLng())),e.clusterHide(),this._enqueue(function(){r.removeLayer(e),e.clusterShow(),i._animationEnd()})):(this._forceLayout(),i._animationStart(),i._animationZoomOutSingle(t,this._map.getMaxZoom(),this._zoom)))}},_animationZoomOutSingle:function(t,i,r){var n=this._getExpandedVisibleBounds(),s=Math.floor(this._map.getMinZoom());t._recursivelyAnimateChildrenInAndAddSelfToMap(n,s,i+1,r);var o=this;this._forceLayout(),t._recursivelyBecomeVisible(n,r),this._enqueue(function(){if(1===t._childCount){var e=t._markers[0];this._ignoreMove=!0,e.setLatLng(e.getLatLng()),this._ignoreMove=!1,e.clusterShow&&e.clusterShow()}else t._recursively(n,r,s,function(e){e._recursivelyRemoveChildrenFromMap(n,s,i+1)});o._animationEnd()})},_animationEnd:function(){this._map&&(this._map._mapPane.className=this._map._mapPane.className.replace(" leaflet-cluster-anim","")),this._inZoomAnimation--,this.fire("animationend")},_forceLayout:function(){L.Util.falseFn(document.body.offsetWidth)}}),L.markerClusterGroup=function(e){return new L.MarkerClusterGroup(e)};var i=L.MarkerCluster=L.Marker.extend({options:L.Icon.prototype.options,initialize:function(e,t,i,r){L.Marker.prototype.initialize.call(this,i?i._cLatLng||i.getLatLng():new L.LatLng(0,0),{icon:this,pane:e.options.clusterPane}),this._group=e,this._zoom=t,this._markers=[],this._childClusters=[],this._childCount=0,this._iconNeedsUpdate=!0,this._boundsNeedUpdate=!0,this._bounds=new L.LatLngBounds,i&&this._addChild(i),r&&this._addChild(r)},getAllChildMarkers:function(e,t){e=e||[];for(var i=this._childClusters.length-1;0<=i;i--)this._childClusters[i].getAllChildMarkers(e,t);for(var r=this._markers.length-1;0<=r;r--)t&&this._markers[r].__dragStart||e.push(this._markers[r]);return e},getChildCount:function(){return this._childCount},zoomToBounds:function(e){for(var t,i=this._childClusters.slice(),r=this._group._map,n=r.getBoundsZoom(this._bounds),s=this._zoom+1,o=r.getZoom();0<i.length&&s<n;){s++;var a=[];for(t=0;t<i.length;t++)a=a.concat(i[t]._childClusters);i=a}s<n?this._group._map.setView(this._latlng,s):n<=o?this._group._map.setView(this._latlng,o+1):this._group._map.fitBounds(this._bounds,e)},getBounds:function(){var e=new L.LatLngBounds;return e.extend(this._bounds),e},_updateIcon:function(){this._iconNeedsUpdate=!0,this._icon&&this.setIcon(this)},createIcon:function(){return this._iconNeedsUpdate&&(this._iconObj=this._group.options.iconCreateFunction(this),this._iconNeedsUpdate=!1),this._iconObj.createIcon()},createShadow:function(){return this._iconObj.createShadow()},_addChild:function(e,t){this._iconNeedsUpdate=!0,this._boundsNeedUpdate=!0,this._setClusterCenter(e),e instanceof L.MarkerCluster?(t||(this._childClusters.push(e),e.__parent=this),this._childCount+=e._childCount):(t||this._markers.push(e),this._childCount++),this.__parent&&this.__parent._addChild(e,!0)},_setClusterCenter:function(e){this._cLatLng||(this._cLatLng=e._cLatLng||e._latlng)},_resetBounds:function(){var e=this._bounds;e._southWest&&(e._southWest.lat=1/0,e._southWest.lng=1/0),e._northEast&&(e._northEast.lat=-1/0,e._northEast.lng=-1/0)},_recalculateBounds:function(){var e,t,i,r,n=this._markers,s=this._childClusters,o=0,a=0,h=this._childCount;if(0!==h){for(this._resetBounds(),e=0;e<n.length;e++)i=n[e]._latlng,this._bounds.extend(i),o+=i.lat,a+=i.lng;for(e=0;e<s.length;e++)(t=s[e])._boundsNeedUpdate&&t._recalculateBounds(),this._bounds.extend(t._bounds),i=t._wLatLng,r=t._childCount,o+=i.lat*r,a+=i.lng*r;this._latlng=this._wLatLng=new L.LatLng(o/h,a/h),this._boundsNeedUpdate=!1}},_addToMap:function(e){e&&(this._backupLatlng=this._latlng,this.setLatLng(e)),this._group._featureGroup.addLayer(this)},_recursivelyAnimateChildrenIn:function(e,n,t){this._recursively(e,this._group._map.getMinZoom(),t-1,function(e){var t,i,r=e._markers;for(t=r.length-1;0<=t;t--)(i=r[t])._icon&&(i._setPos(n),i.clusterHide())},function(e){var t,i,r=e._childClusters;for(t=r.length-1;0<=t;t--)(i=r[t])._icon&&(i._setPos(n),i.clusterHide())})},_recursivelyAnimateChildrenInAndAddSelfToMap:function(t,i,r,n){this._recursively(t,n,i,function(e){e._recursivelyAnimateChildrenIn(t,e._group._map.latLngToLayerPoint(e.getLatLng()).round(),r),e._isSingleParent()&&r-1===n?(e.clusterShow(),e._recursivelyRemoveChildrenFromMap(t,i,r)):e.clusterHide(),e._addToMap()})},_recursivelyBecomeVisible:function(e,t){this._recursively(e,this._group._map.getMinZoom(),t,null,function(e){e.clusterShow()})},_recursivelyAddChildrenToMap:function(r,n,s){this._recursively(s,this._group._map.getMinZoom()-1,n,function(e){if(n!==e._zoom)for(var t=e._markers.length-1;0<=t;t--){var i=e._markers[t];s.contains(i._latlng)&&(r&&(i._backupLatlng=i.getLatLng(),i.setLatLng(r),i.clusterHide&&i.clusterHide()),e._group._featureGroup.addLayer(i))}},function(e){e._addToMap(r)})},_recursivelyRestoreChildPositions:function(e){for(var t=this._markers.length-1;0<=t;t--){var i=this._markers[t];i._backupLatlng&&(i.setLatLng(i._backupLatlng),delete i._backupLatlng)}if(e-1===this._zoom)for(var r=this._childClusters.length-1;0<=r;r--)this._childClusters[r]._restorePosition();else for(var n=this._childClusters.length-1;0<=n;n--)this._childClusters[n]._recursivelyRestoreChildPositions(e)},_restorePosition:function(){this._backupLatlng&&(this.setLatLng(this._backupLatlng),delete this._backupLatlng)},_recursivelyRemoveChildrenFromMap:function(e,t,i,r){var n,s;this._recursively(e,t-1,i-1,function(e){for(s=e._markers.length-1;0<=s;s--)n=e._markers[s],r&&r.contains(n._latlng)||(e._group._featureGroup.removeLayer(n),n.clusterShow&&n.clusterShow())},function(e){for(s=e._childClusters.length-1;0<=s;s--)n=e._childClusters[s],r&&r.contains(n._latlng)||(e._group._featureGroup.removeLayer(n),n.clusterShow&&n.clusterShow())})},_recursively:function(e,t,i,r,n){var s,o,a=this._childClusters,h=this._zoom;if(t<=h&&(r&&r(this),n&&h===i&&n(this)),h<t||h<i)for(s=a.length-1;0<=s;s--)(o=a[s])._boundsNeedUpdate&&o._recalculateBounds(),e.intersects(o._bounds)&&o._recursively(e,t,i,r,n)},_isSingleParent:function(){return 0<this._childClusters.length&&this._childClusters[0]._childCount===this._childCount}});L.Marker.include({clusterHide:function(){var e=this.options.opacity;return this.setOpacity(0),this.options.opacity=e,this},clusterShow:function(){return this.setOpacity(this.options.opacity)}}),L.DistanceGrid=function(e){this._cellSize=e,this._sqCellSize=e*e,this._grid={},this._objectPoint={}},L.DistanceGrid.prototype={addObject:function(e,t){var i=this._getCoord(t.x),r=this._getCoord(t.y),n=this._grid,s=n[r]=n[r]||{},o=s[i]=s[i]||[],a=L.Util.stamp(e);this._objectPoint[a]=t,o.push(e)},updateObject:function(e,t){this.removeObject(e),this.addObject(e,t)},removeObject:function(e,t){var i,r,n=this._getCoord(t.x),s=this._getCoord(t.y),o=this._grid,a=o[s]=o[s]||{},h=a[n]=a[n]||[];for(delete this._objectPoint[L.Util.stamp(e)],i=0,r=h.length;i<r;i++)if(h[i]===e)return h.splice(i,1),1===r&&delete a[n],!0},eachObject:function(e,t){var i,r,n,s,o,a,h=this._grid;for(i in h)for(r in o=h[i])for(n=0,s=(a=o[r]).length;n<s;n++)e.call(t,a[n])&&(n--,s--)},getNearObject:function(e){var t,i,r,n,s,o,a,h,l=this._getCoord(e.x),u=this._getCoord(e.y),_=this._objectPoint,d=this._sqCellSize,p=null;for(t=u-1;t<=u+1;t++)if(n=this._grid[t])for(i=l-1;i<=l+1;i++)if(s=n[i])for(r=0,o=s.length;r<o;r++)a=s[r],((h=this._sqDist(_[L.Util.stamp(a)],e))<d||h<=d&&null===p)&&(d=h,p=a);return p},_getCoord:function(e){var t=Math.floor(e/this._cellSize);return isFinite(t)?t:e},_sqDist:function(e,t){var i=t.x-e.x,r=t.y-e.y;return i*i+r*r}},L.QuickHull={getDistant:function(e,t){var i=t[1].lat-t[0].lat;return(t[0].lng-t[1].lng)*(e.lat-t[0].lat)+i*(e.lng-t[0].lng)},findMostDistantPointFromBaseLine:function(e,t){var i,r,n,s=0,o=null,a=[];for(i=t.length-1;0<=i;i--)r=t[i],0<(n=this.getDistant(r,e))&&(a.push(r),s<n&&(s=n,o=r));return{maxPoint:o,newPoints:a}},buildConvexHull:function(e,t){var i=[],r=this.findMostDistantPointFromBaseLine(e,t);return r.maxPoint?i=(i=i.concat(this.buildConvexHull([e[0],r.maxPoint],r.newPoints))).concat(this.buildConvexHull([r.maxPoint,e[1]],r.newPoints)):[e[0]]},getConvexHull:function(e){var t,i=!1,r=!1,n=!1,s=!1,o=null,a=null,h=null,l=null,u=null,_=null;for(t=e.length-1;0<=t;t--){var d=e[t];(!1===i||d.lat>i)&&(i=(o=d).lat),(!1===r||d.lat<r)&&(r=(a=d).lat),(!1===n||d.lng>n)&&(n=(h=d).lng),(!1===s||d.lng<s)&&(s=(l=d).lng)}return u=r!==i?(_=a,o):(_=l,h),[].concat(this.buildConvexHull([_,u],e),this.buildConvexHull([u,_],e))}},L.MarkerCluster.include({getConvexHull:function(){var e,t,i=this.getAllChildMarkers(),r=[];for(t=i.length-1;0<=t;t--)e=i[t].getLatLng(),r.push(e);return L.QuickHull.getConvexHull(r)}}),L.MarkerCluster.include({_2PI:2*Math.PI,_circleFootSeparation:25,_circleStartAngle:0,_spiralFootSeparation:28,_spiralLengthStart:11,_spiralLengthFactor:5,_circleSpiralSwitchover:9,spiderfy:function(){if(this._group._spiderfied!==this&&!this._group._inZoomAnimation){var e,t=this.getAllChildMarkers(null,!0),i=this._group._map.latLngToLayerPoint(this._latlng);this._group._unspiderfy(),e=(this._group._spiderfied=this)._group.options.spiderfyShapePositions?this._group.options.spiderfyShapePositions(t.length,i):t.length>=this._circleSpiralSwitchover?this._generatePointsSpiral(t.length,i):(i.y+=10,this._generatePointsCircle(t.length,i)),this._animationSpiderfy(t,e)}},unspiderfy:function(e){this._group._inZoomAnimation||(this._animationUnspiderfy(e),this._group._spiderfied=null)},_generatePointsCircle:function(e,t){var i,r,n=this._group.options.spiderfyDistanceMultiplier*this._circleFootSeparation*(2+e)/this._2PI,s=this._2PI/e,o=[];for(n=Math.max(n,35),o.length=e,i=0;i<e;i++)r=this._circleStartAngle+i*s,o[i]=new L.Point(t.x+n*Math.cos(r),t.y+n*Math.sin(r))._round();return o},_generatePointsSpiral:function(e,t){var i,r=this._group.options.spiderfyDistanceMultiplier,n=r*this._spiralLengthStart,s=r*this._spiralFootSeparation,o=r*this._spiralLengthFactor*this._2PI,a=0,h=[];for(i=h.length=e;0<=i;i--)i<e&&(h[i]=new L.Point(t.x+n*Math.cos(a),t.y+n*Math.sin(a))._round()),n+=o/(a+=s/n+5e-4*i);return h},_noanimationUnspiderfy:function(){var e,t,i=this._group,r=i._map,n=i._featureGroup,s=this.getAllChildMarkers(null,!0);for(i._ignoreMove=!0,this.setOpacity(1),t=s.length-1;0<=t;t--)e=s[t],n.removeLayer(e),e._preSpiderfyLatlng&&(e.setLatLng(e._preSpiderfyLatlng),delete e._preSpiderfyLatlng),e.setZIndexOffset&&e.setZIndexOffset(0),e._spiderLeg&&(r.removeLayer(e._spiderLeg),delete e._spiderLeg);i.fire("unspiderfied",{cluster:this,markers:s}),i._ignoreMove=!1,i._spiderfied=null}}),L.MarkerClusterNonAnimated=L.MarkerCluster.extend({_animationSpiderfy:function(e,t){var i,r,n,s,o=this._group,a=o._map,h=o._featureGroup,l=this._group.options.spiderLegPolylineOptions;for(o._ignoreMove=!0,i=0;i<e.length;i++)s=a.layerPointToLatLng(t[i]),r=e[i],n=new L.Polyline([this._latlng,s],l),a.addLayer(n),r._spiderLeg=n,r._preSpiderfyLatlng=r._latlng,r.setLatLng(s),r.setZIndexOffset&&r.setZIndexOffset(1e6),h.addLayer(r);this.setOpacity(.3),o._ignoreMove=!1,o.fire("spiderfied",{cluster:this,markers:e})},_animationUnspiderfy:function(){this._noanimationUnspiderfy()}}),L.MarkerCluster.include({_animationSpiderfy:function(e,t){var i,r,n,s,o,a,h=this,l=this._group,u=l._map,_=l._featureGroup,d=this._latlng,p=u.latLngToLayerPoint(d),c=L.Path.SVG,f=L.extend({},this._group.options.spiderLegPolylineOptions),m=f.opacity;for(void 0===m&&(m=L.MarkerClusterGroup.prototype.options.spiderLegPolylineOptions.opacity),c?(f.opacity=0,f.className=(f.className||"")+" leaflet-cluster-spider-leg"):f.opacity=m,l._ignoreMove=!0,i=0;i<e.length;i++)r=e[i],a=u.layerPointToLatLng(t[i]),n=new L.Polyline([d,a],f),u.addLayer(n),r._spiderLeg=n,c&&(o=(s=n._path).getTotalLength()+.1,s.style.strokeDasharray=o,s.style.strokeDashoffset=o),r.setZIndexOffset&&r.setZIndexOffset(1e6),r.clusterHide&&r.clusterHide(),_.addLayer(r),r._setPos&&r._setPos(p);for(l._forceLayout(),l._animationStart(),i=e.length-1;0<=i;i--)a=u.layerPointToLatLng(t[i]),(r=e[i])._preSpiderfyLatlng=r._latlng,r.setLatLng(a),r.clusterShow&&r.clusterShow(),c&&((s=(n=r._spiderLeg)._path).style.strokeDashoffset=0,n.setStyle({opacity:m}));this.setOpacity(.3),l._ignoreMove=!1,setTimeout(function(){l._animationEnd(),l.fire("spiderfied",{cluster:h,markers:e})},200)},_animationUnspiderfy:function(e){var t,i,r,n,s,o,a=this,h=this._group,l=h._map,u=h._featureGroup,_=e?l._latLngToNewLayerPoint(this._latlng,e.zoom,e.center):l.latLngToLayerPoint(this._latlng),d=this.getAllChildMarkers(null,!0),p=L.Path.SVG;for(h._ignoreMove=!0,h._animationStart(),this.setOpacity(1),i=d.length-1;0<=i;i--)(t=d[i])._preSpiderfyLatlng&&(t.closePopup(),t.setLatLng(t._preSpiderfyLatlng),delete t._preSpiderfyLatlng,o=!0,t._setPos&&(t._setPos(_),o=!1),t.clusterHide&&(t.clusterHide(),o=!1),o&&u.removeLayer(t),p&&(s=(n=(r=t._spiderLeg)._path).getTotalLength()+.1,n.style.strokeDashoffset=s,r.setStyle({opacity:0})));h._ignoreMove=!1,setTimeout(function(){var e=0;for(i=d.length-1;0<=i;i--)(t=d[i])._spiderLeg&&e++;for(i=d.length-1;0<=i;i--)(t=d[i])._spiderLeg&&(t.clusterShow&&t.clusterShow(),t.setZIndexOffset&&t.setZIndexOffset(0),1<e&&u.removeLayer(t),l.removeLayer(t._spiderLeg),delete t._spiderLeg);h._animationEnd(),h.fire("unspiderfied",{cluster:a,markers:d})},200)}}),L.MarkerClusterGroup.include({_spiderfied:null,unspiderfy:function(){this._unspiderfy.apply(this,arguments)},_spiderfierOnAdd:function(){this._map.on("click",this._unspiderfyWrapper,this),this._map.options.zoomAnimation&&this._map.on("zoomstart",this._unspiderfyZoomStart,this),this._map.on("zoomend",this._noanimationUnspiderfy,this),L.Browser.touch||this._map.getRenderer(this)},_spiderfierOnRemove:function(){this._map.off("click",this._unspiderfyWrapper,this),this._map.off("zoomstart",this._unspiderfyZoomStart,this),this._map.off("zoomanim",this._unspiderfyZoomAnim,this),this._map.off("zoomend",this._noanimationUnspiderfy,this),this._noanimationUnspiderfy()},_unspiderfyZoomStart:function(){this._map&&this._map.on("zoomanim",this._unspiderfyZoomAnim,this)},_unspiderfyZoomAnim:function(e){L.DomUtil.hasClass(this._map._mapPane,"leaflet-touching")||(this._map.off("zoomanim",this._unspiderfyZoomAnim,this),this._unspiderfy(e))},_unspiderfyWrapper:function(){this._unspiderfy()},_unspiderfy:function(e){this._spiderfied&&this._spiderfied.unspiderfy(e)},_noanimationUnspiderfy:function(){this._spiderfied&&this._spiderfied._noanimationUnspiderfy()},_unspiderfyLayer:function(e){e._spiderLeg&&(this._featureGroup.removeLayer(e),e.clusterShow&&e.clusterShow(),e.setZIndexOffset&&e.setZIndexOffset(0),this._map.removeLayer(e._spiderLeg),delete e._spiderLeg)}}),L.MarkerClusterGroup.include({refreshClusters:function(e){return e?e instanceof L.MarkerClusterGroup?e=e._topClusterLevel.getAllChildMarkers():e instanceof L.LayerGroup?e=e._layers:e instanceof L.MarkerCluster?e=e.getAllChildMarkers():e instanceof L.Marker&&(e=[e]):e=this._topClusterLevel.getAllChildMarkers(),this._flagParentsIconsNeedUpdate(e),this._refreshClustersIcons(),this.options.singleMarkerMode&&this._refreshSingleMarkerModeMarkers(e),this},_flagParentsIconsNeedUpdate:function(e){var t,i;for(t in e)for(i=e[t].__parent;i;)i._iconNeedsUpdate=!0,i=i.__parent},_refreshSingleMarkerModeMarkers:function(e){var t,i;for(t in e)i=e[t],this.hasLayer(i)&&i.setIcon(this._overrideMarkerIcon(i))}}),L.Marker.include({refreshIconOptions:function(e,t){var i=this.options.icon;return L.setOptions(i,e),this.setIcon(i),t&&this.__parent&&this.__parent._group.refreshClusters(this),this}}),e.MarkerClusterGroup=t,e.MarkerCluster=i,Object.defineProperty(e,"__esModule",{value:!0})});
@@ -1838,13 +1838,18 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   .login-pantalla .caja, .registro-complemento .caja { border-radius:10px; }
 }
 @media (prefers-reduced-motion:reduce) { #pantallaHome .home-ayuda { transition:none; } }
+
+/* v6.52 — iconografía operativa propia, trazos redondeados y color heredado. */
+.ui-icon-sprite{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
+.ui-icon{width:1.15em;height:1.15em;display:inline-block;vertical-align:-.2em;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.home-icono .ui-icon,.home-ayuda-icono .ui-icon,.icono-grande .ui-icon{width:1em;height:1em;vertical-align:0}
 </style>
 </head>
 <body>
   <datalist id="rosterBomberos"></datalist>
 
 <header class="app-header" id="header" style="display:none;">
-  <button class="btn-volver" id="btnVolver" style="display:none;">←</button>
+  <button class="btn-volver" id="btnVolver" style="display:none;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg></button>
   <img class="logo" id="logoHeader" src="" alt="Logo">
   <div class="titulo">
     <h1 id="headerTitulo">CBVI Reportes</h1>
@@ -1868,21 +1873,21 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
     <div class="nombre-usuario" id="menuNombreUsuario">—</div>
     <div class="grado-usuario" id="menuGradoUsuario">—</div>
     <div class="correo-usuario" id="menuCorreoUsuario">—</div>
-    <div class="badge-admin" id="menuBadgeAdmin" style="display:none;">★ ADMINISTRADOR</div>
+    <div class="badge-admin" id="menuBadgeAdmin" style="display:none;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg> ADMINISTRADOR</div>
   </div>
   <!-- v5.88: selector rápido de diseño (no cierra el menú para ver el cambio al instante) -->
   <div class="menu-tema">
-    <span style="font-size:14px;">🎨</span>
+    <span style="font-size:14px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3a9 9 0 0 0 0 18h2a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h8A9 9 0 0 0 12 3z"/><circle cx="7" cy="10" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7" r="1"/></svg></span>
     <div class="tema-mini">
-      <button type="button" data-tema-opcion="original" onclick="app.aplicarTema('original')">🚒 Original</button>
-      <button type="button" data-tema-opcion="apple" onclick="app.aplicarTema('apple')">🍎 Minimalista</button>
+      <button type="button" data-tema-opcion="original" onclick="app.aplicarTema('original')"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Original</button>
+      <button type="button" data-tema-opcion="apple" onclick="app.aplicarTema('apple')"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3a9 9 0 0 0 0 18h2a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h8A9 9 0 0 0 12 3z"/><circle cx="7" cy="10" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7" r="1"/></svg> Minimalista</button>
     </div>
   </div>
   <button class="menu-item" onclick="app.irA('pantallaConfig'); app.cerrarUserMenu();">
-    <span class="icono">⚙️</span> Mis datos / Configuración
+    <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></span> Mis datos / Configuración
   </button>
   <button class="menu-item" onclick="app.cerrarSesion()">
-    <span class="icono">🚪</span> Cerrar sesión
+    <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M10 4H4v16h6M14 8l4 4-4 4M8 12h10"/></svg></span> Cerrar sesión
   </button>
 </div>
 
@@ -1896,7 +1901,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       <p class="lema">"ABNEGACIÓN Y DISCIPLINA"</p>
 
       <div class="info-cuerpo">
-        <strong>🚒 Solo bomberos autorizados</strong><br>
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Solo bomberos autorizados</strong><br>
         Inicie sesión con su cuenta de Google para acceder al sistema de reportes oficial. Su correo será verificado por Google.
       </div>
 
@@ -1918,11 +1923,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 <div class="pantalla" id="pantallaRegistroComplemento">
   <div class="registro-complemento">
     <div class="caja">
-      <h2>¡Bienvenido! 🚒</h2>
+      <h2>¡Bienvenido! <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg></h2>
       <p class="saludo" id="saludoRegistro">Complete sus datos para empezar</p>
 
       <div class="ayuda-seccion">
-        <strong>📝 Datos del bombero</strong><br>
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Datos del bombero</strong><br>
         Estos datos se usan para identificar quién hace cada reporte. Solo se piden una vez.
       </div>
 
@@ -1969,7 +1974,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 <div class="pantalla" id="pantallaHome">
   <div class="home-cabecera"><h1>Inicio operativo</h1><span>CBVI · Inírida</span></div>
   <button class="home-cta" data-tour="cta-nuevo-incidente" onclick="app.nuevoReporte()">
-    <span class="icono-grande" aria-hidden="true">🚨</span>
+    <span class="icono-grande" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 17h12l-1-8a5 5 0 0 0-10 0zM4 20h16M12 2v2M3 8l2 1M21 8l-2 1"/></svg></span>
     <span class="home-cta-texto"><span class="titulo">Nuevo incidente</span><span class="subtitulo">Iniciar informe oficial</span></span>
     <span class="home-cta-mas" aria-hidden="true">+</span>
   </button>
@@ -1995,27 +2000,27 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <h2 class="home-seccion">Registrar</h2>
   <div class="home-registro" data-tour="fila-registrar">
     <button class="home-acceso" onclick="app.iniciarNuevaActividad()">
-      <span class="home-icono" aria-hidden="true">🎯</span><span><strong>Nueva actividad</strong><small>Servicio institucional</small></span>
+      <span class="home-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><span><strong>Nueva actividad</strong><small>Servicio institucional</small></span>
     </button>
     <button class="home-acceso" id="btnHomeAsistencia" onclick="app.abrirAsistencia()">
-      <span class="home-icono" aria-hidden="true">📅</span><span><strong>Asistencia</strong><small>Solo admin</small></span>
+      <span class="home-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg></span><span><strong>Asistencia</strong><small>Solo admin</small></span>
     </button>
   </div>
   <h2 class="home-seccion">Consultar</h2>
   <div class="home-consulta" data-tour="fila-consultar">
     <button class="home-acceso" onclick="app.irA('pantallaListaActividades')">
-      <span class="home-icono" aria-hidden="true">📋</span><span><strong>Mis actividades</strong><small>Actividades y domingos</small></span>
+      <span class="home-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"/></svg></span><span><strong>Mis actividades</strong><small>Actividades y domingos</small></span>
     </button>
     <button class="home-acceso" onclick="app.irA('pantallaOperatividad')">
-      <span class="home-icono" aria-hidden="true">📊</span><span><strong>Operatividad</strong><small>Solo admin</small></span>
+      <span class="home-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg></span><span><strong>Operatividad</strong><small>Solo admin</small></span>
     </button>
   </div>
   <div class="home-consulta home-consulta-final" data-tour="fila-deudores-mapa">
     <button class="home-acceso" onclick="app.abrirDeudores()">
-      <span class="home-icono" aria-hidden="true">⚠️</span><span><strong>Horas pendientes</strong><small>Solo admin</small></span>
+      <span class="home-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg></span><span><strong>Horas pendientes</strong><small>Solo admin</small></span>
     </button>
     <button class="home-acceso" onclick="app.abrirMapa()">
-      <span class="home-icono" aria-hidden="true">🗺️</span><span><strong>Mapa de incidentes</strong><small>Solo admin</small></span>
+      <span class="home-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15M15 6v15"/></svg></span><span><strong>Mapa de incidentes</strong><small>Solo admin</small></span>
     </button>
   </div>
 
@@ -2026,19 +2031,19 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <!-- Accesos rápidos a información -->
   <div class="info-grid" data-tour="ayuda-home" style="display:grid;gap:8px;margin:20px 0;">
     <button type="button" class="home-ayuda" onclick="app.irA('pantallaManual')">
-      <span class="home-ayuda-icono" aria-hidden="true">📖</span>
+      <span class="home-ayuda-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 4h7c2 0 2 2 2 2s0-2 2-2h7v16h-7c-2 0-2 2-2 2s0-2-2-2H3zM12 6v16"/></svg></span>
       <span class="home-ayuda-texto">Manual</span>
     </button>
     <button type="button" class="home-ayuda" onclick="app.irA('pantallaComoFunciona')">
-      <span class="home-ayuda-icono" aria-hidden="true">⚙️</span>
+      <span class="home-ayuda-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></span>
       <span class="home-ayuda-texto">Cómo funciona</span>
     </button>
     <button type="button" class="home-ayuda" onclick="app.irA('pantallaLegal')">
-      <span class="home-ayuda-icono" aria-hidden="true">⚖️</span>
+      <span class="home-ayuda-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3v18M6 5h12M5 5 2 12h6zM19 5l-3 7h6zM8 21h8"/></svg></span>
       <span class="home-ayuda-texto">Bases legales</span>
     </button>
     <button type="button" class="home-ayuda" onclick="app.irA('pantallaAcercaDe')">
-      <span class="home-ayuda-icono" aria-hidden="true">ℹ️</span>
+      <span class="home-ayuda-icono" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg></span>
       <span class="home-ayuda-texto">Acerca de</span>
     </button>
   </div>
@@ -2057,7 +2062,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
     <div style="background:#fff;border-radius:10px;padding:16px;line-height:1.7;color:#222;font-size:14px;">
 
       <div style="background:#fff3e0;border-left:4px solid #e65100;padding:10px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;">
-        <b>CBVI Reportes v6.51</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
+        <b>CBVI Reportes v6.52</b> — Sistema oficial de gestión operativa del Cuerpo de Bomberos Voluntarios de Inírida.<br>
         <b>"ABNEGACIÓN Y DISCIPLINA"</b>
       </div>
 
@@ -2090,7 +2095,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       <p><b>🗺️ 13. Mapa de incidentes</b><br>Panel exclusivo de administrador. Muestra en un mapa (sin costo, sin API key) cada emergencia que tenga coordenadas GPS registradas. Cada pin lleva el <b>emoji de su tipo</b> (🔥 incendio, 🚑 primeros auxilios, 🚗 rescate vehicular...). La <b>leyenda filtra</b>: toque un tipo para ocultar/mostrar sus pines; también puede filtrar por <b>año y mes</b>, ver el contador de emergencias visibles y reencuadrar con <b>🎯 Ver todas</b>. Toque un pin para ver dirección, fecha y clasificación, con acceso directo a "Ver reporte completo".</p>
 
     </div>
-    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver al inicio</button>
   </div>
 </div>
 
@@ -2136,7 +2141,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       <p><b>🔒 Privacidad</b><br>Cada bombero ve solo sus propios reportes. El admin ve todos. Los datos NO son públicos — requieren login con Gmail autorizado. La contraseña del admin nunca sale del dispositivo en texto plano.</p>
 
     </div>
-    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver al inicio</button>
   </div>
 </div>
 
@@ -2172,7 +2177,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
         Calle 15 N° 5-07 Zona Indígena · "ABNEGACIÓN Y DISCIPLINA"
       </p>
     </div>
-    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver al inicio</button>
+    <button onclick="app.irA('pantallaHome')" style="margin-top:16px;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver al inicio</button>
   </div>
 </div>
 
@@ -2193,11 +2198,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
          tarjeta de texto — ver mostrarTour() en app.js. btnTourAdmin se muestra/oculta
          en _pintarAcercaDe(). El link del video lo grabará Jeferson. -->
     <div style="background:#fff;border-radius:var(--radio-lg);padding:16px;margin-bottom:14px;border:1px solid var(--gris-borde);border-left:4px solid var(--oro);">
-      <div style="font-family:var(--disp);font-weight:600;color:var(--rojo);font-size:13px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;">🎬 Recorrido guiado</div>
+      <div style="font-family:var(--disp);font-weight:600;color:var(--rojo);font-size:13px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg> Recorrido guiado</div>
       <div style="font-size:12px;color:#666;line-height:1.5;margin-bottom:12px;">Un recorrido interactivo que se mueve por la app de verdad. Hay uno distinto según su rol.</div>
-      <button onclick="app.mostrarTour('no_admin')" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:var(--radio);padding:12px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:8px;font-family:var(--disp);letter-spacing:.02em;text-transform:uppercase;">🚒 Tour para unidades</button>
-      <button id="btnTourAdmin" onclick="app.mostrarTour('admin')" style="display:none;width:100%;background:var(--rojo-oscuro);color:#fff;border:2px solid var(--oro);border-radius:var(--radio);padding:11px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:8px;font-family:var(--disp);letter-spacing:.02em;text-transform:uppercase;">🛡️ Tour para administradores</button>
-      <button id="btnVideoTutorial" onclick="app.abrirVideoTutorial()" style="width:100%;background:#fff;color:var(--rojo);border:2px solid var(--rojo);border-radius:var(--radio);padding:11px;font-weight:700;cursor:pointer;font-size:14px;">🎬 Ver tutorial en video</button>
+      <button onclick="app.mostrarTour('no_admin')" style="width:100%;background:var(--rojo);color:#fff;border:none;border-radius:var(--radio);padding:12px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:8px;font-family:var(--disp);letter-spacing:.02em;text-transform:uppercase;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Tour para unidades</button>
+      <button id="btnTourAdmin" onclick="app.mostrarTour('admin')" style="display:none;width:100%;background:var(--rojo-oscuro);color:#fff;border:2px solid var(--oro);border-radius:var(--radio);padding:11px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:8px;font-family:var(--disp);letter-spacing:.02em;text-transform:uppercase;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg> Tour para administradores</button>
+      <button id="btnVideoTutorial" onclick="app.abrirVideoTutorial()" style="width:100%;background:#fff;color:var(--rojo);border:2px solid var(--rojo);border-radius:var(--radio);padding:11px;font-weight:700;cursor:pointer;font-size:14px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg> Ver tutorial en video</button>
     </div>
 
     <!-- Autor + derechos. El crédito y el © son de Jeferson. -->
@@ -2209,7 +2214,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       <div style="font-size:11px;color:#999;margin-top:6px;">Prohibida la reproducción o distribución del código sin autorización del autor.</div>
     </div>
 
-    <button onclick="app.irA('pantallaHome')" style="width:100%;background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;font-weight:700;">← Volver al inicio</button>
+    <button onclick="app.irA('pantallaHome')" style="width:100%;background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver al inicio</button>
   </div>
 </div>
 
@@ -2219,7 +2224,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 
     <!-- v6.13: ESCUDO DEL CUERPO. Reemplaza el logo por defecto por uno propio. -->
     <div data-tour="panel-escudo" style="background:#fff;border:1.5px solid var(--gris-borde);border-left:4px solid #cbd5e1;border-radius:5px;padding:12px;margin-bottom:12px;text-align:center;">
-      <div style="font-weight:700;font-size:13px;color:#334155;margin-bottom:8px;">🎖️ Escudo del cuerpo</div>
+      <div style="font-weight:700;font-size:13px;color:#334155;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="9" r="6"/><path d="m8 14-2 8 6-3 6 3-2-8"/></svg> Escudo del cuerpo</div>
       <img id="escudoPreview" alt="Escudo" style="width:96px;height:96px;object-fit:contain;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:4px;">
       <div style="font-size:11px;color:#64748b;margin:8px 0;line-height:1.45;">Aparece en el encabezado, la pantalla de inicio y los informes en PDF. Si no sube ninguno, se usa el escudo por defecto de la estación.</div>
       <input type="file" id="escudoInput" accept="image/*" style="display:none;" onchange="app._procesarEscudo(this)">
@@ -2229,53 +2234,53 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 
     <!-- v6.16: importar personal en lote (pegar desde Excel) -->
     <div data-tour="panel-importar" style="background:#fff;border:1.5px solid var(--gris-borde);border-left:4px solid #93c5fd;border-radius:5px;padding:12px;margin-bottom:12px;">
-      <div style="font-weight:700;font-size:13px;color:#1e40af;">📥 Importar personal</div>
+      <div style="font-weight:700;font-size:13px;color:#1e40af;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3v13M7 11l5 5 5-5M4 18v3h16v-3"/></svg> Importar personal</div>
       <div style="font-size:11px;color:#3b5b8c;margin-top:5px;line-height:1.45;">Pegue las filas de su Excel (con la fila de títulos). Reconoce las columnas por el título y solo agrega a quien falte: no borra ni pisa a nadie.</div>
-      <button onclick="app.abrirModalImportar()" style="width:100%;margin-top:8px;padding:9px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;">📥 Importar desde Excel</button>
+      <button onclick="app.abrirModalImportar()" style="width:100%;margin-top:8px;padding:9px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3v13M7 11l5 5 5-5M4 18v3h16v-3"/></svg> Importar desde Excel</button>
     </div>
 
     <!-- v6.19: flota del cuerpo (vehículos editables: indicativo + clase para el RUE) -->
     <div data-tour="panel-vehiculos" style="background:#fff;border:1.5px solid var(--gris-borde);border-left:4px solid #86efac;border-radius:5px;padding:12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-        <div style="font-weight:700;font-size:13px;color:#166534;">🚒 Vehículos del cuerpo</div>
-        <button onclick="app.cargarFlotaAdmin(this)" style="padding:6px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">🔄 Actualizar</button>
+        <div style="font-weight:700;font-size:13px;color:#166534;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Vehículos del cuerpo</div>
+        <button onclick="app.cargarFlotaAdmin(this)" style="padding:6px 10px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Actualizar</button>
       </div>
       <div style="font-size:11px;color:#3f6212;margin-top:5px;line-height:1.45;">Registre cada vehículo con el indicativo que usan en la radio (Móvil 1, M-3…) y su clase. El indicativo es lo que verán al reportar; la clase es lo que entiende el RUE.</div>
       <div id="listaFlota" style="margin-top:10px;"></div>
-      <button onclick="app.agregarVehiculo()" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#166534;border:1px dashed #16a34a;border-radius:6px;font-weight:700;cursor:pointer;">➕ Agregar vehículo</button>
+      <button onclick="app.agregarVehiculo()" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#166534;border:1px dashed #16a34a;border-radius:6px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Agregar vehículo</button>
     </div>
 
     <!-- v6.02: quién está firmado + relevo de guardia -->
     <div data-tour="panel-relevo" style="background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-      <div style="font-size:12px;color:#1e3a8a;">🪪 Opera: <b id="operActualTxt">sin firmar</b></div>
+      <div style="font-size:12px;color:#1e3a8a;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5 16c1-2 2-3 3-3s2 1 3 3M13 10h5M13 14h5"/></svg> Opera: <b id="operActualTxt">sin firmar</b></div>
       <button onclick="app.cambiarOperador()" style="padding:7px 12px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px;">Cambiar (relevo)</button>
     </div>
 
     <!-- v6.02: PIN de las unidades. Solo dice quién tiene y quién no; nunca muestra un PIN. -->
     <div data-tour="panel-pins" style="background:#fff;border:1.5px solid var(--gris-borde);border-left:4px solid #cbd5e1;border-radius:5px;padding:12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-        <div style="font-weight:700;font-size:13px;color:#334155;">🔑 PIN de las unidades</div>
+        <div style="font-weight:700;font-size:13px;color:#334155;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="8" cy="12" r="5"/><path d="M13 12h9M18 12v3M15 12v2"/></svg> PIN de las unidades</div>
         <!-- v6.07: decía "Ver / asignar", pero desde v6.05 la lista ya se carga
              sola al abrir el Panel: el botón solo la refresca. Ahora dice lo que
              hace y pasa `this` para mostrar el spinner mientras trabaja. -->
-        <button onclick="app.cargarEstadoPins(this)" style="padding:6px 10px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">🔄 Actualizar</button>
+        <button onclick="app.cargarEstadoPins(this)" style="padding:6px 10px;background:#475569;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Actualizar</button>
       </div>
       <div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.45;">Cada unidad necesita su PIN de 4 dígitos para firmar lo que hace de guardia. Sin PIN no puede firmar. Los PIN se guardan cifrados: acá nunca se muestran, solo se pueden reemplazar.</div>
       <div id="listaEstadoPins" style="margin-top:10px;"></div>
-      <button onclick="app.agregarOperadorAdministrativo()" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#475569;border:1px dashed #94a3b8;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">➕ Agregar operador administrativo (no bombero)</button>
+      <button onclick="app.agregarOperadorAdministrativo()" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#475569;border:1px dashed #94a3b8;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Agregar operador administrativo (no bombero)</button>
     </div>
 
     <!-- v6.03: administradores. Solo lo ve el administrador principal; el backend
          valida igual, esto es solo para no mostrar botones que no van a funcionar. -->
     <div id="adminsWrap" style="display:none;background:#fff;border:1.5px solid var(--gris-borde);border-left:4px solid #fca5a5;border-radius:5px;padding:12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-        <div style="font-weight:700;font-size:13px;color:#7f1d1d;">🛡️ Administradores</div>
+        <div style="font-weight:700;font-size:13px;color:#7f1d1d;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg> Administradores</div>
         <!-- v6.07: mismo caso que el botón de PINes (la lista ya viene cargada). -->
-        <button onclick="app.cargarAdministradores(this)" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">🔄 Actualizar</button>
+        <button onclick="app.cargarAdministradores(this)" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Actualizar</button>
       </div>
       <div style="font-size:11px;color:#991b1b;margin-top:5px;line-height:1.45;">Quién puede entrar al Panel de Administrador. Solo tú puedes cambiar esta lista. Tu propio correo no se puede quitar.</div>
       <div id="listaAdmins" style="margin-top:10px;"></div>
-      <button onclick="app.agregarAdmin()" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#991b1b;border:1px dashed #fca5a5;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">➕ Agregar administrador</button>
+      <button onclick="app.agregarAdmin()" style="width:100%;margin-top:8px;padding:8px;background:#fff;color:#991b1b;border:1px dashed #fca5a5;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Agregar administrador</button>
     </div>
 
     <!-- v6.31: unidades vinculadas — mismo criterio que Administradores (solo el
@@ -2284,8 +2289,8 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
          Personal_CBVI ni de la hoja). -->
     <div id="unidadesWrap" data-tour="panel-unidades" style="display:none;background:#fff;border:1.5px solid var(--gris-borde);border-left:4px solid #fca5a5;border-radius:5px;padding:12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-        <div style="font-weight:700;font-size:13px;color:#7f1d1d;">👥 Unidades vinculadas</div>
-        <button onclick="app.cargarUnidadesVinculadas(this)" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;">🔄 Actualizar</button>
+        <div style="font-weight:700;font-size:13px;color:#7f1d1d;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.7-4 3-6 6-6s5.3 2 6 6M15 15c3 0 5 2 5.5 5"/></svg> Unidades vinculadas</div>
+        <button onclick="app.cargarUnidadesVinculadas(this)" style="padding:6px 10px;background:#991b1b;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:11px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Actualizar</button>
       </div>
       <div style="font-size:11px;color:#991b1b;margin-top:5px;line-height:1.45;">Todo correo que ya inició sesión en la app queda acá, con cuándo fue su último ingreso. Bloquear le quita el acceso sin borrar sus datos — se puede revertir cuando quiera.</div>
       <div id="listaUnidadesVinculadas" style="margin-top:10px;"></div>
@@ -2295,7 +2300,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
          nada esperando; se muestra sola cuando el backend devuelve pendientes. -->
     <div id="pendientesRosterWrap" style="display:none;background:#fff;border:1.5px solid var(--gris-borde);border-left:4px solid #f59e0b;border-radius:5px;padding:12px;margin-bottom:12px;">
       <div style="font-weight:800;color:#92400e;margin-bottom:6px;font-size:15px;">
-        👥 <span id="pendientesRosterTitulo">Personas esperando alta</span>
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.7-4 3-6 6-6s5.3 2 6 6M15 15c3 0 5 2 5.5 5"/></svg> <span id="pendientesRosterTitulo">Personas esperando alta</span>
       </div>
       <div style="font-size:11px;color:#78350f;margin-bottom:10px;line-height:1.45;">
         Salieron en una actividad registrada por alguien que no es administrador, así que
@@ -2315,9 +2320,9 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
     <div id="panelAdminViendo" style="display:none;background:#fff;padding:16px;border-radius:10px;border:2px solid var(--rojo);">
       <div id="panelAdminViendoContenido"></div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
-        <button onclick="app.cerrarVistaAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">← Volver</button>
-        <button id="btnImprimirDesdeVista" style="flex:1;min-width:120px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Imprimir</button>
-        <button onclick="app.verVistaRUE(this)" style="flex:1;min-width:120px;padding:12px;background:#e65100;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">📋 Ver para RUE</button>
+        <button onclick="app.cerrarVistaAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver</button>
+        <button id="btnImprimirDesdeVista" style="flex:1;min-width:120px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></svg> Imprimir</button>
+        <button onclick="app.verVistaRUE(this)" style="flex:1;min-width:120px;padding:12px;background:#e65100;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"/></svg> Ver para RUE</button>
       </div>
     </div>
 
@@ -2357,12 +2362,12 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
         <button onclick="app.cancelarEdicionAdmin()" style="flex:1;min-width:90px;padding:12px;background:#ccc;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Cancelar</button>
-        <button onclick="app.guardarEdicionAdmin(this)" style="flex:1;min-width:120px;padding:12px;background:var(--rojo);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">💾 Guardar</button>
-        <button onclick="app.imprimirReporteEditandoAdmin()" style="flex:1;min-width:110px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">🖨️ Imprimir</button>
+        <button onclick="app.guardarEdicionAdmin(this)" style="flex:1;min-width:120px;padding:12px;background:var(--rojo);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-7h8v7"/></svg> Guardar</button>
+        <button onclick="app.imprimirReporteEditandoAdmin()" style="flex:1;min-width:110px;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></svg> Imprimir</button>
       </div>
     </div>
 
-    <button onclick="app.irA('pantallaConfig')" style="margin-top:16px;padding:14px;background:#444;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">← Volver a Configuración</button>
+    <button onclick="app.irA('pantallaConfig')" style="margin-top:16px;padding:14px;background:#444;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;width:100%;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver a Configuración</button>
   </div>
 </div>
 
@@ -2377,11 +2382,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="1">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">1</span><span class="titulo">Datos Generales</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>📋 Información básica del incidente.</strong> El número de reporte se asigna automáticamente al guardar. Las fechas son cuándo recibieron la llamada, cuándo llegaron al lugar y cuándo terminó la atención.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"/></svg> Información básica del incidente.</strong> El número de reporte se asigna automáticamente al guardar. Las fechas son cuándo recibieron la llamada, cuándo llegaron al lugar y cuándo terminó la atención.
       </div>
 
       <div class="campo">
@@ -2444,11 +2449,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="2">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">2</span><span class="titulo">Clasificación del Evento</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🏷️ Tipo de incidente.</strong> Marque uno o varios tipos según corresponda al evento atendido. Si fue algo distinto a lo listado, use el campo "Otra". Si marcó <strong>Búsqueda y rescate</strong>, escriba en "Otra" la modalidad exacta (persona extraviada, acuática, estructuras colapsadas, vehicular, etc.) — nuestra función es búsqueda y rescate en todas sus modalidades.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 4h8l10 10-7 7L4 11z"/><circle cx="8" cy="8" r="1"/></svg> Tipo de incidente.</strong> Marque uno o varios tipos según corresponda al evento atendido. Si fue algo distinto a lo listado, use el campo "Otra". Si marcó <strong>Búsqueda y rescate</strong>, escriba en "Otra" la modalidad exacta (persona extraviada, acuática, estructuras colapsadas, vehicular, etc.) — nuestra función es búsqueda y rescate en todas sus modalidades.
       </div>
       <div class="checkbox-grid" id="checkboxClasificacion"></div>
       <div class="campo" style="margin-top: 12px;">
@@ -2462,24 +2467,24 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="3">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">3</span><span class="titulo">Ubicación del Incidente</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>📍 Dónde ocurrió el evento.</strong> Toque "Usar GPS automático" para que el celular capture: coordenadas (decimales y grados), altitud, velocidad y orientación. La dirección textual depende de la cobertura de mapas en su zona — si no se llena automáticamente, escríbala manualmente. Las coordenadas SIEMPRE quedan registradas.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> Dónde ocurrió el evento.</strong> Toque "Usar GPS automático" para que el celular capture: coordenadas (decimales y grados), altitud, velocidad y orientación. La dirección textual depende de la cobertura de mapas en su zona — si no se llena automáticamente, escríbala manualmente. Las coordenadas SIEMPRE quedan registradas.
       </div>
       <div class="gps-card" id="gpsCard">
         <div class="top">
-          <div class="icono">📍</div>
+          <div class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
           <div class="info">
             <div class="titulo">Ubicación</div>
             <div class="coords" id="gpsCoords">GPS desactivado</div>
           </div>
         </div>
         <div class="acciones">
-          <button id="btnGpsAuto" onclick="app.modoGPS('auto')">📡 Usar GPS automático</button>
-          <button id="btnGpsManual" onclick="app.modoGPS('manual')">✏️ Llenar manual</button>
-          <button id="btnGpsActualizar" onclick="app.capturarGPS()" style="display:none;">🔄 Actualizar</button>
+          <button id="btnGpsAuto" onclick="app.modoGPS('auto')"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 10a11 11 0 0 1 16 0M7 13a7 7 0 0 1 10 0M10 16a3 3 0 0 1 4 0M12 20h.01"/></svg> Usar GPS automático</button>
+          <button id="btnGpsManual" onclick="app.modoGPS('manual')"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Llenar manual</button>
+          <button id="btnGpsActualizar" onclick="app.capturarGPS()" style="display:none;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Actualizar</button>
         </div>
         <div class="gps-detalles" id="gpsDetalles" style="display:none;"></div>
         <div class="gps-manual-fields">
@@ -2490,7 +2495,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       </div>
 
       <div class="auto-completar-info" id="autoCompletarInfo">
-        ✅ Dirección detectada automáticamente. Puede editar los campos abajo si necesita corregir.
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Dirección detectada automáticamente. Puede editar los campos abajo si necesita corregir.
       </div>
 
       <div class="campo">
@@ -2526,11 +2531,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="4">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">4</span><span class="titulo">Descripción del Evento</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>✏️ Qué pasó.</strong> Cuente con detalle qué reportó la persona que llamó y qué encontraron al llegar. Adjunte hasta 6 fotografías del evento (saldrán en dos hojas aparte tamaño grande al imprimir, 3 por hoja).
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Qué pasó.</strong> Cuente con detalle qué reportó la persona que llamó y qué encontraron al llegar. Adjunte hasta 6 fotografías del evento (saldrán en dos hojas aparte tamaño grande al imprimir, 3 por hoja).
       </div>
 
       <div class="campo">
@@ -2551,22 +2556,22 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
         <label>Fotografías del incidente <span class="opcional">(hasta 6)</span></label>
         <div class="fotos-grid">
           <div class="foto-slot" data-foto="0" onclick="app.elegirFoto(0)">
-            <span class="icono">📷</span><span>Foto 1</span>
+            <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto 1</span>
           </div>
           <div class="foto-slot" data-foto="1" onclick="app.elegirFoto(1)">
-            <span class="icono">📷</span><span>Foto 2</span>
+            <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto 2</span>
           </div>
           <div class="foto-slot" data-foto="2" onclick="app.elegirFoto(2)">
-            <span class="icono">📷</span><span>Foto 3</span>
+            <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto 3</span>
           </div>
           <div class="foto-slot" data-foto="3" onclick="app.elegirFoto(3)">
-            <span class="icono">📷</span><span>Foto 4</span>
+            <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto 4</span>
           </div>
           <div class="foto-slot" data-foto="4" onclick="app.elegirFoto(4)">
-            <span class="icono">📷</span><span>Foto 5</span>
+            <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto 5</span>
           </div>
           <div class="foto-slot" data-foto="5" onclick="app.elegirFoto(5)">
-            <span class="icono">📷</span><span>Foto 6</span>
+            <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span><span>Foto 6</span>
           </div>
         </div>
         <div class="ayuda">Toque cada espacio para tomar foto con la cámara o seleccionar una de su galería. Las fotos saldrán en hojas aparte al imprimir (3 fotos por hoja).</div>
@@ -2578,12 +2583,12 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="5">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">5</span><span class="titulo">Recursos Desplegados</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🚒 Qué unidades y personal asistieron.</strong> Agregue cada vehículo con su Responsable/Maquinista y los tripulantes (con autocompletar). El total se suma solo.<br>
-        🎖️ <strong>Comandante de Incidente:</strong> toque la <strong>⭐</strong> al lado de quien <strong>dirigió en el lugar</strong>. Es uno de los que asistieron. <em>(Es distinto del comandante que FIRMA el reporte, ítem 13.)</em>
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Qué unidades y personal asistieron.</strong> Agregue cada vehículo con su Responsable/Maquinista y los tripulantes (con autocompletar). El total se suma solo.<br>
+        🎖️ <strong>Comandante de Incidente:</strong> toque la <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg></strong> al lado de quien <strong>dirigió en el lugar</strong>. Es uno de los que asistieron. <em>(Es distinto del comandante que FIRMA el reporte, ítem 13.)</em>
       </div>
 
       <div class="tabla-dinamica" id="tablaRecursos"></div>
@@ -2595,7 +2600,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       </div>
 
       <div class="campo" style="margin-top:12px;">
-        <label>📝 Observaciones de mando</label>
+        <label><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Observaciones de mando</label>
         <textarea id="f_observaciones_mando" rows="3"
           placeholder="Ej. Transferencia de mando a X. Emergencia continúa el día siguiente..."></textarea>
       </div>
@@ -2605,11 +2610,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="6">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">6</span><span class="titulo">Diagnóstico y Áreas Afectadas</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>📊 Daños y víctimas en números.</strong> Cuente cuántas personas, viviendas, hectáreas, etc. fueron afectadas. Si no hay daños en una categoría, deje el cero.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg> Daños y víctimas en números.</strong> Cuente cuántas personas, viviendas, hectáreas, etc. fueron afectadas. Si no hay daños en una categoría, deje el cero.
       </div>
 
       <div class="campo-fila-3">
@@ -2688,11 +2693,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="7">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">7</span><span class="titulo">Datos del Afectado / Propietario</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>👤 Propietario o responsable del lugar (quien recibe el servicio y firma).</strong> No es necesariamente una víctima: es la persona dueña o a cargo del lugar o bien afectado. Si la víctima es la misma persona, escríbala también aquí. La firma sirve como constancia de que recibió la atención.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> Propietario o responsable del lugar (quien recibe el servicio y firma).</strong> No es necesariamente una víctima: es la persona dueña o a cargo del lugar o bien afectado. Si la víctima es la misma persona, escríbala también aquí. La firma sirve como constancia de que recibió la atención.
       </div>
 
       <div class="campo">
@@ -2725,11 +2730,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="8">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">8</span><span class="titulo">Acciones Realizadas</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🛠️ Qué hizo el cuerpo de bomberos.</strong> Describa con detalle las maniobras, técnicas y operaciones que se ejecutaron para controlar la emergencia.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg> Qué hizo el cuerpo de bomberos.</strong> Describa con detalle las maniobras, técnicas y operaciones que se ejecutaron para controlar la emergencia.
       </div>
 
       <div class="campo">
@@ -2744,11 +2749,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="9">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">9</span><span class="titulo">Víctimas / Lesionados / Fallecidos</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🚑 Víctimas: lesionados, fallecidos o rescatados.</strong> Una entrada por persona que sufrió daño físico (herida, fallecida o rescatada ilesa). Si no hubo, deje vacío.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></svg> Víctimas: lesionados, fallecidos o rescatados.</strong> Una entrada por persona que sufrió daño físico (herida, fallecida o rescatada ilesa). Si no hubo, deje vacío.
       </div>
       <div class="tabla-dinamica" id="tablaVictimas"></div>
       <button class="agregar-fila" onclick="app.agregarVictima()">+ Agregar víctima</button>
@@ -2758,11 +2763,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="10">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">10</span><span class="titulo">Investigación y Causas</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🔍 Por qué ocurrió.</strong> Marque las causas posibles que pudieron originar el evento. Si fue intencional, técnico, natural o accidental. Después detalle abajo qué encontraron como evidencia.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg> Por qué ocurrió.</strong> Marque las causas posibles que pudieron originar el evento. Si fue intencional, técnico, natural o accidental. Después detalle abajo qué encontraron como evidencia.
       </div>
 
       <div class="checkbox-grid" id="checkboxCausas"></div>
@@ -2793,11 +2798,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="11">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">11</span><span class="titulo">Otras Organizaciones / Personas</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>🤝 Apoyo externo.</strong> Liste qué otras instituciones o personas (Policía, Defensa Civil, Cruz Roja, ambulancias, vecinos colaboradores, etc.) participaron en la atención.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg> Apoyo externo.</strong> Liste qué otras instituciones o personas (Policía, Defensa Civil, Cruz Roja, ambulancias, vecinos colaboradores, etc.) participaron en la atención.
       </div>
       <div class="tabla-dinamica" id="tablaOrgs"></div>
       <button class="agregar-fila" onclick="app.agregarOrg()">+ Agregar organización</button>
@@ -2807,11 +2812,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="12">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">12</span><span class="titulo">Observaciones y Recomendaciones</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>📝 Notas adicionales.</strong> Comentarios extra del comandante y recomendaciones de prevención para que esto no se repita.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Notas adicionales.</strong> Comentarios extra del comandante y recomendaciones de prevención para que esto no se repita.
       </div>
 
       <div class="campo">
@@ -2831,11 +2836,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="seccion-form" data-seccion="13">
     <div class="seccion-header" onclick="app.toggleSeccion(this)">
       <div><span class="num">13</span><span class="titulo">Firma del Comandante</span></div>
-      <span class="flecha">▼</span>
+      <span class="flecha"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg></span>
     </div>
     <div class="seccion-cuerpo">
       <div class="ayuda-seccion">
-        <strong>✍️ Firma de cierre (legal).</strong> Este es el comandante que <strong>firma y autoriza</strong> el reporte (con grado y cédula). <em>Puede ser distinto del Comandante de Incidente del ítem 5, que es quien dirigió en el lugar.</em> Si usted es quien firma, sus datos ya vienen prellenados.
+        <strong><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg> Firma de cierre (legal).</strong> Este es el comandante que <strong>firma y autoriza</strong> el reporte (con grado y cédula). <em>Puede ser distinto del Comandante de Incidente del ítem 5, que es quien dirigió en el lugar.</em> Si usted es quien firma, sus datos ya vienen prellenados.
       </div>
 
       <div class="campo">
@@ -2869,8 +2874,8 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   </div>
 
   <div class="acciones-flotantes">
-    <button class="btn btn-secundario" onclick="app.guardarBorrador()">💾 Borrador</button>
-    <button class="btn btn-primary" onclick="app.enviarReporte(this)">📤 Enviar</button>
+    <button class="btn btn-secundario" onclick="app.guardarBorrador()"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-7h8v7"/></svg> Borrador</button>
+    <button class="btn btn-primary" onclick="app.enviarReporte(this)"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 16V3M7 8l5-5 5 5M4 14v7h16v-7"/></svg> Enviar</button>
   </div>
 </div>
 
@@ -2878,17 +2883,17 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="ui-intro"><span class="ui-kicker">Consulta / Incidentes</span><h2>Detalle del reporte</h2><p>Revisa la información registrada y sus evidencias.</p></div>
   <div id="detalleContenido"></div>
   <div class="acciones-flotantes">
-    <button class="btn btn-imprimir" onclick="app.imprimirReporte()">🖨️ Imprimir</button>
-    <button class="btn btn-secundario" id="btnEditarDetalle" onclick="app.editarReporte()">✏️ Editar</button>
-    <button class="btn btn-primary" id="btnReintentarEnvio" onclick="app.reintentarEnvio(this)" style="display:none;">📤 Enviar</button>
-    <button class="btn btn-peligro" id="btnEliminarDetalle" onclick="app.confirmarEliminar()">🗑️</button>
+    <button class="btn btn-imprimir" onclick="app.imprimirReporte()"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></svg> Imprimir</button>
+    <button class="btn btn-secundario" id="btnEditarDetalle" onclick="app.editarReporte()"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg> Editar</button>
+    <button class="btn btn-primary" id="btnReintentarEnvio" onclick="app.reintentarEnvio(this)" style="display:none;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 16V3M7 8l5-5 5 5M4 14v7h16v-7"/></svg> Enviar</button>
+    <button class="btn btn-peligro" id="btnEliminarDetalle" onclick="app.confirmarEliminar()"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg></button>
   </div>
 </div>
 
 <div class="pantalla" id="pantallaConfig">
   <div class="ui-intro"><span class="ui-kicker">Tu estación / Preferencias</span><h2>Configuración</h2><p>Tu perfil, la apariencia y las herramientas de la aplicación.</p></div>
   <div class="config-card" data-tour="config-perfil">
-    <h3>👤 Mis datos</h3>
+    <h3><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> Mis datos</h3>
     <div class="campo">
       <label>Nombre completo</label>
       <input type="text" id="cfg_perfil_nombre">
@@ -2925,17 +2930,17 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   </div>
 
   <div class="config-card">
-    <h3>🎨 Diseño de la app</h3>
+    <h3><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3a9 9 0 0 0 0 18h2a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h8A9 9 0 0 0 12 3z"/><circle cx="7" cy="10" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7" r="1"/></svg> Diseño de la app</h3>
     <p style="font-size:12px;color:var(--gris-texto);margin-bottom:12px;">
       Elige el aspecto visual de la app. Todo funciona exactamente igual con cualquiera de los dos diseños — tu elección se guarda solo en este dispositivo.
     </p>
     <div class="tema-selector">
       <button type="button" class="tema-opcion" data-tema-opcion="original" onclick="app.aplicarTema('original')">
-        <span class="tema-icono">🚒</span>
+        <span class="tema-icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg></span>
         <span>Original</span>
       </button>
       <button type="button" class="tema-opcion" data-tema-opcion="apple" onclick="app.aplicarTema('apple')">
-        <span class="tema-icono">🍎</span>
+        <span class="tema-icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3a9 9 0 0 0 0 18h2a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h8A9 9 0 0 0 12 3z"/><circle cx="7" cy="10" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7" r="1"/></svg></span>
         <span>Minimalista</span>
       </button>
     </div>
@@ -2944,7 +2949,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div class="config-card">
     <h3>☁️ Conexión al servidor</h3>
     <div style="background: var(--verde-claro); border-left: 3px solid var(--verde); padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #065f46; margin-bottom: 12px;">
-      ✅ <strong>La app ya está configurada</strong> y conectada al servidor del cuerpo de bomberos. No necesita configurar nada para empezar a usar la app.
+      <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> <strong>La app ya está configurada</strong> y conectada al servidor del cuerpo de bomberos. No necesita configurar nada para empezar a usar la app.
     </div>
     <div class="campo">
       <label>URL del backend <span class="opcional">(solo lectura)</span></label>
@@ -2957,10 +2962,10 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 
   <!-- ZONA SOLO PARA ADMINISTRADOR -->
   <div class="config-card admin" id="zonaAdmin" style="display:none;">
-    <h3>★ Zona Administrador <span class="badge-admin-section">SOLO ADMIN</span></h3>
+    <h3><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></svg> Zona Administrador <span class="badge-admin-section">SOLO ADMIN</span></h3>
 
     <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 12px; border-radius: 4px; font-size: 12px; color: #856404; margin-bottom: 14px;">
-      ⚠️ <strong>Atención:</strong> Los consecutivos los asigna automáticamente el servidor cuando se envía el reporte. Esta sección es solo para casos excepcionales.
+      <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> <strong>Atención:</strong> Los consecutivos los asigna automáticamente el servidor cuando se envía el reporte. Esta sección es solo para casos excepcionales.
     </div>
 
     <div class="campo">
@@ -2974,22 +2979,22 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
     </div>
 
     <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
-      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">🛡️ Panel de Administración</h4>
+      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg> Panel de Administración</h4>
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Ver, editar e imprimir TODOS los reportes (de todas las cuentas). Cambiar consecutivos. Requiere contraseña adicional.
       </p>
       <button class="btn btn-completo" onclick="app.abrirPanelAdmin()" style="background: var(--rojo); color: #fff;">
-        🛡️ Abrir Panel Admin
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg> Abrir Panel Admin
       </button>
     </div>
 
     <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
-      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">📅 Cierre de mes por fecha de llamada (recomendado)</h4>
+      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> Cierre de mes por fecha de llamada (recomendado)</h4>
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Reorganiza los consecutivos de un mes específico según la <strong>fecha y hora de la llamada</strong> (no según cuándo se subió). Ideal para usar al final de cada mes. Solo afecta el mes seleccionado.
       </p>
       <button class="btn btn-completo" onclick="app.abrirCierreMes()" style="background: var(--rojo); color: #fff;">
-        📅 Cerrar mes y reorganizar consecutivos
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> Cerrar mes y reorganizar consecutivos
       </button>
     </div>
 
@@ -3004,23 +3009,23 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
     </div>
 
     <div style="border-top: 1px solid #fde68a; margin: 16px 0; padding-top: 14px;">
-      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;">🔧 Renumerar reportes (peligroso)</h4>
+      <h4 style="color: var(--rojo); font-size: 14px; margin-bottom: 8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m14 6 4-4 4 4-4 4M3 21l9-9M5 4l15 15M3 2l4 1 1 4-3 3-4-4z"/></svg> Renumerar reportes (peligroso)</h4>
       <p style="font-size: 12px; color: var(--gris-texto); margin-bottom: 10px;">
         Si los consecutivos se desordenaron por usuarios con versiones viejas, este botón pide al servidor renumerar todos los reportes en orden cronológico.
       </p>
       <button class="btn btn-secundario btn-completo" onclick="app.renumerarReportes(this)" style="background: #fef2f2; color: var(--rojo); border-color: #fca5a5;">
-        🔄 Renumerar todos los reportes (Admin)
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Renumerar todos los reportes (Admin)
       </button>
     </div>
   </div>
 
   <div class="config-card">
-    <h3>📊 Datos locales</h3>
+    <h3><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 20V9M10 20V4M16 20v-7M22 20H2"/></svg> Datos locales</h3>
     <button class="btn btn-secundario btn-completo" onclick="app.exportarTodo()" style="margin-bottom: 8px;">
-      ⬇️ Exportar mis reportes (JSON)
+      <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3v13M7 11l5 5 5-5M4 18v3h16v-3"/></svg> Exportar mis reportes (JSON)
     </button>
     <button class="btn btn-secundario btn-completo" onclick="app.sincronizarPendientes()">
-      🔄 Sincronizar pendientes ahora
+      <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 7v5h-5M4 17v-5h5M6 8a7 7 0 0 1 12-2l2 2M18 16a7 7 0 0 1-12 2l-2-2"/></svg> Sincronizar pendientes ahora
     </button>
   </div>
 
@@ -3059,17 +3064,17 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 
 <div class="modal-foto-opciones" id="modalFotoOpciones">
   <div class="opciones">
-    <h3>📷 Agregar fotografía</h3>
+    <h3><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg> Agregar fotografía</h3>
     <button onclick="app.tomarFoto('camara')">
-      <span class="icono">📸</span>
+      <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span>
       <div>Tomar foto con cámara</div>
     </button>
     <button onclick="app.tomarFoto('galeria')">
-      <span class="icono">🖼️</span>
+      <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="2"/><path d="m4 18 5-5 3 3 3-3 5 5"/></svg></span>
       <div>Seleccionar de galería</div>
     </button>
     <button class="cancelar" onclick="app.cerrarModalFoto()">
-      <span class="icono">✕</span>
+      <span class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></span>
       <div>Cancelar</div>
     </button>
   </div>
@@ -3083,7 +3088,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 <!-- Importar personal: se pega directo desde Excel (Ctrl+C / Ctrl+V), sin subir archivo. -->
 <div class="modal-fondo" id="modalImportar">
   <div class="modal" style="max-width:680px;">
-    <div class="modal-header">📥 Importar personal desde Excel</div>
+    <div class="modal-header"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3v13M7 11l5 5 5-5M4 18v3h16v-3"/></svg> Importar personal desde Excel</div>
     <div class="modal-body" style="max-height:65vh;overflow-y:auto;padding:16px;">
       <div class="ayuda-seccion">
         <strong>Cómo hacerlo</strong><br>
@@ -3107,7 +3112,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
 <!-- Vista RUE: ordena un reporte como el formulario oficial, con Copiar por campo. -->
 <div class="modal-fondo" id="modalRUE">
   <div class="modal" style="max-width:640px;">
-    <div class="modal-header">📋 Datos para el RUE</div>
+    <div class="modal-header"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"/></svg> Datos para el RUE</div>
     <div class="modal-body" id="modalRUECuerpo" style="max-height:65vh;overflow-y:auto;padding:16px;"></div>
     <div class="modal-acciones">
       <button class="btn btn-secundario" onclick="app.cerrarModalRUE()">Cerrar</button>
@@ -3115,8 +3120,8 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   </div>
 </div>
 
-<script src="logos.js?v=6.51"></script>
-<script src="app.js?v=6.51"></script>
+<script src="logos.js?v=6.52"></script>
+<script src="app.js?v=6.52"></script>
 
 <!-- ══════════ PANTALLA: NUEVA ACTIVIDAD ══════════ -->
 <div class="pantalla" id="pantallaActividades">
@@ -3164,13 +3169,13 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       <textarea id="actNovedades" rows="2" placeholder="Anotar cualquier novedad general de la actividad" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;resize:none;"></textarea>
     </div>
     <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-weight:700;margin-bottom:4px;">🩹 Atenciones durante la actividad (opcional)</div>
+      <div style="font-weight:700;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></svg> Atenciones durante la actividad (opcional)</div>
       <div style="font-size:12px;color:#777;margin-bottom:10px;">Si durante la actividad se atendió a una o varias personas (primeros auxilios, traslados, etc.), registre cada una por separado con sus datos y fotos.</div>
       <div id="actAtencionesLista"></div>
-      <button type="button" onclick="app.agregarAtencion()" style="background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:8px;padding:10px;cursor:pointer;width:100%;font-weight:700;font-size:14px;">➕ Agregar atención</button>
+      <button type="button" onclick="app.agregarAtencion()" style="background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:8px;padding:10px;cursor:pointer;width:100%;font-weight:700;font-size:14px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Agregar atención</button>
     </div>
     <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-weight:700;margin-bottom:10px;">👥 Personal asistente</div>
+      <div style="font-weight:700;margin-bottom:10px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.7-4 3-6 6-6s5.3 2 6 6M15 15c3 0 5 2 5.5 5"/></svg> Personal asistente</div>
       <div style="position:relative;margin-bottom:8px;">
         <input type="text" id="actBuscarPersonal" placeholder="Escribir nombre para buscar..." autocomplete="off"
           style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;box-sizing:border-box;"
@@ -3189,38 +3194,38 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
             <option value="TENIENTE">Teniente</option><option value="CAPITAN">Capitán</option><option value="ASPIRANTE">Aspirante</option>
           </select>
         </div>
-        <button onclick="app.agregarPersonalNuevoActividad()" style="background:#e65100;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;width:100%;">✅ Agregar y registrar en base de datos</button>
+        <button onclick="app.agregarPersonalNuevoActividad()" style="background:#e65100;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;width:100%;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Agregar y registrar en base de datos</button>
       </div>
       <button onclick="document.getElementById('actFormNuevo').style.display=document.getElementById('actFormNuevo').style.display==='none'?'block':'none'"
-        style="background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:8px;padding:10px;cursor:pointer;width:100%;margin-top:8px;font-size:13px;">➕ Persona nueva (no está en la lista)</button>
+        style="background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:8px;padding:10px;cursor:pointer;width:100%;margin-top:8px;font-size:13px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Persona nueva (no está en la lista)</button>
     </div>
     <h3 class="ui-grupo">Evidencias del servicio</h3>
     <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-weight:700;margin-bottom:10px;">📸 Fotos de la actividad (hasta 6, opcionales)</div>
+      <div style="font-weight:700;margin-bottom:10px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg> Fotos de la actividad (hasta 6, opcionales)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
         <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Foto 1</div>
-          <div id="prevFotoInicio" onclick="document.getElementById('inputFotoInicio').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <div id="prevFotoInicio" onclick="document.getElementById('inputFotoInicio').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span></div>
           <input type="file" id="inputFotoInicio" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('inicio',this)"></div>
         <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Foto 2</div>
-          <div id="prevFotoMedio" onclick="document.getElementById('inputFotoMedio').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <div id="prevFotoMedio" onclick="document.getElementById('inputFotoMedio').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span></div>
           <input type="file" id="inputFotoMedio" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('medio',this)"></div>
         <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Foto 3</div>
-          <div id="prevFotoFin" onclick="document.getElementById('inputFotoFin').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <div id="prevFotoFin" onclick="document.getElementById('inputFotoFin').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span></div>
           <input type="file" id="inputFotoFin" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('fin',this)"></div>
         <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Foto 4</div>
-          <div id="prevFotoF4" onclick="document.getElementById('inputFotoF4').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <div id="prevFotoF4" onclick="document.getElementById('inputFotoF4').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span></div>
           <input type="file" id="inputFotoF4" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('f4',this)"></div>
         <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Foto 5</div>
-          <div id="prevFotoF5" onclick="document.getElementById('inputFotoF5').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <div id="prevFotoF5" onclick="document.getElementById('inputFotoF5').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span></div>
           <input type="file" id="inputFotoF5" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('f5',this)"></div>
         <div style="text-align:center;"><div style="font-size:11px;color:#666;margin-bottom:4px;">Foto 6</div>
-          <div id="prevFotoF6" onclick="document.getElementById('inputFotoF6').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;">📷</span></div>
+          <div id="prevFotoF6" onclick="document.getElementById('inputFotoF6').click()" style="width:100%;height:70px;background:#f5f5f5;border-radius:8px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;"><span style="font-size:20px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg></span></div>
           <input type="file" id="inputFotoF6" accept="image/*" style="display:none" onchange="app.cargarFotoActividad('f6',this)"></div>
       </div>
     </div>
     <h3 class="ui-grupo">Recursos desplegados</h3>
     <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-weight:700;margin-bottom:10px;">🚒 Recursos / Vehículos (opcional)</div>
+      <div style="font-weight:700;margin-bottom:10px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> Recursos / Vehículos (opcional)</div>
       <div id="actRecursosLista" style="margin-bottom:8px;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <!-- v6.10: las opciones se pintan desde app.js (poblarSelectVehiculos, en
@@ -3246,10 +3251,10 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       <!-- v6.09: llamaba a app.agregarRecurso(), que es del formulario de EMERGENCIA y
            escribe en #tablaRecursos: la fila se agregaba a OTRA pantalla y acá no pasaba
            nada visible. -->
-      <button onclick="app.agregarRecursoActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;cursor:pointer;width:100%;font-weight:700;font-size:14px;">➕ Agregar vehículo</button>
+      <button onclick="app.agregarRecursoActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:8px;padding:10px;cursor:pointer;width:100%;font-weight:700;font-size:14px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Agregar vehículo</button>
     </div>
-    <button onclick="app.guardarActividad(this)" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Registrar Actividad</button>
-    <button onclick="app.volverDesde('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
+    <button onclick="app.guardarActividad(this)" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-7h8v7"/></svg> Registrar Actividad</button>
+    <button onclick="app.volverDesde('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver</button>
   </div>
 </div>
 
@@ -3258,7 +3263,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div style="padding:0 4px;">
     <div class="ui-intro"><span class="ui-kicker">Consulta / Tu servicio</span><h2 style="color:#1a5276;margin:10px 0;">Actividades y asistencia</h2><p>Revisa tus actividades y la asistencia de domingos en un solo lugar.</p></div>
     <div id="listaActividadesContenido" class="cbvi-stagger" style="margin-bottom:12px;"><!-- v5.89: skeleton shimmer (el JS lo pisa al cargar) --><div class="skeleton-tarjeta"></div><div class="skeleton-tarjeta"></div><div class="skeleton-tarjeta"></div></div>
-    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver</button>
   </div>
 </div>
 
@@ -3267,8 +3272,8 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
   <div style="padding:0 4px;">
     <div class="ui-intro"><span class="ui-kicker">Consulta / Registro</span><h2 style="color:#1a5276;margin:10px 0;">Detalle de actividad</h2><p>Información del servicio, participantes y evidencias.</p></div>
     <div id="detalleActividadContenido"></div>
-    <button onclick="app.imprimirActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">🖨️ Imprimir PDF</button>
-    <button onclick="app.irA('pantallaListaActividades')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
+    <button onclick="app.imprimirActividad()" style="background:#1a5276;color:#fff;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/></svg> Imprimir PDF</button>
+    <button onclick="app.irA('pantallaListaActividades')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver</button>
   </div>
 </div>
 
@@ -3307,7 +3312,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div>
-            <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px;">👤 Encargado / Instructor</label>
+            <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> Encargado / Instructor</label>
             <div style="position:relative;">
               <input type="text" id="asistEncargado" placeholder="Buscar nombre..." autocomplete="off"
                 style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"
@@ -3316,7 +3321,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
             </div>
           </div>
           <div>
-            <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px;">🛡️ Comandante de guardia</label>
+            <label style="font-weight:700;font-size:13px;display:block;margin-bottom:4px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg> Comandante de guardia</label>
             <div style="position:relative;">
               <input type="text" id="asistComandanteGuardia" placeholder="Buscar nombre..." autocomplete="off"
                 style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"
@@ -3325,34 +3330,34 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
             </div>
           </div>
         </div>
-        <div style="font-size:11px;color:#888;margin-top:6px;">💡 Si el encargado o guardia ya está en la lista, no se duplica.</div>
+        <div style="font-size:11px;color:#888;margin-top:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg> Si el encargado o guardia ya está en la lista, no se duplica.</div>
       </div>
       <div id="asistListaPersonal" style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;min-height:60px;">
         <div style="color:#999;text-align:center;padding:20px;">Selecciona una fecha para cargar el personal</div>
       </div>
       <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
-        <div style="font-weight:700;margin-bottom:10px;">📸 Fotos de la reunión (opcionales)</div>
+        <div style="font-weight:700;margin-bottom:10px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg> Fotos de la reunión (opcionales)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
           <div style="text-align:center;">
-            <label for="asistFotoInicio" style="display:block;background:#f5f5f5;border:2px dashed #ccc;border-radius:8px;padding:14px 4px;cursor:pointer;font-size:11px;color:#666;">📷<br>Inicio</label>
+            <label for="asistFotoInicio" style="display:block;background:#f5f5f5;border:2px dashed #ccc;border-radius:8px;padding:14px 4px;cursor:pointer;font-size:11px;color:#666;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg><br>Inicio</label>
             <input type="file" id="asistFotoInicio" accept="image/*" style="display:none;" onchange="app._fotoAsistencia('inicio', this)">
-            <div id="asistFotoInicioOk" style="font-size:10px;color:#1e8449;display:none;margin-top:2px;">✅ Cargada</div>
+            <div id="asistFotoInicioOk" style="font-size:10px;color:#1e8449;display:none;margin-top:2px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Cargada</div>
           </div>
           <div style="text-align:center;">
-            <label for="asistFotoMedio" style="display:block;background:#f5f5f5;border:2px dashed #ccc;border-radius:8px;padding:14px 4px;cursor:pointer;font-size:11px;color:#666;">📷<br>Intermedio</label>
+            <label for="asistFotoMedio" style="display:block;background:#f5f5f5;border:2px dashed #ccc;border-radius:8px;padding:14px 4px;cursor:pointer;font-size:11px;color:#666;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg><br>Intermedio</label>
             <input type="file" id="asistFotoMedio" accept="image/*" style="display:none;" onchange="app._fotoAsistencia('medio', this)">
-            <div id="asistFotoMedioOk" style="font-size:10px;color:#1e8449;display:none;margin-top:2px;">✅ Cargada</div>
+            <div id="asistFotoMedioOk" style="font-size:10px;color:#1e8449;display:none;margin-top:2px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Cargada</div>
           </div>
           <div style="text-align:center;">
-            <label for="asistFotoFin" style="display:block;background:#f5f5f5;border:2px dashed #ccc;border-radius:8px;padding:14px 4px;cursor:pointer;font-size:11px;color:#666;">📷<br>Final</label>
+            <label for="asistFotoFin" style="display:block;background:#f5f5f5;border:2px dashed #ccc;border-radius:8px;padding:14px 4px;cursor:pointer;font-size:11px;color:#666;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg><br>Final</label>
             <input type="file" id="asistFotoFin" accept="image/*" style="display:none;" onchange="app._fotoAsistencia('fin', this)">
-            <div id="asistFotoFinOk" style="font-size:10px;color:#1e8449;display:none;margin-top:2px;">✅ Cargada</div>
+            <div id="asistFotoFinOk" style="font-size:10px;color:#1e8449;display:none;margin-top:2px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Cargada</div>
           </div>
         </div>
       </div>
-      <button onclick="app.guardarAsistencia(this)" id="btnGuardarAsistencia" style="display:none;background:#1e8449;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;">💾 Guardar Asistencia</button>
+      <button onclick="app.guardarAsistencia(this)" id="btnGuardarAsistencia" style="display:none;background:#1e8449;color:#fff;border:none;border-radius:12px;padding:16px;font-weight:700;cursor:pointer;width:100%;font-size:16px;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-7h8v7"/></svg> Guardar Asistencia</button>
       <div id="asistFormNuevoBombero" style="display:none;background:#fff3e0;border-radius:12px;padding:14px;margin-bottom:8px;border:1px solid #ff9800;">
-        <div style="font-weight:700;color:#e65100;margin-bottom:8px;">➕ Agregar bombero nuevo a la base de datos</div>
+        <div style="font-weight:700;color:#e65100;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Agregar bombero nuevo a la base de datos</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
           <input type="text" id="asistNuevoNombre" placeholder="Nombre completo *" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
           <input type="text" id="asistNuevoCedula" placeholder="Cédula *" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
@@ -3366,21 +3371,21 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
           </select>
         </div>
         <div style="display:flex;gap:8px;">
-          <button onclick="app.agregarNuevoBomberoAsistencia(this)" style="flex:1;background:#e65100;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;">✅ Agregar y registrar</button>
-          <button onclick="document.getElementById('asistFormNuevoBombero').style.display='none'" style="background:#f5f5f5;color:#333;border:none;border-radius:8px;padding:10px;cursor:pointer;">✕</button>
+          <button onclick="app.agregarNuevoBomberoAsistencia(this)" style="flex:1;background:#e65100;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Agregar y registrar</button>
+          <button onclick="document.getElementById('asistFormNuevoBombero').style.display='none'" style="background:#f5f5f5;color:#333;border:none;border-radius:8px;padding:10px;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
         </div>
       </div>
-      <button onclick="document.getElementById('asistFormNuevoBombero').style.display=document.getElementById('asistFormNuevoBombero').style.display==='none'?'block':'none'" id="btnMostrarNuevoBombero" style="display:none;background:#fff3e0;color:#e65100;border:1px solid #ff9800;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;">➕ Agregar bombero que no está en la lista</button>
+      <button onclick="document.getElementById('asistFormNuevoBombero').style.display=document.getElementById('asistFormNuevoBombero').style.display==='none'?'block':'none'" id="btnMostrarNuevoBombero" style="display:none;background:#fff3e0;color:#e65100;border:1px solid #ff9800;border-radius:12px;padding:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg> Agregar bombero que no está en la lista</button>
     </div>
     <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;">
       <div style="font-weight:700;margin-bottom:10px;">📜 Historial de domingos</div>
       <div id="asistHistorial" style="max-height:300px;overflow-y:auto;"></div>
     </div>
     <div id="asistSancionesPanel" style="display:none;background:#fff8e1;border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-weight:700;color:#e65100;margin-bottom:10px;">⚠️ Sanciones pendientes</div>
+      <div style="font-weight:700;color:#e65100;margin-bottom:10px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Sanciones pendientes</div>
       <div id="asistSanciones"></div>
     </div>
-    <button onclick="app.volverDesde('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;">← Volver</button>
+    <button onclick="app.volverDesde('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver</button>
   </div>
 </div>
 
@@ -3390,11 +3395,11 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
     <div data-tour="operatividad-titulo">
       <div class="ui-intro"><span class="ui-kicker">Estación / Indicadores</span><h2 style="color:var(--rojo);margin:10px 0;">Operatividad del personal</h2><p>Consulta la participación y las horas de servicio registradas.</p></div>
       <div style="background:#fff3e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#e65100;">
-        🏆 Ranking: emergencias + horas de actividades + asistencia domingos
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="9" r="6"/><path d="m8 14-2 8 6-3 6 3-2-8"/></svg> Ranking: emergencias + horas de actividades + asistencia domingos
       </div>
     </div>
     <div id="operatividadContenido"><!-- v5.89: skeleton shimmer (el JS lo pisa al cargar) --><div class="skeleton-tarjeta"></div><div class="skeleton-linea" style="width:60%"></div><div class="skeleton-linea"></div><div class="skeleton-linea" style="width:80%"></div><div class="skeleton-linea"></div></div>
-    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver</button>
   </div>
 </div>
 
@@ -3408,7 +3413,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
       </div>
     </div>
     <div id="deudoresContenido"><!-- v5.89: skeleton shimmer (el JS lo pisa al cargar) --><div class="skeleton-tarjeta"></div><div class="skeleton-tarjeta"></div><div class="skeleton-tarjeta"></div></div>
-    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver</button>
   </div>
 </div>
 
@@ -3418,7 +3423,7 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
     <div data-tour="mapa-titulo">
       <div class="ui-intro"><span class="ui-kicker">Territorio / Incidentes</span><h2 style="color:#1a7a5e;margin:10px 0;">Mapa de incidentes</h2><p>Explora los registros por ubicación, tipo y fecha.</p></div>
       <div style="background:#e8f5f0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#1a7a5e;">
-        📍 Ubicación de emergencias registradas con coordenadas GPS. Toca un pin para ver el detalle.
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> Ubicación de emergencias registradas con coordenadas GPS. Toca un pin para ver el detalle.
       </div>
     </div>
     <div id="mapaEstado" style="text-align:center;padding:20px;color:#999;">Cargando mapa...</div>
@@ -3431,9 +3436,9 @@ button:focus-visible, [tabindex]:focus-visible, a:focus-visible { outline:3px so
         <div id="mapaLeyenda" style="margin-bottom:8px;"></div>
       </div>
       <div id="leafletMapaContenedor" style="display:none;"></div>
-      <button id="mapaBtnCerrarFull" onclick="app._toggleMapaFullscreen(false)" title="Salir de pantalla completa">✕</button>
+      <button id="mapaBtnCerrarFull" onclick="app._toggleMapaFullscreen(false)" title="Salir de pantalla completa"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
     </div>
-    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;">← Volver</button>
+    <button onclick="app.irA('pantallaHome')" style="background:#f5f5f5;color:#333;border:none;border-radius:12px;padding:14px;cursor:pointer;width:100%;font-weight:700;margin-top:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m15 5-7 7 7 7"/></svg> Volver</button>
   </div>
 </div>
 
