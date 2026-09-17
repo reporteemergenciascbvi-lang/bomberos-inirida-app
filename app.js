@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.52';
+const APP_VERSION = '6.53';
 const APP_VERSION_NOTAS = [
+  'v6.53: Nuevo icono oficial de la aplicación y arranque con identidad CBVI. El escudo se mantiene legible en las distintas formas de icono de Android y el inicio usa un fondo azul noche sin destello blanco. No cambia funciones ni datos.',
   'v6.52: ◇ La interfaz estrena un sistema propio de iconos SVG: más nítido, consistente y legible en distintos teléfonos, sin descargar recursos externos.',
   'v6.51: Los botones de las ventanas de confirmación tienen un área táctil mínima de 44 px para facilitar su uso en el teléfono.',
   'v6.50: Si falta un dato obligatorio en una sección cerrada del formulario, la app la abre y muestra el campo que debe completar. Sus datos y las demás funciones no cambian.',
