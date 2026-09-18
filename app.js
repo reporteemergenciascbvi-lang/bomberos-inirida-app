@@ -24,8 +24,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.56';
+const APP_VERSION = '6.58';
 const APP_VERSION_NOTAS = [
+  'v6.58: El aviso de error al cargar la flota vuelve a verse en rojo; la lista sin vehículos conserva su mensaje en verde en ambos temas.',
+  'v6.57: Nuevas ilustraciones del oficio en listas vacías: reportes, actividades, personal, vehículos y búsquedas. Los mensajes y las acciones siguen iguales; también funcionan sin señal.',
   'v6.56: Refuerzo interno de la sincronización de personal por incidente (auto-repara registros a medias). Nada cambia para ti.',
   'v6.55: Refuerzo de seguridad interno tras la auditoría. No cambia cómo trabajas ni tus datos.',
   'v6.54: Ajuste del color de la barra del sistema al arrancar: ahora coincide con el azul marino de la aplicación y el fondo de inicio. No cambia funciones ni datos.',
@@ -1468,8 +1470,8 @@ const app = {
     const lista = document.getElementById('listaReportes');
     if (reportes.length === 0) {
       lista.innerHTML = `
-        <div class="vacio-estado">
-          <div class="icono"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M8 10h8M8 14h8M8 18h5"/></svg></div>
+        <div class="vacio-estado empty-state">
+          <div class="icono"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-report" xlink:href="#empty-report" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg></div>
           <div>No hay reportes aún</div>
           <div style="font-size: 12px; margin-top: 4px;">Toque "Nuevo incidente" para empezar</div>
         </div>`;
@@ -3309,7 +3311,7 @@ const app = {
       }
 
       if (data.totalReportesMes === 0) {
-        cont.innerHTML = `<div style="background:#f0f0f0;padding:12px;border-radius:8px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg> No hay reportes en ${data.nombreMes} ${data.anio}</div>`;
+        cont.innerHTML = `<div class="empty-state" style="background:#f0f0f0;padding:12px;border-radius:8px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-search" xlink:href="#empty-search" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg> No hay reportes en ${data.nombreMes} ${data.anio}</div>`;
         document.getElementById('btn_aplicar_cierre').style.display = 'none';
         return;
       }
@@ -3585,7 +3587,7 @@ const app = {
       const d = await resp.json();
       if (!d.ok) { cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
       if (!d.unidades || !d.unidades.length) {
-        cont.innerHTML = '<div style="font-size:11px;color:#999;padding:8px;">Todavía nadie ha iniciado sesión en la app.</div>';
+        cont.innerHTML = '<div class="empty-state" style="font-size:11px;color:#999;padding:8px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-personnel" xlink:href="#empty-personnel" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Todavía nadie ha iniciado sesión en la app.</div>';
         return;
       }
       const miCorreo = String((this.usuario&&this.usuario.email)||'').toLowerCase().trim();
@@ -3707,7 +3709,7 @@ const app = {
           body: JSON.stringify({ accion:'listarEstadoPins', adminEmail:this.usuario.email, adminPassword:this._adminPwdSession||'' }) });
         const d = await resp.json();
         if (!d.ok) { this._pinsData = null; cont.innerHTML = '<div style="font-size:12px;color:#c00;padding:8px;">'+app._esc(d.error||'Error')+'</div>'; return; }
-        if (!d.personal || !d.personal.length) { this._pinsData = null; cont.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">Sin personal activo.</div>'; return; }
+        if (!d.personal || !d.personal.length) { this._pinsData = null; cont.innerHTML = '<div class="empty-state empty-compact" style="font-size:12px;color:#999;padding:8px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-personnel" xlink:href="#empty-personnel" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin personal activo.</div>'; return; }
         // Se guarda en memoria para poder filtrar SIN volver a pedirle al servidor:
         // en Inírida cada consulta de más se paga en segundos de espera.
         this._pinsData = d;
@@ -3982,7 +3984,7 @@ const app = {
       .sort((a, b) => (b.consecutivo || '').localeCompare(a.consecutivo || ''));
 
     if (reportes.length === 0) {
-      cont.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">No hay reportes</div>';
+      cont.innerHTML = '<div class="empty-state" style="padding:20px;text-align:center;color:#666;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-report" xlink:href="#empty-report" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>No hay reportes</div>';
       return;
     }
 
@@ -5453,8 +5455,8 @@ const app = {
       // (ver _cargarFlota) — antes las dos se veían igual y una falla de red
       // silenciosa parecía que la flota se había borrado.
       cont.innerHTML = this._flotaError
-        ? '<div style="color:#c00;font-size:12px;text-align:center;padding:10px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> No se pudo cargar la flota. Revise su conexión y toque "🔄 Actualizar".</div>'
-        : '<div style="color:#166534;font-size:12px;text-align:center;padding:10px;opacity:.8;">Todavía no hay vehículos. Agregue el primero para que aparezca al reportar.</div>';
+        ? '<div class="empty-state empty-error" style="color:#c00;font-size:12px;text-align:center;padding:10px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-offline" xlink:href="#empty-offline" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg> No se pudo cargar la flota. Revise su conexión y toque "🔄 Actualizar".</div>'
+        : '<div class="empty-state empty-ok" style="color:#166534;font-size:12px;text-align:center;padding:10px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-vehicle" xlink:href="#empty-vehicle" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Todavía no hay vehículos. Agregue el primero para que aparezca al reportar.</div>';
       return;
     }
     // I5: todo texto por _esc. I10: data-* en vez de meter el indicativo en el onclick.
@@ -6757,7 +6759,7 @@ ${paginaFotos}
       });
       const data = await resp.json();
       if (!data.ok || !data.resultados.length) {
-        sug.innerHTML = '<div style="padding:10px;color:#999;font-size:13px;">Sin resultados — usa el botón de persona nueva</div>';
+        sug.innerHTML = '<div class="empty-state empty-compact" style="padding:10px;color:#999;font-size:13px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-search" xlink:href="#empty-search" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin resultados — usa el botón de persona nueva</div>';
         return;
       }
       // v5.63 (BUG duplicados): red de seguridad — si el backend devuelve la
@@ -6817,7 +6819,7 @@ ${paginaFotos}
 
   _renderPersonalActividad() {
     const cont = document.getElementById('actPersonalLista');
-    if (!this._actPersonal.length) { cont.innerHTML = '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal aún</div>'; return; }
+    if (!this._actPersonal.length) { cont.innerHTML = '<div class="empty-state empty-compact" style="color:#999;font-size:13px;text-align:center;padding:10px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-personnel" xlink:href="#empty-personnel" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin personal aún</div>'; return; }
     cont.innerHTML=this._actPersonal.map((p,i)=>{
       const enc=!!p.esEncargado;
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:'+(enc?'#fff8e1':'#f8f8f8')+';border-radius:8px;margin-bottom:6px;">'
@@ -6886,7 +6888,7 @@ ${paginaFotos}
   _renderRecursosActividad() {
     const cont = document.getElementById('actRecursosLista');
     if (!cont) return;
-    if (!this._actRecursos.length) { cont.innerHTML = '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin vehículos aún</div>'; return; }
+    if (!this._actRecursos.length) { cont.innerHTML = '<div class="empty-state empty-compact" style="color:#999;font-size:13px;text-align:center;padding:10px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-vehicle" xlink:href="#empty-vehicle" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin vehículos aún</div>'; return; }
     // I5: todo a innerHTML pasa por _esc. I10: data-* en vez de meter el índice
     // dentro de una cadena con comillas.
     cont.innerHTML = this._actRecursos.map((r,i) =>
@@ -7018,7 +7020,7 @@ ${paginaFotos}
           +'</div></div>'
         ).join('');
       } else {
-        htmlAct = '<div style="text-align:center;padding:20px;color:#999;">No hay actividades registradas</div>';
+        htmlAct = '<div class="empty-state" style="text-align:center;padding:20px;color:#999;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-activity" xlink:href="#empty-activity" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>No hay actividades registradas</div>';
       }
     } catch(e) { htmlAct = '<div style="color:#c00;padding:14px;">Error cargando actividades</div>'; }
 
@@ -7041,7 +7043,7 @@ ${paginaFotos}
           +'</div></div>'
         ).join('');
       } else {
-        htmlDom = '<div style="text-align:center;padding:20px;color:#999;">No hay domingos registrados</div>';
+        htmlDom = '<div class="empty-state" style="text-align:center;padding:20px;color:#999;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-activity" xlink:href="#empty-activity" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>No hay domingos registrados</div>';
       }
     } catch(e) { htmlDom = '<div style="color:#c00;padding:14px;">Error cargando domingos</div>'; }
 
@@ -7218,7 +7220,7 @@ ${paginaFotos}
       const data = await resp.json();
       const hist = document.getElementById('asistHistorial');
       if (!data.ok || !data.domingos.length) {
-        hist.innerHTML = '<div style="color:#999;text-align:center;padding:10px;">Sin registros aún</div>'; return;
+        hist.innerHTML = '<div class="empty-state" style="color:#999;text-align:center;padding:10px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-activity" xlink:href="#empty-activity" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin registros aún</div>'; return;
       }
       hist.innerHTML = data.domingos.slice(0,10).map(d => {
         const f = typeof d === 'string' ? d : d.fecha;
@@ -7356,7 +7358,7 @@ ${paginaFotos}
     };
     let cuerpo = '';
     if (lista.length === 0) {
-      cuerpo = '<div style="color:#999;font-size:13px;text-align:center;padding:10px;">Sin personal cargado aun</div>';
+      cuerpo = '<div class="empty-state empty-compact" style="color:#999;font-size:13px;text-align:center;padding:10px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-personnel" xlink:href="#empty-personnel" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin personal cargado aun</div>';
     } else {
       const conteo = [0,0,0,0];
       lista.forEach(p => { conteo[this._catRango(p.rango)]++; });
@@ -8029,7 +8031,7 @@ ${paginaFotos}
         + card0(0,'Unidades con registros','#1a5276') + card0(0,'Emergencias únicas','#c0392b')
         + card0('0h','Horas en actividades','#1e8449') + card0(0,'Domingos realizados','#e67e22')
         + '</div>'
-        + '<div style="text-align:center;padding:20px;color:#999;background:#fff;border-radius:12px;">Sin registros en este período</div>';
+        + '<div class="empty-state" style="text-align:center;padding:20px;color:#999;background:#fff;border-radius:12px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-search" xlink:href="#empty-search" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin registros en este período</div>';
       return;
     }
     cont.innerHTML = filtros + '<div id="operContenidoFiltrado"></div>';
@@ -8067,7 +8069,7 @@ ${paginaFotos}
       + '<strong style="margin-left:6px;font-size:13px;">'+app._esc(p.nombre||'')+'</strong></div>'
       + '<span style="font-weight:700;color:#d81f27;">'+val+' '+lbl+'</span></div>';
     const rankList = (lista, getId, getVal, lbl, color) => {
-      if(!lista.length) return '<div style="color:#999;font-size:13px;text-align:center;padding:8px;">Sin datos en este período</div>';
+      if(!lista.length) return '<div class="empty-state" style="color:#999;font-size:13px;text-align:center;padding:8px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-search" xlink:href="#empty-search" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin datos en este período</div>';
       const top3 = lista.slice(0,3).map((p,i)=>rankRow(p,i,getVal(p),lbl)).join('');
       const resto = lista.slice(3);
       if(!resto.length) return top3;
@@ -8211,15 +8213,15 @@ ${paginaFotos}
       let html='<div style="background:#fafafa;border-radius:8px;padding:8px;border-top:2px solid '+borderColor+'">';
       if(tipo==='emerg'){
         const lista=data.emergencias||[];
-        if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin emergencias en este período</div>';}
+        if(!lista.length){html+='<div class="empty-state" style="font-size:12px;color:#999;text-align:center;padding:4px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-report" xlink:href="#empty-report" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin emergencias en este período</div>';}
         else lista.forEach(e=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#c0392b;">'+app._esc(e.consecutivo)+'</strong><span style="float:right;font-size:11px;color:#666;">'+app._esc(e.fecha)+'</span><div style="color:#555;">'+app._esc(e.tipo)+'</div></div>';});
       }else if(tipo==='activ'){
         const lista=data.actividades||[];
-        if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin actividades en este período</div>';}
+        if(!lista.length){html+='<div class="empty-state" style="font-size:12px;color:#999;text-align:center;padding:4px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-activity" xlink:href="#empty-activity" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin actividades en este período</div>';}
         else lista.forEach(a=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#1e8449;">'+app._esc(a.tipo||'Actividad')+'</strong><span style="float:right;font-weight:700;color:#1e8449;">'+app._esc(a.horas)+'h</span><div style="color:#555;">'+app._esc(String(a.descripcion||'').substring(0,50))+'</div><div style="font-size:11px;color:#999;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+app._esc(a.fecha)+'</div></div>';});
       }else{
         const lista=data.domingos||[];
-        if(!lista.length){html+='<div style="font-size:12px;color:#999;text-align:center;padding:4px;">Sin domingos en este período</div>';}
+        if(!lista.length){html+='<div class="empty-state" style="font-size:12px;color:#999;text-align:center;padding:4px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-activity" xlink:href="#empty-activity" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin domingos en este período</div>';}
         else lista.forEach(d=>{html+='<div style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;"><strong style="color:#e67e22;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+app._esc(d.fecha)+'</strong>'+(d.tipo?'<span style="float:right;font-size:11px;color:#666;">'+app._esc(d.tipo)+'</span>':'')+(d.tema?'<div style="color:#555;">'+app._esc(d.tema)+'</div>':'')+(d.lugar?'<div style="font-size:11px;color:#999;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> '+app._esc(d.lugar)+'</div>':'')+'</div>';});
       }
       html+='</div>'; cont.innerHTML=html;
@@ -9486,7 +9488,7 @@ ${paginaFotos}
   _eaRenderPersonal() {
     const cont = document.getElementById('_eaPersonalLista');
     if (!cont) return;
-    if (!this._eaPersonal.length) { cont.innerHTML = '<div style="color:#999;font-size:12px;text-align:center;padding:6px;">Sin personal</div>'; return; }
+    if (!this._eaPersonal.length) { cont.innerHTML = '<div class="empty-state empty-compact" style="color:#999;font-size:12px;text-align:center;padding:6px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-personnel" xlink:href="#empty-personnel" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin personal</div>'; return; }
     cont.innerHTML = this._eaPersonal.map((p,i) => {
       const enc = !!p.esEncargado;
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:'+(enc?'#fff8e1':'#f8f8f8')+';border-radius:8px;margin-bottom:4px;">'
@@ -9515,7 +9517,7 @@ ${paginaFotos}
       try {
         const resp = await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({accion:'buscarPersonalCBVI',q:q.trim()})});
         const data = await resp.json();
-        if (!data.ok || !data.resultados.length) { sug.innerHTML='<div style="padding:8px 12px;color:#999;font-size:12px;">Sin resultados</div>'; return; }
+        if (!data.ok || !data.resultados.length) { sug.innerHTML='<div class="empty-state empty-compact" style="padding:8px 12px;color:#999;font-size:12px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-search" xlink:href="#empty-search" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin resultados</div>'; return; }
         sug.innerHTML = data.resultados.map(per =>
           '<div onclick=\'app._eaAddPersonal('+JSON.stringify(per).replace(/'/g,"&#39;")+')\' style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>'+app._esc(per.nombre||'')+'</strong> <span style="color:#666;font-size:12px;">CC: '+app._esc(per.cedula||'-')+'</span></div>'
         ).join('');
@@ -9536,7 +9538,7 @@ ${paginaFotos}
   _eaRenderRecursos() {
     const cont = document.getElementById('_eaRecursosLista');
     if (!cont) return;
-    if (!this._eaRecursos.length) { cont.innerHTML = '<div style="color:#999;font-size:12px;text-align:center;padding:6px;">Sin vehículos</div>'; return; }
+    if (!this._eaRecursos.length) { cont.innerHTML = '<div class="empty-state empty-compact" style="color:#999;font-size:12px;text-align:center;padding:6px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-vehicle" xlink:href="#empty-vehicle" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin vehículos</div>'; return; }
     cont.innerHTML = this._eaRecursos.map((r,i) =>
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:#f8f8f8;border-radius:8px;margin-bottom:4px;">'
       +'<div style="font-size:13px;"><strong>'+app._esc(r.tipo||'-')+'</strong>'+(r.codigo?' ('+app._esc(r.codigo)+')':'')+(r.responsable?'<div style="font-size:11px;color:#666;">'+app._esc(r.responsable)+'</div>':'')+'</div>'
@@ -9752,7 +9754,7 @@ ${paginaFotos}
           body: JSON.stringify({ accion:'buscarPersonalCBVI', q: q.trim() }) });
         const data = await resp.json();
         if (!data.ok || !data.resultados.length) {
-          sug.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:#999;">Sin coincidencias en el personal.</div>';
+          sug.innerHTML = '<div class="empty-state empty-compact" style="padding:10px 12px;font-size:12px;color:#999;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-search" xlink:href="#empty-search" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin coincidencias en el personal.</div>';
           sug.style.display = 'block'; return;
         }
         // I10: los datos van en data-*, nunca dentro del string del onclick.
