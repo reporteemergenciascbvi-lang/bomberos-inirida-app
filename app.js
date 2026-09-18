@@ -24,8 +24,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.54';
+const APP_VERSION = '6.56';
 const APP_VERSION_NOTAS = [
+  'v6.56: Refuerzo interno de la sincronización de personal por incidente (auto-repara registros a medias). Nada cambia para ti.',
+  'v6.55: Refuerzo de seguridad interno tras la auditoría. No cambia cómo trabajas ni tus datos.',
   'v6.54: Ajuste del color de la barra del sistema al arrancar: ahora coincide con el azul marino de la aplicación y el fondo de inicio. No cambia funciones ni datos.',
   'v6.53: Nuevo icono oficial de la aplicación y arranque con identidad CBVI. El escudo se mantiene legible en las distintas formas de icono de Android y el inicio usa un fondo azul noche sin destello blanco. No cambia funciones ni datos.',
   'v6.52: ◇ La interfaz estrena un sistema propio de iconos SVG: más nítido, consistente y legible en distintos teléfonos, sin descargar recursos externos.',
@@ -2421,7 +2423,7 @@ const app = {
     if (!dl) return;
     const lista = this._rosterVigente();
     dl.innerHTML = lista
-      .map(n => `<option value="${String(n).replace(/"/g, '&quot;')}"></option>`).join('');
+      .map(n => `<option value="${app._esc(n)}"></option>`).join('');
   },
 
   /* v6.10: llena el <select> de "Nueva Actividad <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg> Recursos / Vehículos" desde
@@ -3989,7 +3991,7 @@ const app = {
         <div style="font-weight:bold;color:var(--rojo);font-size:15px;">${app._esc(r.consecutivo || '(sin consecutivo)')}</div>
         <div style="font-size:13px;color:#333;margin-top:2px;">${app._esc(r.direccion || 'Sin dirección')}</div>
         <div style="font-size:11px;color:#888;margin-top:4px;">
-          ${r.operadorEmail || ''} · ${(r.clasificacion || []).join(', ') || 'Sin clasificar'}
+          ${app._esc(r.operadorEmail || '')} · ${app._esc((r.clasificacion || []).join(', ') || 'Sin clasificar')}
         </div>
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
           <button data-id="${app._esc(r.id)}" onclick="app.verReporteAdmin(this.dataset.id)"
@@ -7029,8 +7031,8 @@ ${paginaFotos}
       const dD = await rD.json();
       if (dD.ok && dD.domingos && dD.domingos.length) {
         htmlDom = dD.domingos.map(d =>
-          '<div class="ops-log-item ops-log-attendance" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1e8449;cursor:pointer;" data-f="'+d.fecha+'" onclick="app.verAsistenciaDomingo(this.dataset.f)">'
-          +'<div style="font-weight:700;color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+d.fecha+(d.tipo?' — '+d.tipo:'')+'</div>'
+          '<div class="ops-log-item ops-log-attendance" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #1e8449;cursor:pointer;" data-f="'+app._esc(d.fecha)+'" onclick="app.verAsistenciaDomingo(this.dataset.f)">'
+          +'<div style="font-weight:700;color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+app._esc(d.fecha)+(d.tipo?' — '+app._esc(d.tipo):'')+'</div>'
           +(d.tema?'<div style="font-size:12px;color:#666;margin:2px 0;">'+app._esc(d.tema)+'</div>':'')
           +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
           +'<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Presentes: '+(d.presentes||0)+'</span>'
@@ -7090,7 +7092,7 @@ ${paginaFotos}
           </div>
         </div>` : ''}
         ${this._atencionesDetalleHTML(a.atenciones)}`;
-    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
+    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${app._esc(e.message)}</div>`; }
   },
 
   // v6.42: tarjetas de atenciones para el detalle en pantalla (fotos como URL de Drive).
@@ -7225,12 +7227,12 @@ ${paginaFotos}
         const esAdmH = this.esAdmin();
         return '<div class="ops-history-row" style="padding:10px;border-bottom:1px solid #f0f0f0;">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">'
-          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+f+(tipo?' — '+app._esc(tipo):'')+'</span>'
+          + '<span data-f="'+app._esc(f)+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="font-weight:600;cursor:pointer;flex:1;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M7 14h3M14 14h3M7 18h3"/></svg> '+f+(tipo?' — '+app._esc(tipo):'')+'</span>'
           + (esAdmH
-            ? '<button data-f="'+f+'" onclick="app.editarDomingo(this.dataset.f)" style="background:#1a5276;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg></button>'
-              + '<button data-f="'+f+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg></button>'
+            ? '<button data-f="'+app._esc(f)+'" onclick="app.editarDomingo(this.dataset.f)" style="background:#1a5276;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></svg></button>'
+              + '<button data-f="'+app._esc(f)+'" onclick="app.eliminarDomingo(this.dataset.f)" style="background:#c00;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg></button>'
             : '')
-          + '<span data-f="'+f+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="color:#1a5276;font-size:13px;cursor:pointer;">Ver <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg></span>'
+          + '<span data-f="'+app._esc(f)+'" onclick="app.verAsistenciaDomingo(this.dataset.f)" style="color:#1a5276;font-size:13px;cursor:pointer;">Ver <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m9 5 7 7-7 7"/></svg></span>'
           + '</div>'
           + (tema ? '<div style="font-size:12px;color:#666;margin-top:2px;">'+app._esc(tema)+'</div>' : '')
           + '</div>';
@@ -7982,7 +7984,7 @@ ${paginaFotos}
       this._operStats = data.stats || null;
       this._renderOperatividad();
       this._animarEntradaLista(document.getElementById('operatividadContenido'));   // v6.36: entra escalonado
-    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${e.message}</div>`; }
+    } catch(e) { cont.innerHTML = `<div style="color:#c00;padding:20px;">Error: ${app._esc(e.message)}</div>`; }
   }
 
 ,
