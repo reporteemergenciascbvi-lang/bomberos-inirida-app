@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.58';
+const APP_VERSION = '6.59';
 const APP_VERSION_NOTAS = [
+  'v6.59: Cada tipo de incidente estrena un pictograma del oficio en el mapa, la leyenda, el Inicio y el detalle. El texto siempre permanece visible.',
   'v6.58: El aviso de error al cargar la flota vuelve a verse en rojo; la lista sin vehículos conserva su mensaje en verde en ambos temas.',
   'v6.57: Nuevas ilustraciones del oficio en listas vacías: reportes, actividades, personal, vehículos y búsquedas. Los mensajes y las acciones siguen iguales; también funcionan sin señal.',
   'v6.56: Refuerzo interno de la sincronización de personal por incidente (auto-repara registros a medias). Nada cambia para ti.',
@@ -1489,7 +1490,7 @@ const app = {
         <div class="reporte-item ${this._esc(r.estado)}" data-id="${app._esc(r.id)}" onclick="app.verDetalle(this.dataset.id)">
           <div class="info">
             <div class="consec">${this._esc(r.consecutivo || 'Sin asignar')}</div>
-            <div class="desc">${this._esc(tipos)}</div>
+            <div class="desc">${this._pictoSvg(r.clasificacion)} ${this._esc(tipos)}</div>
             <div class="fecha">${fecha}</div>
           </div>
           <span class="badge ${this._esc(r.estado)}">${this.etiquetaEstado(r.estado)}</span>
@@ -5700,7 +5701,7 @@ const app = {
           <span class="badge ${this._esc(r.estado)}">${this.etiquetaEstado(r.estado)}</span>
           ${fecha}
         </p>
-        <p><strong>Tipo:</strong> ${app._esc(tipos)}</p>
+        <p><strong>Tipo:</strong> ${app._pictoSvg(r.clasificacion)} ${app._esc(tipos)}</p>
         <p><strong>Dirección:</strong> ${app._esc(r.direccion || '—')}</p>
         <p><strong>Barrio:</strong> ${app._esc(r.barrio || '—')}</p>
         ${r.gps ? `<p><strong>GPS:</strong> ${r.gps.lat.toFixed(6)}, ${r.gps.lng.toFixed(6)} ${r.gpsManual ? '(manual)' : ''}</p>` : ''}
@@ -8830,6 +8831,37 @@ ${paginaFotos}
   // búsqueda y rescate, traslado, abejas/avispas , árbol caído). El orden ES
   // la prioridad de color del pin cuando un reporte tiene varias casillas
   // marcadas — gana la primera que coincida.
+  // JEF-04: pictograma por clasificación. El id del símbolo sale SOLO de esta tabla (nunca del texto del reporte).
+  _PICTOS: {
+    'Incendio estructural': 'clas-incendio-estructural',
+    'Incendio forestal': 'clas-incendio-forestal',
+    'Incendio de interfaz': 'clas-incendio-interfaz',
+    'Incendio vehicular': 'clas-incendio-vehicular',
+    'Incendio en red eléctrica': 'clas-red-electrica',
+    'Rescate vehicular': 'clas-rescate-vehicular',
+    'Rescate en altura': 'clas-rescate-altura',
+    'Rescate acuático': 'clas-rescate-acuatico',
+    'Búsqueda y rescate': 'clas-busqueda-rescate',
+    'Primeros auxilios': 'clas-primeros-auxilios',
+    'Traslado': 'clas-traslado',
+    'Materiales peligrosos (MATPEL)': 'clas-matpel',
+    'Atención de árbol caído': 'clas-arbol-caido',
+    'Atención de abejas / avispas': 'clas-abejas',
+    'Rescate animal': 'clas-rescate-animal',
+    'Inundación / desastre natural': 'clas-inundacion',
+    'Colapso estructural': 'clas-colapso',
+    'Otra': 'clas-otra'
+  },
+  _pictoId(clasificacionArr) {
+    const arr = Array.isArray(clasificacionArr) ? clasificacionArr : [];
+    for (const t of arr) { if (typeof t === 'string' && Object.prototype.hasOwnProperty.call(this._PICTOS, t)) return this._PICTOS[t]; }
+    return 'clas-sin';
+  },
+  _pictoSvg(clasificacionArr) {
+    const id = this._pictoId(clasificacionArr);
+    return '<svg class="clas-art" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#' + id + '" xlink:href="#' + id + '"></use></svg>';
+  },
+
   _MAPA_COLORES: [
     { tipo: 'Incendio estructural',              color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
     { tipo: 'Incendio forestal',                 color: '#e65100', emoji: '🔥', etiqueta: 'Incendio' },
@@ -8867,7 +8899,7 @@ ${paginaFotos}
       + '<circle cx="15" cy="15" r="10" fill="#fff"/>'
       + '</svg>';
     const html = '<div class="cbvi-pin-cae" style="position:relative;width:30px;height:40px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));">' + svg
-      + '<span style="position:absolute;top:5px;left:0;width:30px;text-align:center;font-size:13px;line-height:20px;">' + regla.emoji + '</span></div>';
+      + '<span style="position:absolute;top:7px;left:7px;width:16px;height:16px;color:' + regla.color + ';line-height:16px;">' + this._pictoSvg([regla.tipo]) + '</span></div>';
     return L.divIcon({ html: html, className: '', iconSize: [30,40], iconAnchor: [15,40], popupAnchor: [0,-36] });
   },
 
@@ -9004,7 +9036,7 @@ ${paginaFotos}
         // _esc() y el id del reporte viaja en data-id (antes iba concatenado
         // dentro del onclick y sin escapar).
         const popupHtml = '<div style="font-size:13px;min-width:190px;">'
-          + '<div style="font-weight:700;color:'+regla.color+';">'+regla.emoji+' ' + app._esc(String(r.consecutivo || r.id)) + '</div>'
+          + '<div style="font-weight:700;color:'+regla.color+';">'+this._pictoSvg([regla.tipo])+' ' + app._esc(String(r.consecutivo || r.id)) + '</div>'
           + '<div style="margin-top:4px;"><b>Fecha:</b> ' + app._esc(f.substring(0,10) || '-') + '</div>'
           + '<div><b>Dirección:</b> ' + app._esc(r.direccion || '-') + '</div>'
           + (estCoord && r.lat && r.lng ? '<div><b><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M7 4h4M9 4v3"/></svg> A la estación:</b> ~' + this._distanciaKm(estCoord[0], estCoord[1], r.lat, r.lng).toFixed(1) + ' km</div>' : '')
@@ -9060,7 +9092,7 @@ ${paginaFotos}
         return '<span data-e="' + e + '" onclick="app._toggleFiltroMapa(this.dataset.e)" '
           + 'style="display:inline-flex;align-items:center;gap:4px;background:' + (off ? '#f0f0f0' : '#fff') + ';border-radius:12px;padding:3px 9px;margin:2px;font-size:11px;border:1.5px solid ' + (off ? '#ddd' : r.color) + ';cursor:pointer;' + (off ? 'opacity:.5;' : '') + '">'
           + '<span style="width:10px;height:10px;border-radius:50%;background:' + r.color + ';display:inline-block;' + (off ? 'opacity:.4;' : '') + '"></span>'
-          + '<span' + (off ? ' style="text-decoration:line-through;"' : '') + '>' + r.emoji + ' ' + r.etiqueta + ' (' + (conteo[r.etiqueta] || 0) + ')</span>'
+          + '<span' + (off ? ' style="text-decoration:line-through;"' : '') + '>' + this._pictoSvg([r.tipo]) + ' ' + r.etiqueta + ' (' + (conteo[r.etiqueta] || 0) + ')</span>'
           + '<span data-e="' + e + '" onclick="event.stopPropagation();app._mapaSoloEtiqueta(this.dataset.e)" title="Ver solo este tipo" style="margin-left:2px;padding:1px 6px;border-radius:8px;background:rgba(0,0,0,.08);font-size:9px;font-weight:700;color:#333;">solo</span>'
           + '</span>';
       }).join('');
