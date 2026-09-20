@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.59';
+const APP_VERSION = '6.60';
 const APP_VERSION_NOTAS = [
+  'v6.60: Nuevo diseño Campo: alto contraste para leer a pleno sol. Se elige en el menú del avatar o en Configuración → Tema.',
   'v6.59: Cada tipo de incidente estrena un pictograma del oficio en el mapa, la leyenda, el Inicio y el detalle. El texto siempre permanece visible.',
   'v6.58: El aviso de error al cargar la flota vuelve a verse en rojo; la lista sin vehículos conserva su mensaje en verde en ambos temas.',
   'v6.57: Nuevas ilustraciones del oficio en listas vacías: reportes, actividades, personal, vehículos y búsquedas. Los mensajes y las acciones siguen iguales; también funcionan sin señal.',
@@ -1113,12 +1114,13 @@ const app = {
   // pantalla, flujo ni dato se toca. Riesgo funcional: cero.
   _temaGuardado() {
     try {
-      return localStorage.getItem('cbvi_tema') === 'apple' ? 'apple' : 'original';
+      const t = localStorage.getItem('cbvi_tema');
+      return (t === 'apple' || t === 'campo') ? t : 'original';
     } catch (e) { return 'original'; }
   },
 
   aplicarTema(tema, silencioso = false) {
-    const t = (tema === 'apple') ? 'apple' : 'original';
+    const t = (tema === 'apple' || tema === 'campo') ? tema : 'original';
     try { localStorage.setItem('cbvi_tema', t); } catch (e) {}
     document.documentElement.setAttribute('data-theme', t);
     // Color de la barra de estado del teléfono acorde al tema activo
@@ -1126,7 +1128,7 @@ const app = {
     if (metaTema) metaTema.setAttribute('content', t === 'apple' ? '#f5f5f7' : '#16223f');
     this._sincronizarUITema();
     if (!silencioso) {
-      this.toast(t === 'apple' ? '🍎 Diseño Minimalista activado' : '🚒 Diseño Original activado', 'exito');
+      this.toast(t === 'apple' ? '🍎 Diseño Minimalista activado' : (t === 'campo' ? '☀️ Diseño Campo activado' : '🚒 Diseño Original activado'), 'exito');
     }
   },
 
