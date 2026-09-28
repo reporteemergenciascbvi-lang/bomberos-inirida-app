@@ -24,8 +24,10 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.61';
+const APP_VERSION = '6.63';
 const APP_VERSION_NOTAS = [
+  'v6.63: Sesión de administrador más robusta: si al entrar no queda activa (señal intermitente u otro motivo), la app reintenta sola y, si aún falla, te muestra el motivo en pantalla en vez de fallar al Firmar sin avisar.',
+  'v6.62: Operatividad incorpora barras proporcionales y anillos de participación sin ocultar ninguna cifra.',
   'v6.61: La app arranca más liviana: los escudos pesan 60 % menos, sin cambiar de imagen.',
   'v6.60: Nuevo diseño Campo: alto contraste para leer a pleno sol. Se elige en el menú del avatar o en Configuración → Tema.',
   'v6.59: Cada tipo de incidente estrena un pictograma del oficio en el mapa, la leyenda, el Inicio y el detalle. El texto siempre permanece visible.',
@@ -790,24 +792,31 @@ const app = {
 
       // v5.51: pedir al backend un "pase" de 8h (no depende del token de 1h de Google).
       // Si falla, no se rompe el login; el admin caería al modo token de 1h.
-      try {
-        const rPase = await fetch(URL_BACKEND, {
-          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ accion: 'iniciarSesion', idToken: response.credential })
-        });
-        const dPase = await rPase.json();
-        if (dPase && dPase.ok && dPase.pase) {
-          this._pase = dPase.pase;
-          this.usuario.pase = dPase.pase;
-          // v6.05: el backend ya dice si es admin SEGÚN LA HOJA. Guardarlo es lo
-          // que hace que "Agregar administrador" sirva de algo: sin esta línea,
-          // la persona agregada nunca veía la zona de administrador.
-          if (typeof dPase.esAdmin === 'boolean') this.usuario.esAdminSrv = dPase.esAdmin;
-          // v6.13: escudo del cuerpo → se cachea y repinta el logo al instante.
-          if (typeof dPase.escudoUrl === 'string') this._aplicarEscudo(dPase.escudoUrl);
-          await DB.guardarConfig('sesion', this.usuario);
-        }
-      } catch (ePase) { console.warn('No se pudo obtener pase de 8h:', ePase); }
+      // v6.63: emisión del pase con REINTENTOS y motivo VISIBLE. Antes, si esta
+      // llamada fallaba (red o token rechazado), el error se tragaba en silencio:
+      // el teléfono entraba SIN pase y toda acción de admin/firma decía "Sesión
+      // inválida" sin explicar por qué. Ahora reintenta y, si de verdad no puede,
+      // lo dice en pantalla con el motivo real (ver _emitirPase / _avisarSesionAdmin).
+      const _rp = await this._emitirPase({ accion: 'iniciarSesion', idToken: response.credential });
+      if (_rp.ok) {
+        this._pase = _rp.data.pase;
+        this.usuario.pase = _rp.data.pase;
+        // v6.05: el backend ya dice si es admin SEGÚN LA HOJA. Guardarlo es lo
+        // que hace que "Agregar administrador" sirva de algo: sin esta línea,
+        // la persona agregada nunca veía la zona de administrador.
+        if (typeof _rp.data.esAdmin === 'boolean') this.usuario.esAdminSrv = _rp.data.esAdmin;
+        // v6.13: escudo del cuerpo → se cachea y repinta el logo al instante.
+        if (typeof _rp.data.escudoUrl === 'string') this._aplicarEscudo(_rp.data.escudoUrl);
+        this._ultimoErrorPase = '';
+        this._ocultarAvisoSesionAdmin();
+        await DB.guardarConfig('sesion', this.usuario);
+      } else {
+        this._ultimoErrorPase = _rp.error || '';
+        console.warn('No se pudo emitir el pase:', _rp.error);
+        // Solo se avisa si esta cuenta ES admin: a un bombero normal no le afecta
+        // (él no hace acciones que exijan el pase de admin).
+        if (this.esAdmin()) this._avisarSesionAdmin(_rp.error);
+      }
 
       this.toast(`Bienvenido, ${usuario.nombrePila || usuario.email}`, 'exito');
 
@@ -1615,7 +1624,64 @@ const app = {
   // token de Google de 1h → "cierra y vuelve a iniciar sesión" constante.
   // Ahora, al abrir la app: se renueva el pase usando el pase vigente (el
   // backend acepta pase válido) o el token de Google si aún sirve.
-  async _renovarPaseSesion() {
+  // v6.63: pide el pase al backend con hasta 3 intentos (una red mala no debe
+  // dejar al admin sin sesión). Devuelve { ok:true, data } o { ok:false, error }
+  // con el MOTIVO real (error del backend, HTTP o excepción) para poder mostrarlo.
+  async _emitirPase(body) {
+    let ultimo = 'desconocido';
+    for (let intento = 1; intento <= 3; intento++) {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(body)
+        });
+        if (!resp.ok) { ultimo = 'HTTP ' + resp.status; }
+        else {
+          const data = await resp.json();
+          if (data && data.ok && data.pase) return { ok: true, data: data };
+          ultimo = (data && data.error) ? data.error : 'el servidor respondió sin pase';
+        }
+      } catch (e) { ultimo = (e && e.message) ? e.message : 'sin conexión'; }
+      if (intento < 3) { await new Promise(r => setTimeout(r, 1200 * intento)); }
+    }
+    return { ok: false, error: ultimo };
+  },
+
+  // v6.63: aviso persistente y legible cuando la sesión de admin NO quedó activa.
+  // Reemplaza el "se traga el error en silencio" que dejaba al admin creyendo que
+  // había entrado. Usa textContent (I5): el motivo viene del backend, nunca a innerHTML.
+  _avisarSesionAdmin(motivo) {
+    try {
+      let b = document.getElementById('cbviAvisoSesion');
+      if (!b) {
+        b = document.createElement('div');
+        b.id = 'cbviAvisoSesion';
+        b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#b91c1c;color:#fff;padding:12px 14px;font-size:13px;line-height:1.45;box-shadow:0 2px 10px rgba(0,0,0,.35);text-align:center;';
+        document.body.appendChild(b);
+      }
+      b.textContent = '';
+      const t = document.createElement('div');
+      t.textContent = '⚠️ Tu sesión de administrador no quedó activa en este dispositivo, por eso "Firmar" falla. Motivo: ' + (motivo || 'desconocido');
+      const fila = document.createElement('div');
+      fila.style.cssText = 'margin-top:8px;display:flex;gap:8px;justify-content:center;';
+      const bR = document.createElement('button');
+      bR.textContent = 'Reintentar';
+      bR.style.cssText = 'padding:6px 16px;background:#fff;color:#b91c1c;border:none;border-radius:6px;font-weight:700;cursor:pointer;';
+      bR.onclick = () => { bR.textContent = 'Reintentando…'; bR.disabled = true; app._renovarPaseSesion(true); };
+      const bS = document.createElement('button');
+      bS.textContent = 'Cerrar sesión y reingresar';
+      bS.style.cssText = 'padding:6px 16px;background:transparent;color:#fff;border:1px solid #fff;border-radius:6px;font-weight:700;cursor:pointer;';
+      bS.onclick = () => { try { app.cerrarSesion(); } catch (e) {} };
+      fila.appendChild(bR); fila.appendChild(bS);
+      b.appendChild(t); b.appendChild(fila);
+      b.style.display = 'block';
+    } catch (e) { /* nunca romper por el aviso */ }
+  },
+  _ocultarAvisoSesionAdmin() {
+    try { const b = document.getElementById('cbviAvisoSesion'); if (b) b.style.display = 'none'; } catch (e) {}
+  },
+
+  async _renovarPaseSesion(mostrarAviso) {
     try {
       if (!navigator.onLine || !this.usuario || !this.usuario.email) return;
       const body = { accion: 'iniciarSesion' };
@@ -1623,15 +1689,19 @@ const app = {
       if (this._googleIdToken && this._googleTokenExp && Date.now() < this._googleTokenExp) {
         body.idToken = this._googleIdToken;
       }
-      if (!body.pase && !body.idToken) return; // nada con qué renovar
-      const resp = await fetch(URL_BACKEND, {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body)
-      });
-      const data = await resp.json();
-      if (data && data.ok && data.pase) {
+      if (!body.pase && !body.idToken) {
+        // v6.63: sin pase y sin token fresco no hay con qué renovar. Si esta cuenta
+        // es admin, se le avisa que reingrese (antes: silencio y "Sesión inválida").
+        if (this.esAdmin()) this._avisarSesionAdmin('tu ingreso con Google no dejó una sesión activa. Cierra sesión e inicia de nuevo con buena señal.');
+        return;
+      }
+      const _rp = await this._emitirPase(body);
+      if (_rp.ok) {
+        const data = _rp.data;
         this._pase = data.pase;
         this.usuario.pase = data.pase;
+        this._ultimoErrorPase = '';
+        this._ocultarAvisoSesionAdmin();
         // v6.05: se refresca el privilegio desde la hoja en CADA arranque con
         // señal. Si cambió (te agregaron o te quitaron), la interfaz se redibuja
         // sola; si no, el menú seguiría mostrando lo de antes indefinidamente.
@@ -1648,6 +1718,10 @@ const app = {
           }
         }
         await DB.guardarConfig('sesion', this.usuario);
+      } else {
+        // v6.63: falló la renovación. Si es admin (o se pidió explícito), avisar el motivo.
+        this._ultimoErrorPase = _rp.error || '';
+        if (mostrarAviso || this.esAdmin()) this._avisarSesionAdmin(_rp.error);
       }
     } catch (e) { /* silencioso: sin conexión no pasa nada */ }
   },
@@ -7999,6 +8073,22 @@ ${paginaFotos}
   _operMes: '',
   _operAnio: '',
 
+  _grafBarra(valor, maximo, color) {
+    const valorSeguro = Math.max(0, Number(valor) || 0);
+    const maxSeguro = Math.max(0, Number(maximo) || 0);
+    const limitado = Math.min(valorSeguro, maxSeguro);
+    const pct = maxSeguro > 0 ? Math.round(100 * limitado / maxSeguro) : 0;
+    return '<div class="cbvi-graf-pista" aria-hidden="true"><div class="cbvi-graf-barra" data-valor="'+limitado+'" data-max="'+maxSeguro+'" style="width:'+pct+'%;background:'+color+';"></div></div>';
+  },
+
+  _grafAnillo(porcentaje, color) {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(porcentaje) || 0)));
+    return '<svg class="cbvi-graf-anillo" data-pct="'+pct+'" viewBox="0 0 36 36" aria-hidden="true" focusable="false">'
+      + '<circle class="cbvi-graf-fondo" cx="18" cy="18" r="15.8" fill="none" stroke-width="3.2"></circle>'
+      + '<circle class="cbvi-graf-progreso" cx="18" cy="18" r="15.8" fill="none" stroke="'+color+'" stroke-width="3.2" pathLength="100" stroke-dasharray="'+pct+' 100" stroke-linecap="round" transform="rotate(-90 18 18)"></circle>'
+      + '</svg>';
+  },
+
   _renderOperatividad() {
     const cont = document.getElementById('operatividadContenido');
     if (!cont || !this._operData) return;
@@ -8057,6 +8147,12 @@ ${paginaFotos}
     const totalHoras = d.reduce((s,p) => s + (p.horasActividades||0), 0);
     const totalDomingos = (this._operStats && this._operStats.totalDomingos !== undefined) ? this._operStats.totalDomingos : d.reduce((s,p) => s + (p.domingosPresente||0), 0);
     const totalSancion = d.filter(p => p.horasSancion > 0).length;
+    const unidadesBase = Math.max(0, Number(this._operStats && this._operStats.unidadesBase) || 0);
+    const pctParticipacion = unidadesBase > 0 ? Math.round(100 * totalPersonas / unidadesBase) : 0;
+    const presentesDom = d.reduce((s,p)=>s+(Number(p.domingosPresente)||0),0);
+    const ausentesDom = d.reduce((s,p)=>s+(Number(p.domingosAusente)||0),0);
+    const controlDom = presentesDom + ausentesDom;
+    const pctAsistencia = controlDom > 0 ? Math.round(100 * presentesDom / controlDom) : 0;
     const top = [...d].sort((a,b) => {
       const pa = a.emergencias*2 + a.horasActividades + a.domingosPresente;
       const pb = b.emergencias*2 + b.horasActividades + b.domingosPresente;
@@ -8068,18 +8164,20 @@ ${paginaFotos}
     const topActiv = [...d].sort((a,b)=>b.horasActividades-a.horasActividades).filter(p=>p.horasActividades>0);
     const topDomin = [...d].sort((a,b)=>b.domingosPresente-a.domingosPresente).filter(p=>p.domingosPresente>0);
     const medallas = ['🥇','🥈','🥉'];
-    const rankRow = (p,i,val,lbl) => '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;">'
-      + '<div><span style="font-size:15px;">'+(medallas[i]||('<span style="font-size:11px;color:#999;">#'+(i+1)+'</span>'))+'</span>'
+    const rankRow = (p,i,val,lbl,maximo,color) => '<div class="ops-graf-fila">'
+      + '<div><div><span style="font-size:15px;">'+(medallas[i]||('<span style="font-size:11px;color:#999;">#'+(i+1)+'</span>'))+'</span>'
       + '<strong style="margin-left:6px;font-size:13px;">'+app._esc(p.nombre||'')+'</strong></div>'
-      + '<span style="font-weight:700;color:#d81f27;">'+val+' '+lbl+'</span></div>';
+      + '<span style="font-weight:700;color:'+color+';">'+val+' '+lbl+'</span></div>'
+      + this._grafBarra(parseFloat(val)||0,maximo,color)+'</div>';
     const rankList = (lista, getId, getVal, lbl, color) => {
       if(!lista.length) return '<div class="empty-state" style="color:#999;font-size:13px;text-align:center;padding:8px;"><svg class="empty-art" viewBox="0 0 128 96" aria-hidden="true" focusable="false"><use href="#empty-search" xlink:href="#empty-search" xmlns:xlink="http://www.w3.org/1999/xlink"></use></svg>Sin datos en este período</div>';
-      const top3 = lista.slice(0,3).map((p,i)=>rankRow(p,i,getVal(p),lbl)).join('');
+      const maximo = lista.reduce((m,p)=>Math.max(m,parseFloat(getVal(p))||0),0);
+      const top3 = lista.slice(0,3).map((p,i)=>rankRow(p,i,getVal(p),lbl,maximo,color)).join('');
       const resto = lista.slice(3);
       if(!resto.length) return top3;
       const masId = getId+'_mas';
       return top3
-        + '<div id="'+masId+'" style="display:none;">'+resto.map((p,i)=>rankRow(p,i+3,getVal(p),lbl)).join('')+'</div>'
+        + '<div id="'+masId+'" style="display:none;">'+resto.map((p,i)=>rankRow(p,i+3,getVal(p),lbl,maximo,color)).join('')+'</div>'
         + '<button data-id="'+masId+'" onclick="var e=document.getElementById(this.dataset.id);var v=e.style.display!==\'none\';e.style.display=v?\'none\':\'block\';this.textContent=v?\'▼ Ver más ('+resto.length+')\':\'▲ Ver menos\';" '
         + 'style="width:100%;padding:6px;margin-top:4px;background:#f5f5f5;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:'+color+';"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 9 7 7 7-7"/></svg> Ver más ('+resto.length+')</button>';
     };
@@ -8089,6 +8187,17 @@ ${paginaFotos}
         <div style="font-size:13px;opacity:.8;">Período</div>
         <div style="font-size:18px;font-weight:700;">${mesNombre} ${this._operAnio}</div>
         <div style="font-size:12px;opacity:.7;margin-top:2px;">Cuerpo de Bomberos Voluntarios — Inírida</div>
+      </div>
+
+      <div class="ops-graf-resumen">
+        ${unidadesBase > 0 ? `<div class="ops-graf-item">
+          ${this._grafAnillo(pctParticipacion,'#d81f27')}
+          <div class="ops-graf-copy"><div class="ops-graf-cifra">${pctParticipacion}%</div><div class="ops-graf-label">Participación</div><div class="ops-graf-meta">${totalPersonas} de ${unidadesBase} unidades activas</div></div>
+        </div>` : ''}
+        ${controlDom > 0 ? `<div class="ops-graf-item">
+          ${this._grafAnillo(pctAsistencia,'#e67e22')}
+          <div class="ops-graf-copy"><div class="ops-graf-cifra">${pctAsistencia}%</div><div class="ops-graf-label">Asistencia a domingos</div><div class="ops-graf-meta">${presentesDom} asistencias de ${controlDom} registros</div></div>
+        </div>` : ''}
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
@@ -8174,6 +8283,9 @@ ${paginaFotos}
     const colorAlerta = (p.tipoAlerta==='RETIRO'||p.tipoAlerta==='DESERCION')?'#c00':p.tipoAlerta==='LLAMADO_ESCRITO'?'#e65100':p.tipoAlerta==='LLAMADO_VERBAL'?'#ff9800':null;
     const nom = String(p.nombre||'');
     const uid = 'u_'+nom.replace(/[^a-zA-Z]/g,'').substring(0,12);
+    const maxEmerg = this._operData.reduce((m,x)=>Math.max(m,Number(x.emergencias)||0),0);
+    const maxHoras = this._operData.reduce((m,x)=>Math.max(m,Number(x.horasActividades)||0),0);
+    const maxDomingos = this._operData.reduce((m,x)=>Math.max(m,Number(x.domingosPresente)||0),0);
     return '<div class="ops-unit" style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border-left:4px solid #d81f27;">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">'
       +'<div><div style="font-weight:700;font-size:15px;">'+app._esc(nom||'(sin nombre)')+'</div>'
@@ -8181,24 +8293,24 @@ ${paginaFotos}
       +(p.enBase===false?'<div style="font-size:11px;background:#fff8e1;color:#8d6e00;border:1px solid #f9a825;border-radius:6px;padding:2px 6px;margin-top:3px;display:inline-block;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> No cruza con la base (revisar escritura)</div>':'')
       +'</div>'
       +'<div style="text-align:right;"><div style="font-weight:700;color:#d81f27;font-size:16px;">'+pts+' pts</div>'
-      +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+(p.tipoAlerta||'').replace('_',' ')+'</div>':'')
+      +(colorAlerta?'<div style="font-size:11px;background:'+colorAlerta+';color:#fff;padding:2px 6px;border-radius:4px;margin-top:2px;">'+app._esc(String(p.tipoAlerta||'').replace('_',' '))+'</div>':'')
       +'</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">'
       +'<div class="ops-unit-metric" style="background:#fff5f5;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="emerg" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#c0392b;">'+p.emergencias+'</div>'
-      +'<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div></div>'
+      +'<div style="font-size:10px;color:#c0392b;text-decoration:underline;">Ver emerg.</div>'+this._grafBarra(Number(p.emergencias)||0,maxEmerg,'#c0392b')+'</div>'
       +'<div class="ops-unit-metric" style="background:#f0f8f4;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="activ" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#1e8449;">'+this._r1(p.horasActividades)+'h</div>'
-      +'<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div></div>'
+      +'<div style="font-size:10px;color:#1e8449;text-decoration:underline;">Ver activ.</div>'+this._grafBarra(Number(p.horasActividades)||0,maxHoras,'#1e8449')+'</div>'
       +'<div class="ops-unit-metric" style="background:#fef9f0;border-radius:8px;padding:8px;text-align:center;cursor:pointer;" data-tipo="domin" data-uid="'+uid+'" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" onclick="app._expandirDetalle(this.dataset.tipo,this.dataset.uid,decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced))">'
       +'<div style="font-size:18px;font-weight:700;color:#e67e22;">'+p.domingosPresente+'</div>'
-      +'<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div></div>'
+      +'<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div>'+this._grafBarra(Number(p.domingosPresente)||0,maxDomingos,'#e67e22')+'</div>'
       +'</div>'
       +'<div id="'+uid+'_det" style="display:none;margin-bottom:8px;"></div>'
-      +'<div style="display:flex;justify-content:space-between;font-size:12px;color:#666;">'
-      +'<span>Asistencia domingos: <strong>'+pctDom+'%</strong></span>'
+      +'<div class="ops-unit-asistencia">'+this._grafAnillo(pctDom,'#e67e22')
+      +'<div class="ops-unit-asistencia-copy"><span>Asistencia domingos: <strong>'+pctDom+'%</strong></span>'
       +(p.horasSancion>0?'<span style="color:#c00;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> '+p.horasSancion+'h sanción</span>':'<span style="color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Sin sanciones</span>')
-      +'</div></div>';
+      +'</div></div></div>';
   },
 
   async _expandirDetalle(tipo, uid, nombre, cedula) {
