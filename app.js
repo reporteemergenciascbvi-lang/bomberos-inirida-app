@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.63';
+const APP_VERSION = '6.64';
 const APP_VERSION_NOTAS = [
+  'v6.64: Identidad renovada: icono y splash más limpios, con mayor aire y zona segura para recortes de Android.',
   'v6.63: Sesión de administrador más robusta: si al entrar no queda activa (señal intermitente u otro motivo), la app reintenta sola y, si aún falla, te muestra el motivo en pantalla en vez de fallar al Firmar sin avisar.',
   'v6.62: Operatividad incorpora barras proporcionales y anillos de participación sin ocultar ninguna cifra.',
   'v6.61: La app arranca más liviana: los escudos pesan 60 % menos, sin cambiar de imagen.',
