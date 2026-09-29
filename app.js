@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.64';
+const APP_VERSION = '6.65';
 const APP_VERSION_NOTAS = [
+  'v6.65: Asistencia de domingos permite agregar varios encargados y adjuntar hasta seis fotos, tanto al registrar como al editar.',
   'v6.64: Identidad renovada: icono y splash más limpios, con mayor aire y zona segura para recortes de Android.',
   'v6.63: Sesión de administrador más robusta: si al entrar no queda activa (señal intermitente u otro motivo), la app reintenta sola y, si aún falla, te muestra el motivo en pantalla en vez de fallar al Firmar sin avisar.',
   'v6.62: Operatividad incorpora barras proporcionales y anillos de participación sin ocultar ninguna cifra.',
@@ -7373,7 +7374,8 @@ ${paginaFotos}
       _setCab('asistTipoReunion', _cab.tipoReunion);
       _setCab('asistTema', _cab.tema);
       _setCab('asistLugar', _cab.lugarReunion);
-      _setCab('asistEncargado', _cab.encargado);
+      this._asistEncargados = Array.isArray(_cab.encargados) ? _cab.encargados.slice(0, 8) : [];
+      this._renderEncargadosDomingo('registro');
       _setCab('asistComandanteGuardia', _cab.comandanteGuardia);
       // v5.81: se guarda rango + orden (fila en Personal_CBVI) para llamar a
       // lista por rangos y en el orden de la hoja (antes el objeto ordenaba
@@ -7732,7 +7734,7 @@ ${paginaFotos}
         body: JSON.stringify({
           accion: 'registrarAsistencia', fecha, registros, replaceAll: true,
           tipoReunion, tema, lugarReunion,
-          encargado: document.getElementById('asistEncargado') ? document.getElementById('asistEncargado').value : '',
+          encargados: (this._asistEncargados || []).slice(0, 8),
           comandanteGuardia: document.getElementById('asistComandanteGuardia') ? document.getElementById('asistComandanteGuardia').value : '',
           fotos: this._asistFotos || {},
           adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || ''
@@ -7747,7 +7749,7 @@ ${paginaFotos}
         throw new Error(data.error);
       }
       const ausentes = registros.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA').length;
-      this._asistFotos = { inicio:null, medio:null, fin:null };
+      this._asistFotos = { inicio:null, medio:null, fin:null, f4:null, f5:null, f6:null };
       this._asistDirty = false;   // v6.33: ya quedó guardado en el servidor
       this.toast('✅ Asistencia guardada — ' + ausentes + ' ausentes sin excusa', 'exito');
       setTimeout(() => this.cargarPantallaAsistencia(), 1000);
@@ -7790,7 +7792,7 @@ ${paginaFotos}
       const pres = regs.filter(r => r.estado === 'PRESENTE');
       const exc  = regs.filter(r => r.estado === 'AUSENTE_EXCUSA');
       const sin  = regs.filter(r => r.estado === 'AUSENTE_SIN_EXCUSA');
-      const _enc = regs[0] && regs[0].encargado || '';
+      const _enc = regs[0] && Array.isArray(regs[0].encargados) ? regs[0].encargados : [];
       const _grd = regs[0] && regs[0].comandanteGuardia || '';
       const esAdm = this.esAdmin();
 
@@ -7836,7 +7838,7 @@ ${paginaFotos}
         +   '<button onclick="document.getElementById(\'_domModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m6 6 12 12M18 6 6 18"/></svg></button>'
         + '</div>'
         + (regs[0] && regs[0].tipoReunion ? '<div style="font-size:13px;color:#555;">'+app._esc(regs[0].tipoReunion)+(regs[0].tema?' — '+app._esc(regs[0].tema):'')+'</div>' : '')
-        + (_enc ? '<div style="font-size:12px;color:#555;margin-top:4px;">Encargado: <strong>'+app._esc(_enc)+'</strong></div>' : '')
+        + (_enc.length ? '<div style="font-size:12px;color:#555;margin-top:4px;">Encargados: <strong>'+_enc.map(n=>app._esc(n)).join(', ')+'</strong></div>' : '')
         + (_grd ? '<div style="font-size:12px;color:#555;">Guardia: <strong>'+app._esc(_grd)+'</strong></div>' : '')
         + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
         +   '<span style="background:#e8f5e9;color:#1e8449;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Presentes: '+pres.length+'</span>'
@@ -9455,17 +9457,56 @@ ${paginaFotos}
           body: JSON.stringify({ accion:'buscarPersonalCBVI', q:q.trim() }) });
         const data = await resp.json();
         if (!data.ok || !data.resultados.length) { sug.style.display='none'; return; }
-        sug.innerHTML = data.resultados.map(per =>
-          '<div data-n="'+app._esc(per.nombre||'')+'" data-c="'+app._esc(per.cedula||'')+'" data-inp="'+inputId+'" data-sug="'+sugId+'" '
-          +'onclick="document.getElementById(this.dataset.inp).value=this.dataset.n;'
-          +'document.getElementById(this.dataset.inp).dataset.ced=this.dataset.c;'
-          +'document.getElementById(this.dataset.sug).style.display=\'none\';" '
-          +'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">'+app._esc(per.nombre||'')
-          +'<span style="color:#999;font-size:11px;margin-left:6px;">CC:'+app._esc(per.cedula||'-')+'</span></div>'
-        ).join('');
+        const _modoEnc = inputId === 'asistEncargadoBuscar' ? 'registro' : (inputId === '_ednEncargadoBuscar' ? 'edicion' : '');
+        sug.innerHTML = data.resultados.map(per => {
+          const _accion = _modoEnc
+            ? 'app._agregarEncargadoDomingo(\''+_modoEnc+'\',this.dataset.n);document.getElementById(this.dataset.inp).value=\'\';document.getElementById(this.dataset.sug).style.display=\'none\';'
+            : 'document.getElementById(this.dataset.inp).value=this.dataset.n;document.getElementById(this.dataset.inp).dataset.ced=this.dataset.c;document.getElementById(this.dataset.sug).style.display=\'none\';';
+          return '<div data-n="'+app._esc(per.nombre||'')+'" data-c="'+app._esc(per.cedula||'')+'" data-inp="'+inputId+'" data-sug="'+sugId+'" '
+            +'onclick="'+_accion+'" '
+            +'style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">'+app._esc(per.nombre||'')
+            +'<span style="color:#999;font-size:11px;margin-left:6px;">CC:'+app._esc(per.cedula||'-')+'</span></div>';
+        }).join('');
         sug.style.display = 'block';
       } catch(e) { if(sug) sug.style.display='none'; }
     }, 350);
+  },
+
+  _renderEncargadosDomingo(modo) {
+    const esEdicion = modo === 'edicion';
+    const lista = esEdicion ? (this._ednEncargados || []) : (this._asistEncargados || []);
+    const cont = document.getElementById(esEdicion ? '_ednEncargadosLista' : 'asistEncargadosLista');
+    const cuenta = document.getElementById(esEdicion ? '_ednEncargadosCuenta' : 'asistEncargadosCuenta');
+    if (cuenta) cuenta.textContent = lista.length + '/8';
+    if (!cont) return;
+    cont.innerHTML = lista.length ? lista.map((nombre, i) =>
+      '<span style="display:inline-flex;align-items:center;gap:5px;background:#eef6f2;border:1px solid #b9d9c9;color:#185f43;border-radius:999px;padding:5px 8px 5px 10px;font-size:12px;font-weight:700;max-width:100%;">'
+      + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+app._esc(nombre)+'</span>'
+      + '<button type="button" onclick="app._quitarEncargadoDomingo(\''+modo+'\','+i+')" aria-label="Quitar '+app._esc(nombre)+'" style="border:0;background:transparent;color:#8b1e2d;font-size:16px;line-height:1;padding:0;cursor:pointer;">×</button></span>'
+    ).join('') : '<span style="font-size:11px;color:#999;">Aún no hay encargados agregados.</span>';
+  },
+
+  _agregarEncargadoDomingo(modo, nombre) {
+    const limpio = String(nombre || '').trim();
+    if (!limpio) return;
+    const clave = modo === 'edicion' ? '_ednEncargados' : '_asistEncargados';
+    const lista = Array.isArray(this[clave]) ? this[clave] : (this[clave] = []);
+    if (lista.some(x => String(x).trim().toUpperCase() === limpio.toUpperCase())) {
+      this.toast('Ese encargado ya está agregado', 'info'); return;
+    }
+    if (lista.length >= 8) { this.toast('Máximo 8 encargados por domingo', 'error'); return; }
+    lista.push(limpio);
+    if (modo !== 'edicion') this._asistDirty = true;
+    this._renderEncargadosDomingo(modo);
+  },
+
+  _quitarEncargadoDomingo(modo, indice) {
+    const clave = modo === 'edicion' ? '_ednEncargados' : '_asistEncargados';
+    const lista = Array.isArray(this[clave]) ? this[clave] : [];
+    if (indice < 0 || indice >= lista.length) return;
+    lista.splice(indice, 1);
+    if (modo !== 'edicion') this._asistDirty = true;
+    this._renderEncargadosDomingo(modo);
   },
 
   // ── Editar actividad (admin) ──────────────────────────────────────────────
@@ -9737,14 +9778,15 @@ ${paginaFotos}
          no mutar la respuesta del servidor. */
       this._ednRegs = regs.map(r => Object.assign({}, r));
       this._ednNuevos = {};   // cédulas agregadas en esta edición (se pueden quitar)
-      const enc=regs[0].encargado||''; const grd=regs[0].comandanteGuardia||'';
+      this._ednEncargados = Array.isArray(regs[0].encargados) ? regs[0].encargados.slice(0, 8) : [];
+      const grd=regs[0].comandanteGuardia||'';
       const tipoActual=regs[0].tipoReunion||''; const temaActual=regs[0].tema||''; const lugarActual=regs[0].lugarReunion||'';
       const sts={'PRESENTE':'Presente','AUSENTE_EXCUSA':'C/excusa','AUSENTE_SIN_EXCUSA':'Sin excusa'};
       const tiposReunion=['Capacitación','Entrenamiento','Reunión ordinaria','Simulacro','Jornada comunitaria','Otra'];
       const esc=(s)=>app._esc(s);
 
       // v5.65 (BUG: fotos de domingo no editables): mismo patrón que Actividades
-      this._ednFotosNuevas = { inicio:null, medio:null, fin:null };
+      this._ednFotosNuevas = { inicio:null, medio:null, fin:null, f4:null, f5:null, f6:null };
       const fl = data.fotosLabeled || {};
       const fotoSlot = (k, lbl, src) =>
         '<div style="text-align:center;">'
@@ -9779,21 +9821,24 @@ ${paginaFotos}
         +'<input type="text" id="_ednTema" value="'+esc(temaActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
         +'<label style="font-size:12px;font-weight:700;">Lugar</label>'
         +'<input type="text" id="_ednLugar" value="'+esc(lugarActual)+'" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">'
-        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
-        +'<div><label style="font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> Encargado</label><div style="position:relative;">'
-        +'<input type="text" id="_ednE" value="'+esc(enc)+'" autocomplete="off" oninput="app._buscarAsistCampo(\'_ednE\',\'_ednESug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
-        +'<div id="_ednESug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
-        +'</div></div>'
-        +'<div><label style="font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg> Guardia</label><div style="position:relative;">'
+        +'<div style="margin-bottom:12px;">'
+        +'<label style="font-size:12px;font-weight:700;display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;"><span><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg> Encargados / Instructores</span><span id="_ednEncargadosCuenta" style="font-size:11px;color:#777;font-weight:600;">0/8</span></label>'
+        +'<div id="_ednEncargadosLista" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;"></div>'
+        +'<div style="position:relative;"><input type="text" id="_ednEncargadoBuscar" autocomplete="off" placeholder="Buscar y agregar encargado..." oninput="app._buscarAsistCampo(\'_ednEncargadoBuscar\',\'_ednEncargadoSug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
+        +'<div id="_ednEncargadoSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div></div>'
+        +'</div>'
+        +'<div style="margin-bottom:12px;"><label style="font-size:12px;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 4 6v6c0 5 3 8 8 10 5-2 8-5 8-10V6z"/><path d="m8 12 3 3 5-6"/></svg> Guardia</label><div style="position:relative;">'
         +'<input type="text" id="_ednG" value="'+esc(grd)+'" autocomplete="off" oninput="app._buscarAsistCampo(\'_ednG\',\'_ednGSug\',this.value)" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;">'
         +'<div id="_ednGSug" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;z-index:100;box-shadow:0 4px 8px rgba(0,0,0,.1);max-height:150px;overflow-y:auto;"></div>'
         +'</div></div>'
-        +'</div>'
         +'<div style="border-top:1px solid #eee;padding-top:10px;margin-bottom:6px;font-weight:700;font-size:13px;color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M3 8h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="14" r="4"/></svg> Fotos de la reunión</div>'
-        +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:space-around;">'
+        +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">'
         + fotoSlot('inicio','Inicio',fl.inicio||'')
         + fotoSlot('medio','Intermedio',fl.medio||'')
         + fotoSlot('fin','Final',fl.fin||'')
+        + fotoSlot('f4','Foto 4',fl.f4||'')
+        + fotoSlot('f5','Foto 5',fl.f5||'')
+        + fotoSlot('f6','Foto 6',fl.f6||'')
         +'</div>'
         +buscador
         +'<div style="font-size:12px;font-weight:700;margin-bottom:8px;color:#555;">Estado individual:</div>'
@@ -9803,6 +9848,7 @@ ${paginaFotos}
         +'<button id="_ednGuard" style="flex:1;padding:12px;background:#1e8449;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M4 3h13l3 3v15H4zM8 3v6h8V3M8 21v-7h8v7"/></svg> Guardar</button>'
         +'</div></div>';
       document.body.appendChild(modal);
+      this._renderEncargadosDomingo('edicion');
       this._ednRenderFilas();
       modal.querySelector('#_ednCancel').onclick=()=>app._cerrarModalJS(modal);
       modal.querySelector('#_ednGuard').onclick=async()=>{
@@ -9819,14 +9865,14 @@ ${paginaFotos}
         this._ednSync();
         const newRegs=this._ednRegs;
         const fotosPayload={};
-        ['inicio','medio','fin'].forEach(k=>{ if(this._ednFotosNuevas[k]) fotosPayload[k]=this._ednFotosNuevas[k]; });
+        ['inicio','medio','fin','f4','f5','f6'].forEach(k=>{ if(this._ednFotosNuevas[k]) fotosPayload[k]=this._ednFotosNuevas[k]; });
         try{
           const r2=await fetch(URL_BACKEND,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
             body:JSON.stringify({accion:'registrarAsistencia',fecha,registros:newRegs,replaceAll:true,
               tipoReunion:document.getElementById('_ednTipo').value,
               tema:document.getElementById('_ednTema').value,
               lugarReunion:document.getElementById('_ednLugar').value,
-              encargado:document.getElementById('_ednE').value,
+              encargados:(this._ednEncargados || []).slice(0, 8),
               comandanteGuardia:document.getElementById('_ednG').value,
               fotos: fotosPayload,
               adminEmail:this.usuario.email,adminPassword:this._adminPwdSession})});
@@ -9978,11 +10024,14 @@ ${paginaFotos}
       this.toast('Solo los administradores pueden registrar asistencia','error');
       return;
     }
-    this._asistFotos = { inicio:null, medio:null, fin:null };
+    this._asistEncargados = [];
+    this._asistFotos = { inicio:null, medio:null, fin:null, f4:null, f5:null, f6:null };
     this.irA('pantallaAsistencia');
+    this._renderEncargadosDomingo('registro');
   },
 
-  _asistFotos: { inicio:null, medio:null, fin:null },
+  _asistEncargados: [],
+  _asistFotos: { inicio:null, medio:null, fin:null, f4:null, f5:null, f6:null },
 
   _fotoAsistencia(tipo, input) {
     const file = input.files && input.files[0];
@@ -9999,10 +10048,11 @@ ${paginaFotos}
         canvas.height = img.height * scale;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         this._asistFotos[tipo] = canvas.toDataURL('image/jpeg', 0.75);
-        const okId = 'asistFoto' + (tipo==='inicio'?'Inicio':tipo==='medio'?'Medio':'Fin') + 'Ok';
+        const etiquetas = { inicio:'Inicio', medio:'Medio', fin:'Fin', f4:'F4', f5:'F5', f6:'F6' };
+        const okId = 'asistFoto' + (etiquetas[tipo] || '') + 'Ok';
         const ok = document.getElementById(okId);
         if (ok) ok.style.display = 'block';
-        this.toast('Foto ' + tipo + ' cargada','exito');
+        this.toast('Foto ' + (etiquetas[tipo] || tipo) + ' cargada','exito');
       };
       img.src = e.target.result;
     };
