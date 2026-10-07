@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.65';
+const APP_VERSION = '6.66';
 const APP_VERSION_NOTAS = [
+  'v6.66: Nuevo historial individual imprimible de horas voluntarias desde Operatividad; las pagas se muestran aparte.',
   'v6.65: Asistencia de domingos permite agregar varios encargados y adjuntar hasta seis fotos, tanto al registrar como al editar.',
   'v6.64: Identidad renovada: icono y splash más limpios, con mayor aire y zona segura para recortes de Android.',
   'v6.63: Sesión de administrador más robusta: si al entrar no queda activa (señal intermitente u otro motivo), la app reintenta sola y, si aún falla, te muestra el motivo en pantalla en vez de fallar al Firmar sin avisar.',
@@ -8310,6 +8311,7 @@ ${paginaFotos}
       +'<div style="font-size:10px;color:#e67e22;text-decoration:underline;">Ver dom.</div>'+this._grafBarra(Number(p.domingosPresente)||0,maxDomingos,'#e67e22')+'</div>'
       +'</div>'
       +'<div id="'+uid+'_det" style="display:none;margin-bottom:8px;"></div>'
+      +'<button type="button" style="width:100%;border:1px solid #d81f27;border-radius:8px;background:#fff;color:#b51c25;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;" data-nom="'+encodeURIComponent(nom)+'" data-ced="'+encodeURIComponent(String(p.cedula||''))+'" data-rango="'+encodeURIComponent(String(p.rango||''))+'" onclick="app._imprimirFichaPersona(decodeURIComponent(this.dataset.nom),decodeURIComponent(this.dataset.ced),decodeURIComponent(this.dataset.rango))">🖨️ Historial de horas</button>'
       +'<div class="ops-unit-asistencia">'+this._grafAnillo(pctDom,'#e67e22')
       +'<div class="ops-unit-asistencia-copy"><span>Asistencia domingos: <strong>'+pctDom+'%</strong></span>'
       +(p.horasSancion>0?'<span style="color:#c00;font-weight:700;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> '+p.horasSancion+'h sanción</span>':'<span style="color:#1e8449;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> Sin sanciones</span>')
@@ -8875,6 +8877,100 @@ ${paginaFotos}
       </body></html>`);
     w.document.close();
     setTimeout(()=>w.print(),800);
+  },
+
+
+  // v6.66: ficha imprimible individual desde Operatividad.
+  async _imprimirFichaPersona(nombre, cedula, rango) {
+    if (!this.esAdmin()) { this.toast('Solo el administrador puede imprimir esta ficha.', 'error'); return; }
+    // La ventana se abre antes del primer await para conservar el gesto del usuario.
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
+    try { w.opener = null; } catch (e) {}
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preparando ficha</title></head><body style="font-family:Arial,sans-serif;padding:32px">Generando historial de horas…</body></html>');
+    w.document.close();
+    const esc = v => app._esc(String(v == null ? '' : v));
+    try {
+      const acciones = ['obtenerActividadesPersona', 'obtenerEmergenciasPersona', 'obtenerDomingosPersona'];
+      const [aData, eData, dData] = await Promise.all(acciones.map(async accion => {
+        const resp = await fetch(URL_BACKEND, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body:JSON.stringify({accion, nombre, cedula:cedula||'', mes:this._operMes, anio:this._operAnio})});
+        if (!resp.ok) throw new Error('No se pudo consultar el historial (' + resp.status + ').');
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || 'No se pudo consultar el historial.');
+        return data;
+      }));
+      if (w.closed) return;
+      const actividades = (aData.actividades || []).slice().sort((a,b) => String(a.fecha||'').localeCompare(String(b.fecha||'')));
+      const voluntarias = actividades.filter(a => a.modalidad === 'Voluntaria');
+      const pagas = actividades.filter(a => a.modalidad === 'Paga');
+      const sumar = lista => this._r1(lista.reduce((n,a) => n + (Number(a.horas) || 0), 0));
+      const emergencias = eData.emergencias || [];
+      const domingos = dData.domingos || [];
+      const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const mes = this._operMes ? meses[Number(this._operMes)-1] || this._operMes : 'Todo el año';
+      const periodo = mes + ' ' + (this._operAnio || '');
+      const unidad = (this._operData || []).find(p => String(p.cedula||'') === String(cedula||'') && cedula)
+        || (this._operData || []).find(p => String(p.nombre||'').toUpperCase() === String(nombre||'').toUpperCase());
+      const presentes = Number(unidad && unidad.domingosPresente) || 0;
+      const ausentes = Number(unidad && unidad.domingosAusente) || 0;
+      const porcentaje = unidad && presentes + ausentes > 0 ? Math.round(presentes / (presentes + ausentes) * 100) + '%' : '—';
+      const tabla = (lista, vacio) => lista.length
+        ? '<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Horario</th><th>Horas</th></tr></thead><tbody>'
+          + lista.map(a => '<tr><td>' + esc(a.fecha||'—') + '</td><td><strong>' + esc(a.tipo||'Actividad')
+            + '</strong></td><td>' + esc(a.descripcion||'—') + '</td><td>' + esc(a.horaInicio||'—')
+            + ' – ' + esc(a.horaFin||'—') + '</td><td class="num">' + esc(a.horas||0) + ' h</td></tr>').join('')
+          + '</tbody></table>' : '<p class="vacio">' + vacio + '</p>';
+      const listaEmerg = emergencias.length
+        ? '<table><thead><tr><th>Fecha</th><th>Consecutivo</th><th>Tipo</th></tr></thead><tbody>'
+          + emergencias.map(e => '<tr><td>' + esc(e.fecha||'—') + '</td><td>' + esc(e.consecutivo||'—')
+            + '</td><td>' + esc(e.tipo||'Emergencia') + '</td></tr>').join('') + '</tbody></table>'
+        : '<p class="vacio">Sin emergencias en este período.</p>';
+      const listaDom = domingos.length
+        ? '<table><thead><tr><th>Fecha</th><th>Tipo / tema</th><th>Lugar</th></tr></thead><tbody>'
+          + domingos.map(d => '<tr><td>' + esc(d.fecha||'—') + '</td><td>' + esc(d.tipo||'Domingo')
+            + '<br>' + esc(d.tema||'—') + '</td><td>' + esc(d.lugar||'—') + '</td></tr>').join('') + '</tbody></table>'
+        : '<p class="vacio">Sin domingos registrados en este período.</p>';
+      w.document.open();
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Historial de horas — ${esc(nombre)}</title>
+        <style>
+          body{font-family:Arial,sans-serif;color:#20242a;margin:15mm;line-height:1.35;font-size:10pt}
+          header{border-bottom:3px solid #d81f27;padding-bottom:12px;margin-bottom:18px}
+          h1{color:#b51c25;font-size:19pt;margin:0 0 5px} h2{font-size:12pt;color:#b51c25;margin:22px 0 7px}
+          .sub,.nota,footer{color:#637080;font-size:9pt}.persona{font-size:16pt;font-weight:700;margin:10px 0 2px}
+          .datos{display:flex;gap:20px;flex-wrap:wrap}.resumen{display:flex;gap:10px;margin:16px 0;flex-wrap:wrap}
+          .total{border:1px solid #d6dce2;border-radius:8px;padding:10px 15px;min-width:145px}
+          .total strong{display:block;font-size:18pt;color:#b51c25}.total.paga strong{color:#475569}
+          table{width:100%;border-collapse:collapse;margin-top:6px}th{text-align:left;background:#f2f4f7}
+          th,td{border-bottom:1px solid #e2e6eb;padding:7px;vertical-align:top}.num{text-align:right;white-space:nowrap}
+          .vacio{color:#637080;background:#f7f8fa;padding:10px;border-radius:6px}
+          section{break-inside:avoid}footer{border-top:1px solid #d6dce2;margin-top:24px;padding-top:8px}
+          @media print{body{margin:8mm}section{break-inside:auto}tr{break-inside:avoid}}
+        </style></head><body>
+        <header><h1>Historial individual de horas</h1><div class="sub">CBVI — Inírida · Período: ${esc(periodo)} · Generado: ${esc(new Date().toLocaleDateString('es-CO'))}</div>
+        <div class="persona">${esc(nombre||'Sin nombre')}</div>
+        <div class="datos"><span>CC: <strong>${esc(cedula||'—')}</strong></span><span>Rango: <strong>${esc(rango||'—')}</strong></span></div></header>
+        <div class="resumen"><div class="total"><span>Total horas voluntarias</span><strong>${esc(sumar(voluntarias))} h</strong></div>
+        ${pagas.length ? `<div class="total paga"><span>Horas pagas (aparte)</span><strong>${esc(sumar(pagas))} h</strong></div>` : ''}
+        <div class="total"><span>Emergencias</span><strong>${esc(emergencias.length)}</strong></div>
+        <div class="total"><span>Domingos</span><strong>${esc(domingos.length)}</strong></div></div>
+        <section><h2>Actividades voluntarias</h2>${tabla(voluntarias,'Sin actividades voluntarias en este período.')}</section>
+        ${pagas.length ? `<section><h2>Actividades pagas</h2>${tabla(pagas,'')}</section>` : ''}
+        <section><h2>Emergencias atendidas</h2><p class="nota">${esc(emergencias.length)} registro(s). No se suman como horas.</p>${listaEmerg}</section>
+        <section><h2>Domingos</h2><p class="nota">${esc(domingos.length)} registro(s) · Asistencia: ${esc(porcentaje)}. No se suman como horas.</p>${listaDom}</section>
+        <footer>CBVI — ABNEGACIÓN Y DISCIPLINA · Datos del período seleccionado en Operatividad.</footer>
+        </body></html>`);
+      w.document.close();
+      setTimeout(() => { if (!w.closed) w.print(); }, 800);
+    } catch (e) {
+      if (!w.closed) {
+        w.document.open();
+        w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Error</title></head><body style="font-family:Arial,sans-serif;padding:32px"><h1>No se pudo generar la ficha</h1><p>' + esc(e.message||'Error de red') + '</p></body></html>');
+        w.document.close();
+      }
+      this.toast('No se pudo generar la ficha: ' + (e.message||'Error de red'), 'error');
+    }
   },
 
   _imprimirReportePorUnidad() {
