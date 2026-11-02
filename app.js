@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.68';
+const APP_VERSION = '6.69';
 const APP_VERSION_NOTAS = [
+  'v6.69: EDAN más claro: fotos en evento, viviendas y vías; títulos que se distinguen de los campos; menos casillas que no aplican en Guainía, y el censo con las listas del formato oficial.',
   'v6.68: EDAN — nuevo censo de familias afectadas (formato -08): se imprime de 13 personas por hoja y se exporta a CSV. Por seguridad, el censo se borra del teléfono después de enviarlo.',
   'v6.67: Nuevo — sección EDAN: evaluación de daños y necesidades para el CMGRD, funciona sin señal e imprime el consolidado.',
   'v6.66: Nuevo historial individual imprimible de horas voluntarias desde Operatividad; las pagas se muestran aparte.',
@@ -10247,7 +10248,7 @@ ${paginaFotos}
       observaciones: '', elaboradoPor: u.nombreCompleto || u.nombre || '', cargo: u.grado || '',
       entidad: 'Cuerpo de Bomberos Voluntarios de Inírida',
       secciones: { zonas: [], secundarios: [], salud: [], vias: [], edificaciones: {}, telecom: {}, servicios: {}, transporte: {}, agro: {}, comercio: {} },
-      necesidades: [], personas: [],
+      necesidades: [], personas: [], fotos: [],
       emailRegistrador: u.email || '', creadoLocal: ahora, actualizadoLocal: ahora
     };
   },
@@ -10264,6 +10265,14 @@ ${paginaFotos}
     if (!Array.isArray(o.necesidades)) o.necesidades = [];
     if (!Array.isArray(o.personas)) o.personas = [];
     o.personas = o.personas.map(p => this._edanNormalizarPersona(p));  // v6.68
+    // v6.69: fotos. Del servidor llegan en secciones.fotos; en el teléfono viven en e.fotos.
+    const fuente = Array.isArray(e && e.fotos) ? e.fotos : (Array.isArray(o.secciones.fotos) ? o.secciones.fotos : []);
+    o.fotos = fuente.filter(x => x && (x.data || x.url)).slice(0, 12).map(x => {
+      const r = { seccion: ['evento', 'vivienda', 'lineas'].indexOf(x.seccion) !== -1 ? x.seccion : 'evento', nota: String(x.nota || '') };
+      if (x.data) r.data = x.data; else r.url = x.url;
+      return r;
+    });
+    delete o.secciones.fotos;
     return o;
   },
 
@@ -10471,7 +10480,7 @@ ${paginaFotos}
     const CAMPOS = ['id', 'rev', 'fecha', 'hora', 'tipoEvento', 'eventoOtro', 'departamento', 'municipio', 'sector', 'direccion', 'referencia', 'gps',
       'consecutivoIncidente', 'descripcion', 'magnitud', 'heridos', 'muertos', 'desaparecidos', 'familiasAfectadas', 'personasAfectadas',
       'vivUrbAveriadas', 'vivUrbDestruidas', 'vivRurAveriadas', 'vivRurDestruidas', 'observaciones', 'elaboradoPor', 'cargo', 'entidad',
-      'secciones', 'necesidades', 'personas'];
+      'secciones', 'necesidades', 'personas', 'fotos'];
     const o = {};
     CAMPOS.forEach(k => { if (e[k] !== undefined) o[k] = e[k]; });
     return JSON.parse(JSON.stringify(o));
@@ -10508,6 +10517,12 @@ ${paginaFotos}
         actual.estado = 'enviado';
         actual.enviadoLocal = new Date().toISOString();
         // v6.68 (D4): enviado y confirmado → el censo se borra del teléfono (celular de guardia compartido).
+        // v6.69: las fotos subidas pasan a ser URL de Drive (se libera el teléfono); las que
+        // fallaron siguen en el teléfono y se reintentan en el próximo guardado.
+        if (Array.isArray(data.fotos) && Array.isArray(actual.fotos)) {
+          actual.fotos = actual.fotos.map((ft, i) => (data.fotos[i] ? { seccion: ft.seccion, nota: ft.nota || '', url: data.fotos[i] } : ft));
+        }
+        if (Number(data.fotosFallidas) > 0) this.toast('⚠️ ' + data.fotosFallidas + ' foto(s) del EDAN no se pudieron guardar en Drive. Ábralo y toque "Guardar EDAN" para reintentar.', 'error');
         actual.numPersonas = (edan.personas || []).length;
         actual.censoFuera = actual.numPersonas > 0;
         actual.personas = [];
@@ -10561,7 +10576,7 @@ ${paginaFotos}
   },
 
   // ── Formulario por pasos ──
-  _EDAN_PASOS: ['Datos generales', 'Evento', 'Personas', 'Vivienda y edificaciones', 'Líneas vitales', 'Sector productivo', 'Necesidades', 'Censo', 'Revisión'],
+  _EDAN_PASOS: ['Datos generales', 'Evento', 'Afectación humana', 'Vivienda y edificaciones', 'Líneas vitales', 'Sector productivo', 'Necesidades', 'Censo', 'Revisión'],
 
   _edanIrPaso(n) {
     if (!this._edan) return;
@@ -10600,6 +10615,12 @@ ${paginaFotos}
     };
     c.addEventListener('input', onCambio);
     c.addEventListener('change', onCambio);
+    c.addEventListener('change', (ev) => {  // v6.69: foto elegida o tomada con la cámara
+      const inp = ev.target;
+      if (!inp || !inp.dataset || !inp.dataset.edanFoto || !inp.files || !inp.files[0]) return;
+      this._edanAgregarFoto(inp.dataset.edanFoto, inp.files[0]);
+      inp.value = '';
+    });
     c.addEventListener('click', (ev) => {
       const b = ev.target && ev.target.closest ? ev.target.closest('[data-edan-accion]') : null;
       if (!b || !this._edan) return;
@@ -10665,6 +10686,8 @@ ${paginaFotos}
       this._edanIrPaso(Number(b.dataset.paso));
     } else if (['familia', 'personaFam', 'persona', 'personaCerrar', 'quitarPersona', 'imprimirCenso', 'csvCenso'].indexOf(acc) !== -1) {
       this._edanAccionCenso(b, acc);
+    } else if (acc === 'quitarFoto') {
+      this._edanQuitarFoto(Number(b.dataset.i));
     } else if (acc === 'imprimir') {
       this._edanGuardarBorrador().then(() => {});
       this._imprimirEDAN(this._edan.id);
@@ -10790,7 +10813,7 @@ ${paginaFotos}
   // Control segmentado. opciones = [[valor, marca, clase]]. Texto SIEMPRE visible + marca de forma.
   _eSeg(ruta, opciones, etiqueta, conActual) {
     const v = this._edanGet(ruta) || '';
-    return '<div class="edan-campo">' + (etiqueta ? '<label>' + this._esc(etiqueta)
+    return '<div class="edan-campo">' + (etiqueta ? '<label' + (conActual ? ' class="edan-titulo-item"' : '') + '>' + this._esc(etiqueta)
       + (conActual ? ' <span class="edan-seg-actual">' + this._esc(v || 'No evaluado') + '</span>' : '') + '</label>' : '')
       + '<div class="edan-seg cols-' + opciones.length + '" role="group">'
       + opciones.map(([val, marca, cls, corto]) => '<button type="button" class="' + (cls || '') + '" data-edan-accion="opcion" data-ruta="' + ruta
@@ -10804,19 +10827,23 @@ ${paginaFotos}
   _EDAN_CAT: {
     edificaciones: [['alcaldia', 'Alcaldía / sede de gobierno'], ['educativos', 'Centros educativos'], ['icbf', 'Hogares ICBF / CDI'], ['cultura', 'Centros culturales'],
       ['iglesias', 'Iglesias y templos'], ['mercado', 'Plaza de mercado'], ['deportivos', 'Escenarios deportivos'], ['otros', 'Otras edificaciones públicas']],
-    telecom: [['fija', 'Telefonía fija'], ['celular', 'Telefonía celular'], ['emisoras', 'Emisoras de radio'], ['television', 'Televisión'], ['internet', 'Internet'],
-      ['radio', 'Radio de comunicaciones (VHF/HF)'], ['satelital', 'Telefonía satelital'], ['radioMovil', 'Radio móvil / trunking'], ['aeronautica', 'Comunicaciones aeronáuticas'],
-      ['fluvial', 'Comunicaciones fluviales'], ['educar', 'Puntos y kioscos digitales'], ['institucionales', 'Redes institucionales']],
+    // v6.69: solo lo que existe en Inírida (antes 12 sistemas; los demás no aplican aquí).
+    telecom: [['celular', 'Telefonía celular'], ['internet', 'Internet'], ['emisoras', 'Emisoras de radio'], ['television', 'Televisión'],
+      ['radio', 'Radio de comunicaciones (VHF/HF)'], ['satelital', 'Telefonía satelital'], ['fija', 'Telefonía fija']],
     servicios: [['acueducto', 'Acueducto'], ['alcantarillado', 'Alcantarillado'], ['saneamiento', 'Saneamiento básico'], ['basuras', 'Recolección de basuras'], ['energia', 'Energía eléctrica'], ['gas', 'Gas']],
-    transporte: [['fluvial', 'Fluvial (muelle / puerto)'], ['aereo', 'Aéreo (aeropuerto / pista)'], ['terminal', 'Terminal terrestre'], ['maritimo', 'Marítimo'], ['ferreo', 'Férreo']],
+    // v6.69: sin férreo ni marítimo (no existen en Guainía).
+    transporte: [['fluvial', 'Fluvial (muelle / puerto)'], ['aereo', 'Aéreo (aeropuerto / pista)'], ['terminal', 'Terminal terrestre']],
     agro: [['agricultura', 'Agricultura'], ['ganaderia', 'Ganadería'], ['piscicola', 'Piscícola'], ['porcicola', 'Porcícola'], ['avicola', 'Avícola']],
     agroCampos: [['hectareas', 'Hectáreas afectadas'], ['productores', 'Productores afectados'], ['perdidaProductos', 'Pérdida de productos ($)'], ['perdidaInfra', 'Pérdida de infraestructura ($)']],
+    // v6.69: una cifra por tipo de negocio (antes una matriz de 24 casillas).
     comercio: [['micro', 'Microempresas'], ['pequenas', 'Pequeñas empresas'], ['medianas', 'Medianas empresas'], ['informal', 'Comercio informal']],
-    comercioCampos: [['financiero', 'Financiero'], ['turistico', 'Turístico'], ['comercial', 'Comercial'], ['industrial', 'Industrial'], ['mineria', 'Minería'], ['servicios', 'Servicios']],
     saludFlags: [['destruido', 'Destruido'], ['averiado', 'Averiado'], ['zonaImpacto', 'En zona de impacto'], ['sinAcceso', 'Sin acceso'], ['emergenciaInterna', 'Emergencia interna']],
     sugerencias: [['Agua potable', 'Servicios'], ['Kits de alimentación', 'Alimentación'], ['Kits de aseo', 'Asistencia humanitaria'], ['Alojamiento temporal', 'Vivienda'],
       ['Motobomba', 'Equipos'], ['Maquinaria amarilla', 'Vías'], ['Atención en salud', 'Salud']]
   },
+  // v6.69: en el selector van primero los eventos que ocurren en Guainía; la impresión usa el orden oficial.
+  _EDAN_EVENTOS_UI: ['Inundación', 'Incendio forestal', 'Incendio urbano', 'Vendaval', 'Tormenta eléctrica', 'Deslizamiento', 'Incidente con materiales peligrosos',
+    'Explosión', 'Avalancha', 'Granizada', 'Tornado', 'Sismo', 'Erupción volcánica', 'Tsunami', 'Voladura de poliducto', 'Atentado terrorista', 'Otro'],
   _EDAN_EVENTOS: ['Sismo', 'Inundación', 'Deslizamiento', 'Avalancha', 'Granizada', 'Tormenta eléctrica', 'Tornado', 'Vendaval', 'Erupción volcánica', 'Tsunami',
     'Incendio forestal', 'Incendio urbano', 'Incidente con materiales peligrosos', 'Explosión', 'Voladura de poliducto', 'Atentado terrorista', 'Otro'],
 
@@ -10852,7 +10879,7 @@ ${paginaFotos}
     if (p === 1) {
       const e = this._edan;
       h += card('Evento', '<div class="edan-campo"><label>Tipo de evento</label><select data-edan="tipoEvento"><option value="">Seleccione…</option>'
-        + this._EDAN_EVENTOS.map(t => '<option' + (e.tipoEvento === t ? ' selected' : '') + '>' + this._esc(t) + '</option>').join('') + '</select></div>'
+        + this._EDAN_EVENTOS_UI.map(t => '<option' + (e.tipoEvento === t ? ' selected' : '') + '>' + this._esc(t) + '</option>').join('') + '</select></div>'
         + '<div id="edanEventoOtroWrap"' + (e.tipoEvento === 'Otro' ? '' : ' style="display:none"') + '>' + this._eTxt('eventoOtro', '¿Cuál evento?', { max: 120 }) + '</div>'
         + '<div class="edan-2col">' + this._eTxt('fecha', 'Fecha', { tipo: 'date' }) + this._eTxt('hora', 'Hora', { tipo: 'time' }) + '</div>'
         + '<button type="button" class="edan-btn-agregar" data-edan-accion="copiar">Copiar datos de un incidente</button>'
@@ -10875,6 +10902,7 @@ ${paginaFotos}
         + this._eTxt('secciones.secundarios.' + i + '.barrios', 'Barrios o veredas en riesgo', { max: 300 })
         + this._eTxt('secciones.secundarios.' + i + '.riesgo', 'Riesgo asociado', { max: 300 }), 'Agregar evento secundario'),
         'Lo que puede pasar después: deslizamiento, creciente, colapso.');
+      h += this._eFotos('evento', 'Fotos del evento', 'Panorámica de la zona afectada, nivel del agua, frente del incendio.');
     } else if (p === 3) {
       h += card('Población afectada', this._eCont('heridos', 'Heridos') + this._eCont('muertos', 'Muertos') + this._eCont('desaparecidos', 'Desaparecidos')
         + this._eCont('familiasAfectadas', 'Familias afectadas') + this._eCont('personasAfectadas', 'Personas afectadas'),
@@ -10885,6 +10913,7 @@ ${paginaFotos}
       h += card('Edificaciones públicas', C.edificaciones.map(([k, t]) => '<div class="edan-bloque">' + this._eSemaforo('secciones.edificaciones.' + k + '.estado', t)
         + this._eTxt('secciones.edificaciones.' + k + '.nota', 'Nota (opcional)', { max: 300 }) + '</div>').join(''),
         'Toque el estado que vio. Tocar de nuevo el mismo lo deja como "No evaluado".');
+      h += this._eFotos('vivienda', 'Fotos de viviendas y edificaciones', 'Fachadas y daños visibles. Evite fotos de personas: no hacen falta para el EDAN.');
     } else if (p === 5) {
       h += card('Servicios esenciales', C.servicios.map(([k, t]) => '<div class="edan-bloque">' + this._eSemaforo('secciones.servicios.' + k + '.estado', t)
         + '<div class="edan-2col">' + this._eNum('secciones.servicios.' + k + '.familiasSin', 'Familias sin servicio') + this._eNum('secciones.servicios.' + k + '.personasSin', 'Personas sin servicio') + '</div>'
@@ -10902,12 +10931,12 @@ ${paginaFotos}
         + this._eSeg('secciones.salud.' + i + '.servicio', [['En servicio', '✓', 'e-ok'], ['Uso restringido', '!', 'e-res', 'Restringido'], ['Fuera de servicio', '⊘', 'e-fds']], 'Servicio')
         + '<div class="edan-checks">' + C.saludFlags.map(([k, t]) => '<label class="edan-check"><input type="checkbox" data-edan="secciones.salud.' + i + '.' + k + '"'
           + (this._edanGet('secciones.salud.' + i + '.' + k) ? ' checked' : '') + '><span>' + this._esc(t) + '</span></label>').join('') + '</div>', 'Agregar instalación'));
+      h += this._eFotos('lineas', 'Fotos de vías y servicios', 'Vías cortadas, postes caídos, daños en acueducto o muelle.');
     } else if (p === 6) {
       h += '<details class="edan-card edan-plegable"><summary>Sector agropecuario (opcional)</summary>' + C.agro.map(([k, t]) => '<div class="edan-bloque"><h4>' + this._esc(t) + '</h4><div class="edan-2col">'
         + C.agroCampos.map(([c, ct]) => this._eNum('secciones.agro.' + k + '.' + c, ct, false, /^perdida/.test(c) ? 1e12 : 0)).join('') + '</div></div>').join('') + '</details>';
-      h += '<details class="edan-card edan-plegable"><summary>Comercio y empresas (opcional)</summary><p class="edan-ayuda">Número de establecimientos afectados por tipo.</p>'
-        + C.comercio.map(([k, t]) => '<div class="edan-bloque"><h4>' + this._esc(t) + '</h4><div class="edan-3col">'
-        + C.comercioCampos.map(([c, ct]) => this._eNum('secciones.comercio.' + k + '.' + c, ct)).join('') + '</div></div>').join('') + '</details>';
+      h += '<details class="edan-card edan-plegable"><summary>Comercio y empresas (opcional)</summary><p class="edan-ayuda">Cuántos establecimientos resultaron afectados, por tipo.</p>'
+        + '<div class="edan-2col">' + C.comercio.map(([k, t]) => this._eNum('secciones.comercio.' + k + '.afectados', t)).join('') + '</div></details>';
     } else if (p === 7) {
       h += card('Sugerencias', '<div class="edan-chips">' + C.sugerencias.map(([t, s]) => '<button type="button" class="edan-chip" data-edan-accion="sugerencia" data-texto="'
         + this._esc(t) + '" data-sector="' + this._esc(s) + '">+ ' + this._esc(t) + '</button>').join('') + '</div>', 'Un toque agrega la fila. Sea específico: 20 kits de alimentación, no "ayuda".');
@@ -10929,6 +10958,7 @@ ${paginaFotos}
         + fila('Personas afectadas', String(e.personasAfectadas || 0), 3) + fila('Heridos / muertos / desaparecidos', (e.heridos || 0) + ' / ' + (e.muertos || 0) + ' / ' + (e.desaparecidos || 0), 3)
         + fila('Viviendas averiadas / destruidas', ((e.vivUrbAveriadas || 0) + (e.vivRurAveriadas || 0)) + ' / ' + ((e.vivUrbDestruidas || 0) + (e.vivRurDestruidas || 0)), 4)
         + fila('Líneas vitales evaluadas', lv + ' de ' + (C.servicios.length + C.telecom.length + C.transporte.length), 5)
+        + fila('Fotos', String((e.fotos || []).length) + ' de 12', 2)
         + fila('Necesidades', String((e.necesidades || []).length), 7)
         + fila('Censo', e.censoFuera ? (Number(e.numPersonas) || 0) + ' personas (en el servidor)' : this._edanFamilias(e.personas).length + ' familias · ' + (e.personas || []).length + ' personas', 8));
       h += card('Observaciones', this._eArea('observaciones', 'Observaciones', '', 4000));
@@ -10955,12 +10985,13 @@ ${paginaFotos}
   _edanPersonaAbierta: -1,
 
   _EDAN_CENSO: {
-    tiposDoc: [['CC', 'CC — Cédula'], ['TI', 'TI — Tarjeta de identidad'], ['RC', 'RC — Registro civil'], ['CE', 'CE — Cédula de extranjería'],
-      ['PEP', 'PEP — Permiso especial'], ['PPT', 'PPT — Permiso por protección temporal'], ['PA', 'PA — Pasaporte'], ['SD', 'SD — Sin documento']],
-    parentescos: ['Jefe de hogar', 'Cónyuge o compañero(a)', 'Hijo(a)', 'Padre o madre', 'Hermano(a)', 'Nieto(a)', 'Abuelo(a)', 'Otro familiar', 'No familiar'],
-    etnias: ['Ninguna', 'Indígena', 'Afrocolombiano(a)', 'Raizal', 'Palenquero(a)', 'Rom (gitano)'],
-    salud: ['Sin afectación', 'Herido(a)', 'Enfermo(a)', 'Persona con discapacidad', 'Gestante o lactante'],
-    regimen: ['Contributivo', 'Subsidiado', 'Especial', 'No afiliado(a)'],
+    // v6.69: listas del FR-1703-SMD-08 oficial (mismo orden y códigos 1, 2, 3…), + PPT/PEP por la frontera.
+    tiposDoc: [['RC', '1 · Registro civil'], ['TI', '2 · Tarjeta de identidad'], ['CC', '3 · Cédula de ciudadanía'], ['CE', '4 · Cédula de extranjería'],
+      ['IND', '5 · Indocumentado'], ['NSNR', '6 · No sabe / no responde'], ['PPT', 'PPT · Permiso por protección temporal'], ['PEP', 'PEP · Permiso especial de permanencia']],
+    parentescos: ['Jefe de hogar', 'Esposo(a)', 'Hijo(a)', 'Primo(a)', 'Tío(a)', 'Nieto(a)', 'Suegro(a)', 'Yerno / Nuera', 'Otro'],
+    etnias: ['Afrocolombiano', 'Indígena', 'Gitano - Rom', 'Raizal', 'Otro', 'Sin información'],
+    salud: ['Requiere asistencia médica', 'No requiere asistencia médica'],
+    regimen: ['Contributivo', 'Subsidiado', 'Sin afiliación'],
     necesidades: [['aheAlim', 'Ayuda humanitaria alimentaria'], ['aheNoAlim', 'Ayuda humanitaria no alimentaria'], ['matRehab', 'Materiales para rehabilitar vivienda'], ['subArriendo', 'Subsidio de arriendo']]
   },
 
@@ -11029,7 +11060,7 @@ ${paginaFotos}
       + '<div class="edan-2col">' + this._eSel(r + 'estadoSalud', 'Estado de salud (opcional)', C.salud) + this._eSel(r + 'regimenSalud', 'Afiliación a salud (opcional)', C.regimen) + '</div>'
       + this._eSeg(r + 'zona', [['URBANO', '', '', 'Urbano'], ['RURAL', '', '', 'Rural']], 'Ubicación de la vivienda')
       + this._eSeg(r + 'propiedad', [['PROPIA', '', '', 'Propia'], ['ARRIENDO', '', '', 'Arriendo']], 'Tenencia de la vivienda')
-      + this._eSeg(r + 'estadoInmueble', [['SIN DAÑO', '✓', 'e-ok', 'Sin daño'], ['AVERIADO', '▲', 'e-ave', 'Averiado'], ['DESTRUIDO', '✕', 'e-des', 'Destruido']], 'Estado del inmueble')
+      + this._eSeg(r + 'estadoInmueble', [['HABITABLE', '✓', 'e-ok', 'Habitable'], ['NO HABITABLE', '!', 'e-ave', 'No habitable'], ['DESTRUIDA', '✕', 'e-des', 'Destruida']], 'Estado del inmueble')
       + '<div class="edan-campo"><label>Necesita</label><div class="edan-checks edan-checks-1">' + C.necesidades.map(([k, t]) => '<label class="edan-check"><input type="checkbox" data-edan="' + r + k + '"'
         + (this._edanGet(r + k) === true || this._edanGet(r + k) === 'SI' ? ' checked' : '') + '><span>' + this._esc(t) + '</span></label>').join('') + '</div></div>'
       + '<button type="button" class="edan-btn-pri edan-listo" data-edan-accion="personaCerrar">Listo</button></div>';
@@ -11224,6 +11255,60 @@ ${paginaFotos}
     } catch (err) { this.toast('Error: ' + err.message, 'error'); }
   },
 
+  // ── v6.69: registro fotográfico (hasta 4 por grupo, 12 por EDAN) ──
+  /* La foto se comprime en el teléfono (1280 px, JPEG 0.7 ≈ 200 KB, igual que los reportes) y
+     vive en el EDAN local hasta el envío; el servidor la sube a Drive y devuelve la URL, que
+     reemplaza la foto local. Así el teléfono no se llena y nada se reenvía dos veces. */
+  _EDAN_FOTO_SECC: { evento: 'Evento', vivienda: 'Viviendas y edificaciones', lineas: 'Vías y servicios' },
+
+  _edanFotoSrc(ft, tam) {
+    if (!ft) return '';
+    if (ft.data && /^data:image\//.test(ft.data)) return ft.data;
+    const m = String(ft.url || '').match(/\/d\/([A-Za-z0-9_-]{10,})|[?&]id=([A-Za-z0-9_-]{10,})/);
+    return m ? 'https://drive.google.com/thumbnail?id=' + (m[1] || m[2]) + '&sz=' + (tam || 'w400') : '';
+  },
+
+  _eFotos(seccion, titulo, ayuda) {
+    const todas = this._edan.fotos || [];
+    const mias = todas.map((ft, i) => ({ ft, i })).filter(x => x.ft.seccion === seccion);
+    const lleno = mias.length >= 4 || todas.length >= 12;
+    return '<section class="edan-card"><h3>' + this._esc(titulo) + '</h3>' + (ayuda ? '<p class="edan-ayuda edan-ayuda-top">' + this._esc(ayuda) + '</p>' : '')
+      + '<div class="edan-fotos">' + mias.map(({ ft, i }) => {
+        const src = this._edanFotoSrc(ft);
+        return '<div class="edan-foto"><div class="edan-foto-img">' + (src ? '<img src="' + this._esc(src) + '" alt="Foto ' + (i + 1) + '" loading="lazy">' : '') + '</div>'
+          + (ft.url ? '<span class="edan-foto-ok">En Drive</span>' : '<span class="edan-foto-pend">Por enviar</span>')
+          + '<input type="text" data-edan="fotos.' + i + '.nota" maxlength="200" placeholder="Nota (opcional)" value="' + this._esc(ft.nota || '') + '">'
+          + '<button type="button" class="edan-quitar" data-edan-accion="quitarFoto" data-i="' + i + '">Quitar</button></div>';
+      }).join('') + '</div>'
+      + (lleno ? '<p class="edan-ayuda">' + (todas.length >= 12 ? 'Llegó al máximo de 12 fotos por EDAN.' : 'Máximo 4 fotos en este grupo.') + '</p>'
+        : '<label class="edan-btn-agregar edan-foto-btn">+ Tomar o elegir foto<input type="file" accept="image/*" data-edan-foto="' + seccion + '" hidden></label>')
+      + '</section>';
+  },
+
+  async _edanAgregarFoto(seccion, file) {
+    if (!this._edan) return;
+    const e = this._edan;
+    if (['evento', 'vivienda', 'lineas'].indexOf(seccion) === -1) return;
+    if ((e.fotos || []).length >= 12 || (e.fotos || []).filter(x => x.seccion === seccion).length >= 4) { this.toast('Máximo 4 fotos por grupo y 12 por EDAN.', 'error'); return; }
+    try {
+      const data = await this.comprimirImagen(file, 1280, 0.7);
+      if (this._edan !== e) return;
+      e.fotos = e.fotos || [];
+      e.fotos.push({ seccion, nota: '', data });
+      this._edanTocado();
+      this._edanRender();
+    } catch (err) { this.toast('No se pudo procesar la foto', 'error'); }
+  },
+
+  async _edanQuitarFoto(i) {
+    const e = this._edan; if (!e || !e.fotos || !e.fotos[i]) return;
+    const ok = await this.confirmar('Quitar foto', '¿Quitar esta foto del EDAN?');
+    if (!ok || this._edan !== e) return;
+    e.fotos.splice(i, 1);
+    this._edanTocado();
+    this._edanRender();
+  },
+
   // ── Impresión del consolidado (orden del formato FR-1703-SMD-09) ──
   async _imprimirEDAN(id) {
     // La ventana se abre antes del primer await para conservar el gesto del usuario (sin noopener).
@@ -11272,7 +11357,7 @@ ${paginaFotos}
       esc(C.saludFlags.filter(([k]) => s[k]).map(([, t]) => t).join(', ') || '—')]));
     const necesidades = (e.necesidades || []).map(x => tr([esc(x.sector || '—'), esc(x.necesidad || '—'), esc((this._edanNumero(x.cantidad) || '') + (x.unidad ? ' ' + x.unidad : '')), esc(x.equipos || '—'), pesos(x.costo)]));
     const agroFilas = C.agro.map(([k, t]) => { const o = (S.agro || {})[k] || {}; return C.agroCampos.some(([c]) => this._edanNumero(o[c])) ? tr([esc(t)].concat(C.agroCampos.map(([c], i) => i >= 2 ? pesos(o[c]) : num(o[c])))) : ''; }).filter(Boolean);
-    const comFilas = C.comercio.map(([k, t]) => { const o = (S.comercio || {})[k] || {}; return C.comercioCampos.some(([c]) => this._edanNumero(o[c])) ? tr([esc(t)].concat(C.comercioCampos.map(([c]) => num(o[c])))) : ''; }).filter(Boolean);
+    const comFilas = C.comercio.map(([k, t]) => { const o = (S.comercio || {})[k] || {}; return this._edanNumero(o.afectados) ? tr([esc(t), num(o.afectados)]) : ''; }).filter(Boolean);
     return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>EDAN — ' + esc(this._edanTitulo(e)) + ' — ' + esc(e.municipio) + '</title><style>'
       + 'body{font-family:Arial,sans-serif;color:#1d2228;margin:12mm;font-size:9.5pt;line-height:1.35}'
       + 'header{display:flex;gap:14px;align-items:center;border-bottom:3px solid #b51c25;padding-bottom:10px;margin-bottom:12px}header img{width:62px;height:62px;object-fit:contain}'
@@ -11282,6 +11367,7 @@ ${paginaFotos}
       + '.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:0}.kv div{border:1px solid #9aa3ad;margin:-1px 0 0 -1px;padding:4px 6px}.kv b{display:block;font-size:7.5pt;color:#555;text-transform:uppercase}'
       + '.op{display:inline-block;width:32%;font-size:8.5pt;margin:1px 0}.ne{color:#777;font-style:italic}'
       + '.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}.firmas div{border-top:1px solid #333;padding-top:5px;font-size:8.5pt;text-align:center}'
+      + '.fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.fotos figure{margin:0;break-inside:avoid}.fotos img{width:100%;height:150px;object-fit:cover;border:1px solid #9aa3ad}.fotos figcaption{font-size:8pt;color:#444}'
       + 'section{break-inside:avoid}footer{margin-top:16px;font-size:7.5pt;color:#666;border-top:1px solid #ccc;padding-top:6px}'
       + '@media print{body{margin:8mm}section{break-inside:auto}tr{break-inside:avoid}}'
       + '</style></head><body>'
@@ -11310,10 +11396,11 @@ ${paginaFotos}
       + sec(11, 'Servicios esenciales', tabla(['Servicio', 'Estado', 'Familias sin servicio', 'Personas sin servicio', 'Descripción', 'Recuperación'],
         C.servicios.map(([k, t]) => { const o = (S.servicios || {})[k] || {}; return tr([esc(t), est(o.estado), num(o.familiasSin), num(o.personasSin), esc(o.descripcion || '—'), esc(o.recuperacion || '—')]); })))
       + sec(12, 'Sector agropecuario', tabla(['Subsector'].concat(C.agroCampos.map(x => x[1])), agroFilas))
-      + sec(13, 'Comercio y empresas', tabla(['Tipo'].concat(C.comercioCampos.map(x => x[1])), comFilas))
+      + sec(13, 'Comercio y empresas', tabla(['Tipo', 'Establecimientos afectados'], comFilas))
       + sec(14, 'Análisis de necesidades', tabla(['Sector', 'Necesidad', 'Cantidad', 'Equipos o elementos requeridos', 'Costo estimado'], necesidades))
       + ((e.personas || []).length || Number(e.numPersonas) ? '<p><strong>Censo de familias (FR-1703-SMD-08):</strong> ' + esc((e.personas || []).length || Number(e.numPersonas)) + ' persona(s), en documento aparte.</p>' : '')
-      + sec(15, 'Observaciones', e.observaciones ? '<p>' + esc(e.observaciones) + '</p>' : '<p class="ne">Sin observaciones.</p>')
+      + ((e.fotos || []).length ? sec(15, 'Registro fotográfico', '<div class="fotos">' + e.fotos.map((ft, i) => { const src = this._edanFotoSrc(ft, 'w800'); return src ? '<figure><img src="' + esc(src) + '" alt=""><figcaption>Foto ' + (i + 1) + ' · ' + esc(this._EDAN_FOTO_SECC[ft.seccion] || '') + (ft.nota ? ' — ' + esc(ft.nota) : '') + '</figcaption></figure>' : ''; }).join('') + '</div>') : '')
+      + sec((e.fotos || []).length ? 16 : 15, 'Observaciones', e.observaciones ? '<p>' + esc(e.observaciones) + '</p>' : '<p class="ne">Sin observaciones.</p>')
       + '<div class="firmas"><div>Quien diligencia<br><strong>' + esc(e.elaboradoPor || '') + '</strong>' + (e.cargo ? '<br>' + esc(e.cargo) : '') + '</div>'
       + '<div>Verifica<br><strong>Coordinador CMGRD</strong></div><div>Aprueba el envío<br><strong>Alcalde municipal</strong></div></div>'
       + '<footer>Documento de apoyo generado por CBVI Reportes. No reemplaza el visto bueno del CMGRD ni el reporte oficial a la UNGRD. Costos: estimación del evaluador.</footer>'
