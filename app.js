@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.67';
+const APP_VERSION = '6.68';
 const APP_VERSION_NOTAS = [
+  'v6.68: EDAN — nuevo censo de familias afectadas (formato -08): se imprime de 13 personas por hoja y se exporta a CSV. Por seguridad, el censo se borra del teléfono después de enviarlo.',
   'v6.67: Nuevo — sección EDAN: evaluación de daños y necesidades para el CMGRD, funciona sin señal e imprime el consolidado.',
   'v6.66: Nuevo historial individual imprimible de horas voluntarias desde Operatividad; las pagas se muestran aparte.',
   'v6.65: Asistencia de domingos permite agregar varios encargados y adjuntar hasta seis fotos, tanto al registrar como al editar.',
@@ -10262,6 +10263,7 @@ ${paginaFotos}
     });
     if (!Array.isArray(o.necesidades)) o.necesidades = [];
     if (!Array.isArray(o.personas)) o.personas = [];
+    o.personas = o.personas.map(p => this._edanNormalizarPersona(p));  // v6.68
     return o;
   },
 
@@ -10331,14 +10333,16 @@ ${paginaFotos}
       const lugar = [e.municipio, e.sector].filter(Boolean).join(' · ') || 'Sin ubicación';
       const id = encodeURIComponent(e.id);
       const descartable = origen === 'local' && e.estado === 'borrador' && !(Number(e.rev) > 0);
+      const nCenso = (Array.isArray(e.personas) && e.personas.length) || Number(e.numPersonas) || 0;  // v6.68
       return '<div class="edan-fila">'
         + '<div class="edan-fila-cab"><strong>' + esc(this._edanTitulo(e)) + '</strong><span class="edan-est ' + est[1] + '">' + esc(est[0]) + '</span></div>'
         + '<div class="edan-fila-sub">' + esc(lugar) + '</div>'
-        + '<div class="edan-fila-sub">' + esc(e.fecha || '') + (e.hora ? ' · ' + esc(e.hora) : '') + (admin && e.elaboradoPor ? ' · ' + esc(e.elaboradoPor) : '') + '</div>'
+        + '<div class="edan-fila-sub">' + esc(e.fecha || '') + (e.hora ? ' · ' + esc(e.hora) : '') + (admin && e.elaboradoPor ? ' · ' + esc(e.elaboradoPor) : '') + (nCenso ? ' · Censo: ' + nCenso + ' persona(s)' : '') + '</div>'
         + (origen === 'local' && e.estado === 'borrador' && Number(e.rev) > 0 ? '<div class="edan-fila-aviso">Tiene cambios sin enviar: ábralo y toque "Guardar EDAN".</div>' : '')
         + '<div class="edan-fila-acc">'
         + '<button type="button" class="edan-btn-pri" data-id="' + id + '" onclick="app.abrirEDAN(decodeURIComponent(this.dataset.id))">Abrir</button>'
         + '<button type="button" class="edan-btn-sec" data-id="' + id + '" onclick="app._imprimirEDAN(decodeURIComponent(this.dataset.id))">Imprimir</button>'
+        + (nCenso ? '<button type="button" class="edan-btn-sec" data-id="' + id + '" onclick="app._imprimirCensoEDAN(decodeURIComponent(this.dataset.id))">Censo</button>' : '')
         + (descartable ? '<button type="button" class="edan-btn-sec" data-id="' + id + '" onclick="app._edanDescartarBorrador(decodeURIComponent(this.dataset.id))">Descartar</button>' : '')
         + (admin && !descartable ? '<button type="button" class="edan-btn-peligro" data-id="' + id + '" onclick="app.eliminarEDAN(decodeURIComponent(this.dataset.id), this)">Eliminar</button>' : '')
         + '</div></div>';
@@ -10350,6 +10354,7 @@ ${paginaFotos}
     this._edan = this._edanVacio();
     this._edanPaso = 1;
     this._edanSucio = false;
+    this._edanPersonaAbierta = -1;
     this.irA('pantallaEDANForm');
   },
 
@@ -10366,9 +10371,15 @@ ${paginaFotos}
         if (!d || d.ok !== true || !d.edan) throw new Error((d && d.error) || 'No se pudo abrir');
         e = this._edanNormalizar(d.edan);
         e.estado = 'enviado';
-        await DB.guardarEDAN(e);
+        // v6.68 (D4): en el teléfono queda SIN censo; el censo vive solo en memoria mientras está abierto.
+        await DB.guardarEDAN(this._edanQuitarCensoLocal(JSON.parse(JSON.stringify(e))));
       } catch (err) { this.toast('Error: ' + err.message, 'error'); return; }
     }
+    if (e.censoFuera && navigator.onLine) {
+      try { e.personas = await this._edanTraerCenso(e.id); e.censoFuera = false; }
+      catch (err) { this.toast('No se pudo bajar el censo: ' + err.message + '. Puede editar lo demás.', 'error'); }
+    }
+    this._edanPersonaAbierta = -1;
     this._edan = this._edanNormalizar(e);
     this._edanPaso = 1;
     this._edanSucio = false;
@@ -10424,6 +10435,15 @@ ${paginaFotos}
     if (!e.tipoEvento) falta.push('tipo de evento');
     if (e.tipoEvento === 'Otro' && !String(e.eventoOtro || '').trim()) falta.push('cuál evento');
     if (!String(e.municipio || '').trim()) falta.push('municipio');
+    // v6.68: filas del censo totalmente vacías no se envían; el orden por familia fija el Nº del formato.
+    e.personas = (e.personas || []).filter(p => p && (String(p.nombres || '').trim() || String(p.apellidos || '').trim() || String(p.numDoc || '').trim()));
+    e.personas.sort((a, b) => (this._edanNumero(a.familia) || 1) - (this._edanNumero(b.familia) || 1));
+    if (e.personas.length && !(e.secciones && e.secciones.avisoDatos)) {
+      this.toast('Falta marcar que se informó al jefe de hogar sobre el uso de los datos (paso 8).', 'error');
+      this._edanPersonaAbierta = -1;
+      this._edanIrPaso(8);
+      return;
+    }
     if (falta.length) {
       this.toast('Falta: ' + falta.join(', ') + '. Complete el paso 1.', 'error');
       this._edanIrPaso(1);
@@ -10465,6 +10485,11 @@ ${paginaFotos}
     this._syncEDANEnCurso.add(e.id);
     try {
       const edan = this._edanParaEnvio(e);
+      // v6.68: guardarEDAN REEMPLAZA el censo. Si aquí no está (se borró tras un envío), se baja antes.
+      if (e.censoFuera) {
+        try { edan.personas = await this._edanTraerCenso(e.id); }
+        catch (x) { console.warn('censo:', x); return false; }  // sin censo confirmado no se envía
+      }
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -10482,6 +10507,10 @@ ${paginaFotos}
       if (actual && actual.estado === 'pendiente' && Number(actual.rev) === Number(edan.rev)) {
         actual.estado = 'enviado';
         actual.enviadoLocal = new Date().toISOString();
+        // v6.68 (D4): enviado y confirmado → el censo se borra del teléfono (celular de guardia compartido).
+        actual.numPersonas = (edan.personas || []).length;
+        actual.censoFuera = actual.numPersonas > 0;
+        actual.personas = [];
         await DB.guardarEDAN(actual);
       }
       return true;
@@ -10532,11 +10561,11 @@ ${paginaFotos}
   },
 
   // ── Formulario por pasos ──
-  _EDAN_PASOS: ['Datos generales', 'Evento', 'Personas', 'Vivienda y edificaciones', 'Líneas vitales', 'Sector productivo', 'Necesidades', 'Revisión'],
+  _EDAN_PASOS: ['Datos generales', 'Evento', 'Personas', 'Vivienda y edificaciones', 'Líneas vitales', 'Sector productivo', 'Necesidades', 'Censo', 'Revisión'],
 
   _edanIrPaso(n) {
     if (!this._edan) return;
-    n = Math.max(1, Math.min(8, Number(n) || 1));
+    n = Math.max(1, Math.min(this._EDAN_PASOS.length, Number(n) || 1));
     this._edanGuardarBorrador();
     this._edanPaso = n;
     this._edanRender();
@@ -10544,7 +10573,7 @@ ${paginaFotos}
   },
 
   _edanSiguiente(btn) {
-    if (this._edanPaso >= 8) return this.guardarEDAN(btn);
+    if (this._edanPaso >= this._EDAN_PASOS.length) return this.guardarEDAN(btn);
     this._edanIrPaso(this._edanPaso + 1);
   },
 
@@ -10558,6 +10587,7 @@ ${paginaFotos}
       let v;
       if (el.type === 'checkbox') v = !!el.checked;
       else if (el.dataset.tipo === 'num') v = this._edanNumero(el.value, Number(el.dataset.max) || 0);
+      else if (el.dataset.tipo === 'edad') { const s = String(el.value || '').replace(/[^0-9]/g, ''); v = s === '' ? '' : Math.min(120, Number(s)); }
       else v = el.value;
       this._edanSet(el.dataset.edan, v);
       this._edanTocado();
@@ -10566,6 +10596,7 @@ ${paginaFotos}
         if (w) w.style.display = v === 'Otro' ? '' : 'none';
       }
       if (el.dataset.recalc) this._edanPintarTotalesZonas();
+      if (el.dataset.rerender && ev.type === 'change') this._edanRender();
     };
     c.addEventListener('input', onCambio);
     c.addEventListener('change', onCambio);
@@ -10632,6 +10663,8 @@ ${paginaFotos}
       this._edanElegirIncidente();
     } else if (acc === 'paso') {
       this._edanIrPaso(Number(b.dataset.paso));
+    } else if (['familia', 'personaFam', 'persona', 'personaCerrar', 'quitarPersona', 'imprimirCenso', 'csvCenso'].indexOf(acc) !== -1) {
+      this._edanAccionCenso(b, acc);
     } else if (acc === 'imprimir') {
       this._edanGuardarBorrador().then(() => {});
       this._imprimirEDAN(this._edan.id);
@@ -10810,8 +10843,9 @@ ${paginaFotos}
     if (!cuerpo || !info) return;
     if (!this._edan) { this._edan = this._edanVacio(); this._edanPaso = 1; }
     const p = this._edanPaso;
-    info.innerHTML = '<div class="edan-paso-txt">Paso ' + p + ' de 8 · <strong>' + this._esc(this._EDAN_PASOS[p - 1]) + '</strong></div>'
-      + '<div class="edan-progreso" aria-hidden="true">' + this._EDAN_PASOS.map((_, i) => '<i class="' + (i < p ? 'on' : '') + '"></i>').join('') + '</div>';
+    const nPasos = this._EDAN_PASOS.length;
+    info.innerHTML = '<div class="edan-paso-txt">Paso ' + p + ' de ' + nPasos + ' · <strong>' + this._esc(this._EDAN_PASOS[p - 1]) + '</strong></div>'
+      + '<div class="edan-progreso" aria-hidden="true" style="grid-template-columns:repeat(' + nPasos + ',1fr)">' + this._EDAN_PASOS.map((_, i) => '<i class="' + (i < p ? 'on' : '') + '"></i>').join('') + '</div>';
     const C = this._EDAN_CAT;
     const card = (titulo, html, ayuda) => '<section class="edan-card"><h3>' + this._esc(titulo) + '</h3>' + (ayuda ? '<p class="edan-ayuda edan-ayuda-top">' + this._esc(ayuda) + '</p>' : '') + html + '</section>';
     let h = '';
@@ -10882,6 +10916,8 @@ ${paginaFotos}
         + '<div class="edan-2col">' + this._eNum('necesidades.' + i + '.cantidad', 'Cantidad') + this._eTxt('necesidades.' + i + '.unidad', 'Unidad', { max: 40, ph: 'kits, litros…' }) + '</div>'
         + this._eTxt('necesidades.' + i + '.equipos', 'Equipos o elementos requeridos', { max: 300 })
         + this._eNum('necesidades.' + i + '.costo', 'Costo estimado ($)', false, 1e12), 'Agregar necesidad'));
+    } else if (p === 8) {
+      h += this._edanRenderCenso();
     } else {
       const e = this._edan;
       const evalCount = (obj) => Object.keys(obj || {}).filter(k => obj[k] && obj[k].estado).length;
@@ -10893,17 +10929,299 @@ ${paginaFotos}
         + fila('Personas afectadas', String(e.personasAfectadas || 0), 3) + fila('Heridos / muertos / desaparecidos', (e.heridos || 0) + ' / ' + (e.muertos || 0) + ' / ' + (e.desaparecidos || 0), 3)
         + fila('Viviendas averiadas / destruidas', ((e.vivUrbAveriadas || 0) + (e.vivRurAveriadas || 0)) + ' / ' + ((e.vivUrbDestruidas || 0) + (e.vivRurDestruidas || 0)), 4)
         + fila('Líneas vitales evaluadas', lv + ' de ' + (C.servicios.length + C.telecom.length + C.transporte.length), 5)
-        + fila('Necesidades', String((e.necesidades || []).length), 7));
+        + fila('Necesidades', String((e.necesidades || []).length), 7)
+        + fila('Censo', e.censoFuera ? (Number(e.numPersonas) || 0) + ' personas (en el servidor)' : this._edanFamilias(e.personas).length + ' familias · ' + (e.personas || []).length + ' personas', 8));
       h += card('Observaciones', this._eArea('observaciones', 'Observaciones', '', 4000));
       h += '<p class="edan-ayuda">Al guardar, el EDAN queda en el teléfono y se envía apenas haya señal. La app no reemplaza el visto bueno del CMGRD: imprímalo y entréguelo para firmas.</p>'
-        + '<button type="button" class="edan-btn-agregar" data-edan-accion="imprimir">Imprimir consolidado</button>';
+        + '<button type="button" class="edan-btn-agregar" data-edan-accion="imprimir">Imprimir consolidado</button>'
+        + (((e.personas || []).length || (e.censoFuera && Number(e.numPersonas))) ? '<button type="button" class="edan-btn-agregar" data-edan-accion="imprimirCenso">Imprimir censo (13 por hoja)</button>'
+          + '<button type="button" class="edan-btn-agregar" data-edan-accion="csvCenso">Exportar censo a CSV</button>' : '');
     }
     cuerpo.innerHTML = h;
     if (p === 2) this._edanPintarTotalesZonas();
     const ant = document.getElementById('edanBtnAnterior');
     const sig = document.getElementById('edanBtnSiguiente');
     if (ant) { ant.disabled = p <= 1; ant.style.visibility = p <= 1 ? 'hidden' : 'visible'; }
-    if (sig) sig.textContent = p >= 8 ? 'Guardar EDAN' : 'Siguiente';
+    if (sig) sig.textContent = p >= nPasos ? 'Guardar EDAN' : 'Siguiente';
+  },
+
+  // ── v6.68: CENSO por persona (formato FR-1703-SMD-08) ──
+  /* Datos sensibles de civiles (salud, etnia, menores; Ley 1581 de 2012). Reglas (D4):
+     - En el servidor solo los ven el autor y el admin (obtenerEDAN ya lo exige).
+     - En el teléfono el censo vive SOLO mientras el EDAN está en borrador/pendiente. Con el
+       envío confirmado se borra local (censoFuera = true) y se vuelve a bajar al abrirlo con señal.
+     - guardarEDAN del servidor REEMPLAZA el censo entero: un EDAN con censoFuera nunca se envía
+       con la lista vacía; antes se baja el censo del servidor (_edanTraerCenso). */
+  _edanPersonaAbierta: -1,
+
+  _EDAN_CENSO: {
+    tiposDoc: [['CC', 'CC — Cédula'], ['TI', 'TI — Tarjeta de identidad'], ['RC', 'RC — Registro civil'], ['CE', 'CE — Cédula de extranjería'],
+      ['PEP', 'PEP — Permiso especial'], ['PPT', 'PPT — Permiso por protección temporal'], ['PA', 'PA — Pasaporte'], ['SD', 'SD — Sin documento']],
+    parentescos: ['Jefe de hogar', 'Cónyuge o compañero(a)', 'Hijo(a)', 'Padre o madre', 'Hermano(a)', 'Nieto(a)', 'Abuelo(a)', 'Otro familiar', 'No familiar'],
+    etnias: ['Ninguna', 'Indígena', 'Afrocolombiano(a)', 'Raizal', 'Palenquero(a)', 'Rom (gitano)'],
+    salud: ['Sin afectación', 'Herido(a)', 'Enfermo(a)', 'Persona con discapacidad', 'Gestante o lactante'],
+    regimen: ['Contributivo', 'Subsidiado', 'Especial', 'No afiliado(a)'],
+    necesidades: [['aheAlim', 'Ayuda humanitaria alimentaria'], ['aheNoAlim', 'Ayuda humanitaria no alimentaria'], ['matRehab', 'Materiales para rehabilitar vivienda'], ['subArriendo', 'Subsidio de arriendo']]
+  },
+
+  _edanPersonaVacia(familia) {
+    return { familia: familia || 1, nombres: '', apellidos: '', tipoDoc: '', numDoc: '', parentesco: '', genero: '', edad: '', etnia: '', estadoSalud: '',
+      regimenSalud: '', zona: '', propiedad: '', estadoInmueble: '', aheAlim: false, aheNoAlim: false, matRehab: false, subArriendo: false };
+  },
+
+  // Lo que llega del servidor ('SI'/'NO', familia numérica) se pasa al modelo del formulario.
+  _edanNormalizarPersona(p) {
+    const o = Object.assign(this._edanPersonaVacia(1), (p && typeof p === 'object') ? p : {});
+    o.familia = this._edanNumero(o.familia) || 1;
+    ['aheAlim', 'aheNoAlim', 'matRehab', 'subArriendo'].forEach(k => { o[k] = (o[k] === true || o[k] === 'SI'); });
+    o.edad = (o.edad === '' || o.edad == null || !isFinite(Number(o.edad))) ? '' : Math.max(0, Math.min(120, Math.floor(Number(o.edad))));
+    delete o.item;
+    return o;
+  },
+
+  _edanQuitarCensoLocal(e) {
+    const n = (e.personas || []).length;
+    if (n) { e.numPersonas = n; e.censoFuera = true; }
+    e.personas = [];
+    return e;
+  },
+
+  // Censo completo desde el servidor. "No encontrado" = el EDAN ya no existe allá → sin censo.
+  async _edanTraerCenso(id) {
+    const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ accion: 'obtenerEDAN', id }) });
+    const d = await r.json();
+    if (d && d.ok === true && d.edan) return (Array.isArray(d.edan.personas) ? d.edan.personas : []).map(p => this._edanNormalizarPersona(p));
+    if (d && d.error === 'No encontrado') return [];
+    throw new Error((d && d.error) || 'No se pudo descargar el censo');
+  },
+
+  _edanFamilias(personas) {
+    const orden = []; const grupos = {};
+    (personas || []).forEach((p, i) => { const f = this._edanNumero(p && p.familia) || 1; if (!grupos[f]) { grupos[f] = []; orden.push(f); } grupos[f].push(i); });
+    return orden.map(f => ({ familia: f, idx: grupos[f] }));
+  },
+
+  _eSel(ruta, etiqueta, opciones) {
+    const v = this._edanGet(ruta) || '';
+    const vals = opciones.map(o => Array.isArray(o) ? o[0] : o);
+    return '<div class="edan-campo"><label>' + this._esc(etiqueta) + '</label><select data-edan="' + ruta + '"><option value="">—</option>'
+      + opciones.map(o => { const val = Array.isArray(o) ? o[0] : o; const lbl = Array.isArray(o) ? o[1] : o;
+        return '<option value="' + this._esc(val) + '"' + (v === val ? ' selected' : '') + '>' + this._esc(lbl) + '</option>'; }).join('')
+      + (v && vals.indexOf(v) === -1 ? '<option value="' + this._esc(v) + '" selected>' + this._esc(v) + '</option>' : '')
+      + '</select></div>';
+  },
+
+  _eEdad(ruta) {
+    const v = this._edanGet(ruta);
+    return '<div class="edan-campo"><label>Edad (años)</label><input type="text" inputmode="numeric" maxlength="3" data-tipo="edad" data-edan="' + ruta + '" value="'
+      + this._esc(v === '' || v == null ? '' : v) + '" placeholder="—"></div>';
+  },
+
+  _edanEditorPersona(i) {
+    const r = 'personas.' + i + '.'; const C = this._EDAN_CENSO;
+    return '<div class="edan-persona-editor" id="edanPersonaEditor">'
+      + '<div class="edan-2col">' + this._eTxt(r + 'nombres', 'Nombres', { max: 80 }) + this._eTxt(r + 'apellidos', 'Apellidos', { max: 80 }) + '</div>'
+      + '<div class="edan-2col">' + this._eSel(r + 'tipoDoc', 'Tipo de documento', C.tiposDoc) + this._eTxt(r + 'numDoc', 'Número de documento', { max: 20 }) + '</div>'
+      + this._eSel(r + 'parentesco', 'Parentesco con el jefe de hogar', C.parentescos)
+      + this._eSeg(r + 'genero', [['F', '', '', 'Femenino'], ['M', '', '', 'Masculino']], 'Género')
+      + this._eEdad(r + 'edad')
+      + this._eSel(r + 'etnia', 'Etnia (opcional)', C.etnias)
+      + '<div class="edan-2col">' + this._eSel(r + 'estadoSalud', 'Estado de salud (opcional)', C.salud) + this._eSel(r + 'regimenSalud', 'Afiliación a salud (opcional)', C.regimen) + '</div>'
+      + this._eSeg(r + 'zona', [['URBANO', '', '', 'Urbano'], ['RURAL', '', '', 'Rural']], 'Ubicación de la vivienda')
+      + this._eSeg(r + 'propiedad', [['PROPIA', '', '', 'Propia'], ['ARRIENDO', '', '', 'Arriendo']], 'Tenencia de la vivienda')
+      + this._eSeg(r + 'estadoInmueble', [['SIN DAÑO', '✓', 'e-ok', 'Sin daño'], ['AVERIADO', '▲', 'e-ave', 'Averiado'], ['DESTRUIDO', '✕', 'e-des', 'Destruido']], 'Estado del inmueble')
+      + '<div class="edan-campo"><label>Necesita</label><div class="edan-checks edan-checks-1">' + C.necesidades.map(([k, t]) => '<label class="edan-check"><input type="checkbox" data-edan="' + r + k + '"'
+        + (this._edanGet(r + k) === true || this._edanGet(r + k) === 'SI' ? ' checked' : '') + '><span>' + this._esc(t) + '</span></label>').join('') + '</div></div>'
+      + '<button type="button" class="edan-btn-pri edan-listo" data-edan-accion="personaCerrar">Listo</button></div>';
+  },
+
+  _edanRenderCenso() {
+    const e = this._edan; const esc = v => this._esc(v);
+    const aviso = !!e.secciones.avisoDatos;
+    let h = '<section class="edan-card"><h3>Tratamiento de datos</h3><p class="edan-ayuda edan-ayuda-top">Los datos del censo se usan solo para atender esta emergencia y se entregan al CMGRD. '
+      + 'Los protege la Ley 1581 de 2012: en la app solo los ven quien hizo el EDAN y el administrador, y se borran de este teléfono después del envío. Etnia y salud son opcionales.</p>'
+      + '<label class="edan-check edan-check-ancho"><input type="checkbox" data-edan="secciones.avisoDatos" data-rerender="1"' + (aviso ? ' checked' : '')
+      + '><span>Se informó al jefe de hogar para qué se usan los datos</span></label></section>';
+    if (e.censoFuera) {
+      return h + '<section class="edan-card"><h3>Censo en el servidor</h3><p>Este EDAN tiene ' + esc(Number(e.numPersonas) || 0) + ' persona(s) en el censo. '
+        + 'Por seguridad no quedan guardadas en el teléfono. Ábralo con señal para verlas o editarlas. Puede cambiar los demás pasos sin perder el censo.</p></section>';
+    }
+    const P = e.personas || [];
+    const fams = this._edanFamilias(P);
+    const edades = P.map(p => (p.edad === '' || p.edad == null) ? null : Number(p.edad)).filter(x => x !== null && isFinite(x));
+    h += '<p class="edan-total">' + fams.length + ' familia(s) · ' + P.length + ' persona(s) · ' + edades.filter(x => x < 18).length + ' menor(es) de 18 · '
+      + edades.filter(x => x >= 60).length + ' de 60 o más</p>';
+    if (!aviso) h += '<p class="edan-ayuda">Marque la casilla de arriba para empezar el censo.</p>';
+    h += fams.map(f => '<section class="edan-card"><h3>Familia ' + esc(f.familia) + '</h3>' + f.idx.map(i => {
+      if (i === this._edanPersonaAbierta) return this._edanEditorPersona(i);
+      const p = P[i]; const nombre = [p.nombres, p.apellidos].filter(Boolean).join(' ');
+      const det = [p.parentesco, (p.tipoDoc || p.numDoc) ? [p.tipoDoc, p.numDoc].filter(Boolean).join(' ') : '', (p.edad === '' || p.edad == null) ? '' : p.edad + ' años'].filter(Boolean).join(' · ');
+      return '<div class="edan-persona"><button type="button" class="edan-persona-res" data-edan-accion="persona" data-i="' + i + '"><strong>' + esc(nombre || '(sin nombre)')
+        + '</strong><small>' + esc(det || 'Toque para completar') + '</small></button>'
+        + '<button type="button" class="edan-quitar" data-edan-accion="quitarPersona" data-i="' + i + '">Quitar</button></div>';
+    }).join('') + '<button type="button" class="edan-btn-agregar" data-edan-accion="personaFam" data-fam="' + esc(f.familia) + '"' + (aviso ? '' : ' disabled') + '>+ Agregar persona a esta familia</button></section>').join('');
+    h += '<button type="button" class="edan-btn-agregar" data-edan-accion="familia"' + (aviso ? '' : ' disabled') + '>+ Agregar familia</button>'
+      + '<p class="edan-ayuda">Una familia = un hogar. La primera persona es el jefe de hogar. Ubicación, tenencia, estado del inmueble y necesidades se copian a las demás personas de la familia; corrija si cambia.</p>';
+    return h;
+  },
+
+  _edanAccionCenso(b, acc) {
+    const e = this._edan; const P = e.personas;
+    const abrir = (i) => {
+      this._edanPersonaAbierta = i; this._edanRender();
+      const ed = document.getElementById('edanPersonaEditor'); if (ed && ed.scrollIntoView) ed.scrollIntoView({ block: 'start' });
+    };
+    if (acc === 'familia' || acc === 'personaFam') {
+      if (!e.secciones.avisoDatos) { this.toast('Primero marque que se informó al jefe de hogar.', 'error'); return; }
+      if (e.censoFuera) { this.toast('Abra el EDAN con señal para editar el censo.', 'error'); return; }
+      if (P.length >= 500) { this.toast('El censo admite hasta 500 personas por EDAN.', 'error'); return; }
+      let p;
+      if (acc === 'familia') {
+        const fam = P.reduce((m, x) => Math.max(m, this._edanNumero(x && x.familia)), 0) + 1;
+        p = this._edanPersonaVacia(fam); p.parentesco = 'Jefe de hogar';
+      } else {
+        const fam = this._edanNumero(b.dataset.fam) || 1;
+        p = this._edanPersonaVacia(fam);
+        const base = P.find(x => this._edanNumero(x.familia) === fam);
+        if (base) ['zona', 'propiedad', 'estadoInmueble', 'aheAlim', 'aheNoAlim', 'matRehab', 'subArriendo'].forEach(k => { p[k] = base[k]; });
+      }
+      P.push(p);
+      this._edanTocado();
+      abrir(P.length - 1);
+    } else if (acc === 'persona') {
+      abrir(Number(b.dataset.i));
+    } else if (acc === 'personaCerrar') {
+      this._edanPersonaAbierta = -1; this._edanRender();
+    } else if (acc === 'quitarPersona') {
+      const i = Number(b.dataset.i); const p = P[i]; if (!p) return;
+      const nombre = [p.nombres, p.apellidos].filter(Boolean).join(' ') || 'esta persona';
+      this.confirmar('Quitar persona', '¿Quitar a ' + nombre + ' del censo?').then(ok => {
+        if (!ok || this._edan !== e) return;
+        P.splice(i, 1);
+        if (this._edanPersonaAbierta === i) this._edanPersonaAbierta = -1;
+        else if (this._edanPersonaAbierta > i) this._edanPersonaAbierta--;
+        this._edanTocado(); this._edanRender();
+      });
+    } else if (acc === 'imprimirCenso') {
+      this._edanGuardarBorrador();
+      this._imprimirCensoEDAN(e.id);
+    } else if (acc === 'csvCenso') {
+      this._edanGuardarBorrador();
+      this._exportarCensoCSV(e.id);
+    }
+  },
+
+  // EDAN completo y con censo, para imprimir o exportar.
+  async _edanConCenso(id) {
+    let e = (this._edan && this._edan.id === id) ? JSON.parse(JSON.stringify(this._edan)) : null;
+    if (!e) { try { e = await DB.obtenerEDAN(id); } catch (x) {} }
+    if (!e) {
+      if (!navigator.onLine) throw new Error('Sin señal: este EDAN está en el servidor.');
+      const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ accion: 'obtenerEDAN', id }) });
+      const d = await r.json();
+      if (!d || d.ok !== true || !d.edan) throw new Error((d && d.error) || 'No se pudo consultar el EDAN.');
+      e = d.edan;
+    }
+    e = this._edanNormalizar(e);
+    if (e.censoFuera) {
+      if (!navigator.onLine) throw new Error('Sin señal: el censo está en el servidor. Conéctese para imprimirlo o exportarlo.');
+      e.personas = await this._edanTraerCenso(id);
+    }
+    e.personas = e.personas.map(p => this._edanNormalizarPersona(p)).filter(p => p.nombres || p.apellidos || p.numDoc);
+    e.personas.sort((a, b) => a.familia - b.familia);
+    return e;
+  },
+
+  async _imprimirCensoEDAN(id) {
+    const w = window.open('', '_blank', 'width=1200,height=850');
+    if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
+    try { w.opener = null; } catch (e) {}
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preparando censo</title></head><body style="font-family:Arial,sans-serif;padding:32px">Generando censo EDAN…</body></html>');
+    w.document.close();
+    const escribir = (html) => { if (w.closed) return; w.document.open(); w.document.write(html); w.document.close(); };
+    try {
+      const e = await this._edanConCenso(id);
+      if (!e.personas.length) { escribir('<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;padding:32px">Este EDAN no tiene personas en el censo.</body></html>'); return; }
+      escribir(this._edanCensoHtml(e));
+    } catch (err) {
+      escribir('<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;padding:32px">No se pudo generar el censo: ' + this._esc(err.message) + '</body></html>');
+    }
+  },
+
+  // 13 personas por hoja, 2 filas por persona (nombres / apellidos), como el FR-1703-SMD-08.
+  _edanCensoHtml(e) {
+    const esc = v => this._esc(String(v == null ? '' : v));
+    const P = e.personas; const POR_HOJA = 13;
+    const hojas = []; for (let i = 0; i < P.length; i += POR_HOJA) hojas.push(P.slice(i, i + POR_HOJA));
+    const sino = v => (v === true || v === 'SI') ? 'SI' : 'NO';
+    const ini = v => esc(String(v || '').charAt(0));
+    const escudo = this._escudoActual ? (this._escudoActual() || (typeof LOGO_SMALL !== 'undefined' ? LOGO_SMALL : '')) : '';
+    const total = hojas.length;
+    const cuerpo = hojas.map((lista, h) => {
+      const filas = lista.map((p, j) => {
+        const n = h * POR_HOJA + j + 1;
+        return '<tr><td rowspan="2" class="c">' + n + '</td><td rowspan="2" class="c">' + esc(p.familia) + '</td><td class="nom">' + esc(p.nombres) + '</td>'
+          + '<td rowspan="2" class="c">' + esc(p.tipoDoc) + '</td><td rowspan="2">' + esc(p.numDoc) + '</td><td rowspan="2">' + esc(p.parentesco) + '</td>'
+          + '<td rowspan="2" class="c">' + esc(p.genero) + '</td><td rowspan="2" class="c">' + esc(p.edad) + '</td><td rowspan="2">' + esc(p.etnia) + '</td>'
+          + '<td rowspan="2">' + esc(p.estadoSalud) + '</td><td rowspan="2">' + esc(p.regimenSalud) + '</td>'
+          + '<td rowspan="2" class="c">' + ini(p.zona) + '</td><td rowspan="2" class="c">' + ini(p.propiedad) + '</td><td rowspan="2">' + esc(p.estadoInmueble) + '</td>'
+          + '<td rowspan="2" class="c">' + sino(p.aheAlim) + '</td><td rowspan="2" class="c">' + sino(p.aheNoAlim) + '</td><td rowspan="2" class="c">' + sino(p.matRehab) + '</td><td rowspan="2" class="c">' + sino(p.subArriendo) + '</td></tr>'
+          + '<tr><td class="ape">' + esc(p.apellidos) + '</td></tr>';
+      }).join('');
+      return '<section class="hoja">'
+        + '<header>' + (escudo ? '<img src="' + esc(escudo) + '" alt="">' : '') + '<div><h1>Censo de familias afectadas — EDAN</h1>'
+        + '<div class="sub">Cuerpo de Bomberos Voluntarios de Inírida · Formato basado en FR-1703-SMD-08 (UNGRD) · Hoja ' + (h + 1) + ' de ' + total + '</div></div></header>'
+        + '<table class="datos"><tr><td><b>Departamento</b> ' + esc(e.departamento) + '</td><td><b>Municipio</b> ' + esc(e.municipio) + '</td><td><b>Evento</b> ' + esc(this._edanTitulo(e))
+        + '</td><td><b>Fecha</b> ' + esc(e.fecha) + '</td><td><b>Sector</b> ' + esc(e.sector) + '</td></tr></table>'
+        + '<table class="censo"><thead><tr><th rowspan="2">Nº</th><th rowspan="2">Fam.</th><th rowspan="2">Nombres<br>Apellidos</th><th colspan="2">Documento</th><th rowspan="2">Parentesco con el jefe de hogar</th>'
+        + '<th rowspan="2">Gén.</th><th rowspan="2">Edad</th><th rowspan="2">Etnia</th><th colspan="2">Salud</th><th colspan="3">Vivienda</th><th colspan="4">Necesidades</th></tr>'
+        + '<tr><th>Tipo</th><th>Número</th><th>Estado</th><th>Régimen</th><th>U/R</th><th>P/A</th><th>Estado inmueble</th><th>AHE alim.</th><th>AHE no alim.</th><th>Mat. rehab.</th><th>Sub. arriendo</th></tr></thead>'
+        + '<tbody>' + filas + '</tbody></table>'
+        + '<table class="pie"><tr><td><b>Elaborado por</b> ' + esc(e.elaboradoPor) + (e.cargo ? ' — ' + esc(e.cargo) : '') + '</td><td><b>Entidad operativa</b> ' + esc(e.entidad)
+        + '</td><td><b>Se informó al jefe de hogar sobre el uso de los datos</b> ' + (e.secciones && e.secciones.avisoDatos ? 'SI' : 'NO') + '</td></tr>'
+        + '<tr><td colspan="3"><b>Observaciones</b> ' + esc(e.observaciones || '') + '</td></tr></table>'
+        + '<div class="firmas"><div>Vo.Bo. CMGRD</div><div>Presidente CMGRD</div><div>Vo.Bo. CDGRD</div></div>'
+        + '<p class="nota">U/R: urbano / rural · P/A: propia / arriendo · AHE: ayuda humanitaria de emergencia. Contiene datos personales (Ley 1581 de 2012): uso exclusivo de la gestión del riesgo.</p>'
+        + '</section>';
+    }).join('');
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Censo EDAN — ' + esc(e.municipio) + ' — ' + esc(e.fecha) + '</title><style>'
+      + '@page{size:landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#111;margin:8mm;font-size:7.5pt}'
+      + '.hoja{break-after:page;page-break-after:always}.hoja:last-child{break-after:auto;page-break-after:auto}'
+      + 'header{display:flex;gap:10px;align-items:center;border-bottom:2px solid #b51c25;padding-bottom:5px;margin-bottom:5px}header img{width:42px;height:42px;object-fit:contain}'
+      + 'h1{font-size:11pt;margin:0;color:#7a0012;text-transform:uppercase}.sub{font-size:7.5pt;color:#555}'
+      + 'table{width:100%;border-collapse:collapse;margin-bottom:4px}td,th{border:1px solid #777;padding:2px 3px;vertical-align:middle}th{background:#e8ebf0;font-size:6.8pt}'
+      + '.datos td,.pie td{font-size:7.5pt}.datos b,.pie b{display:block;font-size:6.3pt;color:#555;text-transform:uppercase}'
+      + '.c{text-align:center}.nom{border-bottom:1px dotted #999}.ape{border-top:0}tbody tr{height:5.2mm}'
+      + '.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}.firmas div{border-top:1px solid #333;padding-top:3px;text-align:center}'
+      + '.nota{font-size:6.5pt;color:#555;margin:4px 0 0}'
+      + '</style></head><body>' + cuerpo + '</body></html>';
+  },
+
+  // CSV con las columnas del formato -08, para pegar en el Excel oficial si el CMGRD lo pide.
+  _edanCsv(e) {
+    const celda = v => { let s = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+    const sino = v => (v === true || v === 'SI') ? 'SI' : 'NO';
+    const cab = ['Departamento', 'Municipio', 'Evento', 'Fecha evaluación', 'Sector', 'Familia', 'Nº', 'Nombres', 'Apellidos', 'Tipo documento', 'Número documento',
+      'Parentesco con el jefe de hogar', 'Género', 'Edad', 'Etnia', 'Estado de salud', 'Afiliación régimen de salud', 'Ubicación', 'Propiedad', 'Estado del inmueble',
+      'AHE alimentaria', 'AHE no alimentaria', 'Materiales rehabilitación vivienda', 'Subsidio de arriendo'];
+    const filas = e.personas.map((p, i) => [e.departamento, e.municipio, this._edanTitulo(e), e.fecha, e.sector, p.familia, i + 1, p.nombres, p.apellidos, p.tipoDoc, p.numDoc,
+      p.parentesco, p.genero, p.edad, p.etnia, p.estadoSalud, p.regimenSalud, p.zona, p.propiedad, p.estadoInmueble, sino(p.aheAlim), sino(p.aheNoAlim), sino(p.matRehab), sino(p.subArriendo)]);
+    return '﻿' + [cab].concat(filas).map(r => r.map(celda).join(';')).join('\r\n') + '\r\n';
+  },
+
+  async _exportarCensoCSV(id) {
+    try {
+      const e = await this._edanConCenso(id);
+      if (!e.personas.length) { this.toast('Este EDAN no tiene personas en el censo.', 'info'); return; }
+      const blob = new Blob([this._edanCsv(e)], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'EDAN_censo_' + String(e.fecha || '').replace(/[^0-9-]/g, '') + '_' + String(e.id).replace(/[^A-Z0-9-]/g, '') + '.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      this.toast('CSV exportado. Contiene datos personales: compártalo solo con el CMGRD.', 'exito');
+    } catch (err) { this.toast('Error: ' + err.message, 'error'); }
   },
 
   // ── Impresión del consolidado (orden del formato FR-1703-SMD-09) ──
@@ -10994,6 +11312,7 @@ ${paginaFotos}
       + sec(12, 'Sector agropecuario', tabla(['Subsector'].concat(C.agroCampos.map(x => x[1])), agroFilas))
       + sec(13, 'Comercio y empresas', tabla(['Tipo'].concat(C.comercioCampos.map(x => x[1])), comFilas))
       + sec(14, 'Análisis de necesidades', tabla(['Sector', 'Necesidad', 'Cantidad', 'Equipos o elementos requeridos', 'Costo estimado'], necesidades))
+      + ((e.personas || []).length || Number(e.numPersonas) ? '<p><strong>Censo de familias (FR-1703-SMD-08):</strong> ' + esc((e.personas || []).length || Number(e.numPersonas)) + ' persona(s), en documento aparte.</p>' : '')
       + sec(15, 'Observaciones', e.observaciones ? '<p>' + esc(e.observaciones) + '</p>' : '<p class="ne">Sin observaciones.</p>')
       + '<div class="firmas"><div>Quien diligencia<br><strong>' + esc(e.elaboradoPor || '') + '</strong>' + (e.cargo ? '<br>' + esc(e.cargo) : '') + '</div>'
       + '<div>Verifica<br><strong>Coordinador CMGRD</strong></div><div>Aprueba el envío<br><strong>Alcalde municipal</strong></div></div>'
