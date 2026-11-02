@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.66';
+const APP_VERSION = '6.67';
 const APP_VERSION_NOTAS = [
+  'v6.67: Nuevo — sección EDAN: evaluación de daños y necesidades para el CMGRD, funciona sin señal e imprime el consolidado.',
   'v6.66: Nuevo historial individual imprimible de horas voluntarias desde Operatividad; las pagas se muestran aparte.',
   'v6.65: Asistencia de domingos permite agregar varios encargados y adjuntar hasta seis fotos, tanto al registrar como al editar.',
   'v6.64: Identidad renovada: icono y splash más limpios, con mayor aire y zona segura para recortes de Android.',
@@ -325,13 +326,15 @@ const VEHICULOS_CBVI = [
 const DB = {
   db: null,
   NOMBRE: 'BomberosIniridaDB',
-  VERSION: 2,
+  VERSION: 3,   // v6.67: + store 'edan' (aditivo; reportes/config/contador intactos)
 
   abrir() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(this.NOMBRE, this.VERSION);
       req.onerror = () => reject(req.error);
       req.onsuccess = () => { this.db = req.result; resolve(this.db); };
+      // v6.67: la subida a v3 espera si otra pestaña tiene la base abierta.
+      req.onblocked = () => { try { if (typeof app !== 'undefined' && app.toast) app.toast('Cierre otras pestañas de la app para actualizar', 'error'); } catch (e) {} };
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('reportes')) {
@@ -344,6 +347,10 @@ const DB = {
         }
         if (!db.objectStoreNames.contains('contador')) {
           db.createObjectStore('contador', { keyPath: 'anio' });
+        }
+        if (!db.objectStoreNames.contains('edan')) {
+          const edan = db.createObjectStore('edan', { keyPath: 'id' });
+          edan.createIndex('estado', 'estado');
         }
       };
     });
@@ -402,6 +409,45 @@ const DB = {
       const req = tx.objectStore('config').get(clave);
       req.onsuccess = () => resolve(req.result?.valor);
       req.onerror = () => reject(req.error);
+    });
+  },
+
+  // v6.67: EDAN — espejo de los métodos de reportes, en su propio store.
+  guardarEDAN(e) {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(['edan'], 'readwrite');
+      tx.objectStore('edan').put(e);
+      tx.oncomplete = () => resolve(e);
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+
+  obtenerEDAN(id) {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(['edan'], 'readonly');
+      const req = tx.objectStore('edan').get(id);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+
+  listarEDAN() {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(['edan'], 'readonly');
+      const req = tx.objectStore('edan').getAll();
+      req.onsuccess = () => resolve((req.result || []).sort((a, b) =>
+        String(b.actualizadoLocal || '').localeCompare(String(a.actualizadoLocal || ''))
+      ));
+      req.onerror = () => reject(req.error);
+    });
+  },
+
+  eliminarEDANLocal(id) {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(['edan'], 'readwrite');
+      tx.objectStore('edan').delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   }
 };
@@ -488,6 +534,7 @@ const app = {
            quedaba pegado hasta forzarlo a mano. sincronizarReporte es idempotente
            (v5.84) y tiene candado _syncEnCurso, así que subir al arranque no duplica. */
         if (navigator.onLine) this.sincronizarPendientes(true).catch(() => {});
+        if (navigator.onLine) this.sincronizarEDANPendientes(true).catch(() => {});  // v6.67
       } else {
         this.irA('pantallaRegistroComplemento');
       }
@@ -499,6 +546,7 @@ const app = {
     window.addEventListener('online', () => {
       this.toast('Conexión restablecida. Sincronizando...', 'exito');
       this.sincronizarPendientes(true);
+      this.sincronizarEDANPendientes(true).catch(() => {});  // v6.67
     });
   },
 
@@ -836,6 +884,7 @@ const app = {
         this.sincronizarReportesDesdeServidor().catch(e => console.warn('Sincronización falló:', e));
         // v6.33: subir lo pendiente también tras un login nuevo (ver init).
         if (navigator.onLine) this.sincronizarPendientes(true).catch(() => {});
+        if (navigator.onLine) this.sincronizarEDANPendientes(true).catch(() => {});  // v6.67
       } else {
         document.getElementById('saludoRegistro').textContent =
           `${usuario.email} — Complete sus datos para empezar`;
@@ -1160,7 +1209,7 @@ const app = {
   _actualizarBottomNav(pantallaId) {
     const barra = document.getElementById('bottomNav');
     if (!barra) return;
-    const OCULTA_EN = ['pantallaLogin', 'pantallaRegistroComplemento', 'pantallaForm', 'pantallaDetalle'];
+    const OCULTA_EN = ['pantallaLogin', 'pantallaRegistroComplemento', 'pantallaForm', 'pantallaDetalle', 'pantallaEDANForm'];
     barra.classList.toggle('oculta', OCULTA_EN.indexOf(pantallaId) !== -1);
     const SECCION = {
       pantallaHome: 'home', pantallaActividades: 'actividad',
@@ -1267,7 +1316,7 @@ const app = {
 
     if (!sinHistorial && this.pantallaActual !== pantallaId) {
       // Solo guardamos en historial las pantallas principales
-      if (['pantallaHome', 'pantallaForm', 'pantallaDetalle', 'pantallaConfig'].includes(this.pantallaActual)) {
+      if (['pantallaHome', 'pantallaForm', 'pantallaDetalle', 'pantallaConfig', 'pantallaEDAN'].includes(this.pantallaActual)) {
         this.pilaPantallas.push(this.pantallaActual);
       }
     }
@@ -1302,6 +1351,8 @@ const app = {
     if (pantallaId === 'pantallaDeudores') { this.cargarPantallaDeudores(); }
     if (pantallaId === 'pantallaMapa') { this.cargarPantallaMapa(); }
     if (pantallaId === 'pantallaAcercaDe') { this._pintarAcercaDe(); }
+    if (pantallaId === 'pantallaEDAN') { this.cargarListaEDAN(); }       // v6.67
+    if (pantallaId === 'pantallaEDANForm') { this._edanRender(); }       // v6.67
     if (pantallaId === 'pantallaConfig' && this.usuario) {
       document.getElementById('cfg_perfil_nombre').value = this.usuario.nombreCompleto || this.usuario.nombre || '';
       document.getElementById('cfg_perfil_grado').value = this.usuario.grado || '';
@@ -1331,7 +1382,9 @@ const app = {
         pantallaOperatividad: '📊 Operatividad',
         pantallaDeudores: '⚠️ Ver Deudores',
         pantallaMapa: '🗺️ Mapa de Emergencias',
-        pantallaAcercaDe: 'ℹ️ Acerca de'
+        pantallaAcercaDe: 'ℹ️ Acerca de',
+        pantallaEDAN: 'EDAN',
+        pantallaEDANForm: 'Evaluación EDAN'
       };
       document.getElementById('headerTitulo').textContent = titulos[pantallaId] || 'CBVI Reportes';
     }
@@ -1372,6 +1425,8 @@ const app = {
   },
 
   async _confirmarSalidaSiSucio() {
+    // v6.67: el EDAN no pregunta: guarda lo escrito como borrador local y sale.
+    if (this.pantallaActual === 'pantallaEDANForm') { await this._edanSalir(); return true; }
     const g = this._hayCambiosSinGuardar();
     if (!g) return true;
     return await this.confirmar(g.titulo, g.mensaje);
@@ -10153,8 +10208,798 @@ ${paginaFotos}
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
-  }
+  },
 
+
+  // ═══════════════ v6.67: EDAN — Evaluación de Daños y Análisis de Necesidades ═══════════════
+  /* PLAN-20261102-01. Sección APARTE del reporte de incidente (Jeferson: «no mezclar»): nada
+     de esto toca las pantallas, el guardado ni el envío de reportes de incidente. Lo
+     único que hace con los reportes es LEER DB.listarReportes() para "Copiar datos de un
+     incidente" (copia de valores; el reporte no se modifica ni se vuelve a guardar).
+     Sin señal: borrador (se guarda solo en el teléfono, nunca se envía solo) → pendiente
+     (el bombero tocó "Guardar EDAN") → enviado (SOLO con data.ok === true del servidor).
+     El ID lo crea el teléfono; el servidor ignora un rev igual o menor (reintento seguro). */
+  _edan: null,
+  _edanPaso: 1,
+  _edanSucio: false,
+
+  _edanNuevoId() {
+    const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const b = new Uint8Array(12);
+    (window.crypto || crypto).getRandomValues(b);
+    return 'EDAN-' + Array.from(b, x => abc[x % 36]).join('');
+  },
+
+  _edanHoy() {
+    const d = new Date(); const p = n => String(n).padStart(2, '0');
+    return { fecha: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()), hora: p(d.getHours()) + ':' + p(d.getMinutes()) };
+  },
+
+  _edanVacio() {
+    const u = this.usuario || {}; const h = this._edanHoy(); const ahora = new Date().toISOString();
+    return {
+      id: this._edanNuevoId(), rev: 0, estado: 'borrador',
+      fecha: h.fecha, hora: h.hora, tipoEvento: '', eventoOtro: '',
+      departamento: 'Guainía', municipio: 'Inírida', sector: '', direccion: '', referencia: '', gps: '', consecutivoIncidente: '',
+      descripcion: '', magnitud: '', heridos: 0, muertos: 0, desaparecidos: 0, familiasAfectadas: 0, personasAfectadas: 0,
+      vivUrbAveriadas: 0, vivUrbDestruidas: 0, vivRurAveriadas: 0, vivRurDestruidas: 0,
+      observaciones: '', elaboradoPor: u.nombreCompleto || u.nombre || '', cargo: u.grado || '',
+      entidad: 'Cuerpo de Bomberos Voluntarios de Inírida',
+      secciones: { zonas: [], secundarios: [], salud: [], vias: [], edificaciones: {}, telecom: {}, servicios: {}, transporte: {}, agro: {}, comercio: {} },
+      necesidades: [], personas: [],
+      emailRegistrador: u.email || '', creadoLocal: ahora, actualizadoLocal: ahora
+    };
+  },
+
+  // Completa un EDAN traído del servidor o de una versión vieja (nunca falta una sección).
+  _edanNormalizar(e) {
+    const base = this._edanVacio();
+    const o = Object.assign({}, base, e || {});
+    o.secciones = Object.assign({}, base.secciones, (e && e.secciones && typeof e.secciones === 'object') ? e.secciones : {});
+    ['zonas', 'secundarios', 'salud', 'vias'].forEach(k => { if (!Array.isArray(o.secciones[k])) o.secciones[k] = []; });
+    ['edificaciones', 'telecom', 'servicios', 'transporte', 'agro', 'comercio'].forEach(k => {
+      if (!o.secciones[k] || typeof o.secciones[k] !== 'object' || Array.isArray(o.secciones[k])) o.secciones[k] = {};
+    });
+    if (!Array.isArray(o.necesidades)) o.necesidades = [];
+    if (!Array.isArray(o.personas)) o.personas = [];
+    return o;
+  },
+
+  // Solo claves simples: bloquea __proto__/constructor (el backend filtra lo mismo).
+  _edanRutaOk(ruta) {
+    const p = String(ruta || '').split('.');
+    return p.length > 0 && p.every(k => /^[A-Za-z0-9]+$/.test(k) && k !== 'constructor' && k !== 'prototype');
+  },
+  _edanGet(ruta) {
+    if (!this._edan || !this._edanRutaOk(ruta)) return undefined;
+    return String(ruta).split('.').reduce((o, k) => (o == null ? undefined : o[k]), this._edan);
+  },
+  _edanSet(ruta, valor) {
+    if (!this._edan || !this._edanRutaOk(ruta)) return;
+    const p = String(ruta).split('.');
+    let o = this._edan;
+    for (let i = 0; i < p.length - 1; i++) {
+      if (o[p[i]] == null || typeof o[p[i]] !== 'object') o[p[i]] = /^\d+$/.test(p[i + 1]) ? [] : {};
+      o = o[p[i]];
+    }
+    o[p[p.length - 1]] = valor;
+  },
+  // Tope 1.000.000 para conteos (personas, viviendas); los campos en pesos pasan max = 1e12.
+  _edanNumero(v, max) { const n = Math.floor(Number(String(v == null ? '' : v).replace(/[^0-9]/g, ''))); return (isFinite(n) && n > 0) ? Math.min(n, max || 1000000) : 0; },
+
+  // ── Lista ──
+  async cargarListaEDAN() {
+    const cont = document.getElementById('edanLista');
+    if (!cont) return;
+    let locales = [];
+    try { locales = await DB.listarEDAN(); } catch (e) { console.warn('EDAN local:', e); }
+    this._edanPintarLista(locales, []);
+    if (!navigator.onLine || !this.usuario) return;
+    try {
+      const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarEDAN' }) });
+      const d = await r.json();
+      if (d && d.ok === true && Array.isArray(d.edan)) {
+        this._edanServidor = d.edan;
+        if (this.pantallaActual === 'pantallaEDAN') this._edanPintarLista(locales, d.edan);
+      }
+    } catch (e) { console.warn('listarEDAN:', e); }
+  },
+
+  _edanTitulo(e) {
+    if (!e) return 'EDAN';
+    if (e.tipoEvento === 'Otro') return e.eventoOtro ? 'Otro: ' + e.eventoOtro : 'Otro evento';
+    return e.tipoEvento || 'Sin tipo de evento';
+  },
+
+  _edanPintarLista(locales, servidor) {
+    const cont = document.getElementById('edanLista');
+    if (!cont) return;
+    const esc = v => this._esc(v);
+    const vistos = new Set();
+    const filas = [];
+    (locales || []).forEach(e => { vistos.add(e.id); filas.push({ e, origen: 'local' }); });
+    (servidor || []).forEach(e => { if (e && e.id && !vistos.has(e.id)) { vistos.add(e.id); filas.push({ e, origen: 'servidor' }); } });
+    if (!filas.length) {
+      cont.innerHTML = '<div class="edan-vacio">Aún no hay evaluaciones. Inicie una con "Nuevo EDAN".</div>';
+      return;
+    }
+    const ETQ = { borrador: ['Borrador', 'edan-est-borrador'], pendiente: ['Pendiente de envío', 'edan-est-pendiente'], enviado: ['Enviado', 'edan-est-enviado'], servidor: ['En el servidor', 'edan-est-enviado'] };
+    const admin = this.esAdmin();
+    cont.innerHTML = filas.map(({ e, origen }) => {
+      const est = ETQ[origen === 'servidor' ? 'servidor' : (e.estado || 'borrador')] || ETQ.borrador;
+      const lugar = [e.municipio, e.sector].filter(Boolean).join(' · ') || 'Sin ubicación';
+      const id = encodeURIComponent(e.id);
+      const descartable = origen === 'local' && e.estado === 'borrador' && !(Number(e.rev) > 0);
+      return '<div class="edan-fila">'
+        + '<div class="edan-fila-cab"><strong>' + esc(this._edanTitulo(e)) + '</strong><span class="edan-est ' + est[1] + '">' + esc(est[0]) + '</span></div>'
+        + '<div class="edan-fila-sub">' + esc(lugar) + '</div>'
+        + '<div class="edan-fila-sub">' + esc(e.fecha || '') + (e.hora ? ' · ' + esc(e.hora) : '') + (admin && e.elaboradoPor ? ' · ' + esc(e.elaboradoPor) : '') + '</div>'
+        + (origen === 'local' && e.estado === 'borrador' && Number(e.rev) > 0 ? '<div class="edan-fila-aviso">Tiene cambios sin enviar: ábralo y toque "Guardar EDAN".</div>' : '')
+        + '<div class="edan-fila-acc">'
+        + '<button type="button" class="edan-btn-pri" data-id="' + id + '" onclick="app.abrirEDAN(decodeURIComponent(this.dataset.id))">Abrir</button>'
+        + '<button type="button" class="edan-btn-sec" data-id="' + id + '" onclick="app._imprimirEDAN(decodeURIComponent(this.dataset.id))">Imprimir</button>'
+        + (descartable ? '<button type="button" class="edan-btn-sec" data-id="' + id + '" onclick="app._edanDescartarBorrador(decodeURIComponent(this.dataset.id))">Descartar</button>' : '')
+        + (admin && !descartable ? '<button type="button" class="edan-btn-peligro" data-id="' + id + '" onclick="app.eliminarEDAN(decodeURIComponent(this.dataset.id), this)">Eliminar</button>' : '')
+        + '</div></div>';
+    }).join('');
+  },
+
+  // ── Abrir / nuevo ──
+  nuevoEDAN() {
+    this._edan = this._edanVacio();
+    this._edanPaso = 1;
+    this._edanSucio = false;
+    this.irA('pantallaEDANForm');
+  },
+
+  async abrirEDAN(id) {
+    let e = null;
+    try { e = await DB.obtenerEDAN(id); } catch (x) {}
+    if (!e) {
+      if (!navigator.onLine) { this.toast('Sin señal: este EDAN está en el servidor. Ábralo cuando tenga conexión.', 'error'); return; }
+      try {
+        this.toast('Descargando EDAN…', 'info');
+        const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'obtenerEDAN', id }) });
+        const d = await r.json();
+        if (!d || d.ok !== true || !d.edan) throw new Error((d && d.error) || 'No se pudo abrir');
+        e = this._edanNormalizar(d.edan);
+        e.estado = 'enviado';
+        await DB.guardarEDAN(e);
+      } catch (err) { this.toast('Error: ' + err.message, 'error'); return; }
+    }
+    this._edan = this._edanNormalizar(e);
+    this._edanPaso = 1;
+    this._edanSucio = false;
+    this.irA('pantallaEDANForm');
+  },
+
+  async _edanDescartarBorrador(id) {
+    const ok = await this.confirmar('Descartar borrador', 'Este EDAN nunca se envió. Se borrará solo de este teléfono.');
+    if (!ok) return;
+    try { await DB.eliminarEDANLocal(id); this.toast('Borrador descartado', 'exito'); } catch (e) { this.toast('Error: ' + e.message, 'error'); }
+    this.cargarListaEDAN();
+  },
+
+  // ── Guardado local ──
+  _edanTocado() {
+    if (!this._edan) return;
+    this._edanSucio = true;
+    this._edan.estado = 'borrador';
+    clearTimeout(this._edanTimer);
+    this._edanTimer = setTimeout(() => { this._edanGuardarBorrador(); }, 700);
+  },
+
+  async _edanGuardarBorrador() {
+    clearTimeout(this._edanTimer);
+    if (!this._edan || !this._edanSucio) return;
+    this._edanSucio = false;
+    this._edan.actualizadoLocal = new Date().toISOString();
+    try { await DB.guardarEDAN(JSON.parse(JSON.stringify(this._edan))); }
+    catch (e) { this._edanSucio = true; console.warn('EDAN borrador:', e); }
+  },
+
+  // Al salir del formulario no se pierde nada: lo escrito queda como borrador.
+  async _edanSalir() {
+    if (!this._edan) return;
+    const habiaCambios = this._edanSucio;
+    await this._edanGuardarBorrador();
+    if (habiaCambios || this._edan.estado === 'borrador' && Number(this._edan.rev) > 0) {
+      this.toast('El EDAN quedó como borrador en este teléfono. Toque "Guardar EDAN" para enviarlo.', 'info');
+    }
+  },
+
+  _edanVolverALista() {
+    if (this.pilaPantallas[this.pilaPantallas.length - 1] === 'pantallaEDAN') this.pilaPantallas.pop();
+    this._yendoAtras = true;
+    this.irA('pantallaEDAN', true);
+  },
+
+  async guardarEDAN(btn) {
+    if (!this._edan) return;
+    const e = this._edan;
+    const falta = [];
+    if (!e.fecha) falta.push('fecha');
+    if (!e.tipoEvento) falta.push('tipo de evento');
+    if (e.tipoEvento === 'Otro' && !String(e.eventoOtro || '').trim()) falta.push('cuál evento');
+    if (!String(e.municipio || '').trim()) falta.push('municipio');
+    if (falta.length) {
+      this.toast('Falta: ' + falta.join(', ') + '. Complete el paso 1.', 'error');
+      this._edanIrPaso(1);
+      return;
+    }
+    await this._conBloqueo(btn, 'Guardando…', async () => {
+      e.rev = (Number(e.rev) || 0) + 1;
+      e.estado = 'pendiente';
+      e.actualizadoLocal = new Date().toISOString();
+      clearTimeout(this._edanTimer);
+      this._edanSucio = false;
+      const copia = JSON.parse(JSON.stringify(e));
+      try { await DB.guardarEDAN(copia); }
+      catch (err) { this.toast('No se pudo guardar en el teléfono: ' + err.message, 'error'); return; }
+      let enviado = false;
+      if (navigator.onLine) enviado = await this.sincronizarEDAN(copia);
+      this.toast(enviado ? '✅ EDAN enviado al servidor' : 'EDAN guardado en el teléfono. Se enviará solo cuando haya señal.', enviado ? 'exito' : 'info');
+      this._edan = null;
+      this._edanVolverALista();
+    });
+  },
+
+  // ── Envío ──
+  _edanParaEnvio(e) {
+    const CAMPOS = ['id', 'rev', 'fecha', 'hora', 'tipoEvento', 'eventoOtro', 'departamento', 'municipio', 'sector', 'direccion', 'referencia', 'gps',
+      'consecutivoIncidente', 'descripcion', 'magnitud', 'heridos', 'muertos', 'desaparecidos', 'familiasAfectadas', 'personasAfectadas',
+      'vivUrbAveriadas', 'vivUrbDestruidas', 'vivRurAveriadas', 'vivRurDestruidas', 'observaciones', 'elaboradoPor', 'cargo', 'entidad',
+      'secciones', 'necesidades', 'personas'];
+    const o = {};
+    CAMPOS.forEach(k => { if (e[k] !== undefined) o[k] = e[k]; });
+    return JSON.parse(JSON.stringify(o));
+  },
+
+  async sincronizarEDAN(e) {
+    if (!e || e.estado !== 'pendiente') return false;
+    // Candado por id: toque repetido + envío automático a la vez = UNA sola petición.
+    this._syncEDANEnCurso = this._syncEDANEnCurso || new Set();
+    if (this._syncEDANEnCurso.has(e.id)) return false;
+    this._syncEDANEnCurso.add(e.id);
+    try {
+      const edan = this._edanParaEnvio(e);
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'guardarEDAN', edan, token: this.config.token || '' }),
+        redirect: 'follow'
+      });
+      let data = null;
+      try { data = await resp.json(); } catch (x) { return false; }  // sin confirmación → sigue pendiente
+      if (!data || data.ok !== true) {
+        this.toast('El servidor no aceptó el EDAN: ' + ((data && data.error) || 'error desconocido') + '. Queda pendiente.', 'error');
+        return false;
+      }
+      // Solo se marca enviado si nadie lo cambió mientras viajaba (mismo rev, sigue pendiente).
+      const actual = await DB.obtenerEDAN(e.id);
+      if (actual && actual.estado === 'pendiente' && Number(actual.rev) === Number(edan.rev)) {
+        actual.estado = 'enviado';
+        actual.enviadoLocal = new Date().toISOString();
+        await DB.guardarEDAN(actual);
+      }
+      return true;
+    } catch (err) {
+      console.warn('sincronizarEDAN:', err);
+      return false;
+    } finally {
+      this._syncEDANEnCurso.delete(e.id);
+    }
+  },
+
+  async sincronizarEDANPendientes(silencioso = false) {
+    if (!navigator.onLine || !this.usuario) return 0;
+    let lista = [];
+    try { lista = (await DB.listarEDAN()).filter(e => e.estado === 'pendiente'); } catch (e) { return 0; }
+    let ok = 0;
+    for (const e of lista) { if (await this.sincronizarEDAN(e)) ok++; }
+    if (!silencioso && ok) this.toast('✅ ' + ok + ' EDAN enviado(s)', 'exito');
+    if (ok && this.pantallaActual === 'pantallaEDAN') this.cargarListaEDAN();
+    return ok;
+  },
+
+  // ── Borrar (solo admin, con contraseña, dentro del bloqueo) ──
+  async eliminarEDAN(id, btn) {
+    if (!this.esAdmin()) { this.toast('Solo el administrador puede eliminar un EDAN.', 'error'); return; }
+    let e = null;
+    try { e = await DB.obtenerEDAN(id); } catch (x) {}
+    if (!e) e = (this._edanServidor || []).find(x => x.id === id) || { id };
+    this._confirmarAccion('¿Eliminar el EDAN "' + this._esc(this._edanTitulo(e)) + '"? Se borra del servidor y de este teléfono.', () => {
+      this._conBloqueo(btn, 'Eliminando…', async () => {
+        try {
+          const pwd = await this._obtenerPwdAdmin('🔐 Contraseña de administrador');
+          if (!pwd) return;
+          const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ accion: 'eliminarEDAN', id, adminEmail: this.usuario.email, adminPassword: this._adminPwdSession }) });
+          const d = await r.json();
+          if (!d || d.ok !== true) {
+            if (d && /autoriz/i.test(String(d.error || ''))) this._olvidarPwdAdmin();
+            throw new Error((d && d.error) || 'No se pudo eliminar');
+          }
+          try { await DB.eliminarEDANLocal(id); } catch (x) {}
+          this._edanServidor = (this._edanServidor || []).filter(x => x.id !== id);
+          this.toast('✅ EDAN eliminado', 'exito');
+          this.cargarListaEDAN();
+        } catch (err) { this.toast('Error: ' + err.message, 'error'); }
+      });
+    });
+  },
+
+  // ── Formulario por pasos ──
+  _EDAN_PASOS: ['Datos generales', 'Evento', 'Personas', 'Vivienda y edificaciones', 'Líneas vitales', 'Sector productivo', 'Necesidades', 'Revisión'],
+
+  _edanIrPaso(n) {
+    if (!this._edan) return;
+    n = Math.max(1, Math.min(8, Number(n) || 1));
+    this._edanGuardarBorrador();
+    this._edanPaso = n;
+    this._edanRender();
+    window.scrollTo(0, 0);
+  },
+
+  _edanSiguiente(btn) {
+    if (this._edanPaso >= 8) return this.guardarEDAN(btn);
+    this._edanIrPaso(this._edanPaso + 1);
+  },
+
+  _edanInstalarEventos() {
+    const c = document.getElementById('edanFormCuerpo');
+    if (!c || c.dataset.listo === '1') return;
+    c.dataset.listo = '1';
+    const onCambio = (ev) => {
+      const el = ev.target && ev.target.closest ? ev.target.closest('[data-edan]') : null;
+      if (!el || !this._edan) return;
+      let v;
+      if (el.type === 'checkbox') v = !!el.checked;
+      else if (el.dataset.tipo === 'num') v = this._edanNumero(el.value, Number(el.dataset.max) || 0);
+      else v = el.value;
+      this._edanSet(el.dataset.edan, v);
+      this._edanTocado();
+      if (el.dataset.edan === 'tipoEvento') {
+        const w = document.getElementById('edanEventoOtroWrap');
+        if (w) w.style.display = v === 'Otro' ? '' : 'none';
+      }
+      if (el.dataset.recalc) this._edanPintarTotalesZonas();
+    };
+    c.addEventListener('input', onCambio);
+    c.addEventListener('change', onCambio);
+    c.addEventListener('click', (ev) => {
+      const b = ev.target && ev.target.closest ? ev.target.closest('[data-edan-accion]') : null;
+      if (!b || !this._edan) return;
+      ev.preventDefault();
+      this._edanAccion(b);
+    });
+  },
+
+  _EDAN_PLANTILLAS: {
+    zonas: () => ({ sector: '', viviendas: 0, familias: 0, personas: 0 }),
+    secundarios: () => ({ evento: '', barrios: '', riesgo: '' }),
+    salud: () => ({ nombre: '', servicio: '', destruido: false, averiado: false, zonaImpacto: false, sinAcceso: false, emergenciaInterna: false }),
+    vias: () => ({ tramo: '', estado: '', pasoMaquina: '', comentario: '' }),
+    necesidades: () => ({ sector: '', necesidad: '', cantidad: 0, unidad: '', equipos: '', costo: 0 })
+  },
+
+  _edanLista(nombre) {
+    if (nombre === 'necesidades') return this._edan.necesidades;
+    return this._edan.secciones[nombre];
+  },
+
+  _edanAccion(b) {
+    const acc = b.dataset.edanAccion;
+    const ruta = b.dataset.ruta;
+    if (acc === 'mas' || acc === 'menos') {
+      const n = Math.max(0, Math.min(1000000, (this._edanNumero(this._edanGet(ruta)) || 0) + (acc === 'mas' ? 1 : -1)));
+      this._edanSet(ruta, n);
+      const inp = b.parentNode && b.parentNode.querySelector('input');
+      if (inp) inp.value = n;
+      this._edanTocado();
+      if (b.dataset.recalc) this._edanPintarTotalesZonas();
+    } else if (acc === 'opcion') {
+      const actual = this._edanGet(ruta) || '';
+      const nuevo = actual === b.dataset.valor ? '' : b.dataset.valor;  // tocar el activo = "No evaluado"
+      this._edanSet(ruta, nuevo);
+      const grupo = b.closest('.edan-seg');
+      if (grupo) grupo.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.valor === nuevo && nuevo !== '' ? 'true' : 'false'));
+      const lbl = grupo && grupo.parentNode && grupo.parentNode.querySelector('.edan-seg-actual');
+      if (lbl) lbl.textContent = nuevo || 'No evaluado';
+      this._edanTocado();
+    } else if (acc === 'agregar') {
+      const nombre = b.dataset.lista; const lista = this._edanLista(nombre); const pl = this._EDAN_PLANTILLAS[nombre];
+      if (!lista || !pl) return;
+      if (lista.length >= 60) { this.toast('Máximo 60 filas.', 'error'); return; }
+      lista.push(pl());
+      this._edanTocado(); this._edanRender();
+    } else if (acc === 'quitar') {
+      const lista = this._edanLista(b.dataset.lista); const i = Number(b.dataset.i);
+      if (!lista || !(i >= 0) || i >= lista.length) return;
+      lista.splice(i, 1);
+      this._edanTocado(); this._edanRender();
+    } else if (acc === 'sugerencia') {
+      const lista = this._edan.necesidades;
+      if (lista.length >= 60) { this.toast('Máximo 60 necesidades.', 'error'); return; }
+      const n = this._EDAN_PLANTILLAS.necesidades(); n.necesidad = b.dataset.texto || ''; n.sector = b.dataset.sector || '';
+      lista.push(n);
+      this._edanTocado(); this._edanRender();
+    } else if (acc === 'gps') {
+      this._edanCapturarGPS(b);
+    } else if (acc === 'copiar') {
+      this._edanElegirIncidente();
+    } else if (acc === 'paso') {
+      this._edanIrPaso(Number(b.dataset.paso));
+    } else if (acc === 'imprimir') {
+      this._edanGuardarBorrador().then(() => {});
+      this._imprimirEDAN(this._edan.id);
+    }
+  },
+
+  _edanCapturarGPS(btn) {
+    if (!navigator.geolocation) { this.toast('GPS no disponible en este teléfono. Escriba la ubicación a mano.', 'error'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Buscando ubicación…'; }
+    const fin = () => { if (btn) { btn.disabled = false; btn.textContent = 'Capturar GPS'; } };
+    navigator.geolocation.getCurrentPosition((pos) => {
+      fin();
+      if (!this._edan) return;
+      const txt = pos.coords.latitude.toFixed(6) + ',' + pos.coords.longitude.toFixed(6);
+      this._edanSet('gps', txt);
+      const inp = document.getElementById('edan_gps');
+      if (inp) inp.value = txt;
+      this._edanTocado();
+      this.toast('Ubicación capturada (±' + Math.round(pos.coords.accuracy || 0) + ' m)', 'exito');
+    }, () => {
+      fin();
+      this.toast('No se pudo obtener la ubicación. Intente al aire libre o escríbala a mano.', 'error');
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  },
+
+  // ── Copiar datos de un incidente (SOLO LECTURA del reporte) ──
+  async _edanElegirIncidente() {
+    let reps = [];
+    try { reps = await DB.listarReportes(); } catch (e) {}
+    if (!reps.length) { this.toast('No hay incidentes guardados en este teléfono.', 'info'); return; }
+    reps = reps.slice(0, 40);
+    this._edanIncidentesTmp = reps;
+    const esc = v => this._esc(v);
+    const modal = document.createElement('div');
+    modal.className = 'cbvi-modal-js';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:12px;';
+    modal.innerHTML = '<div class="edan-modal"><h3>Copiar datos de un incidente</h3>'
+      + '<p class="edan-ayuda">Se copian ubicación, tipo y cifras de personas y viviendas. El reporte no cambia. Revise y corrija todo.</p>'
+      + '<div class="edan-modal-lista">' + reps.map((r, i) => {
+        const tipos = (Array.isArray(r.clasificacion) ? r.clasificacion : []).slice(0, 2).join(', ') || 'Sin clasificar';
+        const fecha = String(r.fechaCreacion || r.fecha || '').substring(0, 10);
+        return '<button type="button" class="edan-modal-item" data-i="' + i + '"><strong>' + esc(r.consecutivo || 'Sin consecutivo') + ' · ' + esc(tipos) + '</strong>'
+          + '<small>' + esc(fecha) + (r.barrio ? ' · ' + esc(r.barrio) : '') + '</small></button>';
+      }).join('') + '</div>'
+      + '<button type="button" class="edan-btn-sec edan-modal-cerrar">Cancelar</button></div>';
+    document.body.appendChild(modal);
+    const cerrar = () => { if (this._cerrarModalJS) this._cerrarModalJS(modal); else modal.remove(); };
+    modal.querySelector('.edan-modal-cerrar').onclick = cerrar;
+    modal.querySelectorAll('.edan-modal-item').forEach(b => {
+      b.onclick = () => {
+        const r = (this._edanIncidentesTmp || [])[Number(b.dataset.i)];
+        cerrar();
+        if (!r || !this._edan) return;
+        this._edanCopiarDeIncidente(r);
+        this._edanTocado();
+        this._edanRender();
+        this.toast('Datos copiados. Revíselos antes de guardar.', 'exito');
+      };
+    });
+  },
+
+  _EDAN_MAPA_TIPOS: {
+    'Incendio estructural': 'Incendio urbano', 'Incendio vehicular': 'Incendio urbano', 'Incendio forestal': 'Incendio forestal',
+    'Materiales peligrosos (MATPEL)': 'Incidente con materiales peligrosos', 'Inundación / desastre natural': 'Inundación'
+  },
+
+  // Copia valores del reporte al EDAN. NO escribe en el reporte (lo verifica el guardián).
+  _edanCopiarDeIncidente(r) {
+    const e = this._edan; if (!e || !r) return;
+    const t = v => (v == null ? '' : String(v).trim());
+    const n = v => this._edanNumero(v);
+    if (t(r.municipio)) e.municipio = t(r.municipio);
+    if (t(r.barrio)) e.sector = t(r.barrio);
+    if (t(r.direccion)) e.direccion = t(r.direccion);
+    if (t(r.referencia)) e.referencia = t(r.referencia);
+    if (r.gps && r.gps.lat !== '' && r.gps.lat != null && isFinite(Number(r.gps.lat)) && isFinite(Number(r.gps.lng))) {
+      e.gps = Number(r.gps.lat).toFixed(6) + ',' + Number(r.gps.lng).toFixed(6);
+    }
+    if (t(r.consecutivo)) e.consecutivoIncidente = t(r.consecutivo);
+    const clas = Array.isArray(r.clasificacion) ? r.clasificacion : [];
+    const tipo = clas.map(c => this._EDAN_MAPA_TIPOS[c]).find(Boolean);
+    if (tipo) { e.tipoEvento = tipo; e.eventoOtro = ''; }
+    else if (clas.length || t(r.clasificacionOtra)) {
+      e.tipoEvento = 'Otro';
+      e.eventoOtro = clas.filter(c => c !== 'Otra').concat(t(r.clasificacionOtra) ? [t(r.clasificacionOtra)] : []).join(', ').substring(0, 120);
+    }
+    [['muertos', 'muertos'], ['heridos', 'heridos'], ['desaparecidos', 'desaparecidos'], ['personasAfectadas', 'personasAfectadas'],
+     ['familiasAfectadas', 'familiasAfectadas'], ['viviendasAveriadas', 'vivUrbAveriadas'], ['viviendasDestruidas', 'vivUrbDestruidas']]
+      .forEach(([de, a]) => { if (n(r[de]) > 0) e[a] = n(r[de]); });
+  },
+
+  // ── Piezas del formulario (todo texto pasa por _esc, I5) ──
+  _eTxt(ruta, etiqueta, opt) {
+    opt = opt || {};
+    const v = this._edanGet(ruta);
+    const id = opt.id ? ' id="' + opt.id + '"' : '';
+    const tipo = opt.tipo || 'text';
+    return '<div class="edan-campo"><label>' + this._esc(etiqueta) + '</label>'
+      + '<input type="' + tipo + '"' + id + ' data-edan="' + ruta + '" value="' + this._esc(v == null ? '' : v) + '"'
+      + (opt.max ? ' maxlength="' + opt.max + '"' : '') + (opt.ph ? ' placeholder="' + this._esc(opt.ph) + '"' : '') + ' autocomplete="off">'
+      + (opt.ayuda ? '<p class="edan-ayuda">' + this._esc(opt.ayuda) + '</p>' : '') + '</div>';
+  },
+  _eArea(ruta, etiqueta, ayuda, max) {
+    const v = this._edanGet(ruta);
+    return '<div class="edan-campo"><label>' + this._esc(etiqueta) + '</label>'
+      + '<textarea rows="3" data-edan="' + ruta + '" maxlength="' + (max || 2000) + '">' + this._esc(v == null ? '' : v) + '</textarea>'
+      + (ayuda ? '<p class="edan-ayuda">' + this._esc(ayuda) + '</p>' : '') + '</div>';
+  },
+  _eNum(ruta, etiqueta, recalc, max) {
+    const v = this._edanNumero(this._edanGet(ruta), max);
+    return '<div class="edan-campo"><label>' + this._esc(etiqueta) + '</label>'
+      + '<input type="text" inputmode="numeric" data-tipo="num" data-edan="' + ruta + '"' + (recalc ? ' data-recalc="1"' : '') + (max ? ' data-max="' + Number(max) + '"' : '') + ' value="' + (v || '') + '" placeholder="0"></div>';
+  },
+  _eCont(ruta, etiqueta, ayuda, recalc) {
+    const v = this._edanNumero(this._edanGet(ruta));
+    const rc = recalc ? ' data-recalc="1"' : '';
+    return '<div class="edan-campo"><label>' + this._esc(etiqueta) + '</label><div class="edan-cont">'
+      + '<button type="button" data-edan-accion="menos" data-ruta="' + ruta + '"' + rc + ' aria-label="Restar uno">−</button>'
+      + '<input type="text" inputmode="numeric" data-tipo="num" data-edan="' + ruta + '"' + rc + ' value="' + v + '" aria-label="' + this._esc(etiqueta) + '">'
+      + '<button type="button" data-edan-accion="mas" data-ruta="' + ruta + '"' + rc + ' aria-label="Sumar uno">+</button></div>'
+      + (ayuda ? '<p class="edan-ayuda">' + this._esc(ayuda) + '</p>' : '') + '</div>';
+  },
+  // Control segmentado. opciones = [[valor, marca, clase]]. Texto SIEMPRE visible + marca de forma.
+  _eSeg(ruta, opciones, etiqueta, conActual) {
+    const v = this._edanGet(ruta) || '';
+    return '<div class="edan-campo">' + (etiqueta ? '<label>' + this._esc(etiqueta)
+      + (conActual ? ' <span class="edan-seg-actual">' + this._esc(v || 'No evaluado') + '</span>' : '') + '</label>' : '')
+      + '<div class="edan-seg cols-' + opciones.length + '" role="group">'
+      + opciones.map(([val, marca, cls, corto]) => '<button type="button" class="' + (cls || '') + '" data-edan-accion="opcion" data-ruta="' + ruta
+        + '" data-valor="' + this._esc(val) + '" aria-pressed="' + (v === val ? 'true' : 'false') + '">'
+        + (marca ? '<span class="m" aria-hidden="true">' + marca + '</span>' : '') + '<span>' + this._esc(corto || val) + '</span></button>').join('')
+      + '</div></div>';
+  },
+  _EDAN_ESTADOS: [['Sin daño', '✓', 'e-ok'], ['Uso restringido', '!', 'e-res', 'Restringido'], ['Averiado', '▲', 'e-ave'], ['Fuera de servicio', '⊘', 'e-fds'], ['Destruido', '✕', 'e-des']],
+  _eSemaforo(ruta, etiqueta) { return this._eSeg(ruta, this._EDAN_ESTADOS, etiqueta, true); },
+
+  _EDAN_CAT: {
+    edificaciones: [['alcaldia', 'Alcaldía / sede de gobierno'], ['educativos', 'Centros educativos'], ['icbf', 'Hogares ICBF / CDI'], ['cultura', 'Centros culturales'],
+      ['iglesias', 'Iglesias y templos'], ['mercado', 'Plaza de mercado'], ['deportivos', 'Escenarios deportivos'], ['otros', 'Otras edificaciones públicas']],
+    telecom: [['fija', 'Telefonía fija'], ['celular', 'Telefonía celular'], ['emisoras', 'Emisoras de radio'], ['television', 'Televisión'], ['internet', 'Internet'],
+      ['radio', 'Radio de comunicaciones (VHF/HF)'], ['satelital', 'Telefonía satelital'], ['radioMovil', 'Radio móvil / trunking'], ['aeronautica', 'Comunicaciones aeronáuticas'],
+      ['fluvial', 'Comunicaciones fluviales'], ['educar', 'Puntos y kioscos digitales'], ['institucionales', 'Redes institucionales']],
+    servicios: [['acueducto', 'Acueducto'], ['alcantarillado', 'Alcantarillado'], ['saneamiento', 'Saneamiento básico'], ['basuras', 'Recolección de basuras'], ['energia', 'Energía eléctrica'], ['gas', 'Gas']],
+    transporte: [['fluvial', 'Fluvial (muelle / puerto)'], ['aereo', 'Aéreo (aeropuerto / pista)'], ['terminal', 'Terminal terrestre'], ['maritimo', 'Marítimo'], ['ferreo', 'Férreo']],
+    agro: [['agricultura', 'Agricultura'], ['ganaderia', 'Ganadería'], ['piscicola', 'Piscícola'], ['porcicola', 'Porcícola'], ['avicola', 'Avícola']],
+    agroCampos: [['hectareas', 'Hectáreas afectadas'], ['productores', 'Productores afectados'], ['perdidaProductos', 'Pérdida de productos ($)'], ['perdidaInfra', 'Pérdida de infraestructura ($)']],
+    comercio: [['micro', 'Microempresas'], ['pequenas', 'Pequeñas empresas'], ['medianas', 'Medianas empresas'], ['informal', 'Comercio informal']],
+    comercioCampos: [['financiero', 'Financiero'], ['turistico', 'Turístico'], ['comercial', 'Comercial'], ['industrial', 'Industrial'], ['mineria', 'Minería'], ['servicios', 'Servicios']],
+    saludFlags: [['destruido', 'Destruido'], ['averiado', 'Averiado'], ['zonaImpacto', 'En zona de impacto'], ['sinAcceso', 'Sin acceso'], ['emergenciaInterna', 'Emergencia interna']],
+    sugerencias: [['Agua potable', 'Servicios'], ['Kits de alimentación', 'Alimentación'], ['Kits de aseo', 'Asistencia humanitaria'], ['Alojamiento temporal', 'Vivienda'],
+      ['Motobomba', 'Equipos'], ['Maquinaria amarilla', 'Vías'], ['Atención en salud', 'Salud']]
+  },
+  _EDAN_EVENTOS: ['Sismo', 'Inundación', 'Deslizamiento', 'Avalancha', 'Granizada', 'Tormenta eléctrica', 'Tornado', 'Vendaval', 'Erupción volcánica', 'Tsunami',
+    'Incendio forestal', 'Incendio urbano', 'Incidente con materiales peligrosos', 'Explosión', 'Voladura de poliducto', 'Atentado terrorista', 'Otro'],
+
+  _eRepetidor(nombre, titulo, fnFila, textoAgregar) {
+    const lista = this._edanLista(nombre) || [];
+    return '<div class="edan-rep">' + (lista.length ? lista.map((it, i) => '<div class="edan-item"><div class="edan-item-cab"><strong>'
+      + this._esc(titulo) + ' ' + (i + 1) + '</strong><button type="button" class="edan-quitar" data-edan-accion="quitar" data-lista="' + nombre + '" data-i="' + i + '">Quitar</button></div>'
+      + fnFila(i) + '</div>').join('') : '<p class="edan-ayuda">Sin filas todavía.</p>')
+      + '<button type="button" class="edan-btn-agregar" data-edan-accion="agregar" data-lista="' + nombre + '">+ ' + this._esc(textoAgregar) + '</button></div>';
+  },
+
+  _edanPintarTotalesZonas() {
+    const el = document.getElementById('edanTotZonas');
+    if (!el || !this._edan) return;
+    const z = this._edan.secciones.zonas || [];
+    const s = k => z.reduce((a, x) => a + this._edanNumero(x && x[k]), 0);
+    el.textContent = 'Totales: ' + s('viviendas') + ' viviendas · ' + s('familias') + ' familias · ' + s('personas') + ' personas';
+  },
+
+  _edanRender() {
+    this._edanInstalarEventos();
+    const cuerpo = document.getElementById('edanFormCuerpo');
+    const info = document.getElementById('edanPasoInfo');
+    if (!cuerpo || !info) return;
+    if (!this._edan) { this._edan = this._edanVacio(); this._edanPaso = 1; }
+    const p = this._edanPaso;
+    info.innerHTML = '<div class="edan-paso-txt">Paso ' + p + ' de 8 · <strong>' + this._esc(this._EDAN_PASOS[p - 1]) + '</strong></div>'
+      + '<div class="edan-progreso" aria-hidden="true">' + this._EDAN_PASOS.map((_, i) => '<i class="' + (i < p ? 'on' : '') + '"></i>').join('') + '</div>';
+    const C = this._EDAN_CAT;
+    const card = (titulo, html, ayuda) => '<section class="edan-card"><h3>' + this._esc(titulo) + '</h3>' + (ayuda ? '<p class="edan-ayuda edan-ayuda-top">' + this._esc(ayuda) + '</p>' : '') + html + '</section>';
+    let h = '';
+    if (p === 1) {
+      const e = this._edan;
+      h += card('Evento', '<div class="edan-campo"><label>Tipo de evento</label><select data-edan="tipoEvento"><option value="">Seleccione…</option>'
+        + this._EDAN_EVENTOS.map(t => '<option' + (e.tipoEvento === t ? ' selected' : '') + '>' + this._esc(t) + '</option>').join('') + '</select></div>'
+        + '<div id="edanEventoOtroWrap"' + (e.tipoEvento === 'Otro' ? '' : ' style="display:none"') + '>' + this._eTxt('eventoOtro', '¿Cuál evento?', { max: 120 }) + '</div>'
+        + '<div class="edan-2col">' + this._eTxt('fecha', 'Fecha', { tipo: 'date' }) + this._eTxt('hora', 'Hora', { tipo: 'time' }) + '</div>'
+        + '<button type="button" class="edan-btn-agregar" data-edan-accion="copiar">Copiar datos de un incidente</button>'
+        + '<p class="edan-ayuda">Opcional. Toma los datos de un reporte guardado en este teléfono; el reporte no cambia.</p>');
+      h += card('Ubicación', '<div class="edan-2col">' + this._eTxt('departamento', 'Departamento', { max: 80 }) + this._eTxt('municipio', 'Municipio', { max: 80 }) + '</div>'
+        + this._eTxt('sector', 'Sector, barrio o vereda', { max: 200, ayuda: 'Escriba sector y un punto de referencia, no solo la vereda.' })
+        + this._eTxt('direccion', 'Dirección', { max: 300 }) + this._eTxt('referencia', 'Punto de referencia', { max: 300 })
+        + this._eTxt('gps', 'Coordenadas GPS (lat,lng)', { id: 'edan_gps', max: 60, ph: '3.865000,-67.923000' })
+        + '<button type="button" class="edan-btn-agregar" data-edan-accion="gps">Capturar GPS</button>'
+        + this._eTxt('consecutivoIncidente', 'Consecutivo del incidente (si existe)', { max: 40 }));
+      h += card('Quién diligencia', this._eTxt('elaboradoPor', 'Nombre', { max: 120 }) + this._eTxt('cargo', 'Cargo', { max: 120 }) + this._eTxt('entidad', 'Entidad', { max: 160 }));
+    } else if (p === 2) {
+      h += card('Descripción del evento', this._eArea('descripcion', 'Qué pasó', 'Hechos observados: qué, dónde, desde cuándo.', 4000)
+        + this._eArea('magnitud', 'Magnitud', 'Área, altura del agua, extensión, intensidad…', 2000));
+      h += card('Zonas afectadas', this._eRepetidor('zonas', 'Zona', i => this._eTxt('secciones.zonas.' + i + '.sector', 'Sector', { max: 200 })
+        + '<div class="edan-3col">' + this._eNum('secciones.zonas.' + i + '.viviendas', 'Viviendas', true) + this._eNum('secciones.zonas.' + i + '.familias', 'Familias', true)
+        + this._eNum('secciones.zonas.' + i + '.personas', 'Personas', true) + '</div>', 'Agregar zona')
+        + '<p class="edan-total" id="edanTotZonas"></p>');
+      h += card('Eventos secundarios', this._eRepetidor('secundarios', 'Evento', i => this._eTxt('secciones.secundarios.' + i + '.evento', 'Evento secundario', { max: 200 })
+        + this._eTxt('secciones.secundarios.' + i + '.barrios', 'Barrios o veredas en riesgo', { max: 300 })
+        + this._eTxt('secciones.secundarios.' + i + '.riesgo', 'Riesgo asociado', { max: 300 }), 'Agregar evento secundario'),
+        'Lo que puede pasar después: deslizamiento, creciente, colapso.');
+    } else if (p === 3) {
+      h += card('Población afectada', this._eCont('heridos', 'Heridos') + this._eCont('muertos', 'Muertos') + this._eCont('desaparecidos', 'Desaparecidos')
+        + this._eCont('familiasAfectadas', 'Familias afectadas') + this._eCont('personasAfectadas', 'Personas afectadas'),
+        'Solo datos verificados. Afectado: sufrió daño o pérdida. Damnificado: perdió su vivienda o sus medios de vida.');
+    } else if (p === 4) {
+      h += card('Vivienda urbana', this._eCont('vivUrbAveriadas', 'Averiadas') + this._eCont('vivUrbDestruidas', 'Destruidas'));
+      h += card('Vivienda rural', this._eCont('vivRurAveriadas', 'Averiadas') + this._eCont('vivRurDestruidas', 'Destruidas'));
+      h += card('Edificaciones públicas', C.edificaciones.map(([k, t]) => '<div class="edan-bloque">' + this._eSemaforo('secciones.edificaciones.' + k + '.estado', t)
+        + this._eTxt('secciones.edificaciones.' + k + '.nota', 'Nota (opcional)', { max: 300 }) + '</div>').join(''),
+        'Toque el estado que vio. Tocar de nuevo el mismo lo deja como "No evaluado".');
+    } else if (p === 5) {
+      h += card('Servicios esenciales', C.servicios.map(([k, t]) => '<div class="edan-bloque">' + this._eSemaforo('secciones.servicios.' + k + '.estado', t)
+        + '<div class="edan-2col">' + this._eNum('secciones.servicios.' + k + '.familiasSin', 'Familias sin servicio') + this._eNum('secciones.servicios.' + k + '.personasSin', 'Personas sin servicio') + '</div>'
+        + this._eTxt('secciones.servicios.' + k + '.descripcion', 'Descripción del daño', { max: 500 })
+        + this._eTxt('secciones.servicios.' + k + '.recuperacion', 'Tiempo estimado de recuperación', { max: 120 }) + '</div>').join(''));
+      h += card('Vías', this._eRepetidor('vias', 'Tramo', i => this._eTxt('secciones.vias.' + i + '.tramo', 'Tramo o vía', { max: 200 })
+        + this._eSeg('secciones.vias.' + i + '.estado', [['Habilitada', '✓', 'e-ok'], ['Paso restringido', '!', 'e-res'], ['Cerrada', '✕', 'e-des']], 'Estado')
+        + this._eSeg('secciones.vias.' + i + '.pasoMaquina', [['SI', '', 'e-ok'], ['NO', '', 'e-des']], '¿Entra la máquina de bomberos?')
+        + this._eTxt('secciones.vias.' + i + '.comentario', 'Comentario', { max: 300 }), 'Agregar tramo'));
+      h += card('Transporte', C.transporte.map(([k, t]) => '<div class="edan-bloque">' + this._eSemaforo('secciones.transporte.' + k + '.estado', t)
+        + this._eTxt('secciones.transporte.' + k + '.descripcion', 'Descripción', { max: 300 }) + '</div>').join(''),
+        'En Inírida el fluvial y el aéreo son vitales.');
+      h += card('Telecomunicaciones', C.telecom.map(([k, t]) => '<div class="edan-bloque">' + this._eSemaforo('secciones.telecom.' + k + '.estado', t) + '</div>').join(''));
+      h += card('Instalaciones de salud', this._eRepetidor('salud', 'Instalación', i => this._eTxt('secciones.salud.' + i + '.nombre', 'Nombre', { max: 200 })
+        + this._eSeg('secciones.salud.' + i + '.servicio', [['En servicio', '✓', 'e-ok'], ['Uso restringido', '!', 'e-res', 'Restringido'], ['Fuera de servicio', '⊘', 'e-fds']], 'Servicio')
+        + '<div class="edan-checks">' + C.saludFlags.map(([k, t]) => '<label class="edan-check"><input type="checkbox" data-edan="secciones.salud.' + i + '.' + k + '"'
+          + (this._edanGet('secciones.salud.' + i + '.' + k) ? ' checked' : '') + '><span>' + this._esc(t) + '</span></label>').join('') + '</div>', 'Agregar instalación'));
+    } else if (p === 6) {
+      h += '<details class="edan-card edan-plegable"><summary>Sector agropecuario (opcional)</summary>' + C.agro.map(([k, t]) => '<div class="edan-bloque"><h4>' + this._esc(t) + '</h4><div class="edan-2col">'
+        + C.agroCampos.map(([c, ct]) => this._eNum('secciones.agro.' + k + '.' + c, ct, false, /^perdida/.test(c) ? 1e12 : 0)).join('') + '</div></div>').join('') + '</details>';
+      h += '<details class="edan-card edan-plegable"><summary>Comercio y empresas (opcional)</summary><p class="edan-ayuda">Número de establecimientos afectados por tipo.</p>'
+        + C.comercio.map(([k, t]) => '<div class="edan-bloque"><h4>' + this._esc(t) + '</h4><div class="edan-3col">'
+        + C.comercioCampos.map(([c, ct]) => this._eNum('secciones.comercio.' + k + '.' + c, ct)).join('') + '</div></div>').join('') + '</details>';
+    } else if (p === 7) {
+      h += card('Sugerencias', '<div class="edan-chips">' + C.sugerencias.map(([t, s]) => '<button type="button" class="edan-chip" data-edan-accion="sugerencia" data-texto="'
+        + this._esc(t) + '" data-sector="' + this._esc(s) + '">+ ' + this._esc(t) + '</button>').join('') + '</div>', 'Un toque agrega la fila. Sea específico: 20 kits de alimentación, no "ayuda".');
+      h += card('Necesidades', this._eRepetidor('necesidades', 'Necesidad', i => '<div class="edan-2col">' + this._eTxt('necesidades.' + i + '.sector', 'Sector', { max: 80 })
+        + this._eTxt('necesidades.' + i + '.necesidad', 'Necesidad', { max: 200 }) + '</div>'
+        + '<div class="edan-2col">' + this._eNum('necesidades.' + i + '.cantidad', 'Cantidad') + this._eTxt('necesidades.' + i + '.unidad', 'Unidad', { max: 40, ph: 'kits, litros…' }) + '</div>'
+        + this._eTxt('necesidades.' + i + '.equipos', 'Equipos o elementos requeridos', { max: 300 })
+        + this._eNum('necesidades.' + i + '.costo', 'Costo estimado ($)', false, 1e12), 'Agregar necesidad'));
+    } else {
+      const e = this._edan;
+      const evalCount = (obj) => Object.keys(obj || {}).filter(k => obj[k] && obj[k].estado).length;
+      const lv = evalCount(e.secciones.servicios) + evalCount(e.secciones.telecom) + evalCount(e.secciones.transporte);
+      const fila = (t, v, paso) => '<div class="edan-res-fila"><span>' + this._esc(t) + '</span><strong>' + this._esc(v) + '</strong>'
+        + '<button type="button" class="edan-quitar" data-edan-accion="paso" data-paso="' + paso + '">Editar</button></div>';
+      h += card('Resumen', fila('Evento', this._edanTitulo(e), 1) + fila('Lugar', [e.municipio, e.sector].filter(Boolean).join(' · ') || '—', 1)
+        + fila('Zonas afectadas', String((e.secciones.zonas || []).length), 2)
+        + fila('Personas afectadas', String(e.personasAfectadas || 0), 3) + fila('Heridos / muertos / desaparecidos', (e.heridos || 0) + ' / ' + (e.muertos || 0) + ' / ' + (e.desaparecidos || 0), 3)
+        + fila('Viviendas averiadas / destruidas', ((e.vivUrbAveriadas || 0) + (e.vivRurAveriadas || 0)) + ' / ' + ((e.vivUrbDestruidas || 0) + (e.vivRurDestruidas || 0)), 4)
+        + fila('Líneas vitales evaluadas', lv + ' de ' + (C.servicios.length + C.telecom.length + C.transporte.length), 5)
+        + fila('Necesidades', String((e.necesidades || []).length), 7));
+      h += card('Observaciones', this._eArea('observaciones', 'Observaciones', '', 4000));
+      h += '<p class="edan-ayuda">Al guardar, el EDAN queda en el teléfono y se envía apenas haya señal. La app no reemplaza el visto bueno del CMGRD: imprímalo y entréguelo para firmas.</p>'
+        + '<button type="button" class="edan-btn-agregar" data-edan-accion="imprimir">Imprimir consolidado</button>';
+    }
+    cuerpo.innerHTML = h;
+    if (p === 2) this._edanPintarTotalesZonas();
+    const ant = document.getElementById('edanBtnAnterior');
+    const sig = document.getElementById('edanBtnSiguiente');
+    if (ant) { ant.disabled = p <= 1; ant.style.visibility = p <= 1 ? 'hidden' : 'visible'; }
+    if (sig) sig.textContent = p >= 8 ? 'Guardar EDAN' : 'Siguiente';
+  },
+
+  // ── Impresión del consolidado (orden del formato FR-1703-SMD-09) ──
+  async _imprimirEDAN(id) {
+    // La ventana se abre antes del primer await para conservar el gesto del usuario (sin noopener).
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) { this.toast('El navegador bloqueó la ventana. Permita pop-ups e intente de nuevo.', 'error'); return; }
+    try { w.opener = null; } catch (e) {}
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preparando EDAN</title></head><body style="font-family:Arial,sans-serif;padding:32px">Generando consolidado EDAN…</body></html>');
+    w.document.close();
+    try {
+      let e = null;
+      if (this._edan && this._edan.id === id) e = JSON.parse(JSON.stringify(this._edan));
+      if (!e) { try { e = await DB.obtenerEDAN(id); } catch (x) {} }
+      if (!e) {
+        const r = await fetch(URL_BACKEND, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ accion: 'obtenerEDAN', id }) });
+        const d = await r.json();
+        if (!d || d.ok !== true || !d.edan) throw new Error((d && d.error) || 'No se pudo consultar el EDAN.');
+        e = d.edan;
+      }
+      if (w.closed) return;
+      w.document.open();
+      w.document.write(this._edanHtmlImpresion(this._edanNormalizar(e)));
+      w.document.close();
+    } catch (err) {
+      try { w.document.open(); w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;padding:32px">No se pudo generar el EDAN: ' + this._esc(err.message) + '</body></html>'); w.document.close(); } catch (x) {}
+    }
+  },
+
+  _edanHtmlImpresion(e) {
+    const esc = v => this._esc(String(v == null ? '' : v));
+    const C = this._EDAN_CAT; const S = e.secciones || {};
+    const est = v => v ? esc(v) : '<span class="ne">No evaluado</span>';
+    const num = v => esc(this._edanNumero(v));
+    const pesos = v => { const n = this._edanNumero(v, 1e12); return n ? '$ ' + esc(n.toLocaleString('es-CO')) : '—'; };
+    const vacio = '<p class="ne">No evaluado</p>';
+    const tabla = (cab, filas) => filas.length ? '<table><thead><tr>' + cab.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' + filas.join('') + '</tbody></table>' : vacio;
+    const tr = celdas => '<tr>' + celdas.map(c => '<td>' + c + '</td>').join('') + '</tr>';
+    const escudo = this._escudoActual ? (this._escudoActual() || (typeof LOGO_SMALL !== 'undefined' ? LOGO_SMALL : '')) : '';
+    const zonas = S.zonas || [];
+    const sumZ = k => zonas.reduce((a, z) => a + this._edanNumero(z && z[k]), 0);
+    const evento = this._EDAN_EVENTOS.map(t => '<span class="op">' + (e.tipoEvento === t ? '☒' : '☐') + ' ' + esc(t) + '</span>').join('')
+      + (e.tipoEvento === 'Otro' ? '<div><strong>¿Cuál?</strong> ' + esc(e.eventoOtro || '—') + '</div>' : '');
+    const conEstado = (obj, cat, extra) => tabla(['Elemento', 'Estado'].concat(extra ? extra.map(x => x[1]) : []),
+      cat.map(([k, t]) => { const o = (obj || {})[k] || {}; return tr([esc(t), est(o.estado)].concat(extra ? extra.map(x => esc(o[x[0]] || '')) : [])); }));
+    const sec = (n, t, html) => '<section><h2>' + n + '. ' + esc(t) + '</h2>' + html + '</section>';
+    const salud = (S.salud || []).map(s => tr([esc(s.nombre || '—'), s.servicio ? esc(s.servicio) : '<span class="ne">No evaluado</span>',
+      esc(C.saludFlags.filter(([k]) => s[k]).map(([, t]) => t).join(', ') || '—')]));
+    const necesidades = (e.necesidades || []).map(x => tr([esc(x.sector || '—'), esc(x.necesidad || '—'), esc((this._edanNumero(x.cantidad) || '') + (x.unidad ? ' ' + x.unidad : '')), esc(x.equipos || '—'), pesos(x.costo)]));
+    const agroFilas = C.agro.map(([k, t]) => { const o = (S.agro || {})[k] || {}; return C.agroCampos.some(([c]) => this._edanNumero(o[c])) ? tr([esc(t)].concat(C.agroCampos.map(([c], i) => i >= 2 ? pesos(o[c]) : num(o[c])))) : ''; }).filter(Boolean);
+    const comFilas = C.comercio.map(([k, t]) => { const o = (S.comercio || {})[k] || {}; return C.comercioCampos.some(([c]) => this._edanNumero(o[c])) ? tr([esc(t)].concat(C.comercioCampos.map(([c]) => num(o[c])))) : ''; }).filter(Boolean);
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>EDAN — ' + esc(this._edanTitulo(e)) + ' — ' + esc(e.municipio) + '</title><style>'
+      + 'body{font-family:Arial,sans-serif;color:#1d2228;margin:12mm;font-size:9.5pt;line-height:1.35}'
+      + 'header{display:flex;gap:14px;align-items:center;border-bottom:3px solid #b51c25;padding-bottom:10px;margin-bottom:12px}header img{width:62px;height:62px;object-fit:contain}'
+      + 'h1{font-size:13.5pt;margin:0;color:#7a0012;text-transform:uppercase}.sub{font-size:8.5pt;color:#555}'
+      + 'h2{font-size:10.5pt;text-transform:uppercase;background:#16223f;color:#fff;padding:4px 8px;margin:14px 0 6px}'
+      + 'table{width:100%;border-collapse:collapse}th,td{border:1px solid #9aa3ad;padding:4px 6px;text-align:left;vertical-align:top}th{background:#eef1f6;font-size:8.5pt}'
+      + '.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:0}.kv div{border:1px solid #9aa3ad;margin:-1px 0 0 -1px;padding:4px 6px}.kv b{display:block;font-size:7.5pt;color:#555;text-transform:uppercase}'
+      + '.op{display:inline-block;width:32%;font-size:8.5pt;margin:1px 0}.ne{color:#777;font-style:italic}'
+      + '.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}.firmas div{border-top:1px solid #333;padding-top:5px;font-size:8.5pt;text-align:center}'
+      + 'section{break-inside:avoid}footer{margin-top:16px;font-size:7.5pt;color:#666;border-top:1px solid #ccc;padding-top:6px}'
+      + '@media print{body{margin:8mm}section{break-inside:auto}tr{break-inside:avoid}}'
+      + '</style></head><body>'
+      + '<header>' + (escudo ? '<img src="' + esc(escudo) + '" alt="">' : '') + '<div><h1>Consolidado de evaluación de daños y análisis de necesidades — EDAN</h1>'
+      + '<div class="sub">Cuerpo de Bomberos Voluntarios de Inírida · Formato basado en FR-1703-SMD-09 / FR-1703-SMD-08 (UNGRD)</div>'
+      + '<div class="sub">ID ' + esc(e.id) + ' · versión ' + esc(e.rev || 0) + ' · Generado ' + esc(new Date().toLocaleString('es-CO')) + '</div></div></header>'
+      + sec(1, 'Datos generales', '<div class="kv">'
+        + [['Departamento', e.departamento], ['Municipio', e.municipio], ['Fecha de la evaluación', e.fecha], ['Hora', e.hora], ['Sector / barrio / vereda', e.sector],
+          ['Dirección', e.direccion], ['Punto de referencia', e.referencia], ['Coordenadas GPS', e.gps], ['Consecutivo del incidente', e.consecutivoIncidente],
+          ['Quien diligencia', [e.elaboradoPor, e.cargo].filter(Boolean).join(' — ')], ['Entidad', e.entidad]]
+          .map(([k, v]) => '<div><b>' + esc(k) + '</b>' + (v ? esc(v) : '—') + '</div>').join('') + '</div>')
+      + sec(2, 'Tipo de evento', evento)
+      + sec(3, 'Descripción del evento', '<p><strong>Descripción:</strong> ' + (e.descripcion ? esc(e.descripcion) : '<span class="ne">No evaluado</span>') + '</p>'
+        + '<p><strong>Magnitud:</strong> ' + (e.magnitud ? esc(e.magnitud) : '<span class="ne">No evaluado</span>') + '</p>'
+        + '<h3>Zonas afectadas</h3>' + tabla(['Sector', 'Viviendas', 'Familias', 'Personas'], zonas.map(z => tr([esc(z.sector || '—'), num(z.viviendas), num(z.familias), num(z.personas)]))
+          .concat(zonas.length ? [tr(['<strong>Total</strong>', '<strong>' + sumZ('viviendas') + '</strong>', '<strong>' + sumZ('familias') + '</strong>', '<strong>' + sumZ('personas') + '</strong>'])] : []))
+        + '<h3>Eventos secundarios</h3>' + tabla(['Evento', 'Barrios / veredas', 'Riesgo'], (S.secundarios || []).map(s => tr([esc(s.evento || '—'), esc(s.barrios || '—'), esc(s.riesgo || '—')]))))
+      + sec(4, 'Población afectada', tabla(['Heridos', 'Muertos', 'Desaparecidos', 'Familias afectadas', 'Personas afectadas'],
+        [tr([num(e.heridos), num(e.muertos), num(e.desaparecidos), num(e.familiasAfectadas), num(e.personasAfectadas)])]))
+      + sec(5, 'Instalaciones de salud', tabla(['Instalación', 'Servicio', 'Condición'], salud))
+      + sec(6, 'Vivienda', tabla(['Zona', 'Averiadas', 'Destruidas'], [tr(['Urbana', num(e.vivUrbAveriadas), num(e.vivUrbDestruidas)]), tr(['Rural', num(e.vivRurAveriadas), num(e.vivRurDestruidas)])]))
+      + sec(7, 'Edificaciones públicas', conEstado(S.edificaciones, C.edificaciones, [['nota', 'Nota']]))
+      + sec(8, 'Telecomunicaciones', conEstado(S.telecom, C.telecom))
+      + sec(9, 'Vías', tabla(['Tramo', 'Estado', '¿Entra la máquina?', 'Comentario'], (S.vias || []).map(v => tr([esc(v.tramo || '—'), v.estado ? esc(v.estado) : '<span class="ne">No evaluado</span>', esc(v.pasoMaquina || '—'), esc(v.comentario || '—')]))))
+      + sec(10, 'Infraestructura de transporte', conEstado(S.transporte, C.transporte, [['descripcion', 'Descripción']]))
+      + sec(11, 'Servicios esenciales', tabla(['Servicio', 'Estado', 'Familias sin servicio', 'Personas sin servicio', 'Descripción', 'Recuperación'],
+        C.servicios.map(([k, t]) => { const o = (S.servicios || {})[k] || {}; return tr([esc(t), est(o.estado), num(o.familiasSin), num(o.personasSin), esc(o.descripcion || '—'), esc(o.recuperacion || '—')]); })))
+      + sec(12, 'Sector agropecuario', tabla(['Subsector'].concat(C.agroCampos.map(x => x[1])), agroFilas))
+      + sec(13, 'Comercio y empresas', tabla(['Tipo'].concat(C.comercioCampos.map(x => x[1])), comFilas))
+      + sec(14, 'Análisis de necesidades', tabla(['Sector', 'Necesidad', 'Cantidad', 'Equipos o elementos requeridos', 'Costo estimado'], necesidades))
+      + sec(15, 'Observaciones', e.observaciones ? '<p>' + esc(e.observaciones) + '</p>' : '<p class="ne">Sin observaciones.</p>')
+      + '<div class="firmas"><div>Quien diligencia<br><strong>' + esc(e.elaboradoPor || '') + '</strong>' + (e.cargo ? '<br>' + esc(e.cargo) : '') + '</div>'
+      + '<div>Verifica<br><strong>Coordinador CMGRD</strong></div><div>Aprueba el envío<br><strong>Alcalde municipal</strong></div></div>'
+      + '<footer>Documento de apoyo generado por CBVI Reportes. No reemplaza el visto bueno del CMGRD ni el reporte oficial a la UNGRD. Costos: estimación del evaluador.</footer>'
+      + '</body></html>';
+  }
 };
 
 // Cerrar menú usuario al tocar afuera
@@ -10204,3 +11049,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') app._autoguardarBorrador();
 });
 window.addEventListener('pagehide', () => app._autoguardarBorrador());
+// v6.67: el EDAN abierto también se guarda como borrador local al ocultar la app.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && app.pantallaActual === 'pantallaEDANForm') app._edanGuardarBorrador();
+});
