@@ -1,11 +1,12 @@
-/* Service Worker v6.69 - CBVI Reportes
+/* Service Worker v6.70 - CBVI Reportes
+   v6.70: fotos múltiples, sin Turno / Guardia e impresiones con el diseño de los certificados.
    v6.69: EDAN con fotos, jerarquía visual más clara y censo con las listas del -08 oficial.
    v6.68: EDAN — censo de familias (formato -08), impresión de 13 por hoja y CSV.
    v6.67: sección EDAN (evaluación de daños y necesidades), funciona sin señal.
    NETWORK-FIRST para los archivos del propio sitio: con internet SIEMPRE
    baja la última versión (se acabó el caché viejo pegado en el teléfono).
    El caché queda solo como respaldo cuando NO hay señal. */
-const CACHE = 'bomberos-inirida-v6-69';
+const CACHE = 'bomberos-inirida-v6-70';
 // v5.99: se agregan los archivos de Leaflet (ahora autoalojados). Antes venían
 // de unpkg.com y NO se cacheaban: sin señal, la libreria del mapa no existia y
 // la pantalla solo podia mostrar el aviso de "revisa tu conexion".
