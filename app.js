@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.72';
+const APP_VERSION = '6.73';
 const APP_VERSION_NOTAS = [
+  'v6.73: Más control de acceso: una cuenta nueva debe ser aprobada por un administrador antes de usar la app. Quienes ya la usan siguen entrando igual.',
   'v6.72: El PDF del reporte vuelve a traer fotos y firmas también en los reportes descargados al teléfono. Inicio más ordenado: menos ruido, los últimos incidentes y accesos más compactos.',
   'v6.71: Los reportes impresos estrenan identidad propia y traen código QR: al escanearlo cualquiera confirma que el documento es auténtico y vigente. Solo se imprime lo que tiene datos, en menos hojas.',
   'v6.70: Fotos del reporte: ahora puede elegir varias de una vez. Se quitó Turno / Guardia del formulario. Todas las impresiones estrenan el diseño de los certificados, sin el triángulo gigante ni la hoja en blanco, y ya salen las firmas guardadas.',
@@ -854,6 +855,7 @@ const app = {
       // inválida" sin explicar por qué. Ahora reintenta y, si de verdad no puede,
       // lo dice en pantalla con el motivo real (ver _emitirPase / _avisarSesionAdmin).
       const _rp = await this._emitirPase({ accion: 'iniciarSesion', idToken: response.credential });
+      if (_rp.accesoPendiente) { await this._mostrarAccesoPendiente(_rp.data); return; }
       if (_rp.ok) {
         this._pase = _rp.data.pase;
         this.usuario.pase = _rp.data.pase;
@@ -1214,7 +1216,7 @@ const app = {
   _actualizarBottomNav(pantallaId) {
     const barra = document.getElementById('bottomNav');
     if (!barra) return;
-    const OCULTA_EN = ['pantallaLogin', 'pantallaRegistroComplemento', 'pantallaForm', 'pantallaDetalle', 'pantallaEDANForm'];
+    const OCULTA_EN = ['pantallaLogin', 'pantallaAccesoPendiente', 'pantallaRegistroComplemento', 'pantallaForm', 'pantallaDetalle', 'pantallaEDANForm'];
     barra.classList.toggle('oculta', OCULTA_EN.indexOf(pantallaId) !== -1);
     const SECCION = {
       pantallaHome: 'home', pantallaActividades: 'actividad',
@@ -1343,7 +1345,7 @@ const app = {
     const header = document.getElementById('header');
     const btnVolver = document.getElementById('btnVolver');
 
-    if (pantallaId === 'pantallaLogin' || pantallaId === 'pantallaRegistroComplemento') {
+    if (pantallaId === 'pantallaLogin' || pantallaId === 'pantallaAccesoPendiente' || pantallaId === 'pantallaRegistroComplemento') {
       header.style.display = 'none';
       return;
     }
@@ -1502,7 +1504,7 @@ const app = {
       }
 
       // Si está en login, dejar que el navegador haga su acción
-      if (this.pantallaActual === 'pantallaLogin' || this.pantallaActual === 'pantallaRegistroComplemento') {
+      if (this.pantallaActual === 'pantallaLogin' || this.pantallaActual === 'pantallaAccesoPendiente' || this.pantallaActual === 'pantallaRegistroComplemento') {
         return;
       }
 
@@ -1528,6 +1530,7 @@ const app = {
   async actualizarHome() {
     // v5.63 (BUG 10): widget de sanciones para admins (no bloquea el Home)
     this._cargarWidgetSanciones().catch(() => {});
+    this._cargarWidgetSolicitudes().catch(() => {});
     let reportes = await DB.listarReportes();
     // FILTRO POR CORREO: cada bombero solo ve SUS propios reportes
     // Identificamos por operadorEmail (el correo con que se creó el reporte)
@@ -1717,6 +1720,7 @@ const app = {
         else {
           const data = await resp.json();
           if (data && data.ok && data.pase) return { ok: true, data: data };
+          if (data && data.codigo === 'ACCESO_PENDIENTE') return { ok: false, accesoPendiente: true, data: data, error: data.error };
           ultimo = (data && data.error) ? data.error : 'el servidor respondió sin pase';
         }
       } catch (e) { ultimo = (e && e.message) ? e.message : 'sin conexión'; }
@@ -1774,6 +1778,7 @@ const app = {
         return;
       }
       const _rp = await this._emitirPase(body);
+      if (_rp.accesoPendiente) { await this._mostrarAccesoPendiente(_rp.data); return; }
       if (_rp.ok) {
         const data = _rp.data;
         this._pase = data.pase;
@@ -1803,6 +1808,151 @@ const app = {
         if (mostrarAviso || this.esAdmin()) this._avisarSesionAdmin(_rp.error);
       }
     } catch (e) { /* silencioso: sin conexión no pasa nada */ }
+  },
+
+  // ==================== ACCESO PENDIENTE DE APROBACIÓN ====================
+  /* La decisión la toma el servidor; esta pantalla solo explica el estado. No borra reportes del teléfono. */
+  async _mostrarAccesoPendiente(data) {
+    const d = data || {};
+    this._accesoPendiente = { email: String(d.email || (this.usuario && this.usuario.email) || ''), estado: d.estado || 'ninguno', nombre: (this.usuario && this.usuario.nombre) || '' };
+    this.usuario = null;
+    this._pase = '';
+    try { await DB.guardarConfig('sesion', null); } catch (e) {}
+    this._pintarAccesoPendiente();
+    this.irA('pantallaAccesoPendiente');
+  },
+
+  _pintarAccesoPendiente() {
+    const p = this._accesoPendiente || {};
+    const correo = document.getElementById('accesoCorreo');
+    if (correo) correo.textContent = p.email || '';
+    const textos = {
+      ninguno: ['Solicite su acceso', 'Esta app es solo para el personal autorizado. Envíe sus datos y un administrador revisará la solicitud.'],
+      pendiente: ['Solicitud enviada', 'Un administrador debe aprobarla. Cuando la aprueben, toque «Revisar de nuevo».'],
+      rechazada: ['Solicitud no aprobada', 'Un administrador no aprobó este acceso. Si cree que es un error, contacte a su administrador.']
+    };
+    const t = textos[p.estado] || textos.ninguno;
+    document.getElementById('accesoTitulo').textContent = t[0];
+    document.getElementById('accesoTexto').textContent = t[1];
+    document.getElementById('accesoFormulario').style.display = p.estado === 'ninguno' ? 'block' : 'none';
+    document.getElementById('btnAccesoRevisar').style.display = p.estado === 'pendiente' ? 'block' : 'none';
+    const nombre = document.getElementById('accesoNombre');
+    if (nombre && !nombre.value) nombre.value = p.nombre || '';
+  },
+
+  async enviarSolicitudAcceso(btn) {
+    const nombre = document.getElementById('accesoNombre').value.trim();
+    const motivo = document.getElementById('accesoMotivo').value.trim();
+    if (!nombre) { this.toast('Escriba su nombre completo', 'error'); return; }
+    await this._conBloqueo(btn, 'Enviando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'solicitarAcceso', idToken: this._googleIdToken || '', nombre, motivo })
+        });
+        const d = await resp.json();
+        if (!d || d.ok !== true) { this.toast(d && d.error ? d.error : 'No se pudo enviar. Intente de nuevo.', 'error'); return; }
+        if (d.estado === 'aprobado') { location.reload(); return; }
+        this._accesoPendiente.estado = d.estado;
+        this._pintarAccesoPendiente();
+      } catch (e) { this.toast('Sin conexión. Intente de nuevo.', 'error'); }
+    });
+  },
+
+  async revisarMiAcceso(btn) {
+    await this._conBloqueo(btn, 'Revisando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'iniciarSesion', idToken: this._googleIdToken || '' })
+        });
+        const d = await resp.json();
+        if (d && d.ok && d.pase) { this.toast('Acceso aprobado. Entre de nuevo con su cuenta.', 'exito'); setTimeout(() => location.reload(), 1200); return; }
+        if (d && d.codigo === 'ACCESO_PENDIENTE') {
+          this._accesoPendiente.estado = d.estado;
+          this._pintarAccesoPendiente();
+          this.toast('Su solicitud sigue pendiente.', 'info');
+          return;
+        }
+        this.toast('Su ingreso venció. Toque «Usar otra cuenta» y entre de nuevo.', 'error');
+      } catch (e) { this.toast('Sin conexión. Intente de nuevo.', 'error'); }
+    });
+  },
+
+  salirDeAccesoPendiente() {
+    location.reload();
+  },
+
+  /* Bandeja del Panel Admin. Secundaria como las altas: si falla la red se oculta y no rompe el Panel. */
+  async cargarSolicitudesAcceso() {
+    const wrap = document.getElementById('solicitudesAccesoWrap');
+    const cont = document.getElementById('listaSolicitudesAcceso');
+    const titulo = document.getElementById('solicitudesAccesoTitulo');
+    if (!wrap || !cont) return;
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'listarSolicitudesAcceso', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '' })
+      });
+      const data = await resp.json();
+      const lista = (data && data.ok && Array.isArray(data.solicitudes)) ? data.solicitudes : [];
+      if (!lista.length) { wrap.style.display = 'none'; cont.innerHTML = ''; return; }
+      const pend = lista.filter(s => s.estado === 'pendiente').length;
+      if (titulo) titulo.textContent = pend === 1 ? '1 solicitud de acceso' : pend + ' solicitudes de acceso';
+      cont.innerHTML = lista.map(s => {
+        const c = app._esc(s.correo || '');
+        const rechazada = s.estado === 'rechazada';
+        const fecha = s.fecha && !isNaN(new Date(s.fecha).getTime()) ? new Date(s.fecha).toLocaleDateString('es-CO') : '';
+        return `<div class="acceso-solicitud${rechazada ? ' rechazada' : ''}">
+          <strong>${app._esc(s.nombre || '(sin nombre)')}</strong>
+          <span>${c}${fecha ? ' · ' + app._esc(fecha) : ''}${rechazada ? ' · Rechazada' : ''}</span>
+          ${s.motivo ? `<p>${app._esc(s.motivo)}</p>` : ''}
+          <div class="acceso-acciones">
+            <button type="button" class="acceso-aprobar" data-correo="${c}" data-nombre="${app._esc(s.nombre || '')}" onclick="app.decidirSolicitudAcceso(this, 'aprobar')">Aprobar</button>
+            ${rechazada ? '' : `<button type="button" class="acceso-rechazar" data-correo="${c}" data-nombre="${app._esc(s.nombre || '')}" onclick="app.decidirSolicitudAcceso(this, 'rechazar')">Rechazar</button>`}
+          </div>
+        </div>`;
+      }).join('');
+      wrap.style.display = 'block';
+    } catch (e) {
+      wrap.style.display = 'none';
+    }
+  },
+
+  async decidirSolicitudAcceso(btn, decision) {
+    const correo = btn.dataset.correo, nombre = btn.dataset.nombre || correo;
+    const ok = await this.confirmar(decision === 'aprobar' ? 'Aprobar acceso' : 'Rechazar acceso', decision === 'aprobar' ? '¿Dar acceso a ' + nombre + ' (' + correo + ')? Podrá ver y registrar información del cuerpo.' : '¿Rechazar la solicitud de ' + nombre + '?');
+    if (!ok) return;
+    await this._conBloqueo(btn, decision === 'aprobar' ? 'Aprobando...' : 'Rechazando...', async () => {
+      try {
+        const resp = await fetch(URL_BACKEND, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'decidirSolicitudAcceso', adminEmail: this.usuario.email, adminPassword: this._adminPwdSession || '', correo, decision })
+        });
+        const d = await resp.json();
+        this.toast(d && d.ok ? d.mensaje : ('Error: ' + ((d && d.error) || 'no se pudo guardar')), d && d.ok ? 'exito' : 'error');
+      } catch (e) {
+        this.toast('No llegó la confirmación. Revisando cómo quedó...', 'info');
+      }
+      await this.cargarSolicitudesAcceso();
+    });
+  },
+
+  async _cargarWidgetSolicitudes() {
+    const cont = document.getElementById('homeSolicitudes');
+    if (!cont) return;
+    if (!navigator.onLine || !this.esAdmin()) { cont.style.display = 'none'; return; }
+    try {
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'contarSolicitudesAcceso' })
+      });
+      const d = await resp.json();
+      const n = d && d.ok ? Number(d.pendientes) || 0 : 0;
+      if (!n) { cont.style.display = 'none'; return; }
+      cont.innerHTML = '<button type="button" class="home-alerta home-alerta-acceso" onclick="app.abrirPanelAdmin()"><span class="home-alerta-tx"><strong>' + n + (n === 1 ? ' persona espera' : ' personas esperan') + ' aprobación</strong><small>Toque para revisar las solicitudes de acceso</small></span></button>';
+      cont.style.display = 'block';
+    } catch (e) { cont.style.display = 'none'; }
   },
 
   // ==================== NUEVO REPORTE ====================
@@ -3651,6 +3801,7 @@ const app = {
     // v6.00: bandeja de altas pendientes. Sin await a propósito: es información
     // secundaria y no debe demorar la apertura del Panel ni romperla si falla.
     this.cargarPersonalPendiente();
+    this.cargarSolicitudesAcceso();
     // v6.02: mostrar quién quedó firmado (la firma se pidió en _obtenerPwdAdmin).
     const _et = document.getElementById('operActualTxt');
     if (_et) _et.textContent = this._operadorSesion || 'sin firmar';
