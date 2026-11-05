@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.71';
+const APP_VERSION = '6.72';
 const APP_VERSION_NOTAS = [
+  'v6.72: El PDF del reporte vuelve a traer fotos y firmas también en los reportes descargados al teléfono. Inicio más ordenado: menos ruido, los últimos incidentes y accesos más compactos.',
   'v6.71: Los reportes impresos estrenan identidad propia y traen código QR: al escanearlo cualquiera confirma que el documento es auténtico y vigente. Solo se imprime lo que tiene datos, en menos hojas.',
   'v6.70: Fotos del reporte: ahora puede elegir varias de una vez. Se quitó Turno / Guardia del formulario. Todas las impresiones estrenan el diseño de los certificados, sin el triángulo gigante ni la hoja en blanco, y ya salen las firmas guardadas.',
   'v6.69: EDAN más claro: fotos en evento, viviendas y vías; títulos que se distinguen de los campos; menos casillas que no aplican en Guainía, y el censo con las listas del formato oficial.',
@@ -1541,6 +1542,7 @@ const app = {
     this._countUp(document.getElementById('statTotal'), reportes.length);
     this._countUp(document.getElementById('statPendientes'), reportes.filter(r => r.estado === 'pendiente').length);
     this._countUp(document.getElementById('statEnviados'), reportes.filter(r => r.estado === 'enviado').length);
+    this._pintarResumenHome(reportes.filter(r => r.estado === 'pendiente').length);
 
     const lista = document.getElementById('listaReportes');
     if (reportes.length === 0) {
@@ -1552,7 +1554,8 @@ const app = {
         </div>`;
       return;
     }
-    lista.innerHTML = reportes.slice(0, 20).map(r => {
+    const visibles = this._reportesVisiblesHome(reportes);
+    lista.innerHTML = visibles.map(r => {
       const tipos = (r.clasificacion || []).slice(0, 2).join(', ') || 'Sin clasificar';
       const fecha = new Date(r.fechaCreacion).toLocaleString('es-CO', {
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
@@ -1569,7 +1572,37 @@ const app = {
           </div>
           <span class="badge ${this._esc(r.estado)}">${this.etiquetaEstado(r.estado)}</span>
         </div>`;
-    }).join('');
+    }).join('') + this._botonRecientesHome(reportes.length, visibles.length);
+  },
+
+  /* Lo que falta enviar nunca se esconde; el resto se completa con lo más reciente. */
+  _reportesVisiblesHome(reportes) {
+    if (this._homeVerTodos) return reportes.slice(0, 20);
+    const vistos = new Set(reportes.filter(r => r.estado !== 'enviado').map(r => r.id));
+    for (const r of reportes) {
+      if (vistos.size >= 3) break;
+      vistos.add(r.id);
+    }
+    return reportes.filter(r => vistos.has(r.id));
+  },
+
+  _botonRecientesHome(total, visibles) {
+    if (this._homeVerTodos) return total > 3 ? '<button type="button" class="home-ver-mas" onclick="app._alternarRecientesHome()">Ver menos</button>' : '';
+    if (total <= visibles) return '';
+    return `<button type="button" class="home-ver-mas" onclick="app._alternarRecientesHome()">${total > 20 ? 'Ver los últimos 20' : 'Ver los ' + total + ' incidentes'}</button>`;
+  },
+
+  _alternarRecientesHome() {
+    this._homeVerTodos = !this._homeVerTodos;
+    return this.actualizarHome();
+  },
+
+  _pintarResumenHome(pendientes) {
+    const home = document.getElementById('pantallaHome');
+    if (home && home.classList) home.classList.toggle('home-es-admin', this.esAdmin());
+    const num = document.getElementById('statPendientes');
+    const tarjeta = num && num.closest ? num.closest('.stat-card') : null;
+    if (tarjeta) tarjeta.classList.toggle('hay', pendientes > 0);
   },
 
   etiquetaEstado(estado) {
@@ -1596,27 +1629,10 @@ const app = {
       const sanc = (data.sanciones || []).filter(s => Number(s.horasPendientes) > 0);
       if (!sanc.length) { cont.style.display = 'none'; return; }
       sanc.sort((a,b) => Number(b.horasPendientes) - Number(a.horasPendientes));
-      const badge = (s) => {
-        if (s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO')
-          return '<span style="background:#c00;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 17h12l-1-8a5 5 0 0 0-10 0zM4 20h16M12 2v2M3 8l2 1M21 8l-2 1"/></svg> DESERCIÓN</span>';
-        if (s.tipoAlerta === 'LLAMADO_ESCRITO')
-          return '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></svg> ESCRITO</span>';
-        if (s.tipoAlerta === 'LLAMADO_VERBAL')
-          return '<span style="background:#ff9800;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:6px;">🗣️ VERBAL</span>';
-        return '';
-      };
-      const filas = sanc.slice(0, 5).map(s =>
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #ffe0e0;font-size:13px;">'
-        + '<span style="font-weight:600;">' + app._esc(s.nombre) + badge(s) + '</span>'
-        + '<span style="color:#c00;font-weight:700;white-space:nowrap;margin-left:8px;">' + s.horasPendientes + 'h</span>'
-        + '</div>').join('');
-      const resto = sanc.length > 5
-        ? '<div style="font-size:11px;color:#c00;margin-top:4px;">+ ' + (sanc.length - 5) + ' más — toca para ver todas</div>' : '';
-      cont.innerHTML =
-        '<div onclick="app.abrirDeudores()" style="background:#fff5f5;border:1px solid #ffcdd2;border-left:4px solid #c00;border-radius:12px;padding:12px 14px;margin:12px 0;cursor:pointer;">'
-        + '<div style="font-weight:700;color:#c00;font-size:14px;margin-bottom:6px;"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg> Sanciones pendientes (' + sanc.length + ')</div>'
-        + filas + resto
-        + '</div>';
+      const enDesercion = sanc.filter(s => s.tipoAlerta === 'DESERCION' || s.tipoAlerta === 'RETIRO').length;
+      cont.innerHTML = '<button type="button" class="home-alerta" onclick="app.abrirDeudores()"><span class="home-alerta-ic" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5M12 17h.01"/></svg></span>'
+        + '<span class="home-alerta-tx"><strong>' + sanc.length + (sanc.length === 1 ? ' unidad' : ' unidades') + ' con horas de sanción</strong>'
+        + '<small>' + (enDesercion ? enDesercion + ' en deserción. ' : '') + 'Toque para ver quiénes deben</small></span></button>';
       cont.style.display = 'block';
     } catch (e) { cont.style.display = 'none'; }
   },
@@ -1773,6 +1789,7 @@ const app = {
           if (antesEraAdmin !== data.esAdmin) {
             try {
               this.actualizarUIUsuario();
+              this.actualizarHome();
               // Si Ajustes está abierto en ese momento, la zona admin también.
               const _za = document.getElementById('zonaAdmin');
               if (_za) _za.style.display = this.esAdmin() ? 'block' : 'none';
@@ -5815,19 +5832,21 @@ const app = {
     if (r.estado && r.estado !== 'enviado') return sinQr('El reporte aún no se ha enviado al servidor.');
     if (!navigator.onLine) return sinQr('Se imprimió sin conexión.');
     const control = new AbortController();
-    const temporizador = setTimeout(() => control.abort(), 20000);
+    const fotosLocales = Array.isArray(r.fotos) ? r.fotos.filter(Boolean) : [];
+    const temporizador = setTimeout(() => control.abort(), 45000);
     try {
       const resp = await fetch(URL_BACKEND, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: 'emitirVerificacionReporte', idReporte: r.id, pase: this._pase || '' }),
+        body: JSON.stringify({ accion: 'emitirVerificacionReporte', idReporte: r.id, pase: this._pase || '', conFotos: fotosLocales.length === 0 }),
         signal: control.signal
       });
       const d = await resp.json();
       if (!d || d.ok !== true || !d.reporte || !d.distintivo || !d.huella) return sinQr('No se pudo confirmar con el servidor.');
       return {
         reporte: Object.assign({}, r, d.reporte, {
-          fotos: r.fotos || [], firmas: r.firmas, firmaAfectadoURL: r.firmaAfectadoURL, firmaComandanteURL: r.firmaComandanteURL,
+          fotos: fotosLocales.length ? fotosLocales : (d.reporte.fotos || []), firmas: r.firmas,
+          firmaAfectadoURL: r.firmaAfectadoURL || d.reporte.firmaAfectadoURL, firmaComandanteURL: r.firmaComandanteURL || d.reporte.firmaComandanteURL,
           comandanteIncidente: d.reporte.comandanteIncidente || r.comandanteIncidente || ''
         }),
         verificacion: { distintivo: d.distintivo, huella: d.huella }
