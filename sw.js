@@ -1,4 +1,5 @@
-/* Service Worker v6.73 - CBVI Reportes
+/* Service Worker v6.74 - CBVI Reportes
+   v6.74: control de acceso reforzado; una cuenta sin acceso sale de inmediato.
    v6.73: control de acceso por aprobación.
    v6.72: fotos y firmas en el PDF de reportes descargados e Inicio reorganizado.
    v6.71: identidad propia de los impresos y verificación por QR.
@@ -9,7 +10,7 @@
    NETWORK-FIRST para los archivos del propio sitio: con internet SIEMPRE
    baja la última versión (se acabó el caché viejo pegado en el teléfono).
    El caché queda solo como respaldo cuando NO hay señal. */
-const CACHE = 'bomberos-inirida-v6-73';
+const CACHE = 'bomberos-inirida-v6-74';
 // v5.99: se agregan los archivos de Leaflet (ahora autoalojados). Antes venían
 // de unpkg.com y NO se cacheaban: sin señal, la libreria del mapa no existia y
 // la pantalla solo podia mostrar el aviso de "revisa tu conexion".

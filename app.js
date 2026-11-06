@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.73';
+const APP_VERSION = '6.74';
 const APP_VERSION_NOTAS = [
+  'v6.74: Control de acceso reforzado: una cuenta sin aprobar o bloqueada ya no puede entrar ni enviar, aunque tuviera la sesión abierta.',
   'v6.73: Más control de acceso: una cuenta nueva debe ser aprobada por un administrador antes de usar la app. Quienes ya la usan siguen entrando igual.',
   'v6.72: El PDF del reporte vuelve a traer fotos y firmas también en los reportes descargados al teléfono. Inicio más ordenado: menos ruido, los últimos incidentes y accesos más compactos.',
   'v6.71: Los reportes impresos estrenan identidad propia y traen código QR: al escanearlo cualquiera confirma que el documento es auténtico y vigente. Solo se imprime lo que tiene datos, en menos hojas.',
@@ -750,6 +751,7 @@ const app = {
             try {
               if (resp && resp.ok) {
                 resp.clone().json().then(function (j) {
+                  self._vigilarRespuestaAcceso(j);
                   if (j && j.ok === false && /no autorizado/i.test(j.error || '')) {
                     self._avisarTokenSiExpirado();
                     /* v6.09: si el servidor rechazó por CONTRASEÑA, hay que
@@ -1720,7 +1722,7 @@ const app = {
         else {
           const data = await resp.json();
           if (data && data.ok && data.pase) return { ok: true, data: data };
-          if (data && data.codigo === 'ACCESO_PENDIENTE') return { ok: false, accesoPendiente: true, data: data, error: data.error };
+          if (data && (data.codigo === 'ACCESO_PENDIENTE' || data.codigo === 'ACCESO_REVOCADO')) return { ok: false, accesoPendiente: true, data: data, error: data.error };
           ultimo = (data && data.error) ? data.error : 'el servidor respondió sin pase';
         }
       } catch (e) { ultimo = (e && e.message) ? e.message : 'sin conexión'; }
@@ -1814,9 +1816,10 @@ const app = {
   /* La decisión la toma el servidor; esta pantalla solo explica el estado. No borra reportes del teléfono. */
   async _mostrarAccesoPendiente(data) {
     const d = data || {};
-    this._accesoPendiente = { email: String(d.email || (this.usuario && this.usuario.email) || ''), estado: d.estado || 'ninguno', nombre: (this.usuario && this.usuario.nombre) || '' };
+    this._accesoPendiente = { email: String(d.email || (this.usuario && this.usuario.email) || ''), estado: d.codigo === 'ACCESO_REVOCADO' ? 'revocado' : (d.estado || 'ninguno'), nombre: (this.usuario && this.usuario.nombre) || '' };
     this.usuario = null;
     this._pase = '';
+    document.querySelectorAll('.cbvi-modal-js').forEach(m => m.remove());
     try { await DB.guardarConfig('sesion', null); } catch (e) {}
     this._pintarAccesoPendiente();
     this.irA('pantallaAccesoPendiente');
@@ -1829,7 +1832,8 @@ const app = {
     const textos = {
       ninguno: ['Solicite su acceso', 'Esta app es solo para el personal autorizado. Envíe sus datos y un administrador revisará la solicitud.'],
       pendiente: ['Solicitud enviada', 'Un administrador debe aprobarla. Cuando la aprueben, toque «Revisar de nuevo».'],
-      rechazada: ['Solicitud no aprobada', 'Un administrador no aprobó este acceso. Si cree que es un error, contacte a su administrador.']
+      rechazada: ['Solicitud no aprobada', 'Un administrador no aprobó este acceso. Si cree que es un error, contacte a su administrador.'],
+      revocado: ['Acceso revocado', 'Un administrador retiró el acceso de esta cuenta. Si cree que es un error, contacte a su administrador.']
     };
     const t = textos[p.estado] || textos.ninguno;
     document.getElementById('accesoTitulo').textContent = t[0];
@@ -1868,8 +1872,8 @@ const app = {
         });
         const d = await resp.json();
         if (d && d.ok && d.pase) { this.toast('Acceso aprobado. Entre de nuevo con su cuenta.', 'exito'); setTimeout(() => location.reload(), 1200); return; }
-        if (d && d.codigo === 'ACCESO_PENDIENTE') {
-          this._accesoPendiente.estado = d.estado;
+        if (d && (d.codigo === 'ACCESO_PENDIENTE' || d.codigo === 'ACCESO_REVOCADO')) {
+          this._accesoPendiente.estado = d.codigo === 'ACCESO_REVOCADO' ? 'revocado' : d.estado;
           this._pintarAccesoPendiente();
           this.toast('Su solicitud sigue pendiente.', 'info');
           return;
@@ -1877,6 +1881,20 @@ const app = {
         this.toast('Su ingreso venció. Toque «Usar otra cuenta» y entre de nuevo.', 'error');
       } catch (e) { this.toast('Sin conexión. Intente de nuevo.', 'error'); }
     });
+  },
+
+  /* El servidor decide en cada petición: si responde que la cuenta ya no tiene acceso, la sesión se cierra en ese momento. */
+  _vigilarRespuestaAcceso(j) {
+    if (!this.usuario || !j || j.ok !== false) return;
+    if (j.codigo === 'ACCESO_PENDIENTE' || j.codigo === 'ACCESO_REVOCADO') return this._mostrarAccesoPendiente(j);
+  },
+
+  _revisarAccesoAlVolver() {
+    if (document.visibilityState === 'hidden' || !this.usuario) return;
+    const ahora = Date.now();
+    if (ahora - (this._ultimaRevisionAcceso || 0) < 120000) return;
+    this._ultimaRevisionAcceso = ahora;
+    return this._renovarPaseSesion();
   },
 
   salirDeAccesoPendiente() {
@@ -5355,7 +5373,10 @@ const app = {
     if (this._tourActivo) return;
     try { if (localStorage.getItem(clave)) return; } catch (e) { return; }
     try { localStorage.setItem(clave, '1'); } catch (e) {}
-    setTimeout(() => { try { this._preguntarTour(esAdm ? 'admin' : 'no_admin'); } catch (e) {} }, 700);
+    setTimeout(() => {
+      if (!this.usuario) { try { localStorage.removeItem(clave); } catch (e) {} return; }
+      try { this._preguntarTour(esAdm ? 'admin' : 'no_admin'); } catch (e) {}
+    }, 700);
   },
 
   _preguntarTour(rol) {
@@ -6929,6 +6950,7 @@ ${anexo}`;
     actualizar();
     window.addEventListener('online', actualizar);
     window.addEventListener('offline', actualizar);
+    document.addEventListener('visibilitychange', () => this._revisarAccesoAlVolver());
   },
 
   registrarServiceWorker() {
