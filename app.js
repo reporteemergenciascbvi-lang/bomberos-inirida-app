@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.74';
+const APP_VERSION = '6.75';
 const APP_VERSION_NOTAS = [
+  'v6.75: El reporte avisa si las horas quedaron en desorden (por ejemplo, la salida antes de la llamada) y lo lleva a corregirlas. La pantalla de ingreso estrena fondo.',
   'v6.74: Control de acceso reforzado: una cuenta sin aprobar o bloqueada ya no puede entrar ni enviar, aunque tuviera la sesión abierta.',
   'v6.73: Más control de acceso: una cuenta nueva debe ser aprobada por un administrador antes de usar la app. Quienes ya la usan siguen entrando igual.',
   'v6.72: El PDF del reporte vuelve a traer fotos y firmas también en los reportes descargados al teléfono. Inicio más ordenado: menos ruido, los últimos incidentes y accesos más compactos.',
@@ -3369,6 +3370,8 @@ const app = {
         if (!seguir) return;
       }
     } catch(eV) { /* validación nunca debe romper el envío */ }
+    // v6.75: horas en desorden → confirmar antes de enviar
+    try { if (!(await this._confirmarOrdenDeHoras(r))) return; } catch (eH) { /* nunca rompe el envío */ }
     this._enviandoReporte = true;
     if (btn) { btn.disabled = true; btn.style.opacity='0.65'; btn.innerHTML='<span class="ld-sirena"></span> Enviando...'; }
     try {
@@ -4906,6 +4909,9 @@ const app = {
       console.error('leerFormulario error:', formErr);
       return;
     }
+
+    // v6.75: horas en desorden → confirmar antes de guardar
+    try { if (!(await this._confirmarOrdenDeHoras(r))) return; } catch (eH) { /* nunca rompe el guardado */ }
 
     // Aviso: las fotos NO se actualizan desde el editor admin
     // (las fotos del Sheet/Drive se mantienen intactas; este editor edita
@@ -6909,6 +6915,48 @@ ${anexo}`;
   _pop(el) {
     if (!el) return;
     el.classList.remove('cbvi-pop'); void el.offsetWidth; el.classList.add('cbvi-pop');
+  },
+
+  /* v6.75: las cuatro horas del reporte deben ir en orden (llamada → salida → llegada →
+     cierre). Devuelve las que quedaron ANTES de una hora previa; las vacías se saltan.
+     Nunca bloquea: quien llama decide con una confirmación (puede haber un caso real). */
+  _horasFueraDeOrden(r) {
+    const pasos = [
+      ['f_fecha_llamada', r && r.fechaLlamada, 'Llamada'],
+      ['f_fecha_salida', r && r.fechaSalida, 'Salida'],
+      ['f_fecha_llegada', r && r.fechaLlegada, 'Llegada'],
+      ['f_fecha_cierre', r && r.fechaCierre, 'Cierre']
+    ];
+    const ms = v => { const t = new Date(String(v || '')).getTime(); return isNaN(t) ? null : t; };
+    const malas = [];
+    let previa = null;
+    pasos.forEach(p => {
+      const t = ms(p[1]);
+      if (t === null) return;
+      if (previa && t < previa.t) malas.push({ id: p[0], nombre: p[2], antesDe: previa.nombre });
+      else previa = { t: t, nombre: p[2] };
+    });
+    return malas;
+  },
+
+  /* v6.75: avisa y deja corregir. true = seguir con el guardado. */
+  async _confirmarOrdenDeHoras(r) {
+    let malas = [];
+    try { malas = this._horasFueraDeOrden(r); } catch (e) { return true; }
+    if (!malas.length) return true;
+    const seguir = await this._confirmarAsync(
+      '⚠️ <b>Las horas del reporte no van en orden:</b><br><br>'
+      + malas.map(m => '• <b>' + this._esc(m.nombre) + '</b> quedó antes que ' + this._esc(m.antesDe)).join('<br>')
+      + '<br><br>Revise el día y la hora. Un error aquí daña los tiempos de respuesta del reporte.',
+      'Guardar así', 'Corregir');
+    if (seguir) return true;
+    malas.forEach(m => this._marcarCampoFalta(m.id));
+    const primero = document.getElementById(malas[0].id);
+    if (primero) {
+      try { primero.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+      setTimeout(() => { try { primero.focus(); } catch (e) {} }, 300);
+    }
+    return false;
   },
 
   /* v6.38: marca un campo obligatorio vacío (rojo + sacudida) y limpia la marca en
