@@ -24,8 +24,9 @@ const URL_BACKEND = 'https://script.google.com/macros/s/AKfycbzVI3oEk78vHY2kQ15o
 // Video-tutorial: enlace que Jeferson grabará. Hasta que exista, URL_TUTORIAL_VIDEO
 // está vacía y el botón lo dice ("Video: próximamente"). Es un solo lugar que cambiar.
 const URL_TUTORIAL_VIDEO = '';
-const APP_VERSION = '6.75';
+const APP_VERSION = '6.76';
 const APP_VERSION_NOTAS = [
+  'v6.76: Con señal débil la app abre más rápido con lo que ya tiene guardado y se actualiza sola por detrás. Si algo falla en su teléfono, la app ahora lo avisa sola al administrador para corregirlo.',
   'v6.75: El reporte avisa si las horas quedaron en desorden (por ejemplo, la salida antes de la llamada) y lo lleva a corregirlas. La pantalla de ingreso estrena fondo.',
   'v6.74: Control de acceso reforzado: una cuenta sin aprobar o bloqueada ya no puede entrar ni enviar, aunque tuviera la sesión abierta.',
   'v6.73: Más control de acceso: una cuenta nueva debe ser aprobada por un administrador antes de usar la app. Quienes ya la usan siguen entrando igual.',
@@ -484,6 +485,8 @@ const app = {
   async init() {
     // v5.48 SEGURIDAD: inyecta el idToken de Google en toda petición al backend.
     this._instalarFetchToken();
+    // v6.76: errores del teléfono → servidor (lo antes posible, para ver también los del arranque).
+    this._instalarReporteErrores();
 
     // v5.88: aplica el diseño elegido (original | apple) antes de pintar la UI.
     this.aplicarTema(this._temaGuardado(), true);
@@ -543,6 +546,8 @@ const app = {
            (v5.84) y tiene candado _syncEnCurso, así que subir al arranque no duplica. */
         if (navigator.onLine) this.sincronizarPendientes(true).catch(() => {});
         if (navigator.onLine) this.sincronizarEDANPendientes(true).catch(() => {});  // v6.67
+        // v6.76: errores guardados de sesiones anteriores; con retraso para no competir con el arranque.
+        setTimeout(() => this._enviarErroresCliente(), 8000);
       } else {
         this.irA('pantallaRegistroComplemento');
       }
@@ -555,6 +560,7 @@ const app = {
       this.toast('Conexión restablecida. Sincronizando...', 'exito');
       this.sincronizarPendientes(true);
       this.sincronizarEDANPendientes(true).catch(() => {});  // v6.67
+      setTimeout(() => this._enviarErroresCliente(), 5000);  // v6.76
     });
   },
 
@@ -691,6 +697,98 @@ const app = {
       }
     };
     intentar();
+  },
+
+  /* ── v6.76: ERRORES DEL TELÉFONO → servidor ─────────────────────────────────
+     Antes un error de JavaScript se quedaba en el teléfono y se sabía cuando un bombero lo contaba.
+     Ahora se guarda un resumen técnico (mensaje, archivo:línea, versión) en una cola local y se manda
+     al backend (reportarErrorCliente → Log_Seguridad) cuando hay señal y sesión. Sin datos de
+     reportes ni de personas: solo el texto del error, recortado.
+     Reglas: nunca rompe la app (todo en try/catch, sin reintentos en bucle); ignora el ruido sin
+     información ("Script error.", fallos de carga de imágenes, ResizeObserver); el mismo error se
+     guarda una vez por sesión; máximo 5 por sesión y 10 en la cola. */
+  _ERR_COLA: 'cbvi_errores_pendientes',
+  _errVistos: null,
+  _errEnviando: false,
+  _errTimer: null,
+
+  _instalarReporteErrores() {
+    if (window.__cbviErroresInstalado) return;
+    window.__cbviErroresInstalado = true;
+    this._errVistos = {};
+    window.addEventListener('error', (ev) => {
+      try {
+        // Un <img> o <script> que no carga dispara 'error' sin mensaje: no es un error de código.
+        if (!ev || (ev.target && ev.target !== window)) return;
+        const err = ev.error;
+        this._registrarErrorCliente(ev.message || (err && err.message) || '',
+          (ev.filename || '') + (ev.lineno ? ':' + ev.lineno + (ev.colno ? ':' + ev.colno : '') : ''),
+          err && err.stack);
+      } catch (e) {}
+    }, true);
+    window.addEventListener('unhandledrejection', (ev) => {
+      try {
+        const r = ev && ev.reason;
+        const msg = r && r.message ? r.message : (typeof r === 'string' ? r : '');
+        this._registrarErrorCliente('Promesa sin atender: ' + msg, '', r && r.stack);
+      } catch (e) {}
+    });
+  },
+
+  _registrarErrorCliente(mensaje, lugar, pila) {
+    try {
+      const m = String(mensaje || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+      if (!m || /^Script error\.?$/i.test(m) || /ResizeObserver loop/i.test(m)) return;
+      if (/^Promesa sin atender:\s*$/.test(m)) return;   // rechazo sin motivo: nada que investigar
+      // Lugar: solo nombre de archivo y línea, sin dominio ni ?v=. Si no vino, la primera línea útil de la pila.
+      let f = String(lugar || '');
+      if (!f && pila) {
+        const linea = String(pila).split('\n').find(l => /\.(js|html)/.test(l)) || '';
+        const mm = linea.match(/([\w.-]+\.(?:js|html))(?:\?[^:)\s]*)?:(\d+)(?::(\d+))?/);
+        if (mm) f = mm[1] + ':' + mm[2] + (mm[3] ? ':' + mm[3] : '');
+      }
+      f = f.replace(/^.*\//, '').replace(/\?[^:]*/, '').slice(0, 80);
+      if (!this._errVistos) this._errVistos = {};
+      const clave = f + '|' + m;
+      if (this._errVistos[clave] || Object.keys(this._errVistos).length >= 5) return;
+      this._errVistos[clave] = true;
+      let cola = [];
+      try { cola = JSON.parse(localStorage.getItem(this._ERR_COLA) || '[]'); } catch (e) { cola = []; }
+      if (!Array.isArray(cola)) cola = [];
+      cola.push({ m: m, f: f, v: APP_VERSION });
+      localStorage.setItem(this._ERR_COLA, JSON.stringify(cola.slice(-10)));
+      clearTimeout(this._errTimer);
+      this._errTimer = setTimeout(() => this._enviarErroresCliente(), 3000);
+    } catch (e) {}
+  },
+
+  async _enviarErroresCliente() {
+    if (this._errEnviando) return;
+    try {
+      if (!navigator.onLine) return;
+      const pase = (this.usuario && this.usuario.pase) || this._pase || '';
+      if (!pase) return;                       // sin sesión el servidor lo rechazaría: espera en la cola
+      let cola = [];
+      try { cola = JSON.parse(localStorage.getItem(this._ERR_COLA) || '[]'); } catch (e) { cola = []; }
+      if (!Array.isArray(cola) || !cola.length) return;
+      const lote = cola.slice(0, 5);
+      this._errEnviando = true;
+      const resp = await fetch(URL_BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ accion: 'reportarErrorCliente', errores: lote })
+      });
+      const j = await resp.json();
+      if (j && j.ok) {
+        // Releer: pudo entrar otro error mientras viajaba el lote.
+        let actual = [];
+        try { actual = JSON.parse(localStorage.getItem(this._ERR_COLA) || '[]'); } catch (e) { actual = []; }
+        const resto = Array.isArray(actual) ? actual.slice(lote.length) : [];
+        if (resto.length) localStorage.setItem(this._ERR_COLA, JSON.stringify(resto));
+        else localStorage.removeItem(this._ERR_COLA);
+      }
+    } catch (e) { /* sin señal o servidor caído: queda en la cola para la próxima */ }
+    finally { this._errEnviando = false; }
   },
 
   // ── v5.48 SEGURIDAD ────────────────────────────────────────────────────────
